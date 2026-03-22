@@ -60,14 +60,3 @@ export type TabId = 'home' | 'studio' | 'benchmarks' | 'profile';
 export type WizardStep = 'setup' | 'capture' | 'analyzing' | 'results';
 
 export { ARTISTS_BY_STYLE };
-
-export const DAILY_MASTERPIECES: { artist: string; work: string; style: Style }[] = [
-  { artist: 'Jean-François Millet', work: 'The Gleaners', style: 'Realism' },
-  { artist: 'Claude Monet', work: 'Impression, Sunrise', style: 'Impressionism' },
-  { artist: 'Edvard Munch', work: 'The Scream', style: 'Expressionism' },
-  { artist: 'Piet Mondrian', work: 'Composition with Red, Blue, and Yellow', style: 'Abstract Art' },
-  { artist: 'Ilya Repin', work: 'Barge Haulers on the Volga', style: 'Realism' },
-  { artist: 'Berthe Morisot', work: 'The Cradle', style: 'Impressionism' },
-  { artist: 'Mark Rothko', work: 'No. 61 (Rust and Blue)', style: 'Abstract Art' },
-  { artist: 'Winslow Homer', work: 'The Gulf Stream', style: 'Realism' },
-];

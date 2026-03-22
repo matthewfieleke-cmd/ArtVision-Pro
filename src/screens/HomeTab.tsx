@@ -1,6 +1,8 @@
-import { Camera, ChevronRight } from 'lucide-react';
+import { Camera, ChevronRight, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { getMasterSlug } from '../data/masterCatalog';
+import { DAILY_MASTERPIECES } from '../data/dailyMasterpieces';
 import type { SavedPainting } from '../types';
-import { DAILY_MASTERPIECES } from '../types';
 import { formatShortDate, progressPercentFromPainting } from '../utils';
 
 type Props = {
@@ -13,6 +15,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
   const dayIndex =
     Math.floor(Date.now() / 86400000) % DAILY_MASTERPIECES.length;
   const daily = DAILY_MASTERPIECES[dayIndex];
+  const masterSlug = getMasterSlug(daily.style, daily.artist);
   const wip = [...paintings].sort(
     (a, b) =>
       new Date(b.versions[b.versions.length - 1]?.createdAt ?? 0).getTime() -
@@ -21,14 +24,57 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
 
   return (
     <div className="animate-fade-in space-y-8 px-4 pb-28 pt-4">
-      <section className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-slate-50 p-5 shadow-card">
-        <p className="text-xs font-semibold uppercase tracking-widest text-violet-600/90">Daily masterpiece</p>
-        <p className="mt-2 font-display text-xl text-slate-900">
-          <span className="text-violet-700">{daily.artist}</span>
-          <span className="text-slate-300"> — </span>
-          <em className="not-italic text-slate-800">{daily.work}</em>
+      <section className="overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-slate-50 shadow-card">
+        <p className="px-5 pt-5 text-xs font-semibold uppercase tracking-widest text-violet-600/90">
+          Daily masterpiece
         </p>
-        <p className="mt-1 text-xs font-medium text-slate-500">{daily.style}</p>
+        <div className="px-5 pb-5 pt-2">
+          <p className="font-display text-xl text-slate-900">
+            <span className="text-violet-700">{daily.artist}</span>
+            <span className="text-slate-300"> — </span>
+            <em className="not-italic text-slate-800">{daily.work}</em>
+          </p>
+          <p className="mt-1 text-xs font-medium text-slate-500">{daily.style}</p>
+
+          {daily.imageUrl ? (
+            <a
+              href={daily.paintingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 block overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm"
+            >
+              <img
+                src={daily.imageUrl}
+                alt={daily.imageAlt}
+                className="max-h-48 w-full object-cover object-top"
+                loading="lazy"
+              />
+            </a>
+          ) : null}
+
+          <p className="mt-4 text-sm leading-relaxed text-slate-600">{daily.blurb}</p>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <a
+              href={daily.paintingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-500"
+            >
+              {daily.paintingLinkLabel}
+              <ExternalLink className="h-3.5 w-3.5 opacity-90" />
+            </a>
+            <Link
+              to={`/master/${masterSlug}`}
+              className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-50"
+            >
+              Master profile: {daily.artist}
+            </Link>
+          </div>
+          {daily.imageCredit ? (
+            <p className="mt-2 text-[10px] text-slate-400">{daily.imageCredit}</p>
+          ) : null}
+        </div>
       </section>
 
       <header className="text-center">
