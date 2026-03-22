@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { CritiqueRequestBody } from '../lib/critiqueTypes';
-import { runOpenAICritique } from '../lib/openaiCritique';
+import type { CritiqueRequestBody } from '../lib/critiqueTypes.js';
+import { runOpenAICritique } from '../lib/openaiCritique.js';
 
 function setCors(res: VercelResponse, origin: string | undefined): void {
   if (origin) {

@@ -1,6 +1,6 @@
-import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists';
-import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria';
-import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes';
+import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
+import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
+import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 
 const CRITIQUE_JSON_SCHEMA = {
   name: 'painting_critique',

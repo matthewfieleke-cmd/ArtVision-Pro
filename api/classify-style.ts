@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle';
+import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.js';
 
 function setCors(res: VercelResponse, origin: string | undefined): void {
   if (origin) {

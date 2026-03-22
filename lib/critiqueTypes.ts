@@ -1,4 +1,4 @@
-import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria';
+import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
 
 export type CritiqueCategoryDTO = {
   criterion: CriterionLabel;
