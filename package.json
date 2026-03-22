@@ -8,6 +8,7 @@
     "dev:api": "tsx server/dev-api.ts",
     "dev:full": "concurrently -k -n api,vite -c blue,green \"npm run dev:api\" \"vite\"",
     "icons": "node scripts/generate-pwa-icons.mjs",
+    "prebuild": "node scripts/generate-pwa-icons.mjs",
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
