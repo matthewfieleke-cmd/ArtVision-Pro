@@ -4,7 +4,7 @@ const STORAGE_KEY = 'artvision-daily-masterpiece-index';
 
 function readIndex(): number {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === null) return 0;
     const n = Number.parseInt(raw, 10);
     if (!Number.isFinite(n) || n < 0) return 0;
@@ -16,13 +16,13 @@ function readIndex(): number {
 
 function writeIndex(n: number): void {
   try {
-    sessionStorage.setItem(STORAGE_KEY, String(n % DAILY_MASTERPIECES.length));
+    localStorage.setItem(STORAGE_KEY, String(n % DAILY_MASTERPIECES.length));
   } catch {
     /* ignore */
   }
 }
 
-/** Current masterpiece slot (0 … length-1). */
+/** Current masterpiece slot (0 … length-1). Persists across app restarts (localStorage). */
 export function getDailyMasterpieceIndex(): number {
   return readIndex();
 }
