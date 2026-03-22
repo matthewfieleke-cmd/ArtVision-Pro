@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { analyzePainting } from './analyzePainting';
+import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { loadPaintings, savePaintings } from './storage';
@@ -26,6 +27,8 @@ type FlowState = {
   medium: Medium | null;
   imageDataUrl?: string;
   critique?: CritiqueResult;
+  /** How the current critique was produced */
+  critiqueSource?: 'api' | 'local';
   mode: 'new' | 'resubmit';
   targetPainting?: SavedPainting;
 };
@@ -102,17 +105,40 @@ export default function App() {
         f.mode === 'resubmit' && f.targetPainting
           ? f.targetPainting.versions[f.targetPainting.versions.length - 1]
           : undefined;
-      const critique = await analyzePainting(
-        compressed,
-        f.style,
-        f.medium,
+      let critique: CritiqueResult;
+      let critiqueSource: 'api' | 'local' = 'local';
+      const prevPayload =
         prev
           ? {
               imageDataUrl: await compressDataUrl(prev.imageDataUrl),
               critique: prev.critique,
             }
-          : undefined
-      );
+          : undefined;
+
+      if (shouldTryApiFirst()) {
+        try {
+          critique = await fetchCritiqueFromApi({
+            style: f.style,
+            medium: f.medium,
+            imageDataUrl: compressed,
+            ...(prevPayload
+              ? {
+                  previousImageDataUrl: prevPayload.imageDataUrl,
+                  previousCritique: prevPayload.critique,
+                }
+              : {}),
+          });
+          critiqueSource = 'api';
+        } catch (err) {
+          console.warn('Critique API unavailable, using local analysis:', err);
+          critique = await analyzePainting(compressed, f.style, f.medium, prevPayload);
+          critiqueSource = 'local';
+        }
+      } else {
+        critique = await analyzePainting(compressed, f.style, f.medium, prevPayload);
+        critiqueSource = 'local';
+      }
+
       setFlow((cur) =>
         cur
           ? {
@@ -120,6 +146,7 @@ export default function App() {
               step: 'results',
               imageDataUrl: compressed,
               critique,
+              critiqueSource,
             }
           : cur
       );
@@ -382,7 +409,11 @@ export default function App() {
             {flow.step === 'analyzing' && (
               <div className="flex flex-col items-center justify-center gap-4 py-20">
                 <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
-                <p className="text-sm text-ink-400">Mapping value, edges, color, and surface…</p>
+                <p className="text-sm text-ink-400">
+                  {shouldTryApiFirst()
+                    ? 'Consulting the vision model—usually 15–45s…'
+                    : 'Mapping value, edges, color, and surface…'}
+                </p>
               </div>
             )}
 
@@ -391,6 +422,13 @@ export default function App() {
                 <div className="overflow-hidden rounded-2xl border border-white/10">
                   <img src={flow.imageDataUrl} alt="" className="max-h-56 w-full object-contain bg-black" />
                 </div>
+                {flow.critiqueSource === 'local' ? (
+                  <p className="rounded-lg border border-amber-500/25 bg-ink-800/80 px-3 py-2 text-center text-xs text-amber-200/90">
+                    Offline / fallback critique (heuristic). Set{' '}
+                    <code className="text-ink-300">OPENAI_API_KEY</code> and run{' '}
+                    <code className="text-ink-300">npm run dev:full</code> for full vision feedback.
+                  </p>
+                ) : null}
                 {flow.critique.comparisonNote ? (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-950/40 p-4 text-sm text-amber-50/95">
                     <span className="text-xs font-bold uppercase tracking-wide text-amber-400/90">vs. previous</span>

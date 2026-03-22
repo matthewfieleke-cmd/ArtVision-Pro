@@ -1,9 +1,12 @@
+import { ARTISTS_BY_STYLE } from '../shared/artists';
+import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria';
+
 export const STYLES = [
   'Realism',
   'Impressionism',
   'Expressionism',
   'Abstract Art',
-] as const;
+] as const satisfies readonly (keyof typeof ARTISTS_BY_STYLE)[];
 
 export const MEDIUMS = [
   'Oil on Canvas',
@@ -15,25 +18,11 @@ export const MEDIUMS = [
 export type Style = (typeof STYLES)[number];
 export type Medium = (typeof MEDIUMS)[number];
 
-export const CRITERIA = [
-  'Composition',
-  'Value structure',
-  'Color relationships',
-  'Drawing and proportion',
-  'Edge control',
-  'Brushwork / handling',
-  'Unity and variety',
-  'Originality / expressive force',
-] as const;
+export const CRITERIA = CRITERIA_ORDER;
 
-export type Criterion = (typeof CRITERIA)[number];
+export type Criterion = (typeof CRITERIA_ORDER)[number];
 
-export const RATING_LEVELS = [
-  'Beginner',
-  'Intermediate',
-  'Advanced',
-  'Master',
-] as const;
+export { RATING_LEVELS };
 
 export type RatingLevel = (typeof RATING_LEVELS)[number];
 
@@ -70,36 +59,7 @@ export type TabId = 'home' | 'studio' | 'benchmarks' | 'profile';
 
 export type WizardStep = 'setup' | 'capture' | 'analyzing' | 'results';
 
-export const ARTISTS_BY_STYLE: Record<Style, string[]> = {
-  Realism: [
-    'Gustave Courbet',
-    'Jean-François Millet',
-    'Ilya Repin',
-    'Honoré Daumier',
-    'Winslow Homer',
-  ],
-  Impressionism: [
-    'Claude Monet',
-    'Pierre-Auguste Renoir',
-    'Edgar Degas',
-    'Camille Pissarro',
-    'Berthe Morisot',
-  ],
-  Expressionism: [
-    'Edvard Munch',
-    'Wassily Kandinsky',
-    'Egon Schiele',
-    'Ernst Ludwig Kirchner',
-    'Emil Nolde',
-  ],
-  'Abstract Art': [
-    'Wassily Kandinsky',
-    'Piet Mondrian',
-    'Mark Rothko',
-    'Kazimir Malevich',
-    'Jackson Pollock',
-  ],
-};
+export { ARTISTS_BY_STYLE };
 
 export const DAILY_MASTERPIECES: { artist: string; work: string; style: Style }[] = [
   { artist: 'Jean-François Millet', work: 'The Gleaners', style: 'Realism' },

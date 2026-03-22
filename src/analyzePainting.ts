@@ -241,7 +241,7 @@ function buildCategory(
   level: RatingLevel,
   style: Style,
   medium: Medium,
-  benchmarks: string[]
+  benchmarks: readonly string[]
 ): CritiqueCategory {
   const masterNames = benchmarks.slice(0, 3).join(', ');
   const templates: Record<
