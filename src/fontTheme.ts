@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'artvision-font-preset';
-export const DEFAULT_FONT_PRESET_ID = 'inter-instrument';
+export const DEFAULT_FONT_PRESET_ID = 'source-pair';
 
 export type FontPreset = {
   id: string;
@@ -15,7 +15,7 @@ export const FONT_PRESETS: FontPreset[] = [
   {
     id: 'inter-instrument',
     label: 'Inter & Instrument Serif',
-    vibe: 'Current default — clean UI, editorial headlines',
+    vibe: 'Clean UI, editorial headlines',
     sans: '"Inter", system-ui, sans-serif',
     display: '"Instrument Serif", Georgia, serif',
   },
@@ -29,7 +29,7 @@ export const FONT_PRESETS: FontPreset[] = [
   {
     id: 'source-pair',
     label: 'Source Sans 3 & Source Serif 4',
-    vibe: 'Classic readable pairing, Adobe-like',
+    vibe: 'Default — classic readable pairing, Adobe-like',
     sans: '"Source Sans 3", system-ui, sans-serif',
     display: '"Source Serif 4", Georgia, serif',
   },

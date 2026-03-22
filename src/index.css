@@ -7,8 +7,8 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', system-ui, sans-serif;
-    --font-display: 'Instrument Serif', Georgia, serif;
+    --font-sans: 'Source Sans 3', system-ui, sans-serif;
+    --font-display: 'Source Serif 4', Georgia, serif;
   }
   html {
     -webkit-tap-highlight-color: transparent;
