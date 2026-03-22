@@ -20,13 +20,13 @@ npm run dev
 npm run dev:full
 ```
 
-Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique` without CORS issues.
+Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique` and `/api/classify-style` without CORS issues.
 
 ## Deploy (Vercel)
 
 1. Set environment variable `OPENAI_API_KEY` in the Vercel project.
-2. Deploy this repo; the serverless route is `api/critique.ts`.
-3. In Vite build, set `VITE_CRITIQUE_API_URL` to your deployment origin (e.g. `https://your-app.vercel.app`) so the PWA calls the same host’s `/api/critique`.
+2. Deploy this repo; serverless routes include `api/critique.ts` and `api/classify-style.ts`.
+3. In Vite build, set `VITE_CRITIQUE_API_URL` to your deployment origin (e.g. `https://your-app.vercel.app`) so the PWA calls the same host’s `/api/critique` and `/api/classify-style`.
 
 ## Deploy (GitHub Pages) + Add to Home Screen
 

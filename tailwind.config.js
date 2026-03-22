@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
-        display: ['Fraunces', 'Georgia', 'serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Instrument Serif', 'Georgia', 'serif'],
       },
       colors: {
         ink: {
@@ -21,10 +21,14 @@ export default {
           900: '#0f172a',
         },
         accent: {
-          DEFAULT: '#4f46e5',
-          muted: '#6366f1',
-          deep: '#3730a3',
+          DEFAULT: '#7c3aed',
+          muted: '#8b5cf6',
+          deep: '#6d28d9',
         },
+      },
+      boxShadow: {
+        soft: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+        card: '0 4px 24px -4px rgb(15 23 42 / 0.08), 0 2px 8px -2px rgb(15 23 42 / 0.04)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',

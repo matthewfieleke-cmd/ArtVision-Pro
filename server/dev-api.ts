@@ -1,10 +1,11 @@
 /**
- * Local dev API: mirrors Vercel /api/critique. Run: npm run dev:api
- * Vite proxies /api → http://127.0.0.1:8787 (see vite.config.ts).
+ * Local dev API: mirrors Vercel /api/critique and /api/classify-style.
+ * Run: npm run dev:api — Vite proxies /api → http://127.0.0.1:8787
  */
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { config } from 'dotenv';
 import type { CritiqueRequestBody } from '../lib/critiqueTypes';
+import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle';
 import { runOpenAICritique } from '../lib/openaiCritique';
 
 config({ path: '.env.local' });
@@ -12,8 +13,7 @@ config({ path: '.env' });
 
 const PORT = Number(process.env.CRITIQUE_API_PORT ?? 8787);
 
-const server = createServer(async (req, res) => {
-  const origin = req.headers.origin;
+function setCorsHeaders(res: ServerResponse, origin: string | undefined): void {
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
@@ -23,6 +23,10 @@ const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
+}
+
+const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  setCorsHeaders(res, req.headers.origin);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -30,7 +34,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== 'POST' || req.url !== '/api/critique') {
+  const url = req.url ?? '';
+  const isCritique = url === '/api/critique';
+  const isClassify = url === '/api/classify-style';
+
+  if (req.method !== 'POST' || (!isCritique && !isClassify)) {
     res.writeHead(req.method === 'POST' ? 404 : 405, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
     return;
@@ -54,21 +62,36 @@ const server = createServer(async (req, res) => {
   }
 
   try {
-    const parsed = JSON.parse(body) as CritiqueRequestBody;
+    if (isCritique) {
+      const parsed = JSON.parse(body) as CritiqueRequestBody;
+      if (!parsed?.imageDataUrl) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'imageDataUrl required' }));
+        return;
+      }
+      const result = await runOpenAICritique(key, parsed);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    const parsed = JSON.parse(body) as { imageDataUrl?: string };
     if (!parsed?.imageDataUrl) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'imageDataUrl required' }));
       return;
     }
-    const result = await runOpenAICritique(key, parsed);
+    const result = await runOpenAIClassifyStyle(key, parsed.imageDataUrl);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   } catch (e) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: e instanceof Error ? e.message : 'Critique failed' }));
+    res.end(JSON.stringify({ error: e instanceof Error ? e.message : 'Request failed' }));
   }
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Critique API listening on http://127.0.0.1:${PORT}/api/critique`);
+  console.log(
+    `API listening on http://127.0.0.1:${PORT}/api/critique and .../api/classify-style`
+  );
 });

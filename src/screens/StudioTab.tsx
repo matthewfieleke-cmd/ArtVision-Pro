@@ -30,33 +30,33 @@ function CritiquePanels({ critique }: { critique: CritiqueResult }) {
   return (
     <div className="space-y-3">
       {critique.comparisonNote ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-950/40 p-3 text-sm text-amber-100/95">
-          <span className="text-xs font-bold uppercase tracking-wide text-amber-400/90">vs. previous</span>
-          <p className="mt-1 leading-relaxed text-amber-50/95">{critique.comparisonNote}</p>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
+          <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
         </div>
       ) : null}
-      <p className="text-sm leading-relaxed text-ink-300">{critique.summary}</p>
+      <p className="text-sm leading-relaxed text-slate-600">{critique.summary}</p>
       {critique.categories.map((cat) => (
         <article
           key={cat.criterion}
-          className="rounded-xl border border-white/10 bg-ink-800/60 p-4 shadow-sm"
+          className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
         >
           <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-semibold text-white">{cat.criterion}</h4>
-            <span className="shrink-0 rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-200">
+            <h4 className="text-sm font-semibold text-slate-900">{cat.criterion}</h4>
+            <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
               {cat.level}
             </span>
           </div>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-950">
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className="h-full rounded-full bg-indigo-500 transition-all duration-700"
+              className="h-full rounded-full bg-violet-500 transition-all duration-700"
               style={{ width: levelWidth(cat.level) }}
             />
           </div>
-          <p className="mt-3 text-sm leading-relaxed text-ink-300">{cat.feedback}</p>
-          <div className="mt-3 rounded-lg border border-white/5 bg-ink-900/80 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-500">Next level</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-200">{cat.actionPlan}</p>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">{cat.feedback}</p>
+          <div className="mt-3 rounded-xl bg-slate-50 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-700">{cat.actionPlan}</p>
           </div>
         </article>
       ))}
@@ -95,32 +95,32 @@ export function StudioTab({
               onSelectPainting(null);
               setCompareIdx(0);
             }}
-            className="rounded-full p-2 text-ink-400 hover:bg-white/5 hover:text-white"
+            className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
             aria-label="Back to studio list"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate font-display text-xl font-semibold text-white">{selected.title}</h2>
-            <p className="text-xs text-ink-500">
+            <h2 className="truncate font-display text-xl font-normal text-slate-900">{selected.title}</h2>
+            <p className="text-xs text-slate-500">
               {selected.style} · {selected.medium} · {vCount} version{vCount !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-ink-800/40 p-3">
-          <div className="flex items-center justify-between text-xs text-ink-400">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500">
             <span>Progress</span>
             <span>{pct}%</span>
           </div>
-          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-ink-950">
-            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
           </div>
         </div>
 
         {vCount >= 2 ? (
           <div className="space-y-2">
-            <label className="text-xs font-medium text-ink-500" htmlFor="compare-slider">
+            <label className="text-xs font-semibold text-slate-500" htmlFor="compare-slider">
               Before / after
             </label>
             <input
@@ -130,26 +130,26 @@ export function StudioTab({
               max={vCount - 2}
               value={safeIdx}
               onChange={(e) => setCompareIdx(Number(e.target.value))}
-              className="w-full accent-indigo-500"
+              className="w-full accent-violet-600"
             />
             <div className="grid grid-cols-2 gap-2">
-              <figure className="overflow-hidden rounded-xl border border-white/10">
+              <figure className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <img src={left.imageDataUrl} alt="" className="aspect-[3/4] w-full object-cover" />
-                <figcaption className="p-2 text-[10px] text-ink-500">
+                <figcaption className="p-2 text-[10px] text-slate-500">
                   v{safeIdx + 1} · {formatShortDate(left.createdAt)}
                 </figcaption>
               </figure>
-              <figure className="overflow-hidden rounded-xl border border-indigo-500/30">
+              <figure className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
                 <img src={right.imageDataUrl} alt="" className="aspect-[3/4] w-full object-cover" />
-                <figcaption className="p-2 text-[10px] text-ink-500">
+                <figcaption className="p-2 text-[10px] text-slate-500">
                   Latest · {formatShortDate(right.createdAt)}
                 </figcaption>
               </figure>
             </div>
           </div>
         ) : (
-          <figure className="overflow-hidden rounded-xl border border-white/10">
-            <img src={versions[0]?.imageDataUrl} alt="" className="w-full object-contain max-h-80 bg-black" />
+          <figure className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <img src={versions[0]?.imageDataUrl} alt="" className="w-full object-contain max-h-80 bg-slate-100" />
           </figure>
         )}
 
@@ -157,7 +157,7 @@ export function StudioTab({
           <button
             type="button"
             onClick={() => onResubmit(selected)}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white min-w-[140px] hover:bg-indigo-500"
+            className="inline-flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-md"
           >
             <Camera className="h-4 w-4" />
             New version
@@ -167,7 +167,7 @@ export function StudioTab({
             onClick={() => {
               if (confirm('Delete this painting and all versions?')) onDelete(selected.id);
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/40 px-4 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
           >
             <Trash2 className="h-4 w-4" />
             Delete
@@ -185,19 +185,19 @@ export function StudioTab({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-full p-2 text-ink-400 hover:bg-white/5 hover:text-white md:hidden"
+          className="rounded-full p-2 text-slate-500 hover:bg-slate-100 md:hidden"
           aria-label="Back home"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h2 className="font-display text-2xl font-semibold text-white">Studio</h2>
-          <p className="text-sm text-ink-500">Saved paintings and version history</p>
+          <h2 className="font-display text-2xl font-normal text-slate-900">Studio</h2>
+          <p className="text-sm text-slate-500">Saved paintings and version history</p>
         </div>
       </div>
 
       {paintings.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/15 bg-ink-800/30 p-10 text-center text-sm text-ink-500">
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
           Nothing saved yet. Complete a critique and tap “Save to studio.”
         </div>
       ) : (
@@ -210,24 +210,24 @@ export function StudioTab({
                 <button
                   type="button"
                   onClick={() => onSelectPainting(p.id)}
-                  className="flex w-full gap-3 rounded-2xl border border-white/10 bg-ink-800/50 p-3 text-left transition hover:border-indigo-500/40 hover:bg-ink-800"
+                  className="flex w-full gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 text-left shadow-sm transition hover:border-violet-200 hover:shadow-md"
                 >
-                  <div className="h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-ink-950">
+                  <div className="h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                     {last?.imageDataUrl ? (
                       <img src={last.imageDataUrl} alt="" className="h-full w-full object-cover" />
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1 py-0.5">
-                    <p className="font-medium text-white truncate">{p.title}</p>
-                    <p className="text-xs text-ink-500">
+                    <p className="truncate font-semibold text-slate-800">{p.title}</p>
+                    <p className="text-xs text-slate-500">
                       {p.style} · {p.medium}
                     </p>
-                    <p className="mt-2 text-[10px] text-ink-600">
+                    <p className="mt-2 text-[10px] text-slate-400">
                       {CRITERIA.length} criteria · {p.versions.length} version
                       {p.versions.length !== 1 ? 's' : ''} · {formatShortDate(last?.createdAt ?? '')}
                     </p>
-                    <div className="mt-2 h-1 w-full max-w-[120px] overflow-hidden rounded-full bg-ink-950">
-                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                    <div className="mt-2 h-1 w-full max-w-[120px] overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-violet-500" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 </button>

@@ -2,16 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
+  FolderOpen,
   ImagePlus,
   Loader2,
   Save,
   Sparkles,
+  Wand2,
   X,
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { analyzePainting } from './analyzePainting';
+import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
+import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
+import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { loadPaintings, savePaintings } from './storage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
@@ -21,20 +26,43 @@ import { StudioTab } from './screens/StudioTab';
 import type { CritiqueResult, Medium, SavedPainting, Style, TabId, WizardStep } from './types';
 import { MEDIUMS, STYLES } from './types';
 
+type StyleMode = 'manual' | 'auto';
+
 type FlowState = {
   step: WizardStep;
+  styleMode: StyleMode;
   style: Style | null;
   medium: Medium | null;
   imageDataUrl?: string;
   critique?: CritiqueResult;
-  /** How the current critique was produced */
   critiqueSource?: 'api' | 'local';
+  /** After auto style: vision or heuristic note */
+  styleClassifyMeta?: { rationale: string; source: 'api' | 'local' };
   mode: 'new' | 'resubmit';
   targetPainting?: SavedPainting;
 };
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+async function classifyStyleFromImage(dataUrl: string): Promise<{
+  style: Style;
+  rationale: string;
+  source: 'api' | 'local';
+}> {
+  const sample = await compressDataUrl(dataUrl);
+  if (shouldTryApiFirst()) {
+    try {
+      const r = await fetchClassifyStyleFromApi(sample);
+      return { ...r, source: 'api' as const };
+    } catch (e) {
+      console.warn('Style API fallback:', e);
+    }
+  }
+  const m = await computeImageMetrics(sample);
+  const h = classifyStyleFromMetrics(m);
+  return { style: h.style, rationale: h.rationale, source: 'local' as const };
 }
 
 export default function App() {
@@ -45,6 +73,7 @@ export default function App() {
   const flowRef = useRef(flow);
   flowRef.current = flow;
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [classifyBusy, setClassifyBusy] = useState(false);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -61,13 +90,16 @@ export default function App() {
     stopCamera();
     setFlow(null);
     setAnalyzeError(null);
+    setClassifyBusy(false);
   }, [stopCamera]);
 
   const startNewCritique = useCallback(() => {
     setAnalyzeError(null);
+    setClassifyBusy(false);
     setFlow({
       mode: 'new',
       step: 'setup',
+      styleMode: 'manual',
       style: null,
       medium: null,
     });
@@ -75,10 +107,12 @@ export default function App() {
 
   const startResubmit = useCallback((p: SavedPainting) => {
     setAnalyzeError(null);
+    setClassifyBusy(false);
     stopCamera();
     setFlow({
       mode: 'resubmit',
       step: 'capture',
+      styleMode: 'manual',
       style: p.style,
       medium: p.medium,
       targetPainting: p,
@@ -165,6 +199,29 @@ export default function App() {
     [flow, runAnalysis]
   );
 
+  const onPickFileForClassify = useCallback(async (file: File | null) => {
+    if (!file || !flowRef.current || flowRef.current.step !== 'setup') return;
+    setClassifyBusy(true);
+    setAnalyzeError(null);
+    try {
+      const url = await fileToDataUrl(file);
+      const { style, rationale, source } = await classifyStyleFromImage(url);
+      setFlow((cur) =>
+        cur
+          ? {
+              ...cur,
+              style,
+              styleClassifyMeta: { rationale, source },
+            }
+          : cur
+      );
+    } catch (e) {
+      setAnalyzeError(e instanceof Error ? e.message : 'Could not categorize style');
+    } finally {
+      setClassifyBusy(false);
+    }
+  }, []);
+
   const onShutter = useCallback(async () => {
     const shot = captureFrame();
     if (!shot) {
@@ -218,27 +275,32 @@ export default function App() {
     setTab('studio');
   }, []);
 
+  const canContinueFromSetup =
+    flow &&
+    flow.medium &&
+    (flow.styleMode === 'manual' ? flow.style !== null : flow.style !== null && !classifyBusy);
+
   return (
-    <div className="min-h-[100dvh] bg-ink-900">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-900/90 px-4 py-3 backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className="min-h-[100dvh] bg-slate-50">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <div>
-            <p className="font-display text-lg font-semibold tracking-tight text-white">
-              ArtVision <span className="text-indigo-400">Pro</span>
+            <p className="font-display text-xl font-normal tracking-tight text-slate-900">
+              ArtVision <span className="text-violet-600">Pro</span>
             </p>
-            <p className="text-[10px] uppercase tracking-widest text-ink-500">Painting mentor</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
           </div>
           {flow ? (
             <button
               type="button"
               onClick={closeFlow}
-              className="rounded-full p-2 text-ink-400 hover:bg-white/5 hover:text-white"
+              className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
               aria-label="Close"
             >
               <X className="h-5 w-5" />
             </button>
           ) : (
-            <Sparkles className="h-6 w-6 text-indigo-400/80" aria-hidden />
+            <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
           )}
         </div>
       </header>
@@ -268,8 +330,8 @@ export default function App() {
       {!flow && <BottomNav active={tab} onChange={setTab} />}
 
       {flow && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-ink-900 pt-[env(safe-area-inset-top)]">
-          <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+        <div className="fixed inset-0 z-40 flex flex-col bg-slate-50 pt-[env(safe-area-inset-top)]">
+          <div className="flex items-center gap-2 border-b border-slate-200 bg-white/90 px-3 py-2.5 shadow-soft backdrop-blur-sm">
             <button
               type="button"
               onClick={() => {
@@ -280,12 +342,12 @@ export default function App() {
                 } else if (flow.step === 'results') setFlow({ ...flow, step: 'capture' });
                 else closeFlow();
               }}
-              className="rounded-full p-2 text-ink-400 hover:bg-white/5 hover:text-white"
+              className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
               aria-label="Back"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <p className="flex-1 text-center text-sm font-medium text-ink-300">
+            <p className="flex-1 text-center text-sm font-semibold text-slate-700">
               {flow.step === 'setup' && 'Style & medium'}
               {flow.step === 'capture' && 'Capture'}
               {flow.step === 'analyzing' && 'Analyzing'}
@@ -294,40 +356,129 @@ export default function App() {
             <span className="w-9" />
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-8 pt-4">
+          <div className="flex-1 overflow-y-auto px-4 pb-8 pt-5">
             {flow.step === 'setup' && (
-              <div className="animate-slide-up space-y-8">
+              <div className="animate-slide-up space-y-7">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-ink-500">Style</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {STYLES.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setFlow((f) => (f ? { ...f, style: s } : f))}
-                        className={`rounded-xl border-2 px-3 py-3 text-left text-sm font-medium transition ${
-                          flow.style === s
-                            ? 'border-indigo-500 bg-indigo-500/15 text-indigo-100'
-                            : 'border-white/10 bg-ink-800/50 text-ink-200 hover:border-white/20'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Style</p>
+                  <div className="mt-2 flex gap-1 rounded-xl bg-slate-100/90 p-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFlow((f) =>
+                          f
+                            ? {
+                                ...f,
+                                styleMode: 'manual',
+                                styleClassifyMeta: undefined,
+                              }
+                            : f
+                        )
+                      }
+                      className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
+                        flow.styleMode === 'manual'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      I’ll choose
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFlow((f) =>
+                          f
+                            ? {
+                                ...f,
+                                styleMode: 'auto',
+                                style: null,
+                                styleClassifyMeta: undefined,
+                              }
+                            : f
+                        )
+                      }
+                      className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${
+                        flow.styleMode === 'auto'
+                          ? 'bg-white text-violet-700 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Wand2 className="h-4 w-4 shrink-0" />
+                      Categorize for me
+                    </button>
                   </div>
+
+                  {flow.styleMode === 'manual' ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {STYLES.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setFlow((f) => (f ? { ...f, style: s } : f))}
+                          className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
+                            flow.style === s
+                              ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
+                              : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-8 transition hover:border-violet-300 hover:bg-violet-50">
+                        {classifyBusy ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                        ) : (
+                          <Wand2 className="h-8 w-8 text-violet-500" />
+                        )}
+                        <span className="text-center text-sm font-semibold text-slate-800">
+                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a photo to detect style'}
+                        </span>
+                        <span className="text-center text-xs text-slate-500">
+                          We match Realism, Impressionism, Expressionism, or Abstract from the image.
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={classifyBusy}
+                          onChange={(e) => void onPickFileForClassify(e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                      {flow.style && flow.styleClassifyMeta ? (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
+                            Suggested style
+                          </p>
+                          <p className="mt-1 font-display text-xl text-slate-900">{flow.style}</p>
+                          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                            {flow.styleClassifyMeta.rationale}
+                          </p>
+                          {flow.styleClassifyMeta.source === 'local' ? (
+                            <p className="mt-2 text-xs text-amber-700">
+                              Quick estimate from color and brushwork signals. Connect the API for a vision-based match.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
+
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-ink-500">Medium</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Medium</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {MEDIUMS.map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => setFlow((f) => (f ? { ...f, medium: m } : f))}
-                        className={`rounded-xl border-2 px-3 py-3 text-left text-sm font-medium transition ${
+                        className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
                           flow.medium === m
-                            ? 'border-indigo-500 bg-indigo-500/15 text-indigo-100'
-                            : 'border-white/10 bg-ink-800/50 text-ink-200 hover:border-white/20'
+                            ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
+                            : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300'
                         }`}
                       >
                         {m}
@@ -335,11 +486,12 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
                 <button
                   type="button"
-                  disabled={!flow.style || !flow.medium}
+                  disabled={!canContinueFromSetup}
                   onClick={() => setFlow((f) => (f ? { ...f, step: 'capture' } : f))}
-                  className="w-full rounded-xl bg-indigo-600 py-4 text-sm font-bold text-white disabled:opacity-30"
+                  className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition enabled:active:scale-[0.99] disabled:opacity-35"
                 >
                   Continue to capture
                 </button>
@@ -348,7 +500,7 @@ export default function App() {
 
             {flow.step === 'capture' && (
               <div className="space-y-4 animate-slide-up">
-                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-card">
                   <video
                     ref={videoRef}
                     className="h-full w-full object-cover"
@@ -357,31 +509,41 @@ export default function App() {
                     autoPlay
                   />
                   {camStatus !== 'live' ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 p-4 text-center text-sm text-ink-300">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/75 p-4 text-center text-sm text-slate-200">
                       {camStatus === 'requesting' ? (
                         <>
-                          <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                          <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
                           Starting camera…
                         </>
                       ) : (
                         <>
-                          <Camera className="h-8 w-8 text-ink-500" />
-                          <p>{camError ?? 'Camera unavailable'}</p>
+                          <Camera className="h-8 w-8 text-slate-500" />
+                          <p>{camError ?? 'Camera unavailable — use Photos below.'}</p>
                         </>
                       )}
                     </div>
                   ) : null}
                 </div>
                 {analyzeError ? (
-                  <p className="text-center text-sm text-red-400">{analyzeError}</p>
+                  <p className="text-center text-sm text-red-600">{analyzeError}</p>
                 ) : null}
-                <p className="text-center text-xs text-ink-500">
-                  Align the canvas in frame. Use even, diffuse light for best value and color reads.
+                <p className="text-center text-xs text-slate-500">
+                  Align the canvas in frame. Even, diffuse light gives the fairest read.
                 </p>
-                <div className="flex gap-3">
-                  <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/15 bg-ink-800 py-4 text-sm font-semibold text-ink-100">
-                    <ImagePlus className="h-5 w-5" />
-                    Upload
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                    <FolderOpen className="h-5 w-5 text-violet-600" />
+                    Photos
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                    <ImagePlus className="h-5 w-5 text-violet-600" />
+                    Take photo
                     <input
                       type="file"
                       accept="image/*"
@@ -394,12 +556,12 @@ export default function App() {
                     type="button"
                     onClick={() => void onShutter()}
                     disabled={camStatus !== 'live'}
-                    className="flex-[1.2] rounded-xl bg-white py-4 text-sm font-bold text-ink-900 disabled:opacity-30"
+                    className="rounded-2xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-slate-800 disabled:opacity-35"
                   >
                     Capture
                   </button>
                 </div>
-                <p className="text-center text-[10px] text-ink-600">
+                <p className="text-center text-[11px] text-slate-400">
                   {flow.style} · {flow.medium}
                   {flow.mode === 'resubmit' ? ' · comparing to saved version' : ''}
                 </p>
@@ -408,8 +570,8 @@ export default function App() {
 
             {flow.step === 'analyzing' && (
               <div className="flex flex-col items-center justify-center gap-4 py-20">
-                <Loader2 className="h-12 w-12 animate-spin text-indigo-400" />
-                <p className="text-sm text-ink-400">
+                <Loader2 className="h-12 w-12 animate-spin text-violet-500" />
+                <p className="text-sm text-slate-500">
                   {shouldTryApiFirst()
                     ? 'Consulting the vision model—usually 15–45s…'
                     : 'Mapping value, edges, color, and surface…'}
@@ -419,37 +581,38 @@ export default function App() {
 
             {flow.step === 'results' && flow.critique && flow.imageDataUrl && (
               <div className="space-y-4 pb-8 animate-fade-in">
-                <div className="overflow-hidden rounded-2xl border border-white/10">
-                  <img src={flow.imageDataUrl} alt="" className="max-h-56 w-full object-contain bg-black" />
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+                  <img src={flow.imageDataUrl} alt="" className="max-h-56 w-full object-contain bg-slate-100" />
                 </div>
                 {flow.critiqueSource === 'local' ? (
-                  <p className="rounded-lg border border-amber-500/25 bg-ink-800/80 px-3 py-2 text-center text-xs text-amber-200/90">
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
                     Offline / fallback critique (heuristic). Set{' '}
-                    <code className="text-ink-300">OPENAI_API_KEY</code> and run{' '}
-                    <code className="text-ink-300">npm run dev:full</code> for full vision feedback.
+                    <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">OPENAI_API_KEY</code> and run{' '}
+                    <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev:full</code> for
+                    full vision feedback.
                   </p>
                 ) : null}
                 {flow.critique.comparisonNote ? (
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-950/40 p-4 text-sm text-amber-50/95">
-                    <span className="text-xs font-bold uppercase tracking-wide text-amber-400/90">vs. previous</span>
-                    <p className="mt-1 leading-relaxed">{flow.critique.comparisonNote}</p>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950">
+                    <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
+                    <p className="mt-1 leading-relaxed text-amber-950/95">{flow.critique.comparisonNote}</p>
                   </div>
                 ) : null}
-                <p className="text-sm leading-relaxed text-ink-300">{flow.critique.summary}</p>
+                <p className="text-sm leading-relaxed text-slate-600">{flow.critique.summary}</p>
                 {flow.critique.categories.map((cat) => (
                   <article
                     key={cat.criterion}
-                    className="rounded-xl border border-white/10 bg-ink-800/60 p-4"
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-white">{cat.criterion}</h3>
-                      <span className="shrink-0 rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-200">
+                      <h3 className="text-sm font-semibold text-slate-900">{cat.criterion}</h3>
+                      <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
                         {cat.level}
                       </span>
                     </div>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-950">
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className="h-full rounded-full bg-indigo-500"
+                        className="h-full rounded-full bg-violet-500 transition-all duration-700"
                         style={{
                           width:
                             cat.level === 'Beginner'
@@ -462,10 +625,10 @@ export default function App() {
                         }}
                       />
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed text-ink-300">{cat.feedback}</p>
-                    <div className="mt-3 rounded-lg border border-white/5 bg-ink-900/80 p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-ink-500">Next level</p>
-                      <p className="mt-1 text-xs leading-relaxed text-ink-200">{cat.actionPlan}</p>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">{cat.feedback}</p>
+                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-700">{cat.actionPlan}</p>
                     </div>
                   </article>
                 ))}
@@ -473,7 +636,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={persistResult}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-4 text-sm font-bold text-white"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25"
                   >
                     <Save className="h-5 w-5" />
                     {flow.mode === 'resubmit' ? 'Save new version' : 'Save to studio'}
@@ -481,7 +644,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={closeFlow}
-                    className="w-full rounded-xl border border-white/10 py-3 text-sm font-medium text-ink-400"
+                    className="w-full rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
                   >
                     Discard
                   </button>

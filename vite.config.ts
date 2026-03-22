@@ -29,8 +29,8 @@ export default defineConfig({
         name: 'ArtVision Pro',
         short_name: 'ArtVision',
         description: 'Professional painting critique based on master benchmarks',
-        theme_color: '#312e81',
-        background_color: '#0f172a',
+        theme_color: '#7c3aed',
+        background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',
         // Relative to manifest URL so install + launch work under GitHub Pages project paths (/repo/).
