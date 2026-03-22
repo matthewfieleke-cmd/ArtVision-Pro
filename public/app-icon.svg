@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#3b0764"/>
+      <stop offset="55%" stop-color="#5b21b6"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+    <linearGradient id="diag" x1="0%" y1="100%" x2="40%" y2="60%">
+      <stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <!-- Rounded square (iOS-style squircle approximation) -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#diag)"/>
+
+  <!-- Phone silhouette (behind palette) -->
+  <g opacity="0.5">
+    <rect x="148" y="96" width="196" height="328" rx="28" fill="#4c1d95"/>
+    <rect x="234" y="108" width="44" height="22" rx="8" fill="#312e81"/>
+    <!-- Screen area -->
+    <rect x="168" y="148" width="156" height="248" rx="12" fill="#3730a3" opacity="0.85"/>
+    <!-- Stylized eye on screen -->
+    <ellipse cx="246" cy="248" rx="38" ry="24" fill="#c4b5fd" opacity="0.95"/>
+    <ellipse cx="246" cy="248" rx="22" ry="14" fill="#ede9fe"/>
+    <circle cx="246" cy="248" r="10" fill="#5b21b6"/>
+    <circle cx="250" cy="244" r="3" fill="#fff" opacity="0.9"/>
+  </g>
+
+  <!-- Artist palette -->
+  <g filter="url(#s)">
+    <path fill="#7c3aed" stroke="#6d28d9" stroke-width="3"
+      d="M 108 318
+         C 98 268 138 228 198 218
+         C 268 206 338 228 378 278
+         C 398 308 392 358 352 388
+         C 298 428 218 432 158 398
+         C 128 378 112 348 108 318 Z"/>
+    <!-- Thumb hole -->
+    <ellipse cx="168" cy="338" rx="22" ry="28" fill="#4c1d95" opacity="0.85"/>
+    <!-- Paint wells -->
+    <circle cx="218" cy="268" r="16" fill="#f9a8d4"/>
+    <circle cx="268" cy="252" r="15" fill="#ddd6fe"/>
+    <circle cx="318" cy="262" r="15" fill="#7dd3fc"/>
+    <circle cx="338" cy="308" r="14" fill="#a78bfa"/>
+    <circle cx="288" cy="338" r="14" fill="#8b5cf6"/>
+  </g>
+
+  <!-- Paintbrush -->
+  <g filter="url(#s)">
+    <line x1="392" y1="128" x2="268" y2="288" stroke="#4c1d95" stroke-width="16" stroke-linecap="round"/>
+    <line x1="384" y1="138" x2="276" y2="278" stroke="#6d28d9" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
+    <circle cx="262" cy="296" r="14" fill="#fbcfe8"/>
+    <circle cx="258" cy="292" r="6" fill="#f9a8d4"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="256" y="468" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="38" letter-spacing="-0.02em">
+    <tspan font-weight="700">ArtVision</tspan>
+    <tspan font-weight="400" dx="6">Pro</tspan>
+  </text>
+</svg>

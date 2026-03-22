@@ -24,7 +24,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'app-icon.svg'],
       manifest: {
         name: 'ArtVision Pro',
         short_name: 'ArtVision',
