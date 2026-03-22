@@ -20,11 +20,13 @@ npm run dev
 npm run dev:full
 ```
 
-Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique` and `/api/classify-style` without CORS issues.
+Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique`, `/api/classify-style`, and `/api/preview-edit` without CORS issues.
 
 ## Deploy (Vercel) — full vision + style API
 
-The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`). The browser never sees your key.
+The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`, `api/preview-edit.ts`). The browser never sees your key.
+
+**Phase 1 preview:** After a critique, **Generate preview** calls OpenAI **image edit** (`gpt-image-1` by default) on the analyzed photo for the **lowest-rated** criterion. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY`. Disabled when `VITE_USE_LOCAL_CRITIQUE=true` (no API URL).
 
 1. **Create a Vercel project** from this GitHub repo (Import → select repo → Deploy).  
    `vercel.json` sets the Vite build output and SPA fallback so `/api/*` stays on the serverless routes.

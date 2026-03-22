@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
   FolderOpen,
   ImagePlus,
   Loader2,
+  Palette,
   Save,
   Sparkles,
   Wand2,
@@ -15,6 +16,7 @@ import { analyzePainting } from './analyzePainting';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
+import { fetchPreviewEdit } from './previewEditApi';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
@@ -24,8 +26,16 @@ import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
 import { ProfileTab } from './screens/ProfileTab';
 import { StudioTab } from './screens/StudioTab';
-import type { CritiqueResult, Medium, SavedPainting, Style, TabId, WizardStep } from './types';
-import { MEDIUMS, STYLES } from './types';
+import type {
+  CritiqueCategory,
+  CritiqueResult,
+  Medium,
+  SavedPainting,
+  Style,
+  TabId,
+  WizardStep,
+} from './types';
+import { MEDIUMS, RATING_LEVELS, STYLES } from './types';
 
 type StyleMode = 'manual' | 'auto';
 
@@ -45,6 +55,11 @@ type FlowState = {
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
+  const rank = (l: (typeof RATING_LEVELS)[number]) => RATING_LEVELS.indexOf(l);
+  return categories.reduce((a, b) => (rank(a.level) <= rank(b.level) ? a : b));
 }
 
 async function classifyStyleFromImage(dataUrl: string): Promise<{
@@ -75,6 +90,9 @@ export default function App() {
   flowRef.current = flow;
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [classifyBusy, setClassifyBusy] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewImageDataUrl, setPreviewImageDataUrl] = useState<string | null>(null);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -92,6 +110,9 @@ export default function App() {
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
+    setPreviewLoading(false);
+    setPreviewError(null);
+    setPreviewImageDataUrl(null);
   }, [stopCamera]);
 
   const goHome = useCallback(() => {
@@ -106,6 +127,9 @@ export default function App() {
   const startNewCritique = useCallback(() => {
     setAnalyzeError(null);
     setClassifyBusy(false);
+    setPreviewLoading(false);
+    setPreviewError(null);
+    setPreviewImageDataUrl(null);
     setFlow({
       mode: 'new',
       step: 'setup',
@@ -118,6 +142,9 @@ export default function App() {
   const startResubmit = useCallback((p: SavedPainting) => {
     setAnalyzeError(null);
     setClassifyBusy(false);
+    setPreviewLoading(false);
+    setPreviewError(null);
+    setPreviewImageDataUrl(null);
     stopCamera();
     setFlow({
       mode: 'resubmit',
@@ -183,6 +210,8 @@ export default function App() {
         critiqueSource = 'local';
       }
 
+      setPreviewImageDataUrl(null);
+      setPreviewError(null);
       setFlow((cur) =>
         cur
           ? {
@@ -289,6 +318,39 @@ export default function App() {
     flow &&
     flow.medium &&
     (flow.styleMode === 'manual' ? flow.style !== null : flow.style !== null && !classifyBusy);
+
+  const priorityCategory = useMemo(() => {
+    if (!flow?.critique?.categories.length) return null;
+    return priorityCritiqueCategory(flow.critique.categories);
+  }, [flow?.critique]);
+
+  const runPreviewEdit = useCallback(async () => {
+    if (!flow?.imageDataUrl || !flow.style || !flow.medium || !priorityCategory) return;
+    if (!shouldTryApiFirst()) {
+      setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
+      return;
+    }
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const { imageDataUrl } = await fetchPreviewEdit({
+        imageDataUrl: flow.imageDataUrl,
+        style: flow.style,
+        medium: flow.medium,
+        target: {
+          criterion: priorityCategory.criterion,
+          level: priorityCategory.level,
+          feedback: priorityCategory.feedback,
+          actionPlan: priorityCategory.actionPlan,
+        },
+      });
+      setPreviewImageDataUrl(imageDataUrl);
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : 'Preview failed');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [flow?.imageDataUrl, flow?.style, flow?.medium, priorityCategory]);
 
   return (
     <div className="min-h-[100dvh] bg-slate-50">
@@ -622,6 +684,63 @@ export default function App() {
                   </div>
                 ) : null}
                 <p className="text-sm leading-relaxed text-slate-600">{flow.critique.summary}</p>
+
+                {priorityCategory ? (
+                  <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+                          Suggested change preview
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-slate-800">
+                          Focus: {priorityCategory.criterion}{' '}
+                          <span className="font-normal text-slate-500">({priorityCategory.level})</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                          One AI-edited example toward your next level in this area—interpretation only, not a
+                          substitute for painting.
+                        </p>
+                      </div>
+                      <Palette className="h-8 w-8 shrink-0 text-violet-500" aria-hidden />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={previewLoading}
+                      onClick={() => void runPreviewEdit()}
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:opacity-50"
+                    >
+                      {previewLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Generating preview…
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-4 w-4" />
+                          {previewImageDataUrl ? 'Regenerate preview' : 'Generate preview'}
+                        </>
+                      )}
+                    </button>
+                    {previewError ? (
+                      <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
+                    ) : null}
+                    {previewImageDataUrl ? (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Illustrative result
+                        </p>
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                          <img
+                            src={previewImageDataUrl}
+                            alt="AI suggestion preview"
+                            className="max-h-72 w-full object-contain bg-slate-100"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+
                 {flow.critique.categories.map((cat) => (
                   <article
                     key={cat.criterion}
