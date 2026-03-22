@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { getMasterSlug } from '../data/masterCatalog';
 import type { Style } from '../types';
 import { ARTISTS_BY_STYLE, STYLES } from '../types';
 
@@ -8,7 +10,8 @@ export function BenchmarksTab() {
         <h2 className="font-display text-2xl font-normal text-slate-900">Gold standard artists</h2>
         <p className="mt-1 text-sm text-slate-500 leading-relaxed">
           “Master” ratings in ArtVision Pro are framed against the technical and expressive bar of these painters—not
-          for imitation, but for clear standards of composition, value, color, and voice.
+          for imitation, but for clear standards of composition, value, color, and voice. Tap a name for a short
+          scholarly overview and work-based technique notes.
         </p>
       </header>
       <div className="space-y-3">
@@ -18,11 +21,16 @@ export function BenchmarksTab() {
             className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
           >
             <h3 className="font-display text-lg font-medium text-violet-700">{s}</h3>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
+            <ul className="mt-3 space-y-1 text-sm">
               {ARTISTS_BY_STYLE[s].map((name) => (
-                <li key={name} className="flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
-                  {name}
+                <li key={`${s}-${name}`}>
+                  <Link
+                    to={`/master/${getMasterSlug(s, name)}`}
+                    className="flex items-center gap-2 rounded-lg py-1.5 pl-0 pr-2 font-medium text-violet-700 transition hover:bg-violet-50 hover:text-violet-900"
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
+                    {name}
+                  </Link>
                 </li>
               ))}
             </ul>
