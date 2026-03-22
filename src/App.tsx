@@ -18,6 +18,7 @@ import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
+import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { loadPaintings, savePaintings } from './storage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
@@ -91,6 +92,15 @@ export default function App() {
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
+  }, [stopCamera]);
+
+  const goHome = useCallback(() => {
+    advanceDailyMasterpieceIndex();
+    stopCamera();
+    setFlow(null);
+    setAnalyzeError(null);
+    setClassifyBusy(false);
+    setTab('home');
   }, [stopCamera]);
 
   const startNewCritique = useCallback(() => {
@@ -284,12 +294,17 @@ export default function App() {
     <div className="min-h-[100dvh] bg-slate-50">
       <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="mx-auto flex max-w-lg items-center justify-between">
-          <div>
+          <button
+            type="button"
+            onClick={goHome}
+            className="-ml-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-100/80"
+            aria-label="Go to home"
+          >
             <p className="font-display text-xl font-normal tracking-tight text-slate-900">
               ArtVision <span className="text-violet-600">Pro</span>
             </p>
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
-          </div>
+          </button>
           {flow ? (
             <button
               type="button"
@@ -318,7 +333,7 @@ export default function App() {
             paintings={paintings}
             selectedId={studioSelectedId}
             onSelectPainting={setStudioSelectedId}
-            onBack={() => setTab('home')}
+            onBack={goHome}
             onDelete={deletePainting}
             onResubmit={startResubmit}
           />
@@ -327,7 +342,15 @@ export default function App() {
         {!flow && tab === 'profile' && <ProfileTab />}
       </main>
 
-      {!flow && <BottomNav active={tab} onChange={setTab} />}
+      {!flow && (
+        <BottomNav
+          active={tab}
+          onChange={(t) => {
+            if (t === 'home') advanceDailyMasterpieceIndex();
+            setTab(t);
+          }}
+        />
+      )}
 
       {flow && (
         <div className="fixed inset-0 z-40 flex flex-col bg-slate-50 pt-[env(safe-area-inset-top)]">

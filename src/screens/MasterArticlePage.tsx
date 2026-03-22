@@ -1,6 +1,12 @@
 import { ArrowLeft, BookMarked, ExternalLink } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { advanceDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
 import { getMasterBySlug } from '../data/masterCatalog';
+
+function goHomeFromArticle(navigate: ReturnType<typeof useNavigate>): void {
+  advanceDailyMasterpieceIndex();
+  navigate('/');
+}
 
 export function MasterArticlePage() {
   const { slug } = useParams<{ slug: string }>();
@@ -12,7 +18,11 @@ export function MasterArticlePage() {
       <div className="min-h-[100dvh] bg-slate-50 px-4 pb-12 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="mx-auto max-w-lg pt-8">
           <p className="text-slate-600">No article found for this link.</p>
-          <Link to="/" className="mt-4 inline-block font-semibold text-violet-600">
+          <Link
+            to="/"
+            onClick={() => advanceDailyMasterpieceIndex()}
+            className="mt-4 inline-block font-semibold text-violet-600"
+          >
             Return home
           </Link>
         </div>
@@ -26,7 +36,7 @@ export function MasterArticlePage() {
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button
             type="button"
-            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+            onClick={() => (window.history.length > 1 ? navigate(-1) : goHomeFromArticle(navigate))}
             className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
             aria-label="Back"
           >
@@ -38,6 +48,7 @@ export function MasterArticlePage() {
           </div>
           <Link
             to="/"
+            onClick={() => advanceDailyMasterpieceIndex()}
             className="shrink-0 text-xs font-semibold text-violet-600 hover:text-violet-700"
           >
             Home

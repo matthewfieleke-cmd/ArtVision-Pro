@@ -2,6 +2,7 @@ import { Camera, ChevronRight, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getMasterSlug } from '../data/masterCatalog';
 import { DAILY_MASTERPIECES } from '../data/dailyMasterpieces';
+import { getDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
 import type { SavedPainting } from '../types';
 import { formatShortDate, progressPercentFromPainting } from '../utils';
 
@@ -12,9 +13,7 @@ type Props = {
 };
 
 export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
-  const dayIndex =
-    Math.floor(Date.now() / 86400000) % DAILY_MASTERPIECES.length;
-  const daily = DAILY_MASTERPIECES[dayIndex];
+  const daily = DAILY_MASTERPIECES[getDailyMasterpieceIndex()];
   const masterSlug = getMasterSlug(daily.style, daily.artist);
   const wip = [...paintings].sort(
     (a, b) =>
