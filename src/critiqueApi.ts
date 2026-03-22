@@ -8,9 +8,17 @@ type CritiqueRequestBody = {
   previousCritique?: CritiqueResult;
 };
 
+/** Same-origin API under Vite base (e.g. /repo/api/critique on GitHub Pages if you add a Pages Action for API—usually use VITE_CRITIQUE_API_URL instead). */
+function sameOriginCritiquePath(): string {
+  const b = import.meta.env.BASE_URL;
+  const prefix = b.endsWith('/') ? b.slice(0, -1) : b;
+  return `${prefix}/api/critique`;
+}
+
 function critiqueUrl(): string {
-  const base = (import.meta.env.VITE_CRITIQUE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-  return base ? `${base}/api/critique` : '/api/critique';
+  const external = (import.meta.env.VITE_CRITIQUE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+  if (external) return `${external}/api/critique`;
+  return sameOriginCritiquePath();
 }
 
 /**
