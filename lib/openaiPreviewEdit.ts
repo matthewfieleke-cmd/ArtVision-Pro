@@ -10,6 +10,21 @@ function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } {
   return { mime, buffer: Buffer.from(m[2]!, 'base64') };
 }
 
+/** Canonical data URL for GPT image `image_url` (stable mime + fresh base64). */
+function normalizeImageDataUrlForApi(dataUrl: string): string {
+  const { mime, buffer } = parseDataUrl(dataUrl.trim());
+  const canonicalMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
+  return `data:${canonicalMime};base64,${buffer.toString('base64')}`;
+}
+
+const EDIT_QUALITIES = ['low', 'medium', 'high', 'auto'] as const;
+type EditQuality = (typeof EDIT_QUALITIES)[number];
+
+function resolveEditQuality(): EditQuality {
+  const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'medium').toLowerCase();
+  return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'medium';
+}
+
 function buildEditPrompt(body: PreviewEditRequestBody): string {
   const { style, medium, target } = body;
   return `You are helping a painter visualize ONE focused improvement to their existing artwork.
@@ -31,33 +46,37 @@ The result should read as the same painting with a clear, plausible revision tow
 }
 
 /**
- * OpenAI Images API — edit with reference image (multipart).
- * Uses gpt-image-1 by default; override with OPENAI_IMAGE_EDIT_MODEL.
+ * OpenAI Images API — edit with reference image.
+ * Uses JSON + `images: [{ image_url }]` (current GPT image models). Legacy multipart `image`/`image[]`
+ * differs from this shape and can yield validation errors like "The string did not match the expected pattern."
+ *
+ * Default model `gpt-image-1`; override with OPENAI_IMAGE_EDIT_MODEL.
  */
 export async function runOpenAIPreviewEdit(
   apiKey: string,
   body: PreviewEditRequestBody
 ): Promise<PreviewEditResponseBody> {
   const model = process.env.OPENAI_IMAGE_EDIT_MODEL ?? 'gpt-image-1';
-  const { buffer, mime } = parseDataUrl(body.imageDataUrl);
+  const imageUrl = normalizeImageDataUrlForApi(body.imageDataUrl);
+  const quality = resolveEditQuality();
 
-  const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
-  const filename = `painting.${ext}`;
-
-  const blob = new Blob([new Uint8Array(buffer)], { type: mime });
-  const form = new FormData();
-  form.append('model', model);
-  form.append('prompt', buildEditPrompt(body));
-  form.append('image', blob, filename);
-  form.append('size', '1024x1024');
-  form.append('quality', process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'medium');
+  const payload = {
+    model,
+    prompt: buildEditPrompt(body),
+    images: [{ image_url: imageUrl }],
+    size: '1024x1024' as const,
+    quality,
+    n: 1,
+    input_fidelity: 'high' as const,
+  };
 
   const res = await fetch('https://api.openai.com/v1/images/edits', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
-    body: form,
+    body: JSON.stringify(payload),
   });
 
   const json = (await res.json()) as Record<string, unknown>;
