@@ -22,11 +22,35 @@ npm run dev:full
 
 Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique` and `/api/classify-style` without CORS issues.
 
-## Deploy (Vercel)
+## Deploy (Vercel) — full vision + style API
 
-1. Set environment variable `OPENAI_API_KEY` in the Vercel project.
-2. Deploy this repo; serverless routes include `api/critique.ts` and `api/classify-style.ts`.
-3. In Vite build, set `VITE_CRITIQUE_API_URL` to your deployment origin (e.g. `https://your-app.vercel.app`) so the PWA calls the same host’s `/api/critique` and `/api/classify-style`.
+The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`). The browser never sees your key.
+
+1. **Create a Vercel project** from this GitHub repo (Import → select repo → Deploy).  
+   `vercel.json` sets the Vite build output and SPA fallback so `/api/*` stays on the serverless routes.
+
+2. **Add the secret in Vercel**  
+   Project → **Settings → Environment Variables**:
+   - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
+   - Optional: `OPENAI_MODEL` (default `gpt-4o`).
+
+3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
+
+4. **Same host (recommended)**  
+   If the PWA is served from the same Vercel deployment (e.g. `https://your-app.vercel.app`), **do not** set `VITE_CRITIQUE_API_URL`. The app will call `https://your-app.vercel.app/api/critique` and `/api/classify-style` on the same origin.
+
+5. **GitHub Pages + Vercel API**  
+   If the UI is on `https://user.github.io/Repo/`, set repository secret **`VITE_CRITIQUE_API_URL`** to your Vercel origin **without a trailing slash** (e.g. `https://your-app.vercel.app`). Re-run the Pages workflow so the build bakes in that URL. CORS on the API reflects the browser `Origin`, so `*.github.io` is allowed.
+
+**Verify the API**
+
+```bash
+curl -sS -X POST "https://YOUR_DEPLOYMENT.vercel.app/api/classify-style" \
+  -H "Content-Type: application/json" \
+  -d '{"imageDataUrl":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="}'
+```
+
+You should get JSON with `style` and `rationale`, not `503` / `Server missing OPENAI_API_KEY`.
 
 ## Deploy (GitHub Pages) + Add to Home Screen
 
