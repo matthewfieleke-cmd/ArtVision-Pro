@@ -538,7 +538,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
       },
     ],
     readings: [
-      { label: 'Bernhard Fulda, A History of German Modern Dance… (context)', url: 'https://www.worldcat.org/search?q=Nolde+Expressionism' },
+      { label: 'WorldCat — Emil Nolde monographs & exhibition catalogs', url: 'https://www.worldcat.org/search?q=au%3ANolde+Emil+painting' },
       { label: 'Neue Nationalgalerie Berlin — Nolde scholarship & provenance pages', url: 'https://www.smb.museum/en/museums-institutions/neue-nationalgalerie/home.html' },
     ],
   },
