@@ -32,10 +32,14 @@ Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique
 
 GitHub Pages only serves static files, but the **installed PWA** still gets full client functionality: camera (HTTPS), upload, local storage, offline shell via the service worker, and heuristic critique. For **OpenAI** critique from the installed app, host `api/critique` elsewhere and point the build at it.
 
-1. **Enable Pages**: Repository **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. Push to `main`; the workflow `.github/workflows/deploy-pages.yml` builds with `VITE_BASE=/<repo>/` so scripts, icons, and the service worker load under `https://<user>.github.io/<repo>/`.
-3. **Install**: Open the site in **Safari** (iOS) or **Chrome** (Android), use **Share → Add to Home Screen** / **Install app**. The manifest uses `display: standalone` and a scoped `start_url` so the shortcut opens the full app.
-4. **Vision API from Pages**: Add a repository secret **`VITE_CRITIQUE_API_URL`** (e.g. `https://your-vercel-api.vercel.app`, no trailing slash). The Action passes it into the build so fetches go to your API (CORS must allow your `github.io` origin). Without it, the app uses **local heuristic** critique only.
+1. **Enable Pages**: Repository **Settings → Pages → Build and deployment → Source → GitHub Actions** (not “Deploy from a branch”). If you leave the source on a branch with no `index.html` at that path, the site will be **empty or 404**.
+2. Push to `main` or `master`; open **Actions** and confirm **Deploy to GitHub Pages** completes. If the **deploy** job shows “Waiting” for an environment, open the run → **Review deployments** → approve **github-pages** (first time only for some repos).
+3. **Open the project URL** (include the repo name in the path):  
+   `https://<github-username-or-org>.github.io/<repository-name>/`  
+   Example: repo `ArtVision-Pro` → `https://YOUR_USER.github.io/ArtVision-Pro/`  
+   The root `https://YOUR_USER.github.io/` is a **different site** and will not show this app unless this is a user/org Pages repo named `<user>.github.io`.
+4. **Install**: Open that URL in **Safari** (iOS) or **Chrome** (Android), use **Share → Add to Home Screen** / **Install app**. The manifest uses `display: standalone` and a scoped `start_url` so the shortcut opens the full app.
+5. **Vision API from Pages**: Add a repository secret **`VITE_CRITIQUE_API_URL`** (e.g. `https://your-vercel-api.vercel.app`, no trailing slash). The Action passes it into the build so fetches go to your API (CORS must allow your `github.io` origin). Without it, the app uses **local heuristic** critique only.
 
 `public/.nojekyll` is included so GitHub does not skip files that start with `_`.
 
