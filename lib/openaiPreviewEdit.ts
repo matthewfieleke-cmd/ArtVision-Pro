@@ -1,4 +1,10 @@
 import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes.js';
+import {
+  bufferToApiInputPng,
+  getImageDimensions,
+  pickImagesEditSize,
+  resizeEditOutputToMatchUpload,
+} from './previewImageResize.js';
 
 function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } {
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
@@ -10,11 +16,10 @@ function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } {
   return { mime, buffer: Buffer.from(m[2]!, 'base64') };
 }
 
-/** Canonical data URL for GPT image `image_url` (stable mime + fresh base64). */
-function normalizeImageDataUrlForApi(dataUrl: string): string {
-  const { mime, buffer } = parseDataUrl(dataUrl.trim());
-  const canonicalMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
-  return `data:${canonicalMime};base64,${buffer.toString('base64')}`;
+function outputMimeFromInput(mime: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+  if (mime.includes('png')) return 'image/png';
+  if (mime.includes('webp')) return 'image/webp';
+  return 'image/jpeg';
 }
 
 const EDIT_QUALITIES = ['low', 'medium', 'high', 'auto'] as const;
@@ -40,6 +45,7 @@ Concrete next step to show: ${target.actionPlan}
 Task: Edit the provided image to demonstrate ONLY this improvement while preserving:
 - the same subject matter, composition, and viewing angle
 - the same overall style (${style}) and material feel (${medium})
+- fill the entire canvas edge to edge (including any neutral margins)—do not shrink the artwork into a smaller inset
 - do not replace the painting with a different scene or add unrelated objects
 
 The result should read as the same painting with a clear, plausible revision toward the next skill level in "${target.criterion}" only. Photorealistic smartphone photo artifacts may be softened slightly but keep it clearly the same artwork.`;
@@ -57,14 +63,18 @@ export async function runOpenAIPreviewEdit(
   body: PreviewEditRequestBody
 ): Promise<PreviewEditResponseBody> {
   const model = process.env.OPENAI_IMAGE_EDIT_MODEL ?? 'gpt-image-1';
-  const imageUrl = normalizeImageDataUrlForApi(body.imageDataUrl);
+  const { mime: inputMime, buffer: inputBuffer } = parseDataUrl(body.imageDataUrl.trim());
+  const { width: origW, height: origH } = await getImageDimensions(inputBuffer);
+  const editSize = pickImagesEditSize(origW, origH);
+  const apiInputPng = await bufferToApiInputPng(inputBuffer, editSize);
+  const imageUrl = `data:image/png;base64,${apiInputPng.toString('base64')}`;
   const quality = resolveEditQuality();
 
   const payload = {
     model,
     prompt: buildEditPrompt(body),
     images: [{ image_url: imageUrl }],
-    size: '1024x1024' as const,
+    size: editSize,
     quality,
     n: 1,
     input_fidelity: 'high' as const,
@@ -89,24 +99,27 @@ export async function runOpenAIPreviewEdit(
   const first = data?.[0];
   if (!first) throw new Error('No image in edit response');
 
-  let outMime = 'image/png';
-  let base64: string;
+  let editedBuffer: Buffer;
   if (first.b64_json) {
-    base64 = first.b64_json;
+    editedBuffer = Buffer.from(first.b64_json, 'base64');
   } else if (first.url) {
     const imgRes = await fetch(first.url);
     if (!imgRes.ok) throw new Error('Failed to fetch edited image URL');
-    const arr = Buffer.from(await imgRes.arrayBuffer());
-    base64 = arr.toString('base64');
-    const ct = imgRes.headers.get('content-type');
-    if (ct?.includes('jpeg')) outMime = 'image/jpeg';
-    else if (ct?.includes('webp')) outMime = 'image/webp';
+    editedBuffer = Buffer.from(await imgRes.arrayBuffer());
   } else {
     throw new Error('Edit response missing image data');
   }
 
+  const preferOut = outputMimeFromInput(inputMime);
+  const { buffer: outBuf, mime: outMime } = await resizeEditOutputToMatchUpload(
+    editedBuffer,
+    origW,
+    origH,
+    preferOut
+  );
+
   return {
-    imageDataUrl: `data:${outMime};base64,${base64}`,
+    imageDataUrl: `data:${outMime};base64,${outBuf.toString('base64')}`,
     criterion: body.target.criterion,
   };
 }

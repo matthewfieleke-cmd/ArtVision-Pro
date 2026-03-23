@@ -26,7 +26,7 @@ Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique
 
 The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`, `api/preview-edit.ts`). The browser never sees your key.
 
-**Phase 1 preview:** After a critique, **Generate preview** calls OpenAI **image edit** (`gpt-image-1` by default) on the analyzed photo for the **lowest-rated** criterion. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY`. Disabled when `VITE_USE_LOCAL_CRITIQUE=true` (no API URL).
+**Phase 1 preview:** After a critique, **Generate preview** calls OpenAI **image edit** (`gpt-image-1` by default) on the analyzed photo for the **lowest-rated** criterion. The server uses **sharp** to read the upload’s pixel size, pick the closest allowed API canvas (`1024×1024`, `1536×1024`, or `1024×1536`), then **resizes the model output back to the same width × height** as your upload so the compare slider aligns exactly. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY`. Disabled when `VITE_USE_LOCAL_CRITIQUE=true` (no API URL).
 
 1. **Create a Vercel project** from this GitHub repo (Import → select repo → Deploy).  
    `vercel.json` sets the Vite build output and SPA fallback so `/api/*` stays on the serverless routes.

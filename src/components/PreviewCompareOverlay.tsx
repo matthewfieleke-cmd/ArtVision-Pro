@@ -34,7 +34,7 @@ function useOriginalAspectRatio(originalSrc: string): number | null {
 }
 
 const overlayImgClass =
-  'absolute inset-0 h-full w-full object-cover object-center select-none';
+  'absolute inset-0 h-full w-full object-contain object-center select-none';
 
 type Props = {
   originalSrc: string;
@@ -92,11 +92,6 @@ export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose
             <p className="mt-2">{clipSentence(target.feedback, 300)}</p>
             <p className="mt-2">{clipSentence(target.actionPlan, 300)}</p>
           </div>
-
-          <p className="text-center text-[10px] leading-snug text-slate-500">
-            Preview uses your photo’s proportions. Both layers are cropped the same way so the slider lines up edge to
-            edge (edges may be clipped if the AI returned a different shape).
-          </p>
 
           <div className="flex flex-col gap-3">
             <figure className="flex min-h-0 flex-col rounded-xl border border-slate-700/80 bg-slate-900/30 p-2">
