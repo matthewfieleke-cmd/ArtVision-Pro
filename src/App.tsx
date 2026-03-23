@@ -760,14 +760,14 @@ export default function App() {
                           className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
                         >
                           <span className="text-sm font-bold text-violet-800">
-                            {previewCompareSeen ? 'View side-by-side again' : 'Tap to view side-by-side'}
+                            {previewCompareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
                           </span>
                           {!previewCompareSeen ? (
                             <span className="text-xs font-medium leading-snug text-slate-500">
-                              Turn phone horizontal for the best layout.
+                              Scroll to see your image, the AI preview, and what changed.
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-500">Compare your photo with the AI preview.</span>
+                            <span className="text-xs text-slate-500">Your photo and the AI preview, with notes.</span>
                           )}
                         </button>
                       </div>
