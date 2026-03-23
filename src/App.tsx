@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
+import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
@@ -93,6 +94,9 @@ export default function App() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewImageDataUrl, setPreviewImageDataUrl] = useState<string | null>(null);
+  const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
+  /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
+  const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -113,6 +117,8 @@ export default function App() {
     setPreviewLoading(false);
     setPreviewError(null);
     setPreviewImageDataUrl(null);
+    setPreviewCompareOpen(false);
+    setPreviewCompareSeen(false);
   }, [stopCamera]);
 
   const goHome = useCallback(() => {
@@ -121,6 +127,11 @@ export default function App() {
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
+    setPreviewLoading(false);
+    setPreviewError(null);
+    setPreviewImageDataUrl(null);
+    setPreviewCompareOpen(false);
+    setPreviewCompareSeen(false);
     setTab('home');
   }, [stopCamera]);
 
@@ -130,6 +141,8 @@ export default function App() {
     setPreviewLoading(false);
     setPreviewError(null);
     setPreviewImageDataUrl(null);
+    setPreviewCompareOpen(false);
+    setPreviewCompareSeen(false);
     setFlow({
       mode: 'new',
       step: 'setup',
@@ -145,6 +158,8 @@ export default function App() {
     setPreviewLoading(false);
     setPreviewError(null);
     setPreviewImageDataUrl(null);
+    setPreviewCompareOpen(false);
+    setPreviewCompareSeen(false);
     stopCamera();
     setFlow({
       mode: 'resubmit',
@@ -212,6 +227,8 @@ export default function App() {
 
       setPreviewImageDataUrl(null);
       setPreviewError(null);
+      setPreviewCompareOpen(false);
+      setPreviewCompareSeen(false);
       setFlow((cur) =>
         cur
           ? {
@@ -345,12 +362,19 @@ export default function App() {
         },
       });
       setPreviewImageDataUrl(imageDataUrl);
+      setPreviewCompareOpen(false);
+      setPreviewCompareSeen(false);
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : 'Preview failed');
     } finally {
       setPreviewLoading(false);
     }
   }, [flow?.imageDataUrl, flow?.style, flow?.medium, priorityCategory]);
+
+  const openPreviewCompare = useCallback(() => {
+    setPreviewCompareOpen(true);
+    setPreviewCompareSeen(true);
+  }, []);
 
   return (
     <div className="min-h-[100dvh] bg-slate-50">
@@ -415,6 +439,7 @@ export default function App() {
       )}
 
       {flow && (
+        <>
         <div className="fixed inset-0 z-40 flex flex-col bg-slate-50 pt-[env(safe-area-inset-top)]">
           <div className="flex items-center gap-2 border-b border-slate-200 bg-white/90 px-3 py-2.5 shadow-soft backdrop-blur-sm">
             <button
@@ -729,13 +754,22 @@ export default function App() {
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                           Illustrative result
                         </p>
-                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                          <img
-                            src={previewImageDataUrl}
-                            alt="AI suggestion preview"
-                            className="max-h-72 w-full object-contain bg-slate-100"
-                          />
-                        </div>
+                        <button
+                          type="button"
+                          onClick={openPreviewCompare}
+                          className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
+                        >
+                          <span className="text-sm font-bold text-violet-800">
+                            {previewCompareSeen ? 'View side-by-side again' : 'Tap to view side-by-side'}
+                          </span>
+                          {!previewCompareSeen ? (
+                            <span className="text-xs font-medium leading-snug text-slate-500">
+                              Turn phone horizontal for the best layout.
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">Compare your photo with the AI preview.</span>
+                          )}
+                        </button>
                       </div>
                     ) : null}
                   </section>
@@ -795,6 +829,19 @@ export default function App() {
             )}
           </div>
         </div>
+        {previewCompareOpen &&
+        flow.step === 'results' &&
+        flow.imageDataUrl &&
+        previewImageDataUrl &&
+        priorityCategory ? (
+          <PreviewCompareOverlay
+            originalSrc={flow.imageDataUrl}
+            revisedSrc={previewImageDataUrl}
+            target={priorityCategory}
+            onClose={() => setPreviewCompareOpen(false)}
+          />
+        ) : null}
+        </>
       )}
     </div>
   );
