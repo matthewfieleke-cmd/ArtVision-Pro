@@ -1,4 +1,5 @@
 import type { CritiqueCategory, Medium, Style } from './types';
+import { readApiJson } from './apiJson';
 
 export type PreviewEditPayload = {
   imageDataUrl: string;
@@ -21,7 +22,7 @@ export async function fetchPreviewEdit(payload: PreviewEditPayload): Promise<{ i
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  const data = (await res.json()) as { error?: string; imageDataUrl?: string; criterion?: string };
+  const data = await readApiJson<{ error?: string; imageDataUrl?: string; criterion?: string }>(res);
   if (!res.ok) {
     throw new Error(data.error ?? `API ${res.status}`);
   }

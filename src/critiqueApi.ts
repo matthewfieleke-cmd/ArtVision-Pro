@@ -1,4 +1,5 @@
 import type { CritiqueResult, Medium, Style } from './types';
+import { readApiJson } from './apiJson';
 
 type CritiqueRequestBody = {
   style: Style;
@@ -31,7 +32,7 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const data = (await res.json()) as { error?: string } | CritiqueResult;
+  const data = await readApiJson<{ error?: string } | CritiqueResult>(res);
   if (!res.ok) {
     throw new Error(typeof data === 'object' && data && 'error' in data && data.error ? String(data.error) : `API ${res.status}`);
   }

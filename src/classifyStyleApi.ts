@@ -1,4 +1,5 @@
 import type { Style } from './types';
+import { readApiJson } from './apiJson';
 
 export type ClassifyStyleResponse = {
   style: Style;
@@ -19,7 +20,7 @@ export async function fetchClassifyStyleFromApi(imageDataUrl: string): Promise<C
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ imageDataUrl }),
   });
-  const data = (await res.json()) as { error?: string; style?: Style; rationale?: string };
+  const data = await readApiJson<{ error?: string; style?: Style; rationale?: string }>(res);
   if (!res.ok) {
     throw new Error(data.error ?? `API ${res.status}`);
   }

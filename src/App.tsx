@@ -775,7 +775,7 @@ export default function App() {
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
                     Offline / fallback critique (heuristic). Set{' '}
                     <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">OPENAI_API_KEY</code> and run{' '}
-                    <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev:full</code> for
+                    <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev</code> (API + UI) for
                     full vision feedback.
                   </p>
                 ) : null}
