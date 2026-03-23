@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { CritiqueCategory } from '../types';
 
 function clipSentence(s: string, max = 220): string {
@@ -6,6 +6,35 @@ function clipSentence(s: string, max = 220): string {
   if (t.length <= max) return t;
   return `${t.slice(0, max).replace(/\s+\S*$/, '')}…`;
 }
+
+/** Natural aspect ratio (width / height) of the user's photo for matched preview framing. */
+function useOriginalAspectRatio(originalSrc: string): number | null {
+  const [ratio, setRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    setRatio(null);
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (w > 0 && h > 0) setRatio(w / h);
+    };
+    img.onerror = () => {
+      if (!cancelled) setRatio(null);
+    };
+    img.src = originalSrc;
+    return () => {
+      cancelled = true;
+    };
+  }, [originalSrc]);
+
+  return ratio;
+}
+
+const overlayImgClass =
+  'absolute inset-0 h-full w-full object-cover object-center select-none';
 
 type Props = {
   originalSrc: string;
@@ -17,12 +46,19 @@ type Props = {
 /** 0 = show only original; 100 = show only AI revision (full suggested changes). */
 export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose }: Props) {
   const [blend, setBlend] = useState(100);
+  const aspectRatio = useOriginalAspectRatio(originalSrc);
 
   useEffect(() => {
     setBlend(100);
   }, [originalSrc, revisedSrc]);
 
   const revisedOpacity = blend / 100;
+
+  /** Same box for “your photo” and the blend so framing matches; AI is cropped to this frame like the original. */
+  const frameStyle: CSSProperties =
+    aspectRatio != null
+      ? { aspectRatio, width: '100%' }
+      : { aspectRatio: '3 / 4', width: '100%', minHeight: 'min(40vh, 85vw)' };
 
   return (
     <div
@@ -57,13 +93,18 @@ export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose
             <p className="mt-2">{clipSentence(target.actionPlan, 300)}</p>
           </div>
 
+          <p className="text-center text-[10px] leading-snug text-slate-500">
+            Preview uses your photo’s proportions. Both layers are cropped the same way so the slider lines up edge to
+            edge (edges may be clipped if the AI returned a different shape).
+          </p>
+
           <div className="flex flex-col gap-3">
             <figure className="flex min-h-0 flex-col rounded-xl border border-slate-700/80 bg-slate-900/30 p-2">
               <figcaption className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Your photo
               </figcaption>
-              <div className="relative min-h-[28vh] flex-1 overflow-hidden rounded-lg bg-slate-950">
-                <img src={originalSrc} alt="" className="h-full w-full object-contain" draggable={false} />
+              <div className="relative mx-auto max-w-full overflow-hidden rounded-lg bg-slate-950" style={frameStyle}>
+                <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
               </div>
             </figure>
 
@@ -103,17 +144,15 @@ export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose
                     Slide right for the full suggested edit; slide left to match your original photo.
                   </p>
                 </div>
-                <div className="relative min-h-[28vh] overflow-hidden rounded-lg bg-slate-950">
-                  <img
-                    src={originalSrc}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-contain"
-                    draggable={false}
-                  />
+                <div
+                  className="relative mx-auto max-w-full overflow-hidden rounded-lg bg-slate-950"
+                  style={frameStyle}
+                >
+                  <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
                   <img
                     src={revisedSrc}
                     alt=""
-                    className="absolute inset-0 h-full w-full object-contain transition-opacity duration-75 ease-out"
+                    className={`${overlayImgClass} transition-opacity duration-75 ease-out`}
                     style={{ opacity: revisedOpacity }}
                     draggable={false}
                   />
