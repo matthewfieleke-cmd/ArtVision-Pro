@@ -51,7 +51,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'The painting reads as a wide human frieze: figures lock into a horizontal band while earth and sky hold negative space in check. Your eye travels along faces and hats, then settles on the grave—focal emphasis without a single heroic pyramid. Notice how spacing between bodies creates a slow rhythm, like musical rests, so the scene feels collective rather than cluttered.',
         imageUrl: commons(
-          'thumb/8/8e/Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg/1200px-Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg'
+          'thumb/8/8e/Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg/960px-Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Courbet, A Burial at Ornans',
         credit: 'Google Art Project / Musée d’Orsay; public domain (PD-old).',
@@ -67,7 +67,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Repin uses a strong diagonal file of bodies to pull you along the riverbank, then interrupts that pull with the boy’s upright stance—a hinge that keeps the design from sliding out of the frame. Foreground ropes and hands pin the narrative to the picture plane while distant banks stay quieter. The lesson: one oblique thrust plus one counter-accent can organize a complex scene.',
         imageUrl: commons(
-          'thumb/7/7a/Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg/1200px-Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg'
+          'thumb/7/7a/Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg/960px-Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Repin, Barge Haulers on the Volga',
         credit: 'Google Art Project; public domain.',
@@ -92,7 +92,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Three bent figures form a compact dark mass against a luminous field and sky—squint and you still get a clear triangle of humanity versus harvest. Millet differentiates blacks in clothing so silhouettes don’t mush together, while distant wagons stay in a lighter key. It is a textbook case of few value steps carrying narrative and mood.',
         imageUrl: commons(
-          'thumb/1/1f/Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg/1200px-Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg'
+          'thumb/1/1f/Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg/960px-Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg'
         ),
         imageAlt: 'Millet, The Gleaners',
         credit: 'Google Art Project / Musée d’Orsay; public domain.',
@@ -108,7 +108,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Side light carves faces and hands from deep shadow inside a shallow box—high contrast, but each head keeps its own readable light shape. Daumier simplifies legs and luggage so value attention stays on nursing mother, sleeper, and watcher. Selective contrast is value structure in the service of story.',
         imageUrl: commons(
-          'thumb/4/4a/Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg/1200px-Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg'
+          'thumb/4/4a/Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg/960px-Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Daumier, The Third-Class Carriage',
         credit: 'Google Art Project / Met Museum; public domain.',
@@ -132,7 +132,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         collection: 'Musée Marmottan Monet, Paris',
         whyExcellence:
           'The orange sun and its reflection vibrate against blue-gray water and mist—simultaneous contrast makes both feel brighter than they are. Monet keeps the palette disciplined: a narrow chord of oranges, blue-grays, and muted greens so the whole harbor shares one light family. Study how he resists over-modeling; color relationships carry atmosphere.',
-        imageUrl: commons('thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/1200px-Monet_-_Impression%2C_Sunrise.jpg'),
+        imageUrl: commons('thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/960px-Monet_-_Impression%2C_Sunrise.jpg'),
         imageAlt: 'Monet, Impression, Sunrise',
         credit: 'Public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Monet_-_Impression%2C_Sunrise.jpg',
@@ -146,7 +146,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Dappled shade breaks into patches of complementary blues and oranges; figures cohere because hat bands, faces, and tablecloths repeat those hues at different scales. Warm flesh notes advance while cooler violets in shadow knit the crowd. Renoir shows how broken color can still feel unified when intervals repeat across the field.',
         imageUrl: commons(
-          'thumb/4/40/Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg/1200px-Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg'
+          'thumb/4/40/Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg/960px-Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg'
         ),
         imageAlt: 'Renoir, Bal du moulin de la Galette',
         credit: 'Public domain.',
@@ -170,7 +170,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Degas stacks dancers in depth with believable weight on feet and believable foreshortening of limbs. Bodies twist in space without collapsing; the instructor’s seated mass anchors the left while activity scatters right with coherent scale. Even quick passages respect joint logic—drawing that supports motion.',
         imageUrl: commons(
-          'thumb/4/46/Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg/1200px-Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg'
+          'thumb/4/46/Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg/960px-Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Degas, The Ballet Class',
         credit: 'Google Art Project / Musée d’Orsay; public domain.',
@@ -186,7 +186,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'The mother’s reach and the child’s foot read with clear foreshortening inside a tilted, shallow space. Hands meet skin with believable scale; the basin and rug establish a believable floor plane. Cassatt’s drawing is soft at the edges but firm in proportion—intimacy without anatomical slippage.',
         imageUrl: commons(
-          'thumb/7/72/Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg/1200px-Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg'
+          'thumb/7/72/Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg/960px-Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Cassatt, The Child’s Bath',
         credit: 'Google Art Project; public domain (PD-old).',
@@ -211,7 +211,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'The gauze curtain dissolves into atmosphere while the mother’s profile stays relatively crisp—edge contrast tells you where to look without a hard outline around everything. Whites are built with violet shadows and warm highlights so soft edges don’t turn chalky. Morisot uses lost-and-found contour like a veil over drawing.',
         imageUrl: commons(
-          'thumb/1/1e/Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg/1200px-Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg'
+          'thumb/1/1e/Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg/960px-Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Morisot, The Cradle',
         credit: 'Google Art Project / Musée d’Orsay; public domain.',
@@ -227,7 +227,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Distant swells stay relatively smooth and merged; foam and wreckage break into sharp, directional strokes at the crisis zone. Figure and boat edges pop forward because Homer saves harder transitions where danger concentrates. Edge mirrors narrative: calm water loses contour, violent water finds it.',
         imageUrl: commons(
-          'thumb/8/8e/Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg/1200px-Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg'
+          'thumb/8/8e/Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg/960px-Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg'
         ),
         imageAlt: 'Homer, The Gulf Stream',
         credit: 'Metropolitan Museum of Art; public domain.',
@@ -252,7 +252,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Pissarro’s brush follows architecture—horizontal balcony lines versus vertical façades—then breaks into staccato marks for carriages and pedestrians. Wet cobblestones get broken vertical reflections that still read as pavement. The handling scales with motif: big streets need broader structure, small figures need livelier ticks.',
         imageUrl: commons(
-          'thumb/6/6c/Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg/1200px-Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg'
+          'thumb/6/6c/Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg/960px-Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Pissarro, Boulevard Montmartre, Spring',
         credit: 'Google Art Project; public domain.',
@@ -267,7 +267,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         collection: 'Reproduced widely',
         whyExcellence:
           'Nolde pushes wet pigment until edges bloom; crisp stops happen where the paper dried first. Even in oil practice, study his timing: when to lay stroke once versus when to scumble. The head emerges from jewel-like color pressure—brush and water (or oil medium) as co-authors of the surface.',
-        imageUrl: commons('thumb/0/0a/Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg/1200px-Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/0/0a/Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg/960px-Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg'),
         imageAlt: 'Nolde, The Prophet',
         credit: 'Google Art Project; verify rights for your use.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg',
@@ -290,7 +290,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Angular shards and curves repeat across the canvas so chaos still shares a family of motifs; black lines act like scaffolding, linking busy color islands. Variety lives in hue and direction; unity lives in repeated angle families and linear connectors. Squint: you still sense one turbulent field, not unrelated scraps.',
         imageUrl: commons(
-          'thumb/b/b4/Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg/1200px-Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg'
+          'thumb/b/b4/Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg/960px-Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Kandinsky, Composition VII',
         credit: 'Google Art Project; check local copyright term for your jurisdiction.',
@@ -306,7 +306,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'A tilted white square on an off-white field is unity taken to the limit—then subtle variety appears in temperature shifts and almost imperceptible edges. The painting teaches that “one chord” can still contain hierarchy and motion. For representational painters: borrow the discipline of restraint—how little can change before the whole reads differently?',
         imageUrl: commons(
-          'thumb/0/08/Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg/1200px-Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg'
+          'thumb/0/08/Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg/960px-Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Malevich, White on White',
         credit: 'Google Art Project / MoMA; verify rights for your use.',
@@ -331,7 +331,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Schiele’s cropped stance and asymmetrical stare refuse classical poise; sickly greens and pinks on skin are not local color but psychological climate. Fingernails and eyes get harsh accents while cheeks dissolve—expressive force through selective intensity. The image could only be his: distortion in service of interior state, not decoration.',
         imageUrl: commons(
-          'thumb/1/1a/Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg/1200px-Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg'
+          'thumb/1/1a/Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg/960px-Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Schiele, Self-Portrait with Physalis',
         credit: 'Google Art Project; verify rights for commercial reuse in your region.',
@@ -347,7 +347,7 @@ const ENTRIES: CriterionExcellenceEntry[] = [
         whyExcellence:
           'Mask-like faces and dagger-like street perspective broadcast urban anxiety; non-naturalistic violets and oranges are chosen for nervous vibration, not description. Kirchner’s carved outlines feel like woodcut transferred to paint—an original synthesis of craft and modern speed. The scene is less “a street” than a psychological weather report.',
         imageUrl: commons(
-          'thumb/8/8b/Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg/1200px-Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg'
+          'thumb/8/8b/Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg/960px-Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Kirchner, Street, Berlin',
         credit: 'Google Art Project / MoMA; verify rights for your use.',

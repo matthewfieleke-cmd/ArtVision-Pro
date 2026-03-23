@@ -44,6 +44,7 @@ function slugFor(style: Style, name: string): string {
   return `${s}-${n}`;
 }
 
+/** Use 960px thumbs (not 1200px) to reduce HTTP 429 hotlink blocks on mobile—see dailyMasterpieces.ts */
 const commons = (path: string) => `https://upload.wikimedia.org/wikipedia/commons/${path}`;
 
 /** Curated for educational use; images are PD-art or photographer CC where noted. */
@@ -70,7 +71,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Musée d’Orsay, Paris',
         analysis:
           'The frieze-like arrangement of townspeople across a wide horizontal field collapses the traditional pyramidal heroics of history painting into a collective, secular ritual. Notice how faces and black clothing are built from restrained value steps: deep but differentiated blacks keep legibility at a distance (a core Realist value-structuring lesson). Earth and sky are handled with distinct temperature families—cool sky against warmer, dustier ground—so the human band reads as anchored, not pasted on backdrop.',
-        imageUrl: commons('thumb/8/8e/Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg/1200px-Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/8/8e/Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg/960px-Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg'),
         imageAlt: 'Courbet, A Burial at Ornans',
         credit: 'Google Art Project / Musée d’Orsay; public domain (PD-old).',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Gustave_Courbet_-_A_Burial_at_Ornans_-_Google_Art_Project.jpg',
@@ -82,7 +83,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Formerly Gemäldegalerie, Dresden',
         analysis:
           'Although the canvas was destroyed, reproductions remain essential pedagogically: Courbet places two laborers close to the picture plane, cropping them as if the viewer shares their footing. The lesson is tactile specificity—rough fabric, cracked stone, gritty pigment texture—used to insist on the dignity of anonymous work. Study high-resolution images for edge control: hard silhouette where the figures meet sky versus softer internal modeling along sleeves and cheeks.',
-        imageUrl: commons('thumb/9/98/Gustave_Courbet_-_The_Stonebreakers_-_Google_Art_Project.jpg/1200px-Gustave_Courbet_-_The_Stonebreakers_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/9/98/Gustave_Courbet_-_The_Stonebreakers_-_Google_Art_Project.jpg/960px-Gustave_Courbet_-_The_Stonebreakers_-_Google_Art_Project.jpg'),
         imageAlt: 'Courbet, The Stone Breakers (reproduction)',
         credit: 'Google Art Project scan; work destroyed; image of original in public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Gustave_Courbet_-_The_Stonebreakers_-_Google_Art_Project.jpg',
@@ -115,7 +116,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Musée d’Orsay, Paris',
         analysis:
           'Three women bend in the foreground while harvest activity recedes in light-struck distance—a textbook study in depth through value and scale, not line. The backs and shoulders form a stable triangular mass; golden field notes are broken with violet-brown shadows to avoid sugary yellow. Compare edge strategies: firm silhouettes against sky versus softer transitions where bodies meet stubble.',
-        imageUrl: commons('thumb/1/1f/Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg/1200px-Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg'),
+        imageUrl: commons('thumb/1/1f/Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg/960px-Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg'),
         imageAlt: 'Millet, The Gleaners',
         credit: 'Google Art Project / Musée d’Orsay; public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Jean-Fran%C3%A7ois_Millet_-_Gleaners_-_Google_Art_Project_2.jpg',
@@ -148,7 +149,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         analysis:
           'The diagonal file of haulers pulls the eye along the river while the boy’s upright figure interrupts rhythm—an intentional compositional “hinge.” Skin and fabric are modeled with cool reflected light from water and warm top light, selling weight and exhaustion. Study how hands and ropes receive sharper edges than distant banks, keeping tactile priority where the story lives.',
         imageUrl: commons(
-          'thumb/7/7a/Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg/1200px-Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg'
+          'thumb/7/7a/Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg/960px-Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Repin, Barge Haulers on the Volga',
         credit: 'Google Art Project; public domain.',
@@ -181,7 +182,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Metropolitan Museum of Art, New York',
         analysis:
           'A shallow box of figures reads as class portrait: nursing mother, sleeping poor, alert observer. Light enters from one side, carving faces from shadow with printmaker-like contrast. Note how Daumier sacrifices detail on legs and luggage to keep faces and hands as emotional anchors—selective finish as narrative device.',
-        imageUrl: commons('thumb/4/4a/Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg/1200px-Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/4/4a/Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg/960px-Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg'),
         imageAlt: 'Daumier, The Third-Class Carriage',
         credit: 'Google Art Project / Met Museum; public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Honor%C3%A9_Daumier_-_The_Third-Class_Carriage_-_Google_Art_Project.jpg',
@@ -213,7 +214,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Metropolitan Museum of Art, New York',
         analysis:
           'A lone boat, sharks, and a waterspout compress narrative into design: warm planks and skin pop against cool, green-black water. Homer’s brush escalates from smooth distant swells to broken, directional strokes on foam—edge and texture teach where danger lives. The composition denies easy rescue; mastery here is withholding closure while keeping forms lucid.',
-        imageUrl: commons('thumb/8/8e/Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg/1200px-Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg'),
+        imageUrl: commons('thumb/8/8e/Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg/960px-Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg'),
         imageAlt: 'Homer, The Gulf Stream',
         credit: 'Metropolitan Museum of Art; public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Winslow_Homer_-_The_Gulf_Stream_-_Metropolitan_Museum_of_Art.jpg',
@@ -246,7 +247,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         analysis:
           'Two grappling bodies lock in a shallow, stage-like space; limbs interlock with almost clinical clarity. Eakins models flesh with cool reflected light and warm highlights—value temperature does anatomical work. Study edge logic: sharp contour where limbs separate versus softer transitions along muscle cylinders.',
         imageUrl: commons(
-          'thumb/c/cf/Eakins%2C_Thomas_-_Wrestlers_1899.jpg/1200px-Eakins%2C_Thomas_-_Wrestlers_1899.jpg'
+          'thumb/c/cf/Eakins%2C_Thomas_-_Wrestlers_1899.jpg/960px-Eakins%2C_Thomas_-_Wrestlers_1899.jpg'
         ),
         imageAlt: 'Eakins, Wrestlers',
         credit: 'Public domain (PD-old); Wikimedia Commons.',
@@ -280,7 +281,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         analysis:
           'The orange sun and its reflection float on a cool blue-gray harbor—a case study in simultaneous contrast and reduced drawing. Forms are indicated with horizontal scumbles; detail is sacrificed for overall luminosity. Squint: the painting still “reads” because value keys are few and hierarchical.',
         imageUrl: commons(
-          'thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/1200px-Monet_-_Impression%2C_Sunrise.jpg'
+          'thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/960px-Monet_-_Impression%2C_Sunrise.jpg'
         ),
         imageAlt: 'Monet, Impression, Sunrise',
         credit: 'Public domain.',
@@ -313,7 +314,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Musée d’Orsay, Paris',
         analysis:
           'Dappled shade breaks into patches of complementary blues and oranges; figures cohere through linked hats, faces, and repeated circular tables. Renoir sacrifices individual facial detail for ensemble sparkle—study how a few sharper profiles anchor the swirl. Brush size scales with form: smaller touches on faces, broader passes in background foliage.',
-        imageUrl: commons('thumb/4/40/Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg/1200px-Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg'),
+        imageUrl: commons('thumb/4/40/Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg/960px-Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg'),
         imageAlt: 'Renoir, Bal du moulin de la Galette',
         credit: 'Public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Pierre-Auguste_Renoir,_Le_Moulin_de_la_Galette.jpg',
@@ -345,7 +346,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Musée d’Orsay, Paris',
         analysis:
           'A shallow stage-like room stacks dancers in depth; the instructor’s seated mass anchors left while activity ricochets right. Degas teaches edge contrast: hard contour on limbs against soft floor reflections. Repetition of white skirts becomes a rhythmic abstraction—Impressionist unity-through-variation.',
-        imageUrl: commons('thumb/4/46/Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg/1200px-Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/4/46/Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg/960px-Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg'),
         imageAlt: 'Degas, The Ballet Class',
         credit: 'Google Art Project / Musée d’Orsay; public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Edgar_Degas_-_The_Ballet_Class_-_Google_Art_Project.jpg',
@@ -377,7 +378,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Courtauld Gallery, London',
         analysis:
           'Rain-wet pavement mirrors façades in broken verticals; carriage and pedestrian scales establish depth. Pissarro’s brush follows architectural rhythm—long horizontals of balconies versus staccato umbrellas. Lesson: unify a busy motif through repeated hue intervals (gray-violet cobbles echoing rooflines).',
-        imageUrl: commons('thumb/6/6c/Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg/1200px-Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/6/6c/Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg/960px-Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg'),
         imageAlt: 'Pissarro, Boulevard Montmartre, Spring',
         credit: 'Google Art Project; public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Camille_Pissarro_-_Boulevard_Montmartre,_Spring_-_Google_Art_Project.jpg',
@@ -409,7 +410,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Musée d’Orsay, Paris',
         analysis:
           'A gauze curtain creates a soft vertical veil between viewer and sleeping infant—edges dissolve into atmosphere yet the mother’s gaze stabilizes the scene. Morisot’s whites are built from blue-violet shadows and warm highlights, avoiding chalk. Compare transparent versus opaque passages in veil versus face.',
-        imageUrl: commons('thumb/1/1e/Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg/1200px-Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/1/1e/Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg/960px-Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg'),
         imageAlt: 'Morisot, The Cradle',
         credit: 'Google Art Project / Musée d’Orsay; public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Berthe_Morisot_-_The_Cradle_-_Google_Art_Project.jpg',
@@ -442,7 +443,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         analysis:
           'A mother bends over a child’s foot in a tight, tilted rectangle—space feels shallow and enveloping. Patterns on dress and rug rhyme without merging; edges stay soft in light, sharper where hands meet skin. Compare Cassatt’s white construction to Morisot: both avoid chalk through systematic shadow color in highlights.',
         imageUrl: commons(
-          'thumb/7/72/Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg/1200px-Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg'
+          'thumb/7/72/Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg/960px-Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Cassatt, The Child’s Bath',
         credit: 'Google Art Project; public domain (PD-old).',
@@ -509,7 +510,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Tretyakov Gallery, Moscow',
         analysis:
           'A turbulent field of angular shards and arabesques barely tethered to apocalyptic narrative hints. Kandinsky layers transparent glazes and opaque accents so depth feels both optical and symbolic. Study how black lines “conduct” chaos—linear scaffolding inside color storms is an advanced unity lesson.',
-        imageUrl: commons('thumb/b/b4/Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg/1200px-Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/b/b4/Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg/960px-Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg'),
         imageAlt: 'Kandinsky, Composition VII',
         credit: 'Google Art Project; check local copyright term for your jurisdiction.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Vassily_Kandinsky_-_Composition_7_Munich_-_Google_Art_Project.jpg',
@@ -541,7 +542,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Leopold Museum, Vienna',
         analysis:
           'The figure’s cropped, off-center stance and staring asymmetry refuse classical balance. Garment and skin share sickly greens and pinks—temperature used as mood, not local color truth. Note how fingernails and eye sockets get hard accents while cheeks dissolve—selective sharpness as anxiety.',
-        imageUrl: commons('thumb/1/1a/Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg/1200px-Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/1/1a/Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg/960px-Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg'),
         imageAlt: 'Schiele, Self-Portrait with Physalis',
         credit: 'Google Art Project; verify rights for commercial reuse in your region.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Egon_Schiele_-_Self-Portrait_with_Physalis_-_Google_Art_Project.jpg',
@@ -573,7 +574,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Museum of Modern Art, New York',
         analysis:
           'Cocotte figures with mask-like faces advance toward the viewer while street wedges recede. Kirchner’s blues and violets spike against orange-pink flesh—Expressionist temperature as social alienation. Compare outline: ink-dark contours versus interior patches of flat color.',
-        imageUrl: commons('thumb/8/8b/Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg/1200px-Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/8/8b/Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg/960px-Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg'),
         imageAlt: 'Kirchner, Street, Berlin',
         credit: 'Google Art Project / MoMA; verify rights for your use.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Ernst_Ludwig_Kirchner_-_Street,_Berlin_-_Google_Art_Project.jpg',
@@ -605,7 +606,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Private / reproduced widely',
         analysis:
           'A bearded head erupts from jewel-like blues and crimsons; edges bleed deliberately. Nolde teaches wet timing: hard stops where paper dries versus feathered passages where pigment swims. For painters: translate his watercolor logic into oil by scumbling transparent reds over blue underpainting.',
-        imageUrl: commons('thumb/0/0a/Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg/1200px-Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/0/0a/Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg/960px-Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg'),
         imageAlt: 'Nolde, The Prophet',
         credit: 'Google Art Project; verify rights.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Emil_Nolde_-_The_Prophet_-_Google_Art_Project.jpg',
@@ -639,7 +640,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         analysis:
           'The face fills the frame; hat and veil become flat shapes that cradle simplified features. Eyes are dark, mouth reserved—expression through massing rather than anecdote. Lesson: test how few value steps still convey a person; compare her contour economy to Schiele’s nervous line.',
         imageUrl: commons(
-          'thumb/4/48/Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg/1200px-Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg'
+          'thumb/4/48/Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg/960px-Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg'
         ),
         imageAlt: 'Modersohn-Becker, Self-Portrait with Hat and Veil',
         credit: 'Google Art Project; verify rights for your jurisdiction.',
@@ -673,7 +674,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Centre Pompidou, Paris',
         analysis:
           'Geometric sectors coexist with cloud-like forms; the painting is a lab for competing visual languages. Notice how black lines segment the canvas like musical measures while color areas “sound” against each other. Lesson: abstract mastery often means two or three clear structural devices, not infinite novelty.',
-        imageUrl: commons('thumb/3/37/Vassily_Kandinsky_-_Yellow-Red-Blue_-_Google_Art_Project.jpg/1200px-Vassily_Kandinsky_-_Yellow-Red-Blue_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/3/37/Vassily_Kandinsky_-_Yellow-Red-Blue_-_Google_Art_Project.jpg/960px-Vassily_Kandinsky_-_Yellow-Red-Blue_-_Google_Art_Project.jpg'),
         imageAlt: 'Kandinsky, Yellow-Red-Blue',
         credit: 'Google Art Project; verify rights for your jurisdiction.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Vassily_Kandinsky_-_Yellow-Red-Blue_-_Google_Art_Project.jpg',
@@ -706,7 +707,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         analysis:
           'A dominant red rectangle anchors while smaller blue and yellow blocks activate corners; black bars regulate pace like measures in music. Mondrian sanded and revised edges—surface is matte and exact. Study asymmetry: perfect symmetry would kill the pulse; his “dynamic equilibrium” depends on unequal but balanced intervals.',
         imageUrl: commons(
-          'thumb/a/a4/Piet_Mondriaan%2C_1930_-_Mondrian_Composition_II_in_Red%2C_Blue%2C_and_Yellow.jpg/1200px-Piet_Mondriaan%2C_1930_-_Mondrian_Composition_II_in_Red%2C_Blue%2C_and_Yellow.jpg'
+          'thumb/a/a4/Piet_Mondriaan%2C_1930_-_Mondrian_Composition_II_in_Red%2C_Blue%2C_and_Yellow.jpg/960px-Piet_Mondriaan%2C_1930_-_Mondrian_Composition_II_in_Red%2C_Blue%2C_and_Yellow.jpg'
         ),
         imageAlt: 'Mondrian, Composition II in Red, Blue, and Yellow',
         credit: 'Public domain (check local term).',
@@ -774,7 +775,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Tretyakov Gallery, Moscow',
         analysis:
           'The black quadrilateral floats on white with tactile facture visible on close inspection—Malevich is not printing a logo but painting an event. Edges are imperfect; that waver generates pictorial warmth inside radical austerity. Lesson: minimalism in paint still demands touch decisions (impasto, drag, scumble).',
-        imageUrl: commons('thumb/1/17/Black_Square.jpg/1200px-Black_Square.jpg'),
+        imageUrl: commons('thumb/1/17/Black_Square.jpg/960px-Black_Square.jpg'),
         imageAlt: 'Malevich, Black Square',
         credit: 'Public domain (check jurisdiction).',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Black_Square.jpg',
@@ -786,7 +787,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Museum of Modern Art, New York',
         analysis:
           'A tilted white square on off-white ground pushes value contrast to the threshold of visibility—training the eye to notice temperature and edge rather than hue drama. Conservation imaging reveals underlayers; pedagogically, copy the exercise in grisaille to learn discrimination.',
-        imageUrl: commons('thumb/0/08/Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg/1200px-Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg'),
+        imageUrl: commons('thumb/0/08/Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg/960px-Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg'),
         imageAlt: 'Malevich, White on White',
         credit: 'Google Art Project / MoMA; verify rights.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Kazimir_Malevich_-_Suprematist_Composition-_White_on_White_-_Google_Art_Project.jpg',
@@ -852,7 +853,7 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Reference reproduction (detail)',
         analysis:
           'This Commons detail shows Miró’s 1938 surface: black calligraphy, punctuated primaries, and open ground. Study how few elements carry the whole—each sign is placed like musical notation. Compare to Kandinsky’s density: Miró often risks more empty space, demanding perfect interval judgment.',
-        imageUrl: commons('thumb/5/57/JOAN_MIRO_PAINTING_1938_DETAIL.jpg/1200px-JOAN_MIRO_PAINTING_1938_DETAIL.jpg'),
+        imageUrl: commons('thumb/5/57/JOAN_MIRO_PAINTING_1938_DETAIL.jpg/960px-JOAN_MIRO_PAINTING_1938_DETAIL.jpg'),
         imageAlt: 'Detail of Joan Miró painting, 1938',
         credit: 'Wikimedia Commons uploader; verify copyright for your use. Full work: consult MoMA / artist estate.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:JOAN_MIRO_PAINTING_1938_DETAIL.jpg',
