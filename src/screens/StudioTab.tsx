@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
+import { CriterionLearnLink } from '../components/CriterionLearnLink';
 import type { CritiqueResult, SavedPainting } from '../types';
 import { CRITERIA } from '../types';
 import { formatShortDate, progressPercentFromPainting } from '../utils';
@@ -58,6 +59,7 @@ function CritiquePanels({ critique }: { critique: CritiqueResult }) {
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-700">{cat.actionPlan}</p>
           </div>
+          <CriterionLearnLink criterion={cat.criterion} />
         </article>
       ))}
     </div>

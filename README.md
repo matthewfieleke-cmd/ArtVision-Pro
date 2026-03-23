@@ -1,6 +1,6 @@
 # ArtVision Pro
 
-Mobile-first PWA for painting critique: style and medium selection, camera or upload capture, eight-criteria ratings (Beginner → Master) with actionable feedback, local save/version history, and before/after comparison notes. **Masters** links open in-app articles (HashRouter so deep links work on GitHub Pages under a subpath).
+Mobile-first PWA for painting critique: style and medium selection, camera or upload capture, eight-criteria ratings (Beginner → Master) with actionable feedback, local save/version history, and before/after comparison notes. **Masters** links open in-app articles; each criterion has a **Learn more** link to two exemplar paintings and teaching copy (`#/learn/criterion/...`, HashRouter so deep links work on GitHub Pages under a subpath).
 
 ## Run locally
 

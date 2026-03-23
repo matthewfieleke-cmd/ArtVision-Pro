@@ -4,6 +4,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom';
 import { applyFontPreset, getStoredFontPresetId } from './fontTheme';
 import './index.css';
 import App from './App.tsx';
+import { CriterionLearnPage } from './screens/CriterionLearnPage.tsx';
 import { MasterArticlePage } from './screens/MasterArticlePage.tsx';
 
 applyFontPreset(getStoredFontPresetId());
@@ -14,6 +15,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/master/:slug" element={<MasterArticlePage />} />
+        <Route path="/learn/criterion/:criterionSlug" element={<CriterionLearnPage />} />
       </Routes>
     </HashRouter>
   </StrictMode>

@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
+import { CriterionLearnLink } from './components/CriterionLearnLink';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
@@ -883,6 +884,7 @@ export default function App() {
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
                       <p className="mt-1 text-xs leading-relaxed text-slate-700">{cat.actionPlan}</p>
                     </div>
+                    <CriterionLearnLink criterion={cat.criterion} />
                   </article>
                 ))}
                 <div className="flex flex-col gap-2 pt-2">
