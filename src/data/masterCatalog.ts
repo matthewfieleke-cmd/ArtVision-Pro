@@ -224,6 +224,40 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
   },
   {
+    slug: slugFor('Realism', 'Thomas Eakins'),
+    style: 'Realism',
+    displayName: 'Thomas Eakins',
+    tagline: 'American daylight, anatomy, and the ethics of exact seeing',
+    intro:
+      'Thomas Eakins (1844–1916) fused rigorous anatomy, photography-informed perspective, and unidealized American subjects. His Realism insists that moral seriousness lives in truthful measurement and light.',
+    historicalPlacement:
+      'Postbellum Philadelphia; teaching controversies at the Pennsylvania Academy underscored his commitment to the nude and dissection as artistic training. Scholars link him to emerging American art institutions and to early cinema’s fascination with motion.',
+    whyMaster: [
+      'Builds form through observed structure—bone, weight, and contact—without salon prettification.',
+      'Controls outdoor and studio light so value explains volume and distance (rowing pictures, portraits).',
+      'Uses composition to stage modern American bodies in measurable space.',
+    ],
+    figures: [
+      {
+        workTitle: 'Wrestlers',
+        year: '1899',
+        medium: 'Oil on canvas',
+        collection: 'Los Angeles County Museum of Art',
+        analysis:
+          'Two grappling bodies lock in a shallow, stage-like space; limbs interlock with almost clinical clarity. Eakins models flesh with cool reflected light and warm highlights—value temperature does anatomical work. Study edge logic: sharp contour where limbs separate versus softer transitions along muscle cylinders.',
+        imageUrl: commons(
+          'thumb/c/cf/Eakins%2C_Thomas_-_Wrestlers_1899.jpg/1200px-Eakins%2C_Thomas_-_Wrestlers_1899.jpg'
+        ),
+        imageAlt: 'Eakins, Wrestlers',
+        credit: 'Public domain (PD-old); Wikimedia Commons.',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Eakins,_Thomas_-_Wrestlers_1899.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Lloyd Goodrich, Thomas Eakins (Whitney Museum)', url: 'https://www.worldcat.org/search?q=Goodrich+Eakins' },
+    ],
+  },
+  {
     slug: slugFor('Impressionism', 'Claude Monet'),
     style: 'Impressionism',
     displayName: 'Claude Monet',
@@ -383,6 +417,40 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     readings: [
       { label: 'Kathleen Adler & Tamar Garb, Berthe Morisot (exh. cat.)', url: 'https://www.worldcat.org/search?q=Adler+Garb+Morisot' },
+    ],
+  },
+  {
+    slug: slugFor('Impressionism', 'Mary Cassatt'),
+    style: 'Impressionism',
+    displayName: 'Mary Cassatt',
+    tagline: 'Domestic light, mother and child, and pastel logic in oil',
+    intro:
+      'Mary Cassatt (1844–1926) brought Impressionist optics to intimate interiors and the modern lives of women. Trained across the Atlantic, she translated pastel softness and Japanese print cropping into oil compositions of rare tenderness.',
+    historicalPlacement:
+      'Paris Impressionist circles and American collectors; Cassatt helped shape US taste for French modernism. Feminist scholarship emphasizes her professional agency and recurring motif of care without sentimentality.',
+    whyMaster: [
+      'Compresses figure and setting into high-key harmonies—whites built from violet and warm glints.',
+      'Uses cropping and tilted planes like prints—modern composition without anecdotal clutter.',
+      'Handles flesh and fabric with separate but related stroke systems.',
+    ],
+    figures: [
+      {
+        workTitle: 'The Child’s Bath',
+        year: '1893',
+        medium: 'Oil on canvas',
+        collection: 'Art Institute of Chicago',
+        analysis:
+          'A mother bends over a child’s foot in a tight, tilted rectangle—space feels shallow and enveloping. Patterns on dress and rug rhyme without merging; edges stay soft in light, sharper where hands meet skin. Compare Cassatt’s white construction to Morisot: both avoid chalk through systematic shadow color in highlights.',
+        imageUrl: commons(
+          'thumb/7/72/Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg/1200px-Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg'
+        ),
+        imageAlt: 'Cassatt, The Child’s Bath',
+        credit: 'Google Art Project; public domain (PD-old).',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Mary_Cassatt_-_The_Child%27s_Bath_-_Google_Art_Project.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Griselda Pollock, Mary Cassatt (exh. cat. context)', url: 'https://www.worldcat.org/search?q=Pollock+Cassatt' },
     ],
   },
   {
@@ -546,6 +614,41 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     readings: [
       { label: 'WorldCat — Emil Nolde monographs & exhibition catalogs', url: 'https://www.worldcat.org/search?q=au%3ANolde+Emil+painting' },
       { label: 'Neue Nationalgalerie Berlin — Nolde scholarship & provenance pages', url: 'https://www.smb.museum/en/museums-institutions/neue-nationalgalerie/home.html' },
+    ],
+  },
+  {
+    slug: slugFor('Expressionism', 'Paula Modersohn-Becker'),
+    style: 'Expressionism',
+    displayName: 'Paula Modersohn-Becker',
+    tagline: 'Monumental simplicity, early modern selfhood, and earthy form',
+    intro:
+      'Paula Modersohn-Becker (1876–1907) worked in Worpswede and Paris, compressing figures, still life, and self-portraiture into solemn, simplified masses. Her short career bridges Post-Impressionist structure and German modernist inwardness.',
+    historicalPlacement:
+      'Scholarship highlights her as one of the first modern women to paint sustained nude self-portraits and to engage Paul Cézanne’s constructive brushwork. Her death at thirty-one shaped her mythic reception.',
+    whyMaster: [
+      'Reduces form to weighted geometry without losing empathy—stillness as force.',
+      'Uses earth pigments and warm greys for flesh that feels grounded, not cosmetic.',
+      'Balances childlike outline with adult psychological gravity.',
+    ],
+    figures: [
+      {
+        workTitle: 'Self-Portrait with Hat and Veil',
+        year: '1906–07',
+        medium: 'Oil on canvas',
+        collection: 'Private collections / reproduced widely',
+        analysis:
+          'The face fills the frame; hat and veil become flat shapes that cradle simplified features. Eyes are dark, mouth reserved—expression through massing rather than anecdote. Lesson: test how few value steps still convey a person; compare her contour economy to Schiele’s nervous line.',
+        imageUrl: commons(
+          'thumb/4/48/Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg/1200px-Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg'
+        ),
+        imageAlt: 'Modersohn-Becker, Self-Portrait with Hat and Veil',
+        credit: 'Google Art Project; verify rights for your jurisdiction.',
+        moreInfoUrl:
+          'https://commons.wikimedia.org/wiki/File:Paula_Modersohn-Becker_-_Self-portrait_with_hat_and_veil_-_Google_Art_Project.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Rainer Stamm, Paula Modersohn-Becker', url: 'https://www.worldcat.org/search?q=Stamm+Modersohn-Becker' },
     ],
   },
   {
@@ -725,6 +828,38 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     readings: [
       { label: 'Pepe Karmel, Jackson Pollock: Interviews, Articles, and Reviews', url: 'https://www.worldcat.org/search?q=Karmel+Pollock' },
       { label: 'Michael Fried, Art and Objecthood', url: 'https://www.worldcat.org/search?q=Fried+Art+and+Objecthood' },
+    ],
+  },
+  {
+    slug: slugFor('Abstract Art', 'Joan Miró'),
+    style: 'Abstract Art',
+    displayName: 'Joan Miró',
+    tagline: 'Biomorphic signs, Catalan play, and surrealist rhythm',
+    intro:
+      'Joan Miró (1893–1983) moved from detailed early landscapes toward a vocabulary of floating signs, blobs, and calligraphic lines—bridging Surrealist automatism and a uniquely modern “primitive” play.',
+    historicalPlacement:
+      'Interwar Paris and Franco-era Catalonia; Miró’s work appears in debates on abstraction, craft, and political resistance. Copyright on many paintings is active—use museum viewers for high-res study.',
+    whyMaster: [
+      'Achieves maximum invention from limited, repeated motifs—stars, ladders, biomorphs.',
+      'Balances flat color shapes with linear “drawing in air” across the field.',
+      'Keeps humor and danger in tension—whimsy without decorative emptiness.',
+    ],
+    figures: [
+      {
+        workTitle: 'Painting (1938) — detail',
+        year: '1938',
+        medium: 'Oil on canvas',
+        collection: 'Reference reproduction (detail)',
+        analysis:
+          'This Commons detail shows Miró’s 1938 surface: black calligraphy, punctuated primaries, and open ground. Study how few elements carry the whole—each sign is placed like musical notation. Compare to Kandinsky’s density: Miró often risks more empty space, demanding perfect interval judgment.',
+        imageUrl: commons('thumb/5/57/JOAN_MIRO_PAINTING_1938_DETAIL.jpg/1200px-JOAN_MIRO_PAINTING_1938_DETAIL.jpg'),
+        imageAlt: 'Detail of Joan Miró painting, 1938',
+        credit: 'Wikimedia Commons uploader; verify copyright for your use. Full work: consult MoMA / artist estate.',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:JOAN_MIRO_PAINTING_1938_DETAIL.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Margit Rowell, Joan Miró: Selected Writings and Interviews', url: 'https://www.worldcat.org/search?q=Rowell+Mir%C3%B3' },
     ],
   },
 ];

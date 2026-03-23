@@ -1,5 +1,6 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
 import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
+import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 
 const CRITIQUE_JSON_SCHEMA = {
@@ -40,6 +41,7 @@ function buildSystemPrompt(style: string, medium: string): string {
   const benchmarks = isStyleKey(style)
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
+  const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
   return `You are a world-class art historian and master painter. Analyze the user's painting image.
 
 Context:
@@ -48,6 +50,9 @@ Context:
 
 Use these artists as the conceptual benchmark for what "Master" means in this style (technical + expressive bar, not for imitation): ${benchmarks}.
 
+Style-specific master signals (use these to judge proximity to Master; compare the user's image to these observable techniques, not to copying any one artist):
+${rubricBlock}
+
 Rate the work on exactly these 8 criteria, in this order, using only these labels:
 ${CRITERIA_ORDER.map((c: (typeof CRITERIA_ORDER)[number], i: number) => `${i + 1}. ${c}`).join('\n')}
 
@@ -55,7 +60,7 @@ Rating scale per criterion: Beginner, Intermediate, Advanced, Master.
 - Master = work that could plausibly sit alongside the named masters in technical control and expressive force for this style/medium (allow for smartphone photo limitations—judge the painting, mention photo issues briefly if needed).
 
 For each criterion:
-- feedback: 2–4 sentences explaining why this rating, grounded in what you see in the image.
+- feedback: 2–4 sentences. Cite 1–2 concrete visual facts from the user's image (e.g. a region, edge behavior, value pattern, color chord). Relate the gap or strength to at least one rubric signal above; you may name a master from the benchmark list only when it clarifies the comparison—sparingly, not every sentence.
 - actionPlan: concrete, specific steps to reach the *next* level up (if already Master, how to deepen or sustain).
 
 Also write summary: 2–4 sentences on overall strengths and the single highest-leverage improvement.

@@ -71,7 +71,7 @@ function buildCategory(
   medium: Medium,
   benchmarks: readonly string[]
 ): CritiqueCategory {
-  const masterNames = benchmarks.slice(0, 3).join(', ');
+  const masterNames = benchmarks.join(', ');
   const templates: Record<
     Criterion,
     Record<RatingLevel, { feedback: string; action: string }>
@@ -353,7 +353,7 @@ export async function analyzePainting(
         ? `${titlePrefix}You are in a solid intermediate zone: intention shows; tighten hierarchy and edge/color decisions. Use ${benchmarks[0]} and ${benchmarks[1]} as touchstones for the next push.`
         : avg < 0.75
           ? `${titlePrefix}Advanced territory—refine selective emphasis and poetic edges; protect the clear read you already have. Compare finishing choices to ${benchmarks[2]} and ${benchmarks[3]}.`
-          : `${titlePrefix}Master-adjacent read on this capture—keep editing with the same clarity of intent. The named masters (${benchmarks.slice(0, 3).join(', ')}) remain your north stars for depth and voice.`;
+          : `${titlePrefix}Master-adjacent read on this capture—keep editing with the same clarity of intent. The named masters (${benchmarks.join(', ')}) remain your north stars for depth and voice.`;
 
   let comparisonNote: string | undefined;
   if (previous) {
