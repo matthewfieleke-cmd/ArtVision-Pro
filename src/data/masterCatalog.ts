@@ -147,10 +147,12 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'State Russian Museum, Saint Petersburg',
         analysis:
           'The diagonal file of haulers pulls the eye along the river while the boy’s upright figure interrupts rhythm—an intentional compositional “hinge.” Skin and fabric are modeled with cool reflected light from water and warm top light, selling weight and exhaustion. Study how hands and ropes receive sharper edges than distant banks, keeping tactile priority where the story lives.',
-        imageUrl: commons('thumb/1/1c/Repin_barge_haulers_on_the_volga.jpg/1200px-Repin_barge_haulers_on_the_volga.jpg'),
+        imageUrl: commons(
+          'thumb/7/7a/Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg/1200px-Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg'
+        ),
         imageAlt: 'Repin, Barge Haulers on the Volga',
-        credit: 'Yorck Project; public domain.',
-        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Repin_barge_haulers_on_the_volga.jpg',
+        credit: 'Google Art Project; public domain.',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Ilya_Repin_-_Barge_Haulers_on_the_Volga_-_Google_Art_Project.jpg',
       },
     ],
     readings: [
@@ -243,7 +245,9 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'Musée Marmottan Monet, Paris',
         analysis:
           'The orange sun and its reflection float on a cool blue-gray harbor—a case study in simultaneous contrast and reduced drawing. Forms are indicated with horizontal scumbles; detail is sacrificed for overall luminosity. Squint: the painting still “reads” because value keys are few and hierarchical.',
-        imageUrl: commons('thumb/5/59/Monet_-_Impression,_Sunrise.jpg/1200px-Monet_-_Impression,_Sunrise.jpg'),
+        imageUrl: commons(
+          'thumb/5/59/Monet_-_Impression%2C_Sunrise.jpg/1200px-Monet_-_Impression%2C_Sunrise.jpg'
+        ),
         imageAlt: 'Monet, Impression, Sunrise',
         credit: 'Public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Monet_-_Impression,_Sunrise.jpg',
@@ -590,16 +594,19 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     figures: [
       {
-        workTitle: 'Composition with Red, Blue and Yellow',
+        workTitle: 'Composition II in Red, Blue, and Yellow',
         year: '1930',
         medium: 'Oil on canvas',
         collection: 'Kunsthaus Zürich (version cited varies by catalog)',
         analysis:
           'A dominant red rectangle anchors while smaller blue and yellow blocks activate corners; black bars regulate pace like measures in music. Mondrian sanded and revised edges—surface is matte and exact. Study asymmetry: perfect symmetry would kill the pulse; his “dynamic equilibrium” depends on unequal but balanced intervals.',
-        imageUrl: commons('thumb/7/7d/Piet_Mondrian_-_Composition_with_Red,_Blue_and_Yellow.jpg/1200px-Piet_Mondrian_-_Composition_with_Red,_Blue_and_Yellow.jpg'),
-        imageAlt: 'Mondrian, Composition with Red, Blue and Yellow',
+        imageUrl: commons(
+          'thumb/a/a4/Piet_Mondriaan%2C_1930_-_Mondrian_Composition_II_in_Red%2C_Blue%2C_and_Yellow.jpg/1200px-Piet_Mondriaan%2C_1930_-_Mondrian_Composition_II_in_Red%2C_Blue%2C_and_Yellow.jpg'
+        ),
+        imageAlt: 'Mondrian, Composition II in Red, Blue, and Yellow',
         credit: 'Public domain (check local term).',
-        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Piet_Mondrian_-_Composition_with_Red,_Blue_and_Yellow.jpg',
+        moreInfoUrl:
+          'https://commons.wikimedia.org/wiki/File:Piet_Mondriaan,_1930_-_Mondrian_Composition_II_in_Red,_Blue,_and_Yellow.jpg',
       },
     ],
     readings: [

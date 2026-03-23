@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Camera, ChevronRight, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getMasterSlug } from '../data/masterCatalog';
@@ -15,6 +16,10 @@ type Props = {
 export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
   const daily = DAILY_MASTERPIECES[getDailyMasterpieceIndex()];
   const masterSlug = getMasterSlug(daily.style, daily.artist);
+  const [masterpieceImgFailed, setMasterpieceImgFailed] = useState(false);
+  useEffect(() => {
+    setMasterpieceImgFailed(false);
+  }, [daily.imageUrl, daily.artist, daily.work]);
   const wip = [...paintings].sort(
     (a, b) =>
       new Date(b.versions[b.versions.length - 1]?.createdAt ?? 0).getTime() -
@@ -35,7 +40,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
           </p>
           <p className="mt-1 text-xs font-medium text-slate-500">{daily.style}</p>
 
-          {daily.imageUrl ? (
+          {daily.imageUrl && !masterpieceImgFailed ? (
             <a
               href={daily.paintingUrl}
               target="_blank"
@@ -47,7 +52,19 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
                 alt={daily.imageAlt}
                 className="max-h-48 w-full object-cover object-top"
                 loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={() => setMasterpieceImgFailed(true)}
               />
+            </a>
+          ) : daily.imageUrl && masterpieceImgFailed ? (
+            <a
+              href={daily.paintingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 flex min-h-[8rem] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-500 shadow-sm"
+            >
+              Preview unavailable — open the museum link below to view the work.
             </a>
           ) : null}
 

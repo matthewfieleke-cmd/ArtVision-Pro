@@ -1,7 +1,37 @@
+import { useState } from 'react';
 import { ArrowLeft, BookMarked, ExternalLink } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { advanceDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
 import { getMasterBySlug } from '../data/masterCatalog';
+
+function MasterWorkImage({ src, alt, linkHref }: { src: string; alt: string; linkHref: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <a
+        href={linkHref}
+        target="_blank"
+        rel="noreferrer"
+        className="flex min-h-[12rem] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-600"
+      >
+        Image preview unavailable (blocked or rate-limited). Open the Commons / museum link for the work.
+      </a>
+    );
+  }
+  return (
+    <a href={linkHref} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-slate-100">
+      <img
+        src={src}
+        alt={alt}
+        className="max-h-[min(70vh,520px)] w-full object-contain"
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+    </a>
+  );
+}
 
 function goHomeFromArticle(navigate: ReturnType<typeof useNavigate>): void {
   advanceDailyMasterpieceIndex();
@@ -116,19 +146,7 @@ export function MasterArticlePage() {
                 </figcaption>
 
                 {fig.imageUrl ? (
-                  <a
-                    href={fig.moreInfoUrl ?? fig.imageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block overflow-hidden rounded-xl bg-slate-100"
-                  >
-                    <img
-                      src={fig.imageUrl}
-                      alt={fig.imageAlt}
-                      className="max-h-[min(70vh,520px)] w-full object-contain"
-                      loading="lazy"
-                    />
-                  </a>
+                  <MasterWorkImage src={fig.imageUrl} alt={fig.imageAlt} linkHref={fig.moreInfoUrl ?? fig.imageUrl} />
                 ) : (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
                     <p>
