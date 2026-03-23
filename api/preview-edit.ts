@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { PreviewEditRequestBody } from '../lib/previewEditTypes';
-import { runOpenAIPreviewEdit } from '../lib/openaiPreviewEdit';
+import type { PreviewEditRequestBody } from '../lib/previewEditTypes.js';
+import { runOpenAIPreviewEdit } from '../lib/openaiPreviewEdit.js';
 
 function setCors(res: VercelResponse, origin: string | undefined): void {
   if (origin) {

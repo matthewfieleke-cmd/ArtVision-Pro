@@ -1,4 +1,4 @@
-import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes';
+import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes.js';
 
 function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } {
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
