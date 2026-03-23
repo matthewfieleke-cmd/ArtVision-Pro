@@ -1,5 +1,5 @@
-import type { StyleKey } from './artists';
-import { CRITERIA_ORDER, type CriterionLabel } from './criteria';
+import type { StyleKey } from './artists.js';
+import { CRITERIA_ORDER, type CriterionLabel } from './criteria.js';
 
 /**
  * Style-specific observable signals for vision critique prompts.
