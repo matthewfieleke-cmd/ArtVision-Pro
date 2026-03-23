@@ -8,19 +8,21 @@ Mobile-first PWA for painting critique: style and medium selection, camera or up
 npm install
 ```
 
-**UI only** (heuristic critique in the browser):
+**Default (full vision)** — starts the local API and Vite together. Add `OPENAI_API_KEY` to `.env.local`:
 
 ```bash
 npm run dev
 ```
 
-**Full vision critique** (OpenAI): add `OPENAI_API_KEY` to `.env.local`, then run API + Vite together:
+Same as `npm run dev:full`. Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique`, `/api/classify-style`, and `/api/preview-edit` without CORS issues.
+
+**UI only** (heuristic critique in the browser, no API process):
 
 ```bash
-npm run dev:full
+npm run dev:ui
 ```
 
-Vite proxies `/api/*` to `http://127.0.0.1:8787` so the app calls `/api/critique`, `/api/classify-style`, and `/api/preview-edit` without CORS issues.
+Or set `VITE_USE_LOCAL_CRITIQUE=true` to skip API calls even when the dev server is running.
 
 ## Deploy (Vercel) — full vision + style API
 
