@@ -23,7 +23,7 @@ function MasterWorkImage({ src, alt, linkHref }: { src: string; alt: string; lin
       <img
         src={src}
         alt={alt}
-        className="max-h-[min(70vh,520px)] w-full object-contain"
+        className="max-h-[min(92vh,40rem)] w-full object-contain object-center"
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"

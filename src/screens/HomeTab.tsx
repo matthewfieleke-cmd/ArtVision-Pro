@@ -50,7 +50,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
               <img
                 src={daily.imageUrl}
                 alt={daily.imageAlt}
-                className="max-h-48 w-full object-cover object-top"
+                className="max-h-[min(85vh,36rem)] w-full object-contain object-center bg-slate-100"
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"

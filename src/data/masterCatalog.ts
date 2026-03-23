@@ -407,7 +407,9 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         collection: 'National Museum of Norway, Oslo',
         analysis:
           'The fjord’s perspectival rails vibrate against a blood-orange sky; the figure’s mask-like head becomes a focal capacitor. Munch compresses hands to temples—gesture as pictogram. Lesson: let contour wobble; let complementary streaks (blue-green water vs orange air) do expressive work that naturalistic shading would dull.',
-        imageUrl: commons('thumb/c/c5/Edvard_Munch,_1893,_The_Scream,_oil,_tempera_and_pastel_on_cardboard,_91_x_73_cm,_National_Gallery_of_Norway.jpg/800px-Edvard_Munch,_1893,_The_Scream,_oil,_tempera_and_pastel_on_cardboard,_91_x_73_cm,_National_Gallery_of_Norway.jpg'),
+        imageUrl: commons(
+          'thumb/c/c5/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg/960px-Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg'
+        ),
         imageAlt: 'Munch, The Scream',
         credit: 'National Gallery of Norway; public domain (artist life+70).',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Edvard_Munch,_1893,_The_Scream,_oil,_tempera_and_pastel_on_cardboard,_91_x_73_cm,_National_Gallery_of_Norway.jpg',
