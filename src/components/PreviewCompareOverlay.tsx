@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { CritiqueCategory } from '../types';
-import { buildDifferenceOverlayDataUrl } from '../previewDiff';
 
 function clipSentence(s: string, max = 220): string {
   const t = s.trim();
@@ -15,46 +14,15 @@ type Props = {
   onClose: () => void;
 };
 
+/** 0 = show only original; 100 = show only AI revision (full suggested changes). */
 export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose }: Props) {
-  const [diffUrl, setDiffUrl] = useState<string | null>(null);
-  const [diffBusy, setDiffBusy] = useState(true);
-  const [diffVisible, setDiffVisible] = useState(false);
+  const [blend, setBlend] = useState(100);
 
   useEffect(() => {
-    setDiffVisible(false);
+    setBlend(100);
   }, [originalSrc, revisedSrc]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setDiffUrl(null);
-    setDiffBusy(true);
-
-    const load = (src: string) =>
-      new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Image load failed'));
-        img.src = src;
-      });
-
-    void (async () => {
-      try {
-        const [o, r] = await Promise.all([load(originalSrc), load(revisedSrc)]);
-        if (cancelled) return;
-        const url = await buildDifferenceOverlayDataUrl(o, r);
-        if (!cancelled) {
-          setDiffUrl(url);
-          setDiffBusy(false);
-        }
-      } catch {
-        if (!cancelled) setDiffBusy(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [originalSrc, revisedSrc]);
+  const revisedOpacity = blend / 100;
 
   return (
     <div
@@ -103,36 +71,54 @@ export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose
               <figcaption className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-violet-300/90">
                 AI preview (illustrative)
               </figcaption>
-              <button
-                type="button"
-                disabled={diffBusy || !diffUrl}
-                onClick={() => setDiffVisible((v) => !v)}
-                aria-pressed={diffVisible}
-                className="relative min-h-[28vh] w-full flex-1 overflow-hidden rounded-lg bg-slate-950 text-left ring-violet-400 transition focus:outline-none focus-visible:ring-2 disabled:opacity-60"
-              >
-                <img src={revisedSrc} alt="" className="pointer-events-none h-full w-full object-contain" draggable={false} />
-                {diffUrl ? (
-                  <img
-                    src={diffUrl}
-                    alt=""
-                    aria-hidden
-                    className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-150 ${
-                      diffVisible ? 'opacity-100' : 'opacity-0'
-                    }`}
+              <div className="space-y-2">
+                <div className="rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-2">
+                  <label htmlFor="preview-blend-slider" className="sr-only">
+                    Blend between your photo and the AI-generated preview
+                  </label>
+                  <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <span>Your photo</span>
+                    <span className="text-violet-300/90">AI changes</span>
+                  </div>
+                  <input
+                    id="preview-blend-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={blend}
+                    onChange={(e) => setBlend(Number(e.target.value))}
+                    className="h-2 w-full cursor-pointer accent-violet-500"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={blend}
+                    aria-valuetext={
+                      blend === 0
+                        ? 'Showing your original photo only'
+                        : blend === 100
+                          ? 'Showing full AI preview'
+                          : `${blend}% AI preview blended with your photo`
+                    }
                   />
-                ) : null}
-                <div
-                  className={`pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/95 to-transparent px-2 py-2 text-center text-[10px] text-slate-300 ${
-                    diffVisible ? 'opacity-0' : 'opacity-100'
-                  }`}
-                >
-                  {diffBusy
-                    ? 'Preparing difference map…'
-                    : diffUrl
-                      ? 'Tap this image to show or hide where pixels differ from your photo.'
-                      : 'Difference map unavailable for this pair.'}
+                  <p className="mt-1.5 text-center text-[10px] leading-snug text-slate-400">
+                    Slide right for the full suggested edit; slide left to match your original photo.
+                  </p>
                 </div>
-              </button>
+                <div className="relative min-h-[28vh] overflow-hidden rounded-lg bg-slate-950">
+                  <img
+                    src={originalSrc}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-contain"
+                    draggable={false}
+                  />
+                  <img
+                    src={revisedSrc}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-contain transition-opacity duration-75 ease-out"
+                    style={{ opacity: revisedOpacity }}
+                    draggable={false}
+                  />
+                </div>
+              </div>
             </figure>
           </div>
         </div>
