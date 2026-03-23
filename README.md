@@ -28,7 +28,7 @@ Or set `VITE_USE_LOCAL_CRITIQUE=true` to skip API calls even when the dev server
 
 The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`, `api/preview-edit.ts`). The browser never sees your key.
 
-**Phase 1 preview:** After a critique, **Generate preview** calls OpenAI **image edit** (`gpt-image-1` by default) on the analyzed photo for the **lowest-rated** criterion. The server uses **sharp** to read the upload’s pixel size, pick the closest allowed API canvas (`1024×1024`, `1536×1024`, or `1024×1536`), then **resizes the model output back to the same width × height** as your upload so the compare slider aligns exactly. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY`. Disabled when `VITE_USE_LOCAL_CRITIQUE=true` (no API URL).
+**Phase 1 preview:** After a critique, **Generate preview** calls OpenAI **image edit** (`gpt-image-1` by default) on the analyzed photo for the **lowest-rated** criterion. The server uses **sharp** to read the upload’s pixel size, pick the closest allowed API canvas (`1024×1024`, `1536×1024`, or `1024×1536`), then **resizes the model output back to the same width × height** as your upload so the compare slider aligns exactly. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY` (defaults to **high** for sharper previews; set `medium` or `low` to reduce cost). Disabled when `VITE_USE_LOCAL_CRITIQUE=true` (no API URL).
 
 1. **Create a Vercel project** from this GitHub repo (Import → select repo → Deploy).  
    `vercel.json` sets the Vite build output and SPA fallback so `/api/*` stays on the serverless routes.
@@ -36,7 +36,7 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
 2. **Add the secret in Vercel**  
    Project → **Settings → Environment Variables**:
    - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
-   - Optional: `OPENAI_MODEL` (default `gpt-4o`).
+   - Optional: `OPENAI_MODEL` (default `gpt-4o` for chat/classify). For critique only, you can set `OPENAI_CRITIQUE_MODEL` instead (falls back to `OPENAI_MODEL`).
 
 3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
 

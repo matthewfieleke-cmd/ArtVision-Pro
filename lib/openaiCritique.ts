@@ -42,32 +42,41 @@ function buildSystemPrompt(style: string, medium: string): string {
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
-  return `You are a world-class art historian and master painter. Analyze the user's painting image.
+  return `You are a senior atelier instructor and working painter. Your job is to help THIS artist improve THIS specific piece—not to flatter them.
 
 Context:
 - Declared style: ${style}
 - Declared medium: ${medium}
 
-Use these artists as the conceptual benchmark for what "Master" means in this style (technical + expressive bar, not for imitation): ${benchmarks}.
+Benchmark what "Master" means in this style (technical + expressive bar, not imitation): ${benchmarks}.
 
-Style-specific master signals (use these to judge proximity to Master; compare the user's image to these observable techniques, not to copying any one artist):
+Style-specific master signals (judge the image against these observable techniques; do not ask them to copy a master):
 ${rubricBlock}
+
+Before you write JSON, mentally scan the image in quadrants (upper-left, upper-right, lower-left, lower-right) and note focal area vs periphery, largest value shapes, and where edges are hard vs soft. Use that scan in your writing.
 
 Rate the work on exactly these 8 criteria, in this order, using only these labels:
 ${CRITERIA_ORDER.map((c: (typeof CRITERIA_ORDER)[number], i: number) => `${i + 1}. ${c}`).join('\n')}
 
 Rating scale per criterion: Beginner, Intermediate, Advanced, Master.
-- Master = work that could plausibly sit alongside the named masters in technical control and expressive force for this style/medium (allow for smartphone photo limitations—judge the painting, mention photo issues briefly if needed).
+- Master = could plausibly sit with the named benchmarks in control and intent for this style/medium. Account for phone photos (glare, skew, compression)—name artifacts briefly if they limit what you see, then judge the painting.
 
-For each criterion:
-- feedback: 2–4 sentences. Cite 1–2 concrete visual facts from the user's image (e.g. a region, edge behavior, value pattern, color chord). Relate the gap or strength to at least one rubric signal above; you may name a master from the benchmark list only when it clarifies the comparison—sparingly, not every sentence.
-- actionPlan: concrete, specific steps to reach the *next* level up (if already Master, how to deepen or sustain).
+Per criterion — feedback (string):
+- Minimum 3 sentences. Every criterion must mention at least one concrete location (e.g. upper-left sky, center figure, foreground shadow, right edge) or relational cue (foreground vs background, focal vs supporting area).
+- Cite observable facts: value (light/dark grouping), edge quality (sharp/lost), color temperature, brush handling, proportion, negative space, rhythm—whichever fits that criterion.
+- Name the main issue or strength in painterly terms; connect it to at least one rubric signal above.
+- Forbidden: empty praise ("beautiful", "great job") without a tied observation; generic advice that could apply to any painting; repeating the same sentence across criteria—each criterion must add new, criterion-specific detail.
 
-Also write summary: 2–4 sentences on overall strengths and the single highest-leverage improvement.
+Per criterion — actionPlan (string):
+- 3–5 short numbered steps (1. 2. 3.) the artist can do in the studio on the current piece or its next layer. Each step names WHAT to change WHERE (area of the canvas) and HOW (tool, edge, value shift, temperature, etc.).
+- Target the *next* level up from your rating. If already Master, give advanced refinement or sustainment steps (subtle orchestration, risk-taking within control).
 
-If previous image + prior critique JSON are provided, you MUST set comparisonNote (non-null string): what improved, what regressed or stayed weak, and what still needs work—reference specific areas of the painting. If no previous version, set comparisonNote to null.
+Summary (string):
+- 3–5 sentences: strongest 1–2 passages (where and why), the single biggest leverage gap, and how fixing that gap would change the read of the whole piece.
 
-Stay constructive and specific. Avoid generic praise.`;
+If previous image + prior critique JSON are provided, set comparisonNote (non-null string): what visibly improved, what regressed or stalled, and what to tackle next—name regions and tie to prior feedback when relevant. If no previous version, set comparisonNote to null.
+
+Tone: direct, respectful, specific. Assume the artist wants rigor.`;
 }
 
 function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
@@ -120,7 +129,11 @@ export async function runOpenAICritique(
   body: CritiqueRequestBody,
   options?: { model?: string }
 ): Promise<CritiqueResultDTO> {
-  const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
+  const model =
+    options?.model ??
+    process.env.OPENAI_CRITIQUE_MODEL ??
+    process.env.OPENAI_MODEL ??
+    'gpt-4o';
   const { mime, base64 } = parseDataUrl(body.imageDataUrl);
 
   const titleLine =
@@ -134,7 +147,9 @@ export async function runOpenAICritique(
   > = [
     {
       type: 'text',
-      text: `Analyze this painting. Style: ${body.style}. Medium: ${body.medium}.${titleLine}${
+      text: `Analyze this painting for studio use. Style: ${body.style}. Medium: ${body.medium}.${titleLine}
+
+Ground every criterion in what is visible in the photo. Prefer "in the ___ area of the painting" over abstract wording.${
         body.previousCritique && body.previousImageDataUrl
           ? '\n\nA previous photo of the same painting is attached second, followed by the prior critique JSON.'
           : ''
@@ -166,7 +181,8 @@ export async function runOpenAICritique(
     },
     body: JSON.stringify({
       model,
-      temperature: 0.4,
+      temperature: 0.28,
+      max_tokens: 4500,
       response_format: {
         type: 'json_schema',
         json_schema: CRITIQUE_JSON_SCHEMA,

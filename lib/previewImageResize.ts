@@ -74,7 +74,7 @@ export async function resizeEditOutputToMatchUpload(
     return { buffer: await pipeline.png().toBuffer(), mime: 'image/png' };
   }
   if (preferMime === 'image/webp') {
-    return { buffer: await pipeline.webp({ quality: 88 }).toBuffer(), mime: 'image/webp' };
+    return { buffer: await pipeline.webp({ quality: 92 }).toBuffer(), mime: 'image/webp' };
   }
-  return { buffer: await pipeline.jpeg({ quality: 88, mozjpeg: true }).toBuffer(), mime: 'image/jpeg' };
+  return { buffer: await pipeline.jpeg({ quality: 92, mozjpeg: true }).toBuffer(), mime: 'image/jpeg' };
 }

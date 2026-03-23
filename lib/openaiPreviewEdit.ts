@@ -26,29 +26,32 @@ const EDIT_QUALITIES = ['low', 'medium', 'high', 'auto'] as const;
 type EditQuality = (typeof EDIT_QUALITIES)[number];
 
 function resolveEditQuality(): EditQuality {
-  const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'medium').toLowerCase();
-  return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'medium';
+  const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'high').toLowerCase();
+  return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'high';
 }
 
 function buildEditPrompt(body: PreviewEditRequestBody): string {
   const { style, medium, target } = body;
-  return `You are helping a painter visualize ONE focused improvement to their existing artwork.
+  return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
-Context: the work is intended as ${style}, medium ${medium}.
+Context: ${style}, medium ${medium}.
 
-Priority area to improve: "${target.criterion}" (current level: ${target.level}).
+Focus ONLY on: "${target.criterion}" (rated ${target.level}).
 
-Critique summary for this area: ${target.feedback}
+What to address (from their mentor critique):
+${target.feedback}
 
-Concrete next step to show: ${target.actionPlan}
+Show this improvement via paint (not caption): ${target.actionPlan}
 
-Task: Edit the provided image to demonstrate ONLY this improvement while preserving:
-- the same subject matter, composition, and viewing angle
-- the same overall style (${style}) and material feel (${medium})
-- fill the entire canvas edge to edge (including any neutral margins)—do not shrink the artwork into a smaller inset
-- do not replace the painting with a different scene or add unrelated objects
+Rules — quality and fidelity:
+- Preserve identity: same subject, pose, composition, crop, and viewing angle. Do not invent new objects, figures, or a new scene.
+- Preserve the hand of the artist: match existing brush scale, stroke direction, and surface texture (${medium}); edits should look like the same person repainted that passage with more skill, not a different artist or a digital repaint.
+- Apply the change mainly where the critique implies (edges, values, color temperature, drawing, etc.)—subtle elsewhere.
+- Edge-to-edge: fill the full frame; no inset, no frame-within-frame, no added borders or captions.
+- Lighting: keep the same light direction and color of light unless the critique explicitly calls for adjusting light logic for "${target.criterion}".
+- Photo artifacts: reduce mild glare or color cast only if needed so the revision reads clearly; do not turn the image into a different photograph.
 
-The result should read as the same painting with a clear, plausible revision toward the next skill level in "${target.criterion}" only. Photorealistic smartphone photo artifacts may be softened slightly but keep it clearly the same artwork.`;
+Output: one photorealistic image of the same artwork after this single focused improvement—museum documentation quality, sharp detail in revised areas, coherent with the rest of the piece.`;
 }
 
 /**

@@ -65,7 +65,7 @@ export async function runOpenAIClassifyStyle(
           role: 'system',
           content: `You are an art historian. ${STYLE_GUIDE}
 
-Respond with JSON only matching the schema. rationale: 2–3 sentences citing specific visible evidence (brushwork, color, space, subject treatment).`,
+Respond with JSON only matching the schema. rationale: 3–4 sentences. Name where on the canvas the evidence appears (e.g. upper area, focal figure, foreground); cite brushwork, edges, color temperature, space, or subject treatment—not vague style labels alone.`,
         },
         {
           role: 'user',
