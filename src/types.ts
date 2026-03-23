@@ -38,6 +38,8 @@ export type CritiqueResult = {
   summary: string;
   /** When comparing to a prior version */
   comparisonNote?: string;
+  /** Optional title the artist gave this work for this critique */
+  paintingTitle?: string;
 };
 
 export type PaintingVersion = {

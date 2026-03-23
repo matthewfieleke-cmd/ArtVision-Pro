@@ -329,7 +329,8 @@ export async function analyzePainting(
   imageDataUrl: string,
   style: Style,
   medium: Medium,
-  previous?: { imageDataUrl: string; critique: CritiqueResult }
+  previous?: { imageDataUrl: string; critique: CritiqueResult },
+  paintingTitle?: string
 ): Promise<CritiqueResult> {
   const benchmarks = ARTISTS_BY_STYLE[style];
   const bias = styleMediumBias(style, medium);
@@ -343,14 +344,16 @@ export async function analyzePainting(
 
   const avg =
     Object.values(scores).reduce((a, b) => a + b, 0) / CRITERIA.length;
+  const titlePrefix =
+    paintingTitle && paintingTitle.trim().length > 0 ? `For “${paintingTitle.trim()}”: ` : '';
   const summary =
     avg < 0.35
-      ? `Strong foundation pass—prioritize big-shape composition and value readability next. Benchmark “Master” here means the technical and expressive bar set by ${benchmarks.slice(0, 2).join(' and ')}.`
+      ? `${titlePrefix}Strong foundation pass—prioritize big-shape composition and value readability next. Benchmark “Master” here means the technical and expressive bar set by ${benchmarks.slice(0, 2).join(' and ')}.`
       : avg < 0.55
-        ? `You are in a solid intermediate zone: intention shows; tighten hierarchy and edge/color decisions. Use ${benchmarks[0]} and ${benchmarks[1]} as touchstones for the next push.`
+        ? `${titlePrefix}You are in a solid intermediate zone: intention shows; tighten hierarchy and edge/color decisions. Use ${benchmarks[0]} and ${benchmarks[1]} as touchstones for the next push.`
         : avg < 0.75
-          ? `Advanced territory—refine selective emphasis and poetic edges; protect the clear read you already have. Compare finishing choices to ${benchmarks[2]} and ${benchmarks[3]}.`
-          : `Master-adjacent read on this capture—keep editing with the same clarity of intent. The named masters (${benchmarks.slice(0, 3).join(', ')}) remain your north stars for depth and voice.`;
+          ? `${titlePrefix}Advanced territory—refine selective emphasis and poetic edges; protect the clear read you already have. Compare finishing choices to ${benchmarks[2]} and ${benchmarks[3]}.`
+          : `${titlePrefix}Master-adjacent read on this capture—keep editing with the same clarity of intent. The named masters (${benchmarks.slice(0, 3).join(', ')}) remain your north stars for depth and voice.`;
 
   let comparisonNote: string | undefined;
   if (previous) {
@@ -365,5 +368,11 @@ export async function analyzePainting(
     comparisonNote = compareMetrics(pm, m, prevLevels, nextLevels);
   }
 
-  return { categories, summary, comparisonNote };
+  const trimmed = paintingTitle?.trim();
+  return {
+    categories,
+    summary,
+    comparisonNote,
+    ...(trimmed ? { paintingTitle: trimmed } : {}),
+  };
 }

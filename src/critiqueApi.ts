@@ -4,6 +4,7 @@ type CritiqueRequestBody = {
   style: Style;
   medium: Medium;
   imageDataUrl: string;
+  paintingTitle?: string;
   previousImageDataUrl?: string;
   previousCritique?: CritiqueResult;
 };

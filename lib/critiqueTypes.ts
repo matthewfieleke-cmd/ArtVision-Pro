@@ -11,12 +11,15 @@ export type CritiqueResultDTO = {
   categories: CritiqueCategoryDTO[];
   summary: string;
   comparisonNote?: string;
+  paintingTitle?: string;
 };
 
 export type CritiqueRequestBody = {
   style: string;
   medium: string;
   imageDataUrl: string;
+  /** Optional title the artist uses for this work */
+  paintingTitle?: string;
   /** Prior painting photo (resubmit / compare) */
   previousImageDataUrl?: string;
   /** Serialized prior critique JSON */

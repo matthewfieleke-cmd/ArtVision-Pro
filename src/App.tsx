@@ -45,6 +45,8 @@ type FlowState = {
   styleMode: StyleMode;
   style: Style | null;
   medium: Medium | null;
+  /** Optional title for this work (new critique or override on resubmit) */
+  workingTitle: string;
   imageDataUrl?: string;
   critique?: CritiqueResult;
   critiqueSource?: 'api' | 'local';
@@ -149,6 +151,7 @@ export default function App() {
       styleMode: 'manual',
       style: null,
       medium: null,
+      workingTitle: '',
     });
   }, []);
 
@@ -167,6 +170,7 @@ export default function App() {
       styleMode: 'manual',
       style: p.style,
       medium: p.medium,
+      workingTitle: p.title,
       targetPainting: p,
     });
     setTab('studio');
@@ -201,12 +205,16 @@ export default function App() {
             }
           : undefined;
 
+      const titleForCritique = f.workingTitle.trim();
+      const titleArg = titleForCritique.length > 0 ? titleForCritique : undefined;
+
       if (shouldTryApiFirst()) {
         try {
           critique = await fetchCritiqueFromApi({
             style: f.style,
             medium: f.medium,
             imageDataUrl: compressed,
+            ...(titleArg ? { paintingTitle: titleArg } : {}),
             ...(prevPayload
               ? {
                   previousImageDataUrl: prevPayload.imageDataUrl,
@@ -217,11 +225,11 @@ export default function App() {
           critiqueSource = 'api';
         } catch (err) {
           console.warn('Critique API unavailable, using local analysis:', err);
-          critique = await analyzePainting(compressed, f.style, f.medium, prevPayload);
+          critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
           critiqueSource = 'local';
         }
       } else {
-        critique = await analyzePainting(compressed, f.style, f.medium, prevPayload);
+        critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
         critiqueSource = 'local';
       }
 
@@ -289,24 +297,44 @@ export default function App() {
 
   const persistResult = useCallback(() => {
     if (!flow?.critique || !flow.imageDataUrl || !flow.style || !flow.medium) return;
+    const savedTitle =
+      flow.workingTitle.trim() ||
+      flow.critique.paintingTitle?.trim() ||
+      undefined;
+    const critiqueToStore: CritiqueResult = {
+      ...flow.critique,
+      ...(savedTitle ? { paintingTitle: savedTitle } : {}),
+    };
     const version = {
       id: newId(),
       imageDataUrl: flow.imageDataUrl,
       createdAt: new Date().toISOString(),
-      critique: flow.critique,
+      critique: critiqueToStore,
     };
     if (flow.mode === 'resubmit' && flow.targetPainting) {
+      const t = flow.workingTitle.trim();
       setPaintings((ps) =>
         ps.map((p) =>
           p.id === flow.targetPainting!.id
-            ? { ...p, versions: [...p.versions, version] }
+            ? {
+                ...p,
+                ...(t.length > 0 ? { title: t } : {}),
+                versions: [...p.versions, version],
+              }
             : p
         )
       );
       setStudioSelectedId(flow.targetPainting.id);
       setTab('studio');
     } else {
-      const title = `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+      const fromUser = flow.workingTitle.trim();
+      const fromCritique = flow.critique.paintingTitle?.trim();
+      const title =
+        fromUser.length > 0
+          ? fromUser
+          : fromCritique && fromCritique.length > 0
+            ? fromCritique
+            : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
       const painting: SavedPainting = {
         id: newId(),
         title,
@@ -597,6 +625,25 @@ export default function App() {
                   </div>
                 </div>
 
+                <div>
+                  <label htmlFor="working-title" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Title <span className="font-normal normal-case text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    id="working-title"
+                    type="text"
+                    maxLength={120}
+                    value={flow.workingTitle}
+                    onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                    placeholder="e.g. Morning light on the harbor"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    autoComplete="off"
+                  />
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    Shown on your critique and saved with the painting. Leave blank for an auto title.
+                  </p>
+                </div>
+
                 <button
                   type="button"
                   disabled={!canContinueFromSetup}
@@ -610,6 +657,21 @@ export default function App() {
 
             {flow.step === 'capture' && (
               <div className="space-y-4 animate-slide-up">
+                <div>
+                  <label htmlFor="capture-working-title" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Title <span className="font-normal normal-case text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    id="capture-working-title"
+                    type="text"
+                    maxLength={120}
+                    value={flow.workingTitle}
+                    onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                    placeholder="Name this piece for the critique"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    autoComplete="off"
+                  />
+                </div>
                 <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-card">
                   <video
                     ref={videoRef}
@@ -691,6 +753,21 @@ export default function App() {
 
             {flow.step === 'results' && flow.critique && flow.imageDataUrl && (
               <div className="space-y-4 pb-8 animate-fade-in">
+                <div>
+                  <label htmlFor="results-working-title" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Title for this work
+                  </label>
+                  <input
+                    id="results-working-title"
+                    type="text"
+                    maxLength={120}
+                    value={flow.workingTitle}
+                    onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                    placeholder="Optional — used when you save to Studio"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    autoComplete="off"
+                  />
+                </div>
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
                   <img src={flow.imageDataUrl} alt="" className="max-h-56 w-full object-contain bg-slate-100" />
                 </div>

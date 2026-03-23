@@ -118,13 +118,18 @@ export async function runOpenAICritique(
   const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
   const { mime, base64 } = parseDataUrl(body.imageDataUrl);
 
+  const titleLine =
+    typeof body.paintingTitle === 'string' && body.paintingTitle.trim().length > 0
+      ? ` The artist titled this work: "${body.paintingTitle.trim()}". Use that title when referring to the piece in summary and feedback where natural.`
+      : '';
+
   const userContent: Array<
     | { type: 'text'; text: string }
     | { type: 'image_url'; image_url: { url: string; detail: 'high' | 'low' } }
   > = [
     {
       type: 'text',
-      text: `Analyze this painting. Style: ${body.style}. Medium: ${body.medium}.${
+      text: `Analyze this painting. Style: ${body.style}. Medium: ${body.medium}.${titleLine}${
         body.previousCritique && body.previousImageDataUrl
           ? '\n\nA previous photo of the same painting is attached second, followed by the prior critique JSON.'
           : ''
@@ -185,5 +190,8 @@ export async function runOpenAICritique(
     throw new Error('Model returned non-JSON');
   }
 
-  return validateResult(parsed);
+  const validated = validateResult(parsed);
+  const trimmedTitle =
+    typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
+  return trimmedTitle ? { ...validated, paintingTitle: trimmedTitle } : validated;
 }
