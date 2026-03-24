@@ -1,7 +1,7 @@
 /** Session flag so returning from full-screen routes can restore the main tab (App remounts on `/`). */
 const KEY = 'artvision-return-tab';
 
-export type ReturnTabIntent = 'benchmarks';
+export type ReturnTabIntent = 'benchmarks' | 'critique';
 
 export function setReturnTabIntent(tab: ReturnTabIntent): void {
   try {
@@ -16,6 +16,7 @@ export function consumeReturnTabIntent(): ReturnTabIntent | null {
     const v = sessionStorage.getItem(KEY);
     sessionStorage.removeItem(KEY);
     if (v === 'benchmarks') return 'benchmarks';
+    if (v === 'critique') return 'critique';
     return null;
   } catch {
     return null;

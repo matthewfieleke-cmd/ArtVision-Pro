@@ -61,6 +61,8 @@ type FlowState = {
   classifySourceImageDataUrl?: string;
   mode: 'new' | 'resubmit';
   targetPainting?: SavedPainting;
+  /** After the critique has been saved once, track the studio record so later saves update it. */
+  savedPaintingId?: string;
 };
 
 function newId(): string {
@@ -357,6 +359,70 @@ export default function App() {
       );
       setStudioSelectedId(flow.targetPainting.id);
       setTab('studio');
+      setFlow((cur) =>
+        cur
+          ? {
+              ...cur,
+              mode: 'resubmit',
+              targetPainting:
+                cur.targetPainting
+                  ? {
+                      ...cur.targetPainting,
+                      ...(t.length > 0 ? { title: t } : {}),
+                      versions: [...cur.targetPainting.versions, version],
+                    }
+                  : cur.targetPainting,
+              savedPaintingId: flow.targetPainting?.id,
+            }
+          : cur
+      );
+      return;
+    }
+
+    if (flow.savedPaintingId) {
+      const t = flow.workingTitle.trim();
+      setPaintings((ps) =>
+        ps.map((p) =>
+          p.id === flow.savedPaintingId
+            ? {
+                ...p,
+                ...(t.length > 0 ? { title: t } : {}),
+                versions: [...p.versions, version],
+              }
+            : p
+        )
+      );
+      setStudioSelectedId(flow.savedPaintingId);
+      setTab('studio');
+      setFlow((cur) => {
+        if (!cur || !cur.style || !cur.medium) return cur;
+        const targetPainting =
+          cur.targetPainting && cur.targetPainting.id === flow.savedPaintingId
+            ? {
+                ...cur.targetPainting,
+                ...(t.length > 0 ? { title: t } : {}),
+                versions: [...cur.targetPainting.versions, version],
+              }
+            : {
+                id: flow.savedPaintingId!,
+                title:
+                  t.length > 0
+                    ? t
+                    : savedTitle && savedTitle.length > 0
+                      ? savedTitle
+                      : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+                style: cur.style,
+                medium: cur.medium,
+                versions: [version],
+              };
+        return {
+          ...cur,
+          mode: 'resubmit',
+          targetPainting,
+          savedPaintingId: flow.savedPaintingId,
+        };
+      });
+      return;
     } else {
       const fromUser = flow.workingTitle.trim();
       const fromCritique = flow.critique.paintingTitle?.trim();
@@ -376,9 +442,18 @@ export default function App() {
       setPaintings((ps) => [painting, ...ps]);
       setStudioSelectedId(painting.id);
       setTab('studio');
+      setFlow((cur) =>
+        cur
+          ? {
+              ...cur,
+              mode: 'resubmit',
+              targetPainting: painting,
+              savedPaintingId: painting.id,
+            }
+          : cur
+      );
     }
-    closeFlow();
-  }, [flow, closeFlow, previewImageDataUrl]);
+  }, [flow, previewImageDataUrl]);
 
   const deletePainting = useCallback((id: string) => {
     setPaintings((ps) => ps.filter((p) => p.id !== id));
