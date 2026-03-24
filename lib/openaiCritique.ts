@@ -42,6 +42,7 @@ const CRITIQUE_JSON_SCHEMA = {
             'preserve',
             'practiceExercise',
             'nextTarget',
+            'subskills',
           ],
           properties: {
             criterion: { type: 'string', enum: [...CRITERIA_ORDER] },
@@ -60,6 +61,8 @@ const CRITIQUE_JSON_SCHEMA = {
             nextTarget: { type: 'string' },
             subskills: {
               type: 'array',
+              minItems: 2,
+              maxItems: 4,
               items: {
                 type: 'object',
                 additionalProperties: false,
@@ -133,10 +136,10 @@ Per criterion — practiceExercise (string):
 Per criterion — nextTarget (string):
 - A brief coaching label framed as the next target, e.g. "Push edge control toward Advanced."
 
-Per criterion — subskills (optional array):
-- If helpful, return 2-4 sub-skills that explain the category grade.
+Per criterion — subskills (array):
+- Return 2-4 sub-skills that explain the category grade.
 - Each subskill has label, score (0-1), and level.
-- Use them only when you can make the breakdown concrete from the photo.
+- Keep them concrete and observable from the photo, not generic art-school abstractions.
 
 Summary (string):
 - 3–5 sentences: strongest 1–2 passages (where and why), the single biggest leverage gap, and how fixing that gap would change the read of the whole piece.
@@ -206,18 +209,21 @@ function validateResult(raw: unknown): CritiqueResultDTO {
       throw new Error(`Invalid coaching metadata for ${expected}`);
     }
     if (
-      r.subskills !== undefined &&
-      (!Array.isArray(r.subskills) ||
-        r.subskills.some((entry) => {
-          if (!entry || typeof entry !== 'object') return true;
-          const sub = entry as Record<string, unknown>;
-          return (
-            typeof sub.label !== 'string' ||
-            typeof sub.score !== 'number' ||
-            typeof sub.level !== 'string' ||
-            !RATING_LEVELS.includes(sub.level as (typeof RATING_LEVELS)[number])
-          );
-        }))
+      !Array.isArray(r.subskills) ||
+      r.subskills.length < 2 ||
+      r.subskills.length > 4 ||
+      r.subskills.some((entry) => {
+        if (!entry || typeof entry !== 'object') return true;
+        const sub = entry as Record<string, unknown>;
+        return (
+          typeof sub.label !== 'string' ||
+          typeof sub.score !== 'number' ||
+          sub.score < 0 ||
+          sub.score > 1 ||
+          typeof sub.level !== 'string' ||
+          !RATING_LEVELS.includes(sub.level as (typeof RATING_LEVELS)[number])
+        );
+      })
     ) {
       throw new Error(`Invalid subskills for ${expected}`);
     }
@@ -231,15 +237,11 @@ function validateResult(raw: unknown): CritiqueResultDTO {
       preserve: r.preserve,
       practiceExercise: r.practiceExercise,
       nextTarget: r.nextTarget,
-      ...(Array.isArray(r.subskills)
-        ? {
-            subskills: r.subskills as Array<{
-              label: string;
-              score: number;
-              level: (typeof RATING_LEVELS)[number];
-            }>,
-          }
-        : {}),
+      subskills: r.subskills as Array<{
+        label: string;
+        score: number;
+        level: (typeof RATING_LEVELS)[number];
+      }>,
     };
   });
   const cn = o.comparisonNote;

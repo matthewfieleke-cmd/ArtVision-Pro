@@ -105,20 +105,44 @@ export function deriveLocalCategoryConfidence(
   criterion: Criterion,
   metrics: ImageMetrics
 ): CritiqueConfidence {
+  const capturePenalty =
+    (metrics.highlightClip > 0.04 ? 1 : 0) +
+    (metrics.shadowClip > 0.04 ? 1 : 0) +
+    (metrics.borderActivity > 0.28 ? 1 : 0) +
+    (metrics.centerFocus < 0.42 ? 1 : 0);
+
+  const downgrade = (confidence: CritiqueConfidence): CritiqueConfidence => {
+    if (capturePenalty <= 0) return confidence;
+    if (capturePenalty >= 2) {
+      return confidence === 'high' ? 'low' : 'low';
+    }
+    return confidence === 'high' ? 'medium' : confidence;
+  };
+
   switch (criterion) {
     case 'Composition':
     case 'Value structure':
     case 'Edge control':
-      return metrics.contrast > 0.18 && metrics.edgeDensity > 0.14 ? 'high' : 'medium';
+      return downgrade(metrics.contrast > 0.18 && metrics.edgeDensity > 0.14 ? 'high' : 'medium');
     case 'Color relationships':
-      return metrics.saturationMean > 0.06 ? 'medium' : 'low';
+      return downgrade(
+        metrics.saturationMean > 0.06 &&
+          metrics.highlightClip < 0.05 &&
+          metrics.shadowClip < 0.05
+          ? 'medium'
+          : 'low'
+      );
     case 'Unity and variety':
-      return metrics.contrast > 0.12 ? 'medium' : 'low';
+      return downgrade(metrics.contrast > 0.12 ? 'medium' : 'low');
     case 'Brushwork / handling':
-      return metrics.textureScore > 0.09 ? 'medium' : 'low';
+      return downgrade(
+        metrics.textureScore > 0.09 && metrics.highlightClip < 0.05 ? 'medium' : 'low'
+      );
     case 'Drawing and proportion':
     case 'Originality / expressive force':
-      return 'low';
+      return downgrade(
+        metrics.centerFocus > 0.52 && metrics.borderActivity < 0.24 ? 'medium' : 'low'
+      );
     default:
       return 'medium';
   }

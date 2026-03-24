@@ -84,11 +84,27 @@ function assessPhotoQuality(m: ImageMetrics): PhotoQualityAssessment {
     issues.push('Muted color capture limits confidence in palette advice.');
     tips.push('Use neutral daylight or correct white balance before trusting color critique.');
   }
+  if (m.highlightClip > 0.02) {
+    issues.push('Bright glare or overexposure is clipping highlight passages.');
+    tips.push('Tilt the camera to avoid reflections and lower exposure until bright paint still shows shape.');
+  }
+  if (m.shadowClip > 0.02) {
+    issues.push('Shadow passages are clipping too dark to judge clearly.');
+    tips.push('Add softer fill light or raise exposure until dark masses keep visible separation.');
+  }
+  if (m.borderActivity > 0.22) {
+    issues.push('The frame edge looks busy, suggesting background clutter or an incomplete crop.');
+    tips.push('Fill more of the frame with the painting and trim away wall, easel, and surrounding objects.');
+  }
+  if (m.centerFocus < 0.34 && m.focalOffset > 0.58) {
+    issues.push('The capture may be skewed or off-axis, making structure harder to compare fairly.');
+    tips.push('Stand square to the canvas and keep the lens centered so the rectangle reads evenly.');
+  }
 
   const level =
-    issues.length >= 3
+    issues.length >= 4
       ? 'poor'
-      : issues.length >= 1
+      : issues.length >= 2
         ? 'fair'
         : 'good';
 
