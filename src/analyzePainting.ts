@@ -60,6 +60,10 @@ function styleMediumBias(style: Style, medium: Medium): Record<Criterion, number
   if (medium === 'Oil on Canvas') {
     base['Brushwork / handling'] += 0.04;
   }
+  if (medium === 'Acrylic') {
+    base['Brushwork / handling'] += 0.04;
+    base['Edge control'] += 0.02;
+  }
 
   return base;
 }

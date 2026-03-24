@@ -10,6 +10,7 @@ export const STYLES = [
 
 export const MEDIUMS = [
   'Oil on Canvas',
+  'Acrylic',
   'Pastel',
   'Drawing',
   'Watercolor',
