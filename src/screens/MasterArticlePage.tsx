@@ -58,7 +58,7 @@ export function MasterArticlePage() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 pb-16 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white/90 px-4 py-3 shadow-soft backdrop-blur-md">
+      <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button
             type="button"

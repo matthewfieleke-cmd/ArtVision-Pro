@@ -447,7 +447,7 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <button
             type="button"
@@ -510,7 +510,7 @@ export default function App() {
       {flow && (
         <>
         <div className="fixed inset-0 z-40 flex flex-col bg-slate-50 pt-[env(safe-area-inset-top)]">
-          <div className="flex items-center gap-2 border-b border-slate-200 bg-white/90 px-3 py-2.5 shadow-soft backdrop-blur-sm">
+          <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 shadow-soft backdrop-blur-sm">
             <button
               type="button"
               onClick={() => {
