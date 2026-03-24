@@ -700,7 +700,7 @@ export default function App() {
                     value={flow.workingTitle}
                     onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
                     placeholder="e.g. Morning light on the harbor"
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                     autoComplete="off"
                   />
                   <p className="mt-1.5 text-[11px] text-slate-500">
@@ -764,7 +764,7 @@ export default function App() {
                     value={flow.workingTitle}
                     onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
                     placeholder="Name this piece for the critique"
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                     autoComplete="off"
                   />
                 </div>
@@ -860,7 +860,7 @@ export default function App() {
                     value={flow.workingTitle}
                     onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
                     placeholder="Optional — used when you save to Studio"
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                     autoComplete="off"
                   />
                 </div>
