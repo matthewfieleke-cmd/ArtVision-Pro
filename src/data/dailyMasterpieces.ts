@@ -179,15 +179,15 @@ export const DAILY_MASTERPIECES: DailyMasterpieceEntry[] = [
   },
   {
     artist: 'Vincent van Gogh',
-    work: 'The Starry Night',
+    work: 'Starry Night Over the Rhône',
     style: 'Expressionism',
     blurb:
-      'The sky writhes with rhythmic strokes; the village below stays still—inner turbulence projected onto nature. Van Gogh shows how directional mark and saturated color can serve feeling without abandoning design.',
-    paintingUrl: 'https://www.moma.org/collection/works/79802',
-    paintingLinkLabel: 'MoMA collection',
+      'Gaslight reflections stretch across the Rhone while stars and shore lights lock water and sky into one vibrating blue field. Van Gogh shows how directional mark and saturated complements can heighten emotion without losing the clarity of a night river scene.',
+    paintingUrl: 'https://www.musee-orsay.fr/en/artworks/starry-night-1150',
+    paintingLinkLabel: "View at Musee d'Orsay",
     imageUrl: artImage('daily-van-gogh-starry-night.jpg'),
-    imageAlt: 'Vincent van Gogh, The Starry Night',
-    imageCredit: 'Google Art Project / Wikimedia (check MoMA rights for commercial use)',
+    imageAlt: 'Vincent van Gogh, Starry Night Over the Rhône',
+    imageCredit: "Google Art Project / Musée d'Orsay / Wikimedia Commons (public domain)",
   },
   {
     artist: 'J. M. W. Turner',

@@ -768,15 +768,15 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     figures: [
       {
-        workTitle: 'The Starry Night',
-        year: '1889',
+        workTitle: 'Starry Night Over the Rhône',
+        year: '1888',
         medium: 'Oil on canvas',
-        collection: 'Museum of Modern Art, New York',
+        collection: 'Musée d’Orsay, Paris',
         analysis:
-          'The sky is a vortex of blues and yellows; the village below is comparatively quiet—emotional weather concentrated aloft. Cypress acts as a dark flame between worlds. Lesson: repeat a stroke direction across a passage to unify it; let one or two stars hold the highest key. Thick paint catches real light—surface as part of meaning.',
+          'Gaslight reflections and stars share the river’s surface, so the night is built from repeated vertical flickers rather than a single vortex overhead. Van Gogh balances the lit shoreline with deep blue water and sky, showing how saturated complements can stay ordered inside a calm nocturne. Lesson: repeat a stroke family across distant passages to unify the whole, then reserve a few brighter notes for the strongest sparkle and pull.',
         imageUrl: artImage('daily-van-gogh-starry-night.jpg'),
-        imageAlt: 'van Gogh, The Starry Night',
-        credit: 'Google Art Project / Wikimedia (MoMA holds the work; verify commercial reuse).',
+        imageAlt: 'van Gogh, Starry Night Over the Rhône',
+        credit: 'Google Art Project / Wikimedia Commons (Musée d’Orsay; public domain).',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg',
       },
     ],

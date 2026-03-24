@@ -184,7 +184,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
       'Distortion and diagonal stress as psychological fact (Munch, Kirchner).',
       'Compressed monumentality and stillness (Modersohn-Becker) vs diagrammatic panic (Munch).',
       'Central iconic form—skull, mask, totem—anchoring scribal energy and peripheral marks (Basquiat, Neo-Expressionism).',
-      'Vortex sky and village—swirling directional strokes as emotional weather (van Gogh, Starry Night).',
+      'Riverfront night sky pulsing with directional strokes—lights reflected as a second rhythm below (van Gogh, Starry Night Over the Rhône).',
     ],
   },
   {
@@ -211,7 +211,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
       'Deliberate elongation, hinge joints, exposed structure (Schiele, Modersohn-Becker).',
       'Wavy perspective and simplified masses as inner state (Munch).',
       'Primal silhouette (skull) plus improvised anatomy and signage—drawing that collapses icon and doodle (Basquiat).',
-      'Church spire and cypress as vertical anchors inside a rolling sky (van Gogh).',
+      'Masts, shoreline, and reflected lights act as vertical and horizontal anchors inside a moving night field (van Gogh).',
     ],
   },
   {
@@ -237,7 +237,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
     masterSignals: [
       'Repeating angularity or curves as motif across the canvas (Kirchner, Kandinsky early).',
       'One dominant emotional temperature with controlled counter-accents (Munch).',
-      'Whole sky obeys one stroke grammar while village stays comparatively still (van Gogh).',
+      'Whole sky and river reflections obey one stroke grammar while the bank and figures stay comparatively calm (van Gogh).',
     ],
   },
   {
