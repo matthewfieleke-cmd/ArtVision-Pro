@@ -7,6 +7,20 @@ import {
   resizeEditOutputToMatchUpload,
 } from './previewImageResize.js';
 
+type ImageStats = {
+  contrast: number;
+  edgeDensity: number;
+  edgeBalance: number;
+  valueSpread: number;
+  textureScore: number;
+  colorHarmony: number;
+  saturationMean: number;
+  saturationStd: number;
+  focalOffset: number;
+  centerFocus: number;
+  borderActivity: number;
+};
+
 function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } {
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
   if (!m) throw new Error('Invalid image data URL');
@@ -29,6 +43,262 @@ type EditQuality = (typeof EDIT_QUALITIES)[number];
 function resolveEditQuality(): EditQuality {
   const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'high').toLowerCase();
   return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'high';
+}
+
+function resolveCandidateCount(): number {
+  const raw = Number(process.env.OPENAI_IMAGE_EDIT_CANDIDATES ?? 3);
+  if (!Number.isFinite(raw)) return 3;
+  return Math.max(1, Math.min(4, Math.round(raw)));
+}
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+function centeredScore(value: number, target: number, tolerance: number): number {
+  return clamp01(1 - Math.abs(value - target) / tolerance);
+}
+
+function luminance(r: number, g: number, b: number): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function rgbToHsl(
+  r: number,
+  g: number,
+  b: number
+): { h: number; s: number; l: number } {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        break;
+      case g:
+        h = ((b - r) / d + 2) / 6;
+        break;
+      default:
+        h = ((r - g) / d + 4) / 6;
+    }
+  }
+  return { h, s, l };
+}
+
+async function computePreviewStats(buffer: Buffer, sampleSize = 256): Promise<ImageStats> {
+  const raster = await sharp(buffer)
+    .rotate()
+    .resize(sampleSize, sampleSize, { fit: 'cover', position: 'centre' })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  const width = sampleSize;
+  const height = sampleSize;
+  const idx = (x: number, y: number) => (y * width + x) * 3;
+  const lumas: number[] = [];
+  const sats: number[] = [];
+  let sumL = 0;
+  for (let i = 0; i < raster.length; i += 3) {
+    const r = raster[i]!;
+    const g = raster[i + 1]!;
+    const b = raster[i + 2]!;
+    const L = luminance(r, g, b);
+    lumas.push(L);
+    sumL += L;
+    sats.push(rgbToHsl(r, g, b).s);
+  }
+  const n = lumas.length;
+  const meanL = sumL / n;
+  let varL = 0;
+  for (const L of lumas) varL += (L - meanL) ** 2;
+  const stdL = Math.sqrt(varL / n);
+  const valueSpread = clamp01(stdL / 80);
+
+  let edgeSum = 0;
+  let edgeStrong = 0;
+  let localVarSum = 0;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = idx(x, y);
+      const right = idx(x + 1, y);
+      const down = idx(x, y + 1);
+      const Lc = luminance(raster[i]!, raster[i + 1]!, raster[i + 2]!);
+      const Lr = luminance(raster[right]!, raster[right + 1]!, raster[right + 2]!);
+      const Ld = luminance(raster[down]!, raster[down + 1]!, raster[down + 2]!);
+      const gx = Math.abs(Lc - Lr);
+      const gy = Math.abs(Lc - Ld);
+      const mag = gx + gy;
+      edgeSum += mag;
+      if (mag > 28) edgeStrong += 1;
+      const patch: number[] = [];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const j = idx(x + dx, y + dy);
+          patch.push(luminance(raster[j]!, raster[j + 1]!, raster[j + 2]!));
+        }
+      }
+      const pm = patch.reduce((a, b) => a + b, 0) / patch.length;
+      localVarSum += patch.reduce((a, p) => a + (p - pm) ** 2, 0) / patch.length;
+    }
+  }
+  const cells = (width - 2) * (height - 2);
+  const edgeDensity = clamp01((edgeSum / cells) / 45);
+  const edgeBalance = cells ? edgeStrong / cells : 0;
+
+  const meanS = sats.reduce((a, b) => a + b, 0) / sats.length;
+  let varS = 0;
+  for (const s of sats) varS += (s - meanS) ** 2;
+  const stdS = Math.sqrt(varS / sats.length);
+  const colorHarmony = clamp01(1 - Math.min(1, stdS * 1.8));
+  const saturationMean = meanS;
+  const saturationStd = stdS;
+
+  let wx = 0;
+  let wy = 0;
+  let wsum = 0;
+  let borderSum = 0;
+  let borderCount = 0;
+  const borderBand = Math.max(4, Math.round(sampleSize * 0.08));
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = idx(x, y);
+      const right = idx(x + 1, y);
+      const down = idx(x, y + 1);
+      const Lc = luminance(raster[i]!, raster[i + 1]!, raster[i + 2]!);
+      const Lr = luminance(raster[right]!, raster[right + 1]!, raster[right + 2]!);
+      const Ld = luminance(raster[down]!, raster[down + 1]!, raster[down + 2]!);
+      const w = Math.abs(Lc - Lr) + Math.abs(Lc - Ld);
+      wx += x * w;
+      wy += y * w;
+      wsum += w;
+      if (
+        x < borderBand ||
+        y < borderBand ||
+        x >= width - borderBand ||
+        y >= height - borderBand
+      ) {
+        borderSum += w;
+        borderCount += 1;
+      }
+    }
+  }
+  const cx = wsum ? wx / wsum : width / 2;
+  const cy = wsum ? wy / wsum : height / 2;
+  const dx = (cx - width / 2) / width;
+  const dy = (cy - height / 2) / height;
+  const focalOffset = clamp01(Math.sqrt(dx * dx + dy * dy) * 2);
+  const centerFocus = clamp01(1 - Math.sqrt(dx * dx + dy * dy) * 1.4);
+  const borderActivity = borderCount ? clamp01((borderSum / borderCount) / 45) : 0;
+
+  return {
+    contrast: clamp01(stdL / 70),
+    edgeDensity,
+    edgeBalance,
+    valueSpread,
+    textureScore: clamp01((localVarSum / cells) / 400),
+    colorHarmony,
+    saturationMean,
+    saturationStd,
+    focalOffset,
+    centerFocus,
+    borderActivity,
+  };
+}
+
+function similarityScore(original: ImageStats, candidate: ImageStats): number {
+  const diffs = [
+    Math.abs(candidate.focalOffset - original.focalOffset),
+    Math.abs(candidate.centerFocus - original.centerFocus),
+    Math.abs(candidate.borderActivity - original.borderActivity),
+    Math.abs(candidate.colorHarmony - original.colorHarmony),
+    Math.abs(candidate.saturationMean - original.saturationMean),
+    Math.abs(candidate.valueSpread - original.valueSpread),
+  ];
+  const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+  return clamp01(1 - avgDiff * 2.1);
+}
+
+function criterionGainScore(
+  criterion: PreviewEditRequestBody['target']['criterion'],
+  original: ImageStats,
+  candidate: ImageStats
+): number {
+  switch (criterion) {
+    case 'Composition':
+      return clamp01(
+        0.4 * (centeredScore(candidate.focalOffset, 0.3, 0.3) - centeredScore(original.focalOffset, 0.3, 0.3)) +
+          0.35 * (candidate.centerFocus - original.centerFocus) +
+          0.25 * (centeredScore(candidate.borderActivity, 0.14, 0.18) - centeredScore(original.borderActivity, 0.14, 0.18)) +
+          0.5
+      );
+    case 'Value structure':
+      return clamp01(
+        0.45 * (candidate.valueSpread - original.valueSpread) +
+          0.35 * (candidate.contrast - original.contrast) +
+          0.2 * (centeredScore(candidate.edgeDensity, 0.22, 0.25) - centeredScore(original.edgeDensity, 0.22, 0.25)) +
+          0.5
+      );
+    case 'Color relationships':
+      return clamp01(
+        0.45 * (candidate.colorHarmony - original.colorHarmony) +
+          0.3 * (centeredScore(candidate.saturationStd, 0.12, 0.14) - centeredScore(original.saturationStd, 0.12, 0.14)) +
+          0.25 * (centeredScore(candidate.saturationMean, 0.18, 0.16) - centeredScore(original.saturationMean, 0.18, 0.16)) +
+          0.5
+      );
+    case 'Drawing and proportion':
+      return clamp01(
+        0.45 * (candidate.centerFocus - original.centerFocus) +
+          0.3 * (centeredScore(candidate.borderActivity, 0.12, 0.18) - centeredScore(original.borderActivity, 0.12, 0.18)) +
+          0.25 * (candidate.contrast - original.contrast) +
+          0.5
+      );
+    case 'Edge control':
+      return clamp01(
+        0.45 * (centeredScore(candidate.edgeBalance, 0.18, 0.2) - centeredScore(original.edgeBalance, 0.18, 0.2)) +
+          0.3 * (centeredScore(candidate.edgeDensity, 0.28, 0.28) - centeredScore(original.edgeDensity, 0.28, 0.28)) +
+          0.25 * (candidate.valueSpread - original.valueSpread) +
+          0.5
+      );
+    case 'Brushwork / handling':
+      return clamp01(
+        0.5 * (candidate.textureScore - original.textureScore) +
+          0.25 * (candidate.edgeDensity - original.edgeDensity) +
+          0.25 * (centeredScore(candidate.edgeBalance, 0.2, 0.22) - centeredScore(original.edgeBalance, 0.2, 0.22)) +
+          0.5
+      );
+    case 'Unity and variety':
+      return clamp01(
+        0.45 * (candidate.colorHarmony - original.colorHarmony) +
+          0.25 * (centeredScore(candidate.saturationStd, 0.12, 0.16) - centeredScore(original.saturationStd, 0.12, 0.16)) +
+          0.3 * (candidate.contrast - original.contrast) +
+          0.5
+      );
+    case 'Originality / expressive force':
+      return clamp01(
+        0.4 * (candidate.textureScore - original.textureScore) +
+          0.3 * (candidate.saturationStd - original.saturationStd) +
+          0.3 * (candidate.focalOffset - original.focalOffset) +
+          0.5
+      );
+  }
+}
+
+function rankingScore(
+  criterion: PreviewEditRequestBody['target']['criterion'],
+  original: ImageStats,
+  candidate: ImageStats
+): number {
+  const similarity = similarityScore(original, candidate);
+  const criterionGain = criterionGainScore(criterion, original, candidate);
+  return 0.58 * similarity + 0.42 * criterionGain;
 }
 
 function buildEditPrompt(body: PreviewEditRequestBody): string {
@@ -81,6 +351,8 @@ export async function runOpenAIPreviewEdit(
   const { buffer: apiInputPng, geometry } = await bufferToApiInputPng(inputBuffer, editSize);
   const imageUrl = `data:image/png;base64,${apiInputPng.toString('base64')}`;
   const quality = resolveEditQuality();
+  const candidateCount = resolveCandidateCount();
+  const originalStats = await computePreviewStats(inputBuffer);
 
   const payload = {
     model,
@@ -88,7 +360,7 @@ export async function runOpenAIPreviewEdit(
     images: [{ image_url: imageUrl }],
     size: editSize,
     quality,
-    n: 1,
+    n: candidateCount,
     input_fidelity: 'high' as const,
   };
 
@@ -107,32 +379,48 @@ export async function runOpenAIPreviewEdit(
     throw new Error(err?.message ?? `OpenAI image edit failed (${res.status})`);
   }
 
+  const preferOut = outputMimeFromInput(inputMime);
   const data = json.data as Array<{ b64_json?: string; url?: string }> | undefined;
-  const first = data?.[0];
-  if (!first) throw new Error('No image in edit response');
+  if (!data?.length) throw new Error('No image in edit response');
 
-  let editedBuffer: Buffer;
-  if (first.b64_json) {
-    editedBuffer = Buffer.from(first.b64_json, 'base64');
-  } else if (first.url) {
-    const imgRes = await fetch(first.url);
-    if (!imgRes.ok) throw new Error('Failed to fetch edited image URL');
-    editedBuffer = Buffer.from(await imgRes.arrayBuffer());
-  } else {
-    throw new Error('Edit response missing image data');
+  let bestCandidate:
+    | {
+        imageDataUrl: string;
+        score: number;
+      }
+    | undefined;
+
+  for (const item of data) {
+    let editedBuffer: Buffer;
+    if (item.b64_json) {
+      editedBuffer = Buffer.from(item.b64_json, 'base64');
+    } else if (item.url) {
+      const imgRes = await fetch(item.url);
+      if (!imgRes.ok) throw new Error('Failed to fetch edited image URL');
+      editedBuffer = Buffer.from(await imgRes.arrayBuffer());
+    } else {
+      continue;
+    }
+
+    const { buffer: outBuf, mime: outMime } = await resizeEditOutputToMatchUpload(
+      editedBuffer,
+      origW,
+      origH,
+      preferOut,
+      geometry
+    );
+    const candidateStats = await computePreviewStats(outBuf);
+    const score = rankingScore(body.target.criterion, originalStats, candidateStats);
+    const imageDataUrl = `data:${outMime};base64,${outBuf.toString('base64')}`;
+    if (!bestCandidate || score > bestCandidate.score) {
+      bestCandidate = { imageDataUrl, score };
+    }
   }
 
-  const preferOut = outputMimeFromInput(inputMime);
-  const { buffer: outBuf, mime: outMime } = await resizeEditOutputToMatchUpload(
-    editedBuffer,
-    origW,
-    origH,
-    preferOut,
-    geometry
-  );
+  if (!bestCandidate) throw new Error('Edit response missing image data');
 
   return {
-    imageDataUrl: `data:${outMime};base64,${outBuf.toString('base64')}`,
+    imageDataUrl: bestCandidate.imageDataUrl,
     criterion: body.target.criterion,
   };
 }
