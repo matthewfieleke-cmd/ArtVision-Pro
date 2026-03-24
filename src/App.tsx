@@ -53,6 +53,8 @@ type FlowState = {
   critiqueSource?: 'api' | 'local';
   /** After auto style: vision or heuristic note */
   styleClassifyMeta?: { rationale: string; source: 'api' | 'local' };
+  /** Photo uploaded for “Categorize for me”—reuse for critique without capture step */
+  classifySourceImageDataUrl?: string;
   mode: 'new' | 'resubmit';
   targetPainting?: SavedPainting;
 };
@@ -251,7 +253,14 @@ export default function App() {
       );
     } catch (e) {
       setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed');
-      setFlow((cur) => (cur ? { ...cur, step: 'capture' } : cur));
+      setFlow((cur) =>
+        cur
+          ? {
+              ...cur,
+              step: cur.classifySourceImageDataUrl ? 'setup' : 'capture',
+            }
+          : cur
+      );
     }
   }, []);
 
@@ -277,6 +286,7 @@ export default function App() {
               ...cur,
               style,
               styleClassifyMeta: { rationale, source },
+              classifySourceImageDataUrl: url,
             }
           : cur
       );
@@ -364,6 +374,15 @@ export default function App() {
     flow &&
     flow.medium &&
     (flow.styleMode === 'manual' ? flow.style !== null : flow.style !== null && !classifyBusy);
+
+  const canRunCritiqueFromClassifyUpload =
+    Boolean(
+      flow?.styleMode === 'auto' &&
+        flow.classifySourceImageDataUrl &&
+        flow.style &&
+        flow.medium &&
+        !classifyBusy
+    );
 
   const priorityCategory = useMemo(() => {
     if (!flow?.critique?.categories.length) return null;
@@ -478,7 +497,19 @@ export default function App() {
                 else if (flow.step === 'capture') {
                   if (flow.mode === 'resubmit') closeFlow();
                   else setFlow({ ...flow, step: 'setup' });
-                } else if (flow.step === 'results') setFlow({ ...flow, step: 'capture' });
+                } else if (flow.step === 'results') {
+                  const backToSetup =
+                    flow.mode === 'new' &&
+                    flow.styleMode === 'auto' &&
+                    flow.style &&
+                    flow.styleClassifyMeta &&
+                    flow.imageDataUrl;
+                  setFlow({
+                    ...flow,
+                    step: backToSetup ? 'setup' : 'capture',
+                    ...(backToSetup ? { classifySourceImageDataUrl: flow.imageDataUrl } : {}),
+                  });
+                }
                 else closeFlow();
               }}
               className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
@@ -510,6 +541,7 @@ export default function App() {
                                 ...f,
                                 styleMode: 'manual',
                                 styleClassifyMeta: undefined,
+                                classifySourceImageDataUrl: undefined,
                               }
                             : f
                         )
@@ -532,6 +564,7 @@ export default function App() {
                                 styleMode: 'auto',
                                 style: null,
                                 styleClassifyMeta: undefined,
+                                classifySourceImageDataUrl: undefined,
                               }
                             : f
                         )
@@ -588,6 +621,15 @@ export default function App() {
                       </label>
                       {flow.style && flow.styleClassifyMeta ? (
                         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
+                          {flow.classifySourceImageDataUrl ? (
+                            <div className="mb-3 overflow-hidden rounded-xl border border-slate-100 bg-slate-100">
+                              <img
+                                src={flow.classifySourceImageDataUrl}
+                                alt=""
+                                className="max-h-40 w-full object-contain object-center"
+                              />
+                            </div>
+                          ) : null}
                           <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
                             Suggested style
                           </p>
@@ -645,14 +687,46 @@ export default function App() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={!canContinueFromSetup}
-                  onClick={() => setFlow((f) => (f ? { ...f, step: 'capture' } : f))}
-                  className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition enabled:active:scale-[0.99] disabled:opacity-35"
-                >
-                  Continue to capture
-                </button>
+                {canRunCritiqueFromClassifyUpload ? (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const src = flow.classifySourceImageDataUrl;
+                        if (src) void runAnalysis(src);
+                      }}
+                      className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition active:scale-[0.99]"
+                    >
+                      Run critique on this photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFlow((f) =>
+                          f
+                            ? {
+                                ...f,
+                                step: 'capture',
+                                classifySourceImageDataUrl: undefined,
+                              }
+                            : f
+                        )
+                      }
+                      className="w-full rounded-2xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                    >
+                      Use camera or a different photo
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!canContinueFromSetup}
+                    onClick={() => setFlow((f) => (f ? { ...f, step: 'capture' } : f))}
+                    className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition enabled:active:scale-[0.99] disabled:opacity-35"
+                  >
+                    Continue to capture
+                  </button>
+                )}
               </div>
             )}
 
