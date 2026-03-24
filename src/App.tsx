@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
+import { CritiquePanels } from './components/CritiquePanels';
 import { CriterionLearnLink } from './components/CriterionLearnLink';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
@@ -872,14 +873,6 @@ export default function App() {
                     full vision feedback.
                   </p>
                 ) : null}
-                {flow.critique.comparisonNote ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950">
-                    <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
-                    <p className="mt-1 leading-relaxed text-amber-950/95">{flow.critique.comparisonNote}</p>
-                  </div>
-                ) : null}
-                <p className="text-sm leading-relaxed text-slate-600">{flow.critique.summary}</p>
-
                 {priorityCategory ? (
                   <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -944,41 +937,7 @@ export default function App() {
                     ) : null}
                   </section>
                 ) : null}
-
-                {flow.critique.categories.map((cat) => (
-                  <article
-                    key={cat.criterion}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900">{cat.criterion}</h3>
-                      <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
-                        {cat.level}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-violet-500 transition-all duration-700"
-                        style={{
-                          width:
-                            cat.level === 'Beginner'
-                              ? '25%'
-                              : cat.level === 'Intermediate'
-                                ? '50%'
-                                : cat.level === 'Advanced'
-                                  ? '75%'
-                                  : '100%',
-                        }}
-                      />
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-slate-600">{cat.feedback}</p>
-                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-700">{cat.actionPlan}</p>
-                    </div>
-                    <CriterionLearnLink criterion={cat.criterion} />
-                  </article>
-                ))}
+                <CritiquePanels critique={flow.critique} />
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"

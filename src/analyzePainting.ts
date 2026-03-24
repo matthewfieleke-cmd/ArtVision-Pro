@@ -3,10 +3,18 @@ import type {
   CritiqueResult,
   Criterion,
   Medium,
+  PhotoQualityAssessment,
   RatingLevel,
   Style,
 } from './types';
 import { ARTISTS_BY_STYLE, CRITERIA } from './types';
+import {
+  deriveLocalCategoryConfidence,
+  deriveLocalEvidenceSignals,
+  deriveLocalPracticeExercise,
+  deriveLocalPreserveText,
+  finalizeCritiqueResult,
+} from './critiqueCoach';
 import type { ImageMetrics } from './imageMetrics';
 import { clamp01, computeImageMetrics } from './imageMetrics';
 
@@ -15,6 +23,49 @@ function scoreToLevel(score: number): RatingLevel {
   if (score < 0.52) return 'Intermediate';
   if (score < 0.78) return 'Advanced';
   return 'Master';
+}
+
+function assessPhotoQuality(m: ImageMetrics): PhotoQualityAssessment {
+  const issues: string[] = [];
+  const tips: string[] = [];
+
+  if (m.contrast < 0.1) {
+    issues.push('Low contrast makes value grouping harder to judge.');
+    tips.push('Re-shoot in diffuse light and avoid glare so lights and darks separate more clearly.');
+  }
+  if (m.edgeDensity < 0.1) {
+    issues.push('Soft focus or camera distance reduces structural detail.');
+    tips.push('Move closer, square the phone to the canvas, and let the camera refocus before capturing.');
+  }
+  if (m.edgeBalance > 0.34) {
+    issues.push('Too many sharp accents may come from texture glare or a busy crop.');
+    tips.push('Crop to the painting edges and reduce side-light reflections on textured passages.');
+  }
+  if (m.saturationMean < 0.04) {
+    issues.push('Muted color capture limits confidence in palette advice.');
+    tips.push('Use neutral daylight or correct white balance before trusting color critique.');
+  }
+
+  const level =
+    issues.length >= 3
+      ? 'poor'
+      : issues.length >= 1
+        ? 'fair'
+        : 'good';
+
+  const summary =
+    level === 'good'
+      ? 'Photo quality looks solid enough for a useful critique.'
+      : level === 'fair'
+        ? 'This critique is usable, but a cleaner photo would make some judgments more trustworthy.'
+        : 'Photo quality is limiting the critique; treat lower-confidence categories as provisional.';
+
+  return {
+    level,
+    summary,
+    issues,
+    tips,
+  };
 }
 
 function styleMediumBias(style: Style, medium: Medium): Record<Criterion, number> {
@@ -73,7 +124,8 @@ function buildCategory(
   level: RatingLevel,
   style: Style,
   medium: Medium,
-  benchmarks: readonly string[]
+  benchmarks: readonly string[],
+  metrics: ImageMetrics
 ): CritiqueCategory {
   const masterNames = benchmarks.join(', ');
   const templates: Record<
@@ -232,6 +284,10 @@ function buildCategory(
     level,
     feedback: t.feedback,
     actionPlan: t.action,
+    confidence: deriveLocalCategoryConfidence(criterion, metrics),
+    evidenceSignals: deriveLocalEvidenceSignals(criterion, metrics),
+    preserve: deriveLocalPreserveText(criterion, level, metrics),
+    practiceExercise: deriveLocalPracticeExercise(criterion, style, medium),
   };
 }
 
@@ -341,9 +397,10 @@ export async function analyzePainting(
 
   const m = await computeImageMetrics(imageDataUrl);
   const scores = numericScores(m, bias);
+  const photoQuality = assessPhotoQuality(m);
 
   const categories: CritiqueCategory[] = CRITERIA.map((c) =>
-    buildCategory(c, scoreToLevel(scores[c]), style, medium, benchmarks)
+    buildCategory(c, scoreToLevel(scores[c]), style, medium, benchmarks, m)
   );
 
   const avg =
@@ -373,10 +430,12 @@ export async function analyzePainting(
   }
 
   const trimmed = paintingTitle?.trim();
-  return {
+  return finalizeCritiqueResult({
     categories,
     summary,
     comparisonNote,
+    analysisSource: 'local',
+    photoQuality,
     ...(trimmed ? { paintingTitle: trimmed } : {}),
-  };
+  });
 }
