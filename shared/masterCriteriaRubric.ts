@@ -338,6 +338,13 @@ const BY_STYLE: Record<StyleKey, CriterionRubric[]> = {
   'Abstract Art': ABSTRACT_ART_RUBRIC,
 };
 
+export function getCriterionRubric(style: string, criterion: CriterionLabel): CriterionRubric | null {
+  const key = style as StyleKey;
+  const rows = BY_STYLE[key];
+  if (!rows) return null;
+  return rows.find((row) => row.criterion === criterion) ?? null;
+}
+
 /** Compact text block for OpenAI system prompt (per declared style). */
 export function formatRubricForPrompt(style: string): string {
   const key = style as StyleKey;

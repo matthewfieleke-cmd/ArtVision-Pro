@@ -1,3 +1,4 @@
+import { getCriterionMasterSignals } from '../shared/masterCriteriaRubric.js';
 import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes.js';
 import {
   bufferToApiInputPng,
@@ -32,6 +33,10 @@ function resolveEditQuality(): EditQuality {
 
 function buildEditPrompt(body: PreviewEditRequestBody): string {
   const { style, medium, target } = body;
+  const masterSignals = getCriterionMasterSignals(style, target.criterion)
+    .slice(0, 4)
+    .map((signal) => `- ${signal}`)
+    .join('\n');
   return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
 Context: ${style}, medium ${medium}.
@@ -43,15 +48,19 @@ ${target.feedback}
 
 Show this improvement via paint (not caption): ${target.actionPlan}
 
+Master-level signals to honor for this exact criterion in ${style}:
+${masterSignals || '- Use the strongest available style-consistent master signals for this criterion.'}
+
 Rules — quality and fidelity:
 - Preserve identity: same subject, pose, composition, crop, and viewing angle. Do not invent new objects, figures, or a new scene.
 - Preserve the hand of the artist: match existing brush scale, stroke direction, and surface texture (${medium}); edits should look like the same person repainted that passage with more skill, not a different artist or a digital repaint.
+- Improvement should feel like a master critique pass inside the artist's existing voice, not a style transfer into another painter's finished work.
 - Apply the change mainly where the critique implies (edges, values, color temperature, drawing, etc.)—subtle elsewhere.
 - Edge-to-edge: fill the full frame; no inset, no frame-within-frame, no added borders or captions.
 - Lighting: keep the same light direction and color of light unless the critique explicitly calls for adjusting light logic for "${target.criterion}".
 - Photo artifacts: reduce mild glare or color cast only if needed so the revision reads clearly; do not turn the image into a different photograph.
 
-Output: one photorealistic image of the same artwork after this single focused improvement—museum documentation quality, sharp detail in revised areas, coherent with the rest of the piece.`;
+Output: one photorealistic image of the same artwork after this single focused improvement—museum documentation quality, crisp but natural surface detail, faithful geometry, and revised passages that integrate seamlessly with the untouched paint.`;
 }
 
 /**
@@ -69,7 +78,7 @@ export async function runOpenAIPreviewEdit(
   const { mime: inputMime, buffer: inputBuffer } = parseDataUrl(body.imageDataUrl.trim());
   const { width: origW, height: origH } = await getImageDimensions(inputBuffer);
   const editSize = pickImagesEditSize(origW, origH);
-  const apiInputPng = await bufferToApiInputPng(inputBuffer, editSize);
+  const { buffer: apiInputPng, geometry } = await bufferToApiInputPng(inputBuffer, editSize);
   const imageUrl = `data:image/png;base64,${apiInputPng.toString('base64')}`;
   const quality = resolveEditQuality();
 
@@ -118,7 +127,8 @@ export async function runOpenAIPreviewEdit(
     editedBuffer,
     origW,
     origH,
-    preferOut
+    preferOut,
+    geometry
   );
 
   return {

@@ -50,6 +50,8 @@ type FlowState = {
   medium: Medium | null;
   /** Optional title for this work (new critique or override on resubmit) */
   workingTitle: string;
+  /** Original full-resolution source, preserved for preview edits. */
+  originalImageDataUrl?: string;
   imageDataUrl?: string;
   critique?: CritiqueResult;
   critiqueSource?: 'api' | 'local';
@@ -409,6 +411,7 @@ export default function App() {
 
   const runPreviewEdit = useCallback(async () => {
     if (!flow?.imageDataUrl || !flow.style || !flow.medium || !priorityCategory) return;
+    const previewSource = flow.originalImageDataUrl ?? flow.imageDataUrl;
     if (!shouldTryApiFirst()) {
       setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
       return;
@@ -417,7 +420,7 @@ export default function App() {
     setPreviewLoading(true);
     try {
       const { imageDataUrl } = await fetchPreviewEdit({
-        imageDataUrl: flow.imageDataUrl,
+        imageDataUrl: previewSource,
         style: flow.style,
         medium: flow.medium,
         target: {
@@ -435,7 +438,7 @@ export default function App() {
     } finally {
       setPreviewLoading(false);
     }
-  }, [flow?.imageDataUrl, flow?.style, flow?.medium, priorityCategory]);
+  }, [flow?.imageDataUrl, flow?.medium, flow?.originalImageDataUrl, flow?.style, priorityCategory]);
 
   const openPreviewCompare = useCallback(() => {
     setPreviewCompareOpen(true);
