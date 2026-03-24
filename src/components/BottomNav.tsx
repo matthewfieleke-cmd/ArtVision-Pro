@@ -16,7 +16,7 @@ type Props = {
 export function BottomNav({ active, onChange }: Props) {
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-20 border-t border-slate-200/90 bg-white/90 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_-8px_rgba(15,23,42,0.08)] backdrop-blur-md"
+      className="fixed bottom-0 inset-x-0 z-20 border-t border-slate-200/90 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_-8px_rgba(15,23,42,0.08)]"
       aria-label="Main"
     >
       <div className="mx-auto flex max-w-lg justify-around px-2 pt-1.5">
