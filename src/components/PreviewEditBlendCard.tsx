@@ -1,12 +1,6 @@
 import { useEffect, useId, useState, type CSSProperties } from 'react';
 import type { CritiqueCategory } from '../types';
 
-function clipSentence(s: string, max = 220): string {
-  const t = s.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max).replace(/\s+\S*$/, '')}…`;
-}
-
 function useOriginalAspectRatio(originalSrc: string): number | null {
   const [ratio, setRatio] = useState<number | null>(null);
 
@@ -89,8 +83,8 @@ export function PreviewEditBlendCard({
           <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>{target.criterion}</strong> (current
           level: {target.level}). Illustrative only—not a substitute for repainting.
         </p>
-        <p className="mt-2">{clipSentence(target.feedback, 300)}</p>
-        <p className="mt-2">{clipSentence(target.actionPlan, 300)}</p>
+        <p className="mt-2 whitespace-pre-line">{target.feedback.trim()}</p>
+        <p className="mt-2 whitespace-pre-line">{target.actionPlan.trim()}</p>
       </div>
 
       <div className="flex flex-col gap-3">
