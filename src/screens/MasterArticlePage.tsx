@@ -3,6 +3,7 @@ import { ArrowLeft, BookMarked, ExternalLink } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { advanceDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
 import { getMasterBySlug } from '../data/masterCatalog';
+import { setReturnTabIntent } from '../navIntent';
 
 function MasterWorkImage({ src, alt, linkHref }: { src: string; alt: string; linkHref: string }) {
   const [failed, setFailed] = useState(false);
@@ -33,11 +34,6 @@ function MasterWorkImage({ src, alt, linkHref }: { src: string; alt: string; lin
   );
 }
 
-function goHomeFromArticle(navigate: ReturnType<typeof useNavigate>): void {
-  advanceDailyMasterpieceIndex();
-  navigate('/');
-}
-
 export function MasterArticlePage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -66,9 +62,12 @@ export function MasterArticlePage() {
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button
             type="button"
-            onClick={() => (window.history.length > 1 ? navigate(-1) : goHomeFromArticle(navigate))}
+            onClick={() => {
+              setReturnTabIntent('benchmarks');
+              navigate('/');
+            }}
             className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
-            aria-label="Back"
+            aria-label="Back to Masters"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>

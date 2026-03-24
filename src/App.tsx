@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Camera,
@@ -23,6 +24,7 @@ import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
+import { consumeReturnTabIntent } from './navIntent';
 import { loadPaintings, savePaintings } from './storage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
@@ -88,6 +90,7 @@ async function classifyStyleFromImage(dataUrl: string): Promise<{
 }
 
 export default function App() {
+  const location = useLocation();
   const [tab, setTab] = useState<TabId>('home');
   const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
@@ -113,6 +116,12 @@ export default function App() {
       console.error(e);
     }
   }, [paintings]);
+
+  useEffect(() => {
+    if (location.pathname !== '/') return;
+    const intent = consumeReturnTabIntent();
+    if (intent === 'benchmarks') setTab('benchmarks');
+  }, [location.pathname, location.key]);
 
   const closeFlow = useCallback(() => {
     stopCamera();
