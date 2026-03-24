@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { CritiquePanels } from './components/CritiquePanels';
-import { CriterionLearnLink } from './components/CriterionLearnLink';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';

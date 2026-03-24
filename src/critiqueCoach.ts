@@ -58,7 +58,7 @@ export function deriveOverallConfidence(
   photoQuality?: PhotoQualityAssessment,
   analysisSource?: 'api' | 'local'
 ): CritiqueConfidence {
-  const numeric = categories.map((cat) => {
+  const numeric: number[] = categories.map((cat) => {
     switch (cat.confidence) {
       case 'high':
         return 2;
