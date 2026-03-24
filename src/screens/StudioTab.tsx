@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
-import { CriterionLearnLink } from '../components/CriterionLearnLink';
+import { CritiquePanels } from '../components/CritiquePanels';
 import { PreviewEditBlendCard } from '../components/PreviewEditBlendCard';
 import type { CritiqueResult, SavedPainting } from '../types';
 import { CRITERIA } from '../types';
@@ -15,64 +15,12 @@ type Props = {
   selectedId: string | null;
 };
 
-function levelWidth(level: string): string {
-  switch (level) {
-    case 'Beginner':
-      return '25%';
-    case 'Intermediate':
-      return '50%';
-    case 'Advanced':
-      return '75%';
-    default:
-      return '100%';
-  }
-}
-
 function previewTargetForVersion(
   critique: CritiqueResult,
   criterion: (typeof CRITERIA)[number]
 ) {
   const cat = critique.categories.find((c) => c.criterion === criterion);
   return cat ?? critique.categories[0]!;
-}
-
-function CritiquePanels({ critique }: { critique: CritiqueResult }) {
-  return (
-    <div className="space-y-3">
-      {critique.comparisonNote ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
-          <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
-        </div>
-      ) : null}
-      <p className="text-sm leading-relaxed text-slate-600">{critique.summary}</p>
-      {critique.categories.map((cat) => (
-        <article
-          key={cat.criterion}
-          className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-semibold text-slate-900">{cat.criterion}</h4>
-            <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
-              {cat.level}
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-violet-500 transition-all duration-700"
-              style={{ width: levelWidth(cat.level) }}
-            />
-          </div>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600">{cat.feedback}</p>
-          <div className="mt-3 rounded-xl bg-slate-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-700">{cat.actionPlan}</p>
-          </div>
-          <CriterionLearnLink criterion={cat.criterion} />
-        </article>
-      ))}
-    </div>
-  );
 }
 
 export function StudioTab({

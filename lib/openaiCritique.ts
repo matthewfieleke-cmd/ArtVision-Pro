@@ -9,10 +9,22 @@ const CRITIQUE_JSON_SCHEMA = {
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['summary', 'categories', 'comparisonNote'],
+    required: ['summary', 'categories', 'comparisonNote', 'overallConfidence', 'photoQuality'],
     properties: {
       summary: { type: 'string' },
       comparisonNote: { type: ['string', 'null'] },
+      overallConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+      photoQuality: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['level', 'summary', 'issues', 'tips'],
+        properties: {
+          level: { type: 'string', enum: ['poor', 'fair', 'good'] },
+          summary: { type: 'string' },
+          issues: { type: 'array', items: { type: 'string' } },
+          tips: { type: 'array', items: { type: 'string' } },
+        },
+      },
       categories: {
         type: 'array',
         minItems: CRITERIA_ORDER.length,
@@ -20,12 +32,48 @@ const CRITIQUE_JSON_SCHEMA = {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['criterion', 'level', 'feedback', 'actionPlan'],
+          required: [
+            'criterion',
+            'level',
+            'feedback',
+            'actionPlan',
+            'confidence',
+            'evidenceSignals',
+            'preserve',
+            'practiceExercise',
+            'nextTarget',
+            'subskills',
+          ],
           properties: {
             criterion: { type: 'string', enum: [...CRITERIA_ORDER] },
             level: { type: 'string', enum: [...RATING_LEVELS] },
             feedback: { type: 'string' },
             actionPlan: { type: 'string' },
+            confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+            evidenceSignals: {
+              type: 'array',
+              minItems: 2,
+              maxItems: 4,
+              items: { type: 'string' },
+            },
+            preserve: { type: 'string' },
+            practiceExercise: { type: 'string' },
+            nextTarget: { type: 'string' },
+            subskills: {
+              type: 'array',
+              minItems: 2,
+              maxItems: 4,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['label', 'score', 'level'],
+                properties: {
+                  label: { type: 'string' },
+                  score: { type: 'number' },
+                  level: { type: 'string', enum: [...RATING_LEVELS] },
+                },
+              },
+            },
           },
         },
       },
@@ -71,8 +119,40 @@ Per criterion — actionPlan (string):
 - 3–5 short numbered steps (1. 2. 3.) the artist can do in the studio on the current piece or its next layer. Each step names WHAT to change WHERE (area of the canvas) and HOW (tool, edge, value shift, temperature, etc.).
 - Target the *next* level up from your rating. If already Master, give advanced refinement or sustainment steps (subtle orchestration, risk-taking within control).
 
+Per criterion — confidence (string):
+- high, medium, or low depending on how reliably the photo supports this judgment.
+- Downgrade confidence when glare, blur, skew, crop, or low resolution make the call uncertain.
+
+Per criterion — evidenceSignals (array of 2-4 strings):
+- Short observable reason codes behind the grade (for example: "foreground shadow family stays compressed", "sharpest edge is on the right cheek", "palette splits into unrelated cool and warm zones").
+- These should be concise fragments, not full sentences.
+
+Per criterion — preserve (string):
+- One sentence on what is already working and should survive the next revision.
+
+Per criterion — practiceExercise (string):
+- One short exercise for training this skill outside the main piece.
+
+Per criterion — nextTarget (string):
+- A brief coaching label framed as the next target, e.g. "Push edge control toward Advanced."
+
+Per criterion — subskills (array):
+- Return 2-4 sub-skills that explain the category grade.
+- Each subskill has label, score (0-1), and level.
+- Keep them concrete and observable from the photo, not generic art-school abstractions.
+
 Summary (string):
 - 3–5 sentences: strongest 1–2 passages (where and why), the single biggest leverage gap, and how fixing that gap would change the read of the whole piece.
+
+overallConfidence (string):
+- high, medium, or low for the critique as a whole.
+
+photoQuality (object):
+- Report the reliability of the photo itself.
+- level = good, fair, or poor.
+- summary = one sentence on whether the photo is trustworthy for critique.
+- issues = short bullets about glare, blur, skew, crop, clipped values, or weak color capture.
+- tips = short bullets on how to re-shoot for better feedback.
 
 If previous image + prior critique JSON are provided, set comparisonNote (non-null string): what visibly improved, what regressed or stalled, and what to tackle next—name regions and tie to prior feedback when relevant. If no previous version, set comparisonNote to null.
 
@@ -89,6 +169,12 @@ function validateResult(raw: unknown): CritiqueResultDTO {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid API response');
   const o = raw as Record<string, unknown>;
   if (typeof o.summary !== 'string') throw new Error('Invalid critique: summary');
+  if (
+    typeof o.overallConfidence !== 'string' ||
+    !(['low', 'medium', 'high'] as const).includes(o.overallConfidence as 'low' | 'medium' | 'high')
+  ) {
+    throw new Error('Invalid critique: overallConfidence');
+  }
   const cats = o.categories;
   if (!Array.isArray(cats) || cats.length !== CRITERIA_ORDER.length) {
     throw new Error('Invalid critique: categories length');
@@ -106,20 +192,87 @@ function validateResult(raw: unknown): CritiqueResultDTO {
     if (typeof r.feedback !== 'string' || typeof r.actionPlan !== 'string') {
       throw new Error(`Invalid text for ${expected}`);
     }
+    if (
+      typeof r.confidence !== 'string' ||
+      !(['low', 'medium', 'high'] as const).includes(r.confidence as 'low' | 'medium' | 'high')
+    ) {
+      throw new Error(`Invalid confidence for ${expected}`);
+    }
+    if (!Array.isArray(r.evidenceSignals) || r.evidenceSignals.some((v) => typeof v !== 'string')) {
+      throw new Error(`Invalid evidence signals for ${expected}`);
+    }
+    if (
+      typeof r.preserve !== 'string' ||
+      typeof r.practiceExercise !== 'string' ||
+      typeof r.nextTarget !== 'string'
+    ) {
+      throw new Error(`Invalid coaching metadata for ${expected}`);
+    }
+    if (
+      !Array.isArray(r.subskills) ||
+      r.subskills.length < 2 ||
+      r.subskills.length > 4 ||
+      r.subskills.some((entry) => {
+        if (!entry || typeof entry !== 'object') return true;
+        const sub = entry as Record<string, unknown>;
+        return (
+          typeof sub.label !== 'string' ||
+          typeof sub.score !== 'number' ||
+          sub.score < 0 ||
+          sub.score > 1 ||
+          typeof sub.level !== 'string' ||
+          !RATING_LEVELS.includes(sub.level as (typeof RATING_LEVELS)[number])
+        );
+      })
+    ) {
+      throw new Error(`Invalid subskills for ${expected}`);
+    }
     return {
       criterion: r.criterion as (typeof CRITERIA_ORDER)[number],
       level: r.level as (typeof RATING_LEVELS)[number],
       feedback: r.feedback,
       actionPlan: r.actionPlan,
+      confidence: r.confidence as 'low' | 'medium' | 'high',
+      evidenceSignals: r.evidenceSignals as string[],
+      preserve: r.preserve,
+      practiceExercise: r.practiceExercise,
+      nextTarget: r.nextTarget,
+      subskills: r.subskills as Array<{
+        label: string;
+        score: number;
+        level: (typeof RATING_LEVELS)[number];
+      }>,
     };
   });
   const cn = o.comparisonNote;
   if (cn !== null && (typeof cn !== 'string' || cn.length === 0)) {
     throw new Error('Invalid comparisonNote');
   }
+  const photoQuality = o.photoQuality;
+  if (!photoQuality || typeof photoQuality !== 'object') throw new Error('Invalid photoQuality');
+  const pq = photoQuality as Record<string, unknown>;
+  if (
+    typeof pq.level !== 'string' ||
+    !(['poor', 'fair', 'good'] as const).includes(pq.level as 'poor' | 'fair' | 'good') ||
+    typeof pq.summary !== 'string' ||
+    !Array.isArray(pq.issues) ||
+    pq.issues.some((v) => typeof v !== 'string') ||
+    !Array.isArray(pq.tips) ||
+    pq.tips.some((v) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid photoQuality fields');
+  }
   return {
     summary: o.summary,
     categories,
+    overallConfidence: o.overallConfidence as 'low' | 'medium' | 'high',
+    photoQuality: {
+      level: pq.level as 'poor' | 'fair' | 'good',
+      summary: pq.summary,
+      issues: pq.issues as string[],
+      tips: pq.tips as string[],
+    },
+    analysisSource: 'api',
     ...(typeof cn === 'string' && cn.length > 0 ? { comparisonNote: cn } : {}),
   };
 }

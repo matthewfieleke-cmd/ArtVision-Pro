@@ -2,11 +2,20 @@ import type {
   CritiqueCategory,
   CritiqueResult,
   Criterion,
+  CritiqueSubskill,
   Medium,
+  PhotoQualityAssessment,
   RatingLevel,
   Style,
 } from './types';
 import { ARTISTS_BY_STYLE, CRITERIA } from './types';
+import {
+  deriveLocalCategoryConfidence,
+  deriveLocalEvidenceSignals,
+  deriveLocalPracticeExercise,
+  deriveLocalPreserveText,
+  finalizeCritiqueResult,
+} from './critiqueCoach';
 import type { ImageMetrics } from './imageMetrics';
 import { clamp01, computeImageMetrics } from './imageMetrics';
 
@@ -15,6 +24,103 @@ function scoreToLevel(score: number): RatingLevel {
   if (score < 0.52) return 'Intermediate';
   if (score < 0.78) return 'Advanced';
   return 'Master';
+}
+
+type LocalCategoryScore = {
+  score: number;
+  level: RatingLevel;
+  subskills: CritiqueSubskill[];
+};
+
+const CATEGORY_THRESHOLDS: Record<Criterion, readonly [number, number, number]> = {
+  Composition: [0.33, 0.56, 0.78],
+  'Value structure': [0.34, 0.58, 0.8],
+  'Color relationships': [0.3, 0.55, 0.78],
+  'Drawing and proportion': [0.4, 0.63, 0.84],
+  'Edge control': [0.32, 0.56, 0.8],
+  'Brushwork / handling': [0.3, 0.55, 0.78],
+  'Unity and variety': [0.32, 0.56, 0.79],
+  'Originality / expressive force': [0.36, 0.6, 0.82],
+};
+
+function centeredScore(value: number, target: number, tolerance: number): number {
+  return clamp01(1 - Math.abs(value - target) / tolerance);
+}
+
+function subskill(label: string, score: number): CritiqueSubskill {
+  const bounded = clamp01(score);
+  return {
+    label,
+    score: bounded,
+    level: scoreToLevel(bounded),
+  };
+}
+
+function categoryLevel(criterion: Criterion, score: number): RatingLevel {
+  const [beginnerCutoff, intermediateCutoff, advancedCutoff] = CATEGORY_THRESHOLDS[criterion];
+  if (score < beginnerCutoff) return 'Beginner';
+  if (score < intermediateCutoff) return 'Intermediate';
+  if (score < advancedCutoff) return 'Advanced';
+  return 'Master';
+}
+
+function assessPhotoQuality(m: ImageMetrics): PhotoQualityAssessment {
+  const issues: string[] = [];
+  const tips: string[] = [];
+
+  if (m.contrast < 0.1) {
+    issues.push('Low contrast makes value grouping harder to judge.');
+    tips.push('Re-shoot in diffuse light and avoid glare so lights and darks separate more clearly.');
+  }
+  if (m.edgeDensity < 0.1) {
+    issues.push('Soft focus or camera distance reduces structural detail.');
+    tips.push('Move closer, square the phone to the canvas, and let the camera refocus before capturing.');
+  }
+  if (m.edgeBalance > 0.34) {
+    issues.push('Too many sharp accents may come from texture glare or a busy crop.');
+    tips.push('Crop to the painting edges and reduce side-light reflections on textured passages.');
+  }
+  if (m.saturationMean < 0.04) {
+    issues.push('Muted color capture limits confidence in palette advice.');
+    tips.push('Use neutral daylight or correct white balance before trusting color critique.');
+  }
+  if (m.highlightClip > 0.02) {
+    issues.push('Bright glare or overexposure is clipping highlight passages.');
+    tips.push('Tilt the camera to avoid reflections and lower exposure until bright paint still shows shape.');
+  }
+  if (m.shadowClip > 0.02) {
+    issues.push('Shadow passages are clipping too dark to judge clearly.');
+    tips.push('Add softer fill light or raise exposure until dark masses keep visible separation.');
+  }
+  if (m.borderActivity > 0.22) {
+    issues.push('The frame edge looks busy, suggesting background clutter or an incomplete crop.');
+    tips.push('Fill more of the frame with the painting and trim away wall, easel, and surrounding objects.');
+  }
+  if (m.centerFocus < 0.34 && m.focalOffset > 0.58) {
+    issues.push('The capture may be skewed or off-axis, making structure harder to compare fairly.');
+    tips.push('Stand square to the canvas and keep the lens centered so the rectangle reads evenly.');
+  }
+
+  const level =
+    issues.length >= 4
+      ? 'poor'
+      : issues.length >= 2
+        ? 'fair'
+        : 'good';
+
+  const summary =
+    level === 'good'
+      ? 'Photo quality looks solid enough for a useful critique.'
+      : level === 'fair'
+        ? 'This critique is usable, but a cleaner photo would make some judgments more trustworthy.'
+        : 'Photo quality is limiting the critique; treat lower-confidence categories as provisional.';
+
+  return {
+    level,
+    summary,
+    issues,
+    tips,
+  };
 }
 
 function styleMediumBias(style: Style, medium: Medium): Record<Criterion, number> {
@@ -68,12 +174,185 @@ function styleMediumBias(style: Style, medium: Medium): Record<Criterion, number
   return base;
 }
 
+function categoryBreakdown(
+  criterion: Criterion,
+  metrics: ImageMetrics,
+  bias: Record<Criterion, number>
+): LocalCategoryScore {
+  let subskills: CritiqueSubskill[] = [];
+  let score = 0;
+
+  switch (criterion) {
+    case 'Composition': {
+      subskills = [
+        subskill(
+          'Focal hierarchy',
+          0.7 * centeredScore(metrics.focalOffset, 0.3, 0.32) +
+            0.3 * clamp01(1 - metrics.edgeBalance * 1.05)
+        ),
+        subskill(
+          'Big-shape clarity',
+          0.55 * metrics.valueSpread + 0.45 * metrics.contrast
+        ),
+        subskill(
+          'Eye-path control',
+          0.55 * centeredScore(metrics.edgeDensity, 0.24, 0.24) +
+            0.45 * clamp01(1 - metrics.edgeBalance)
+        ),
+      ];
+      score =
+        0.38 * subskills[0]!.score +
+        0.34 * subskills[1]!.score +
+        0.28 * subskills[2]!.score +
+        bias.Composition;
+      break;
+    }
+    case 'Value structure': {
+      subskills = [
+        subskill('Light-dark grouping', metrics.valueSpread),
+        subskill(
+          'Contrast range',
+          0.7 * metrics.contrast + 0.3 * centeredScore(metrics.edgeDensity, 0.22, 0.22)
+        ),
+        subskill(
+          'Midtone restraint',
+          clamp01(1 - metrics.saturationStd * 1.25)
+        ),
+      ];
+      score =
+        0.46 * subskills[0]!.score +
+        0.34 * subskills[1]!.score +
+        0.2 * subskills[2]!.score +
+        bias['Value structure'];
+      break;
+    }
+    case 'Color relationships': {
+      subskills = [
+        subskill('Palette harmony', metrics.colorHarmony),
+        subskill(
+          'Chroma control',
+          centeredScore(metrics.saturationStd, 0.12, 0.14)
+        ),
+        subskill(
+          'Accent strength',
+          clamp01(metrics.saturationMean * 1.35)
+        ),
+      ];
+      score =
+        0.42 * subskills[0]!.score +
+        0.31 * subskills[1]!.score +
+        0.27 * subskills[2]!.score +
+        bias['Color relationships'];
+      break;
+    }
+    case 'Drawing and proportion': {
+      subskills = [
+        subskill(
+          'Big-shape placement',
+          0.6 * metrics.edgeDensity + 0.4 * metrics.contrast
+        ),
+        subskill(
+          'Plane separation',
+          0.55 * metrics.contrast + 0.45 * metrics.valueSpread
+        ),
+        subskill(
+          'Structural restraint',
+          clamp01(1 - metrics.textureScore * 0.55)
+        ),
+      ];
+      score =
+        0.39 * subskills[0]!.score +
+        0.36 * subskills[1]!.score +
+        0.25 * subskills[2]!.score +
+        bias['Drawing and proportion'];
+      break;
+    }
+    case 'Edge control': {
+      subskills = [
+        subskill(
+          'Hard-soft range',
+          centeredScore(metrics.edgeDensity, 0.28, 0.28)
+        ),
+        subskill(
+          'Focal edge concentration',
+          centeredScore(metrics.edgeBalance, 0.18, 0.2)
+        ),
+        subskill('Value support', metrics.valueSpread),
+      ];
+      score =
+        0.34 * subskills[0]!.score +
+        0.42 * subskills[1]!.score +
+        0.24 * subskills[2]!.score +
+        bias['Edge control'];
+      break;
+    }
+    case 'Brushwork / handling': {
+      subskills = [
+        subskill('Mark energy', metrics.textureScore),
+        subskill('Mark separation', metrics.edgeDensity),
+        subskill(
+          'Handling control',
+          0.55 * centeredScore(metrics.edgeBalance, 0.2, 0.22) +
+            0.45 * centeredScore(metrics.textureScore, 0.2, 0.2)
+        ),
+      ];
+      score =
+        0.4 * subskills[0]!.score +
+        0.28 * subskills[1]!.score +
+        0.32 * subskills[2]!.score +
+        bias['Brushwork / handling'];
+      break;
+    }
+    case 'Unity and variety': {
+      subskills = [
+        subskill('Motif cohesion', metrics.colorHarmony),
+        subskill(
+          'Accent restraint',
+          clamp01(1 - metrics.saturationStd * 1.35)
+        ),
+        subskill('Contrast variety', metrics.contrast),
+      ];
+      score =
+        0.42 * subskills[0]!.score +
+        0.3 * subskills[1]!.score +
+        0.28 * subskills[2]!.score +
+        bias['Unity and variety'];
+      break;
+    }
+    case 'Originality / expressive force': {
+      subskills = [
+        subskill('Surface character', metrics.textureScore),
+        subskill(
+          'Color risk',
+          clamp01(metrics.saturationStd * 1.45)
+        ),
+        subskill('Design risk', metrics.focalOffset),
+      ];
+      score =
+        0.4 * subskills[0]!.score +
+        0.34 * subskills[1]!.score +
+        0.26 * subskills[2]!.score +
+        bias['Originality / expressive force'];
+      break;
+    }
+  }
+
+  const bounded = clamp01(score);
+  return {
+    score: bounded,
+    level: categoryLevel(criterion, bounded),
+    subskills,
+  };
+}
+
 function buildCategory(
   criterion: Criterion,
   level: RatingLevel,
   style: Style,
   medium: Medium,
-  benchmarks: readonly string[]
+  benchmarks: readonly string[],
+  metrics: ImageMetrics,
+  subskills: CritiqueSubskill[]
 ): CritiqueCategory {
   const masterNames = benchmarks.join(', ');
   const templates: Record<
@@ -232,43 +511,11 @@ function buildCategory(
     level,
     feedback: t.feedback,
     actionPlan: t.action,
-  };
-}
-
-function numericScores(m: ImageMetrics, bias: Record<Criterion, number>): Record<Criterion, number> {
-  const composition =
-    0.35 * (1 - Math.abs(m.focalOffset - 0.35)) +
-    0.35 * m.edgeDensity +
-    0.3 * clamp01(1 - m.edgeBalance) +
-    bias.Composition;
-  const valueStructure = 0.55 * m.valueSpread + 0.25 * m.contrast + 0.2 * clamp01(1 - m.saturationStd) + bias['Value structure'];
-  const colorRelationships =
-    0.4 * m.colorHarmony + 0.35 * clamp01(m.saturationMean * 1.2) + 0.25 * clamp01(1 - m.saturationStd * 0.8) + bias['Color relationships'];
-  const drawing =
-    0.45 * clamp01(1 - m.textureScore * 0.35) +
-    0.35 * m.edgeDensity +
-    0.2 * m.contrast +
-    bias['Drawing and proportion'];
-  const edgeControl =
-    0.5 * clamp01(1 - Math.abs(m.edgeBalance - 0.22)) +
-    0.3 * clamp01(1 - Math.abs(m.edgeDensity - 0.38)) +
-    0.2 * m.valueSpread +
-    bias['Edge control'];
-  const brushwork = 0.65 * m.textureScore + 0.2 * m.edgeDensity + 0.15 * m.contrast + bias['Brushwork / handling'];
-  const unity =
-    0.45 * m.colorHarmony + 0.3 * clamp01(1 - m.saturationStd) + 0.25 * m.contrast + bias['Unity and variety'];
-  const originality =
-    0.4 * m.textureScore + 0.35 * clamp01(m.saturationStd * 1.5) + 0.25 * m.focalOffset + bias['Originality / expressive force'];
-
-  return {
-    Composition: clamp01(composition),
-    'Value structure': clamp01(valueStructure),
-    'Color relationships': clamp01(colorRelationships),
-    'Drawing and proportion': clamp01(drawing),
-    'Edge control': clamp01(edgeControl),
-    'Brushwork / handling': clamp01(brushwork),
-    'Unity and variety': clamp01(unity),
-    'Originality / expressive force': clamp01(originality),
+    confidence: deriveLocalCategoryConfidence(criterion, metrics),
+    evidenceSignals: deriveLocalEvidenceSignals(criterion, metrics),
+    preserve: deriveLocalPreserveText(criterion, level, metrics),
+    practiceExercise: deriveLocalPracticeExercise(criterion, style, medium),
+    subskills,
   };
 }
 
@@ -340,14 +587,17 @@ export async function analyzePainting(
   const bias = styleMediumBias(style, medium);
 
   const m = await computeImageMetrics(imageDataUrl);
-  const scores = numericScores(m, bias);
+  const scores = Object.fromEntries(
+    CRITERIA.map((criterion) => [criterion, categoryBreakdown(criterion, m, bias)])
+  ) as Record<Criterion, LocalCategoryScore>;
+  const photoQuality = assessPhotoQuality(m);
 
   const categories: CritiqueCategory[] = CRITERIA.map((c) =>
-    buildCategory(c, scoreToLevel(scores[c]), style, medium, benchmarks)
+    buildCategory(c, scores[c].level, style, medium, benchmarks, m, scores[c].subskills)
   );
 
   const avg =
-    Object.values(scores).reduce((a, b) => a + b, 0) / CRITERIA.length;
+    Object.values(scores).reduce((a, b) => a + b.score, 0) / CRITERIA.length;
   const titlePrefix =
     paintingTitle && paintingTitle.trim().length > 0 ? `For “${paintingTitle.trim()}”: ` : '';
   const summary =
@@ -362,21 +612,25 @@ export async function analyzePainting(
   let comparisonNote: string | undefined;
   if (previous) {
     const pm = await computeImageMetrics(previous.imageDataUrl);
-    const pScores = numericScores(pm, bias);
+    const pScores = Object.fromEntries(
+      CRITERIA.map((criterion) => [criterion, categoryBreakdown(criterion, pm, bias)])
+    ) as Record<Criterion, LocalCategoryScore>;
     const prevLevels = Object.fromEntries(
-      CRITERIA.map((c) => [c, scoreToLevel(pScores[c])])
+      CRITERIA.map((c) => [c, pScores[c].level])
     ) as Record<Criterion, RatingLevel>;
     const nextLevels = Object.fromEntries(
-      CRITERIA.map((c) => [c, scoreToLevel(scores[c])])
+      CRITERIA.map((c) => [c, scores[c].level])
     ) as Record<Criterion, RatingLevel>;
     comparisonNote = compareMetrics(pm, m, prevLevels, nextLevels);
   }
 
   const trimmed = paintingTitle?.trim();
-  return {
+  return finalizeCritiqueResult({
     categories,
     summary,
     comparisonNote,
+    analysisSource: 'local',
+    photoQuality,
     ...(trimmed ? { paintingTitle: trimmed } : {}),
-  };
+  });
 }

@@ -27,11 +27,38 @@ export { RATING_LEVELS };
 
 export type RatingLevel = (typeof RATING_LEVELS)[number];
 
+export type CritiqueConfidence = 'low' | 'medium' | 'high';
+
+export type PhotoQualityAssessment = {
+  level: 'poor' | 'fair' | 'good';
+  summary: string;
+  issues: string[];
+  tips: string[];
+};
+
+export type CritiqueSubskill = {
+  label: string;
+  /** Normalized 0-1 local estimate or API-provided sub-score. */
+  score: number;
+  level: RatingLevel;
+};
+
 export type CritiqueCategory = {
   criterion: Criterion;
   level: RatingLevel;
   feedback: string;
   actionPlan: string;
+  confidence?: CritiqueConfidence;
+  /** Short observable reasons behind the grade; useful for quick review. */
+  evidenceSignals?: string[];
+  /** What is already working and should survive the next round of edits. */
+  preserve?: string;
+  /** Deliberate exercise to practice the weak sub-skill outside the main piece. */
+  practiceExercise?: string;
+  /** Friendly "move toward X" label for the next revision. */
+  nextTarget?: string;
+  /** Optional sub-skill breakdown; especially useful for local heuristic grading. */
+  subskills?: CritiqueSubskill[];
 };
 
 export type CritiqueResult = {
@@ -41,6 +68,10 @@ export type CritiqueResult = {
   comparisonNote?: string;
   /** Optional title the artist gave this work for this critique */
   paintingTitle?: string;
+  /** Whether this critique came from the API vision model or local heuristics. */
+  analysisSource?: 'api' | 'local';
+  overallConfidence?: CritiqueConfidence;
+  photoQuality?: PhotoQualityAssessment;
 };
 
 /** AI illustrative edit for one criterion; pairs with the critique photo for blend compare. */

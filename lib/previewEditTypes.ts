@@ -1,6 +1,8 @@
+import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
+
 export type PreviewEditTarget = {
-  criterion: string;
-  level: string;
+  criterion: CriterionLabel;
+  level: RatingLevelLabel;
   feedback: string;
   actionPlan: string;
 };
@@ -14,5 +16,5 @@ export type PreviewEditRequestBody = {
 
 export type PreviewEditResponseBody = {
   imageDataUrl: string;
-  criterion: string;
+  criterion: CriterionLabel;
 };

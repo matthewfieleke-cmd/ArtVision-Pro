@@ -1,10 +1,29 @@
 import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
 
+export type CritiqueConfidenceDTO = 'low' | 'medium' | 'high';
+
+export type PhotoQualityAssessmentDTO = {
+  level: 'poor' | 'fair' | 'good';
+  summary: string;
+  issues: string[];
+  tips: string[];
+};
+
 export type CritiqueCategoryDTO = {
   criterion: CriterionLabel;
   level: RatingLevelLabel;
   feedback: string;
   actionPlan: string;
+  confidence?: CritiqueConfidenceDTO;
+  evidenceSignals?: string[];
+  preserve?: string;
+  practiceExercise?: string;
+  nextTarget?: string;
+  subskills?: Array<{
+    label: string;
+    score: number;
+    level: RatingLevelLabel;
+  }>;
 };
 
 export type CritiqueResultDTO = {
@@ -12,6 +31,9 @@ export type CritiqueResultDTO = {
   summary: string;
   comparisonNote?: string;
   paintingTitle?: string;
+  analysisSource?: 'api' | 'local';
+  overallConfidence?: CritiqueConfidenceDTO;
+  photoQuality?: PhotoQualityAssessmentDTO;
 };
 
 export type CritiqueRequestBody = {

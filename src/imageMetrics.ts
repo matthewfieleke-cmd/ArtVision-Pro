@@ -10,6 +10,10 @@ export type ImageMetrics = {
   focalOffset: number;
   valueSpread: number;
   textureScore: number;
+  highlightClip: number;
+  shadowClip: number;
+  borderActivity: number;
+  centerFocus: number;
 };
 
 export function clamp01(n: number): number {
@@ -69,6 +73,8 @@ export async function computeImageMetrics(dataUrl: string, sampleSize = 256): Pr
   const lumas: number[] = [];
   const sats: number[] = [];
   let sumL = 0;
+  let highlightClipCount = 0;
+  let shadowClipCount = 0;
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -76,6 +82,8 @@ export async function computeImageMetrics(dataUrl: string, sampleSize = 256): Pr
     const L = luminance(r, g, b);
     lumas.push(L);
     sumL += L;
+    if (L >= 245) highlightClipCount += 1;
+    if (L <= 12) shadowClipCount += 1;
     const { s } = rgbToHsl(r, g, b);
     sats.push(s);
   }
@@ -119,6 +127,8 @@ export async function computeImageMetrics(dataUrl: string, sampleSize = 256): Pr
   const cells = (width - 2) * (height - 2);
   const edgeDensity = clamp01((edgeSum / cells) / 45);
   const edgeBalance = cells ? edgeStrong / cells : 0;
+  const highlightClip = n ? highlightClipCount / n : 0;
+  const shadowClip = n ? shadowClipCount / n : 0;
 
   const meanS = sats.reduce((a, b) => a + b, 0) / sats.length;
   let varS = 0;
@@ -152,6 +162,33 @@ export async function computeImageMetrics(dataUrl: string, sampleSize = 256): Pr
   const dx = (cx - width / 2) / width;
   const dy = (cy - height / 2) / height;
   const focalOffset = clamp01(Math.sqrt(dx * dx + dy * dy) * 2);
+  const centerFocus = clamp01(1 - Math.sqrt(dx * dx + dy * dy) * 1.4);
+
+  let borderSum = 0;
+  let borderCount = 0;
+  const borderBand = Math.max(4, Math.round(sampleSize * 0.08));
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (
+        x < borderBand ||
+        y < borderBand ||
+        x >= width - borderBand ||
+        y >= height - borderBand
+      ) {
+        const i = idx(x, y);
+        const Lc = luminance(data[i], data[i + 1], data[i + 2]);
+        const Lr = luminance(data[i + 4], data[i + 5], data[i + 6]);
+        const Ld = luminance(
+          data[idx(x, y + 1)],
+          data[idx(x, y + 1) + 1],
+          data[idx(x, y + 1) + 2]
+        );
+        borderSum += Math.abs(Lc - Lr) + Math.abs(Lc - Ld);
+        borderCount += 1;
+      }
+    }
+  }
+  const borderActivity = borderCount ? clamp01((borderSum / borderCount) / 45) : 0;
 
   const textureScore = clamp01((localVarSum / cells) / 400);
   const contrast = clamp01(stdL / 70);
@@ -166,5 +203,9 @@ export async function computeImageMetrics(dataUrl: string, sampleSize = 256): Pr
     focalOffset,
     valueSpread,
     textureScore,
+    highlightClip,
+    shadowClip,
+    borderActivity,
+    centerFocus,
   };
 }

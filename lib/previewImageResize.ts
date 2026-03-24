@@ -7,6 +7,14 @@ const API_SIZES = [
 ];
 
 export type ImagesEditSizeParam = (typeof API_SIZES)[number]['param'];
+export type ApiInputGeometry = {
+  canvasWidth: number;
+  canvasHeight: number;
+  innerWidth: number;
+  innerHeight: number;
+  offsetX: number;
+  offsetY: number;
+};
 
 /** Pick the GPT image edit `size` whose aspect ratio is closest to the upload. */
 export function pickImagesEditSize(origW: number, origH: number): ImagesEditSizeParam {
@@ -30,6 +38,27 @@ function dimsForParam(p: ImagesEditSizeParam): { w: number; h: number } {
   return { w: s.w, h: s.h };
 }
 
+function geometryForContain(
+  origWidth: number,
+  origHeight: number,
+  canvasWidth: number,
+  canvasHeight: number
+): ApiInputGeometry {
+  const scale = Math.min(canvasWidth / origWidth, canvasHeight / origHeight);
+  const innerWidth = Math.max(1, Math.round(origWidth * scale));
+  const innerHeight = Math.max(1, Math.round(origHeight * scale));
+  const offsetX = Math.max(0, Math.round((canvasWidth - innerWidth) / 2));
+  const offsetY = Math.max(0, Math.round((canvasHeight - innerHeight) / 2));
+  return {
+    canvasWidth,
+    canvasHeight,
+    innerWidth,
+    innerHeight,
+    offsetX,
+    offsetY,
+  };
+}
+
 /**
  * Read pixel size from image buffer (JPEG/PNG/WebP).
  */
@@ -44,9 +73,14 @@ export async function getImageDimensions(buffer: Buffer): Promise<{ width: numbe
 /**
  * Fit upload inside exact API dimensions (letterbox) so the full painting is visible to the model.
  */
-export async function bufferToApiInputPng(buffer: Buffer, editSize: ImagesEditSizeParam): Promise<Buffer> {
+export async function bufferToApiInputPng(
+  buffer: Buffer,
+  editSize: ImagesEditSizeParam
+): Promise<{ buffer: Buffer; geometry: ApiInputGeometry }> {
   const { w, h } = dimsForParam(editSize);
-  return sharp(buffer)
+  const { width: origWidth, height: origHeight } = await getImageDimensions(buffer);
+  const geometry = geometryForContain(origWidth, origHeight, w, h);
+  const pngBuffer = await sharp(buffer)
     .rotate()
     .resize(w, h, {
       fit: 'contain',
@@ -55,19 +89,28 @@ export async function bufferToApiInputPng(buffer: Buffer, editSize: ImagesEditSi
     })
     .png()
     .toBuffer();
+  return { buffer: pngBuffer, geometry };
 }
 
 /**
- * Resize API output to exactly the upload's width × height (fill) so the client slider aligns pixel-perfect.
+ * Crop the edited output back to the non-letterboxed painting area, then resize to the
+ * original upload dimensions so the compare slider aligns without stretch distortion.
  */
 export async function resizeEditOutputToMatchUpload(
   editedBuffer: Buffer,
   origWidth: number,
   origHeight: number,
-  preferMime: 'image/jpeg' | 'image/png' | 'image/webp'
+  preferMime: 'image/jpeg' | 'image/png' | 'image/webp',
+  geometry: ApiInputGeometry
 ): Promise<{ buffer: Buffer; mime: string }> {
   const pipeline = sharp(editedBuffer)
     .rotate()
+    .extract({
+      left: geometry.offsetX,
+      top: geometry.offsetY,
+      width: geometry.innerWidth,
+      height: geometry.innerHeight,
+    })
     .resize(origWidth, origHeight, { fit: 'fill', position: 'centre' });
 
   if (preferMime === 'image/png') {
