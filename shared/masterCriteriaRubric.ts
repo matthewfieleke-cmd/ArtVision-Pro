@@ -345,6 +345,10 @@ export function getCriterionRubric(style: string, criterion: CriterionLabel): Cr
   return rows.find((row) => row.criterion === criterion) ?? null;
 }
 
+export function getCriterionMasterSignals(style: string, criterion: CriterionLabel): string[] {
+  return getCriterionRubric(style, criterion)?.masterSignals ?? [];
+}
+
 /** Compact text block for OpenAI system prompt (per declared style). */
 export function formatRubricForPrompt(style: string): string {
   const key = style as StyleKey;

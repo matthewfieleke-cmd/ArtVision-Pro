@@ -35,7 +35,7 @@ function buildEditPrompt(body: PreviewEditRequestBody): string {
   const { style, medium, target } = body;
   const masterSignals = getCriterionMasterSignals(style, target.criterion)
     .slice(0, 4)
-    .map((signal) => `- ${signal}`)
+    .map((signal: string) => `- ${signal}`)
     .join('\n');
   return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
