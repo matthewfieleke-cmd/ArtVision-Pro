@@ -58,6 +58,19 @@ const CRITIQUE_JSON_SCHEMA = {
             preserve: { type: 'string' },
             practiceExercise: { type: 'string' },
             nextTarget: { type: 'string' },
+            subskills: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['label', 'score', 'level'],
+                properties: {
+                  label: { type: 'string' },
+                  score: { type: 'number' },
+                  level: { type: 'string', enum: [...RATING_LEVELS] },
+                },
+              },
+            },
           },
         },
       },
@@ -119,6 +132,11 @@ Per criterion — practiceExercise (string):
 
 Per criterion — nextTarget (string):
 - A brief coaching label framed as the next target, e.g. "Push edge control toward Advanced."
+
+Per criterion — subskills (optional array):
+- If helpful, return 2-4 sub-skills that explain the category grade.
+- Each subskill has label, score (0-1), and level.
+- Use them only when you can make the breakdown concrete from the photo.
 
 Summary (string):
 - 3–5 sentences: strongest 1–2 passages (where and why), the single biggest leverage gap, and how fixing that gap would change the read of the whole piece.
@@ -187,6 +205,22 @@ function validateResult(raw: unknown): CritiqueResultDTO {
     ) {
       throw new Error(`Invalid coaching metadata for ${expected}`);
     }
+    if (
+      r.subskills !== undefined &&
+      (!Array.isArray(r.subskills) ||
+        r.subskills.some((entry) => {
+          if (!entry || typeof entry !== 'object') return true;
+          const sub = entry as Record<string, unknown>;
+          return (
+            typeof sub.label !== 'string' ||
+            typeof sub.score !== 'number' ||
+            typeof sub.level !== 'string' ||
+            !RATING_LEVELS.includes(sub.level as (typeof RATING_LEVELS)[number])
+          );
+        }))
+    ) {
+      throw new Error(`Invalid subskills for ${expected}`);
+    }
     return {
       criterion: r.criterion as (typeof CRITERIA_ORDER)[number],
       level: r.level as (typeof RATING_LEVELS)[number],
@@ -197,6 +231,15 @@ function validateResult(raw: unknown): CritiqueResultDTO {
       preserve: r.preserve,
       practiceExercise: r.practiceExercise,
       nextTarget: r.nextTarget,
+      ...(Array.isArray(r.subskills)
+        ? {
+            subskills: r.subskills as Array<{
+              label: string;
+              score: number;
+              level: (typeof RATING_LEVELS)[number];
+            }>,
+          }
+        : {}),
     };
   });
   const cn = o.comparisonNote;

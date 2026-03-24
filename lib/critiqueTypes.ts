@@ -19,6 +19,11 @@ export type CritiqueCategoryDTO = {
   preserve?: string;
   practiceExercise?: string;
   nextTarget?: string;
+  subskills?: Array<{
+    label: string;
+    score: number;
+    level: RatingLevelLabel;
+  }>;
 };
 
 export type CritiqueResultDTO = {

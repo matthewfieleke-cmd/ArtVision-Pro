@@ -36,6 +36,13 @@ export type PhotoQualityAssessment = {
   tips: string[];
 };
 
+export type CritiqueSubskill = {
+  label: string;
+  /** Normalized 0-1 local estimate or API-provided sub-score. */
+  score: number;
+  level: RatingLevel;
+};
+
 export type CritiqueCategory = {
   criterion: Criterion;
   level: RatingLevel;
@@ -50,6 +57,8 @@ export type CritiqueCategory = {
   practiceExercise?: string;
   /** Friendly "move toward X" label for the next revision. */
   nextTarget?: string;
+  /** Optional sub-skill breakdown; especially useful for local heuristic grading. */
+  subskills?: CritiqueSubskill[];
 };
 
 export type CritiqueResult = {

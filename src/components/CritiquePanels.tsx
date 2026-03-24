@@ -19,6 +19,10 @@ type CategoryCardProps = {
   category: CritiqueCategory;
 };
 
+function subskillBarWidth(score: number): string {
+  return `${Math.max(10, Math.round(score * 100))}%`;
+}
+
 function CategoryCard({ category }: CategoryCardProps) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -47,6 +51,29 @@ function CategoryCard({ category }: CategoryCardProps) {
         ) : null}
       </div>
       <p className="mt-3 text-sm leading-relaxed text-slate-600">{category.feedback}</p>
+      {category.subskills?.length ? (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skills behind the grade</p>
+          <div className="mt-2 space-y-2">
+            {category.subskills.map((subskill) => (
+              <div key={subskill.label}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    {subskill.level}
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
+                  <div
+                    className="h-full rounded-full bg-violet-400 transition-all duration-700"
+                    style={{ width: subskillBarWidth(subskill.score) }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {category.evidenceSignals?.length ? (
         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Why this grade</p>
