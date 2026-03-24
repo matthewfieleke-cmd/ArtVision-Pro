@@ -9,7 +9,7 @@
     "dev:api": "tsx server/dev-api.ts",
     "dev:full": "npm run dev",
     "icons": "node scripts/generate-pwa-icons.mjs",
-    "prebuild": "node scripts/generate-pwa-icons.mjs",
+    "prebuild": "node scripts/fetch-art-images.mjs && node scripts/generate-pwa-icons.mjs",
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

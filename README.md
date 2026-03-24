@@ -24,6 +24,8 @@ npm run dev:ui
 
 Or set `VITE_USE_LOCAL_CRITIQUE=true` to skip API calls even when the dev server is running.
 
+**Masters / Daily / Learn images:** `npm run build` runs `scripts/fetch-art-images.mjs`, which downloads PD-art JPEGs into `public/art/` (skipped if already present). The app serves them from your own origin so mobile browsers are not blocked by Wikimedia hotlink limits. To refresh after a clean clone, run `node scripts/fetch-art-images.mjs` once (needs network).
+
 ## Deploy (Vercel) — full vision + style API
 
 The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`, `api/preview-edit.ts`). The browser never sees your key.

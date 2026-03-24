@@ -14,7 +14,7 @@ function MasterWorkImage({ src, alt, linkHref }: { src: string; alt: string; lin
         rel="noreferrer"
         className="flex min-h-[12rem] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-600"
       >
-        Image preview unavailable (blocked or rate-limited). Open the Commons / museum link for the work.
+        Image preview unavailable. Open the file or museum link below for the work.
       </a>
     );
   }
