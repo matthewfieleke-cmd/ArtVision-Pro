@@ -255,6 +255,167 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
   },
   {
+    slug: slugFor('Realism', 'Johannes Vermeer'),
+    style: 'Realism',
+    displayName: 'Johannes Vermeer',
+    tagline: 'Northern light, intimacy, and the ethics of attention',
+    intro:
+      'Johannes Vermeer (1632–1675) painted slowly in Delft: a handful of interiors where daylight, maps, and pearls become a theology of looking. His “Realism” is not reportage but distilled concentration—few works, each a lesson in value, texture, and withheld narrative.',
+    historicalPlacement:
+      'Dutch Golden Age domestic genre; feminist and technical scholarship emphasize camera obscura debates, pigment analysis (natural ultramarine), and the gendered space of women’s labor and leisure in these rooms.',
+    whyMaster: [
+      'Builds convincing space and material with a narrow value range and disciplined color chords.',
+      'Uses soft edges and pointillé highlights to make flesh, fabric, and metal breathe.',
+      'Elevates ordinary moments through composition and light—not anecdote.',
+    ],
+    figures: [
+      {
+        workTitle: 'Girl with a Pearl Earring',
+        year: 'c. 1665',
+        medium: 'Oil on canvas',
+        collection: 'Mauritshuis, The Hague',
+        analysis:
+          'The turban and pearl read almost as abstract shapes until the eyes and mouth claim the canvas. Notice how the background drops away in deep shadow while the face stays in a narrow light key—warm halftones in the skin, cool reflected light in the whites. Vermeer’s lesson: restraint in palette plus precision in a few sharp accents (the pearl’s catch-light) can outperform busy detail.',
+        imageUrl: artImage('daily-vermeer-pearl.jpg'),
+        imageAlt: 'Vermeer, Girl with a Pearl Earring',
+        credit: 'Mauritshuis / Wikimedia Commons (public domain).',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Meisje_met_de_parel.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Arthur K. Wheelock, Vermeer and the Art of Painting', url: 'https://www.worldcat.org/search?q=Wheelock+Vermeer' },
+    ],
+  },
+  {
+    slug: slugFor('Realism', 'Diego Velázquez'),
+    style: 'Realism',
+    displayName: 'Diego Velázquez',
+    tagline: 'Court painter, mirror, and the limits of seeing',
+    intro:
+      'Diego Velázquez (1599–1660) served the Spanish Habsburg court while pushing oil paint toward unprecedented immediacy. His late work collapses distance between viewer, subject, and painter—Realism as epistemology.',
+    historicalPlacement:
+      'Golden Age Spain; postcolonial scholarship re-reads court imagery alongside empire. Las Meninas remains a cornerstone of art-historical method (Michel Foucault’s reading of representation).',
+    whyMaster: [
+      'Orchestrates complex multi-figure space without losing optical clarity.',
+      'Uses economical brushwork on secondary passages to reserve focus for faces and hands.',
+      'Makes composition itself a subject—who looks, who is seen, who paints.',
+    ],
+    figures: [
+      {
+        workTitle: 'Las Meninas',
+        year: '1656',
+        medium: 'Oil on canvas',
+        collection: 'Museo del Prado, Madrid',
+        analysis:
+          'The Infanta anchors the foreground while servants, dwarfs, and the artist at his canvas stage a drama of attention. The mirror’s distant royals and the open door’s silhouette stretch depth in opposite directions. Study Velázquez’s hierarchy of finish: crisp lace and hair versus broad shorthand on costumes—selective detail as narrative steering.',
+        imageUrl: artImage('daily-velazquez-las-meninas.jpg'),
+        imageAlt: 'Velázquez, Las Meninas',
+        credit: 'Prado / Google Earth export on Wikimedia (check reuse).',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Las_Meninas,_by_Diego_Vel%C3%A1zquez,_from_Prado_in_Google_Earth.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Jonathan Brown, Velázquez: Painter and Courtier', url: 'https://www.worldcat.org/search?q=Brown+Velazquez' },
+    ],
+  },
+  {
+    slug: slugFor('Realism', 'Francisco Goya'),
+    style: 'Realism',
+    displayName: 'Francisco Goya',
+    tagline: 'Witness, war, and the modern body in pain',
+    intro:
+      'Francisco Goya (1746–1828) moved from court tapestry cartoons to etching and painting that indict superstition, invasion, and state violence. His Realism is often grim: light used to expose rather than flatter.',
+    historicalPlacement:
+      'Enlightenment, Peninsular War, and Fernando VII’s reaction; Goya bridges Rococo skill and modern political image-making. Disability and madness in his late work invite ethical interpretation.',
+    whyMaster: [
+      'Stages empathy and horror with stark value contrast and readable gesture.',
+      'Maintains compositional clarity in chaotic subject matter.',
+      'Uses broad handling and selective detail for moral focus.',
+    ],
+    figures: [
+      {
+        workTitle: 'The Third of May 1808',
+        year: '1814',
+        medium: 'Oil on canvas',
+        collection: 'Museo del Prado, Madrid',
+        analysis:
+          'A lantern throws a rectangle of light on the victim’s shirt—white as target and martyr’s shroud. The firing squad merges into a single dark mass; faces are minimal. Lesson: one high-key shape and one gesture (outstretched arms) can carry an entire history painting. Compare edge control: hard contour on the condemned versus painterly melt in the hill and crowd.',
+        imageUrl: artImage('daily-goya-third-may.jpg'),
+        imageAlt: 'Goya, The Third of May 1808',
+        credit: 'Prado / Google Earth export on Wikimedia (check reuse).',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:El_Tres_de_Mayo,_by_Francisco_de_Goya,_from_Prado_in_Google_Earth.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Robert Hughes, Goya', url: 'https://www.worldcat.org/search?q=Hughes+Goya' },
+    ],
+  },
+  {
+    slug: slugFor('Realism', 'J. M. W. Turner'),
+    style: 'Realism',
+    displayName: 'J. M. W. Turner',
+    tagline: 'Light, steam, and the sublime sea',
+    intro:
+      'Joseph Mallord William Turner (1775–1851) took British landscape from topographical clarity toward dissolved light and weather. His late work anticipates Impressionism and abstraction while retaining narrative hooks—ships, storms, industry.',
+    historicalPlacement:
+      'Romanticism, industrial revolution, and Royal Academy politics; Turner’s bequest established the Tate tradition. Climate and empire now frame readings of his seas and ports.',
+    whyMaster: [
+      'Unifies sky, water, and smoke in continuous luminosity without losing motif.',
+      'Uses temperature and opacity shifts to suggest depth when contour dissolves.',
+      'Balances spectacle with metaphor—sunset as elegy.',
+    ],
+    figures: [
+      {
+        workTitle: 'The Fighting Temeraire',
+        year: '1839',
+        medium: 'Oil on canvas',
+        collection: 'The National Gallery, London',
+        analysis:
+          'A ghostly ship of the line is towed by a dark tug into a molten sunset—past and future in one silhouette. Turner sacrifices rigging detail for a few decisive masts and hull reads; the sky does the emotional work. Squint: value masses remain legible. Lesson: atmospheric perspective can be emotionally, not only optically, motivated.',
+        imageUrl: artImage('daily-turner-temeraire.jpg'),
+        imageAlt: 'Turner, The Fighting Temeraire',
+        credit: 'National Gallery / Wikimedia Commons.',
+        moreInfoUrl:
+          'https://commons.wikimedia.org/wiki/File:Turner,_J._M._W._-_The_Fighting_T%C3%A9m%C3%A9raire_tugged_to_her_last_Berth_to_be_broken.jpg',
+      },
+    ],
+    readings: [
+      { label: 'James Hamilton, Turner: A Life', url: 'https://www.worldcat.org/search?q=Hamilton+Turner+Life' },
+    ],
+  },
+  {
+    slug: slugFor('Realism', 'John Singer Sargent'),
+    style: 'Realism',
+    displayName: 'John Singer Sargent',
+    tagline: 'Bravura brush, society portrait, and the economy of chic',
+    intro:
+      'John Singer Sargent (1856–1925) bridged American patronage and European technique. His portraits flatter and probe—silk, velvet, and skin rendered with swaggering wet-on-wet passages.',
+    historicalPlacement:
+      'Belle Époque salons and transatlantic elites; scholarship addresses race, gender, and the performance of class in his sitters. Madame X ignited scandal in Paris before becoming an icon.',
+    whyMaster: [
+      'Controls large dark shapes (gowns, backgrounds) so faces read instantly.',
+      'Alternates razor drawing in profiles with painterly dissolve in fabric.',
+      'Uses selective impasto for jewelry and highlights—accents as punctuation.',
+    ],
+    figures: [
+      {
+        workTitle: 'Madame X (Madame Pierre Gautreau)',
+        year: '1883–84',
+        medium: 'Oil on canvas',
+        collection: 'The Metropolitan Museum of Art, New York',
+        analysis:
+          'The black dress is built from blue-violet and warm reflected light—not flat black. The powdered skin and auburn hair sit in high-key contrast against the gown’s abyss. One fallen strap (repainted after scandal) redirects the entire narrative tension. Study Sargent’s edges: profile contour is incisive; hands are abbreviated; jewelry gets the sharpest ticks.',
+        imageUrl: artImage('daily-sargent-madame-x.jpg'),
+        imageAlt: 'Sargent, Madame X',
+        credit: 'The Met / Wikimedia Commons.',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Madame_X_(Madame_Pierre_Gautreau)_MET_DT278076.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Trevor Fairbrother, John Singer Sargent: The Sensualist', url: 'https://www.worldcat.org/search?q=Fairbrother+Sargent' },
+    ],
+  },
+  {
     slug: slugFor('Realism', 'Richard Estes'),
     style: 'Realism',
     displayName: 'Richard Estes',
@@ -289,6 +450,72 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
   },
   {
+    slug: slugFor('Impressionism', 'Georges Seurat'),
+    style: 'Impressionism',
+    displayName: 'Georges Seurat',
+    tagline: 'Pointillism, optics, and the science of Sunday light',
+    intro:
+      'Georges Seurat (1859–1891) systematized Impressionist color into divisionism—small touches of complement and neighbor hues that mix in the eye. His ambition was both optical and social: modern leisure made laboratory.',
+    historicalPlacement:
+      'Third Republic Paris; Neo-Impressionism split from Impressionist spontaneity toward method. Scholarship links Seurat to color theory, anarchist circles, and the sociology of the boulevard.',
+    whyMaster: [
+      'Maintains readable figure groups and depth while surface is entirely optically mixed dots.',
+      'Builds shadow and grass temperature from disciplined complements, not blended mud.',
+      'Proves monumental scale can rest on microscopic touch discipline.',
+    ],
+    figures: [
+      {
+        workTitle: 'A Sunday on La Grande Jatte',
+        year: '1884',
+        medium: 'Oil on canvas',
+        collection: 'Art Institute of Chicago',
+        analysis:
+          'Shadow under trees is woven from violets, greens, and oranges; parasols and skirts become patterns of dots at close range but cohere into silhouettes at distance. The lesson: plan the big value shapes first, then subdivide into complementary families. Seurat’s edge is aggregate—soft boundaries from millions of hard marks.',
+        imageUrl: artImage('daily-seurat-grande-jatte.jpg'),
+        imageAlt: 'Seurat, A Sunday on La Grande Jatte',
+        credit: 'Google Art Project / Wikimedia Commons.',
+        moreInfoUrl:
+          'https://commons.wikimedia.org/wiki/File:Georges_Seurat_-_A_Sunday_on_La_Grande_Jatte_--_1884_-_Google_Art_Project.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Robert L. Herbert, Seurat and the Making of La Grande Jatte', url: 'https://www.worldcat.org/search?q=Herbert+Seurat+Grande+Jatte' },
+    ],
+  },
+  {
+    slug: slugFor('Impressionism', 'Paul Cézanne'),
+    style: 'Impressionism',
+    displayName: 'Paul Cézanne',
+    tagline: 'Constructive stroke, Mont Sainte-Victoire, and the bridge to Cubism',
+    intro:
+      'Paul Cézanne (1839–1906) took Impressionist color into architecture: planes built from parallel hatch and patch, nature “treated by the cylinder, sphere, and cone” (his famous phrase to Bernard).',
+    historicalPlacement:
+      'Aix-en-Provence and Paris circles; Cézanne links Impressionist light to Picasso and Braque’s analytic phase. Conservation studies track his layered revisions.',
+    whyMaster: [
+      'Replaces outline with color boundaries that still describe solid form.',
+      'Unifies landscape through repeated diagonal and horizontal modules.',
+      'Balances warm-cool modulation with geological weight.',
+    ],
+    figures: [
+      {
+        workTitle: 'Mont Sainte-Victoire and Château Noir',
+        year: '1904–06',
+        medium: 'Oil on canvas',
+        collection: 'Multiple versions; Google Art scan cited',
+        analysis:
+          'The mountain reads as stacked planes of blue-green and ochre rather than a single silhouette. Château Noir anchors mid-ground while pines punctuate rhythm. Cézanne teaches “passage”—edges where two color areas share a middle tone so forms interlock. Compare to Impressionist dissolve: here structure persists under the shimmer.',
+        imageUrl: artImage('daily-cezanne-mont-sainte-victoire.jpg'),
+        imageAlt: 'Cézanne, Mont Sainte-Victoire and Château Noir',
+        credit: 'Google Art Project / Wikimedia Commons.',
+        moreInfoUrl:
+          'https://commons.wikimedia.org/wiki/File:Paul_Cezanne_-_Mont_Sainte-Victoire_and_Ch%C3%A2teau_Noir_-_Google_Art_Project.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Alex Danchev, Cézanne: A Life', url: 'https://www.worldcat.org/search?q=Danchev+Cezanne' },
+    ],
+  },
+  {
     slug: slugFor('Impressionism', 'Claude Monet'),
     style: 'Impressionism',
     displayName: 'Claude Monet',
@@ -314,6 +541,18 @@ export const MASTER_ENTRIES: MasterEntry[] = [
         imageAlt: 'Monet, Impression, Sunrise',
         credit: 'Public domain.',
         moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Monet_-_Impression,_Sunrise.jpg',
+      },
+      {
+        workTitle: 'Pond with Water Lilies',
+        year: 'c. 1917–19',
+        medium: 'Oil on canvas',
+        collection: 'Musée de l’Orangerie / related holdings',
+        analysis:
+          'Horizon often disappears: lily pads, reflection, and sky share one horizontal weave. Monet lets rose, emerald, and cobalt streaks cross without muddying—wet surface as abstract field with botanical anchors. Late lesson: limit your motif (ellipse of pads, bridge hint) so freedom in touch does not become chaos.',
+        imageUrl: artImage('daily-monet-water-lilies.jpg'),
+        imageAlt: 'Monet, Water Lilies (pond)',
+        credit: 'Google Art Project / Wikimedia Commons.',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Pond_with_Water_Lilies_-_Google_Art_Project.jpg',
       },
     ],
     readings: [
@@ -511,6 +750,38 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     readings: [
       { label: 'Marco Livingstone, David Hockney', url: 'https://www.worldcat.org/search?q=Livingstone+Hockney' },
       { label: 'Lawrence Weschler, True to Life: Twenty-Five Years of Conversations with David Hockney', url: 'https://www.worldcat.org/search?q=Weschler+Hockney' },
+    ],
+  },
+  {
+    slug: slugFor('Expressionism', 'Vincent van Gogh'),
+    style: 'Expressionism',
+    displayName: 'Vincent van Gogh',
+    tagline: 'Impasto, rhythm, and the spiritual landscape',
+    intro:
+      'Vincent van Gogh (1853–1890) compressed Dutch drawing discipline into southern color—Arles and Saint-Rémy canvases where cypress, wheat, and night sky vibrate with directional stroke. He is often taught between Post-Impressionism and Expressionism; here he anchors expressive color-as-force for painters.',
+    historicalPlacement:
+      'European modernity and mental-health history complicate his reception; scholarship emphasizes letter-driven intent, Protestant visual culture, and Japanese print influence. Copyright on some photographs varies—museum pages remain authoritative.',
+    whyMaster: [
+      'Aligns every stroke with form and feeling—sky spirals, field rows, fabric folds.',
+      'Uses saturated complements without losing value structure.',
+      'Makes humble motifs (bedroom, chair, stars) carry existential weight.',
+    ],
+    figures: [
+      {
+        workTitle: 'The Starry Night',
+        year: '1889',
+        medium: 'Oil on canvas',
+        collection: 'Museum of Modern Art, New York',
+        analysis:
+          'The sky is a vortex of blues and yellows; the village below is comparatively quiet—emotional weather concentrated aloft. Cypress acts as a dark flame between worlds. Lesson: repeat a stroke direction across a passage to unify it; let one or two stars hold the highest key. Thick paint catches real light—surface as part of meaning.',
+        imageUrl: artImage('daily-van-gogh-starry-night.jpg'),
+        imageAlt: 'van Gogh, The Starry Night',
+        credit: 'Google Art Project / Wikimedia (MoMA holds the work; verify commercial reuse).',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg',
+      },
+    ],
+    readings: [
+      { label: 'Steven Naifeh & Gregory White Smith, Van Gogh: The Life', url: 'https://www.worldcat.org/search?q=Naifeh+Van+Gogh+Life' },
     ],
   },
   {
@@ -949,6 +1220,70 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     readings: [
       { label: 'Margit Rowell, Joan Miró: Selected Writings and Interviews', url: 'https://www.worldcat.org/search?q=Rowell+Mir%C3%B3' },
+    ],
+  },
+  {
+    slug: slugFor('Abstract Art', 'Gustav Klimt'),
+    style: 'Abstract Art',
+    displayName: 'Gustav Klimt',
+    tagline: 'Vienna Secession, gold, and the decorative sublime',
+    intro:
+      'Gustav Klimt (1862–1918) led Viennese Secession painting toward jewel-like pattern, allegory, and erotic symbolism. His “abstract” contribution is the flattening plane: bodies merge with ornamental fields until figure and design are inseparable.',
+    historicalPlacement:
+      'Fin-de-siècle Vienna; scholarship addresses gender, patronage, and the politics of ornament. The Kiss belongs to his “Golden Phase” alongside Faculty paintings controversies.',
+    whyMaster: [
+      'Integrates gold leaf, oil, and mosaic-like pattern without losing human tenderness.',
+      'Controls silhouette and negative space inside dense decoration.',
+      'Uses repetition and symmetry as emotional crescendo, not mere wallpaper.',
+    ],
+    figures: [
+      {
+        workTitle: 'The Kiss',
+        year: '1907–08',
+        medium: 'Oil and gold leaf on canvas',
+        collection: 'Belvedere, Vienna',
+        analysis:
+          'The couple kneels on a flower-strewn precipice; robes dissolve into rectangular gold blocks while faces and hands stay comparatively naturalistic. Klimt alternates hard ornamental edges with soft modeling in flesh. Lesson: pick zones of maximal pattern vs maximal humanity—contrast carries sentiment.',
+        imageUrl: artImage('daily-klimt-kiss.jpg'),
+        imageAlt: 'Klimt, The Kiss',
+        credit: 'Google Cultural Institute / Wikimedia Commons (check jurisdiction).',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:The_Kiss_-_Gustav_Klimt_-_Google_Cultural_Institute.jpg',
+      },
+    ],
+    readings: [
+      { label: 'WorldCat — Gustav Klimt monographs', url: 'https://www.worldcat.org/search?q=au%3AKlimt+Gustav+painting' },
+    ],
+  },
+  {
+    slug: slugFor('Abstract Art', 'Robert Delaunay'),
+    style: 'Abstract Art',
+    displayName: 'Robert Delaunay',
+    tagline: 'Orphism, disks, and the Eiffel Tower as color-music',
+    intro:
+      'Robert Delaunay (1885–1941) with Sonia Delaunay extended Cubist facets into prismatic disks and urban rhythm—Orphism’s color-orchestration. Paris and the Eiffel Tower become pretexts for simultaneous contrast at architectural scale.',
+    historicalPlacement:
+      'Pre–World War I avant-garde; Apollinaire’s “Orphism” label groups Delaunay with Kupka and others. Later abstraction and fashion design (Sonia) broaden the legacy.',
+    whyMaster: [
+      'Builds monumental abstraction from recognizable urban motifs without illustrational nostalgia.',
+      'Uses circular and diagonal segmentation to keep the eye circulating.',
+      'Demonstrates high-chroma harmony without collapsing to mud.',
+    ],
+    figures: [
+      {
+        workTitle: 'La ville de Paris',
+        year: '1910–12',
+        medium: 'Oil on canvas',
+        collection: 'Musée d’Art Moderne de Paris (version cited varies)',
+        analysis:
+          'The Eiffel Tower fractures into wedges and disks of red, blue, and green; the sky and Seine echo the same chord. Delaunay teaches simultaneous contrast as composition—each segment answers its neighbor across the canvas. Compare to Mondrian’s grid: here curves and disks replace right angles.',
+        imageUrl: artImage('daily-delaunay-ville-paris.jpg'),
+        imageAlt: 'Robert Delaunay, La ville de Paris',
+        credit: 'Google Art Project / Wikimedia Commons.',
+        moreInfoUrl: 'https://commons.wikimedia.org/wiki/File:Robert_Delaunay_-_La_ville_de_Paris_-_Google_Art_Project.jpg',
+      },
+    ],
+    readings: [
+      { label: 'WorldCat — Robert Delaunay', url: 'https://www.worldcat.org/search?q=au%3ADelaunay+Robert+painting' },
     ],
   },
   {

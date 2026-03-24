@@ -6,9 +6,16 @@ export const ARTISTS_BY_STYLE = {
     'Honoré Daumier',
     'Winslow Homer',
     'Thomas Eakins',
+    'Johannes Vermeer',
+    'Diego Velázquez',
+    'Francisco Goya',
+    'J. M. W. Turner',
+    'John Singer Sargent',
     'Richard Estes',
   ],
   Impressionism: [
+    'Georges Seurat',
+    'Paul Cézanne',
     'Claude Monet',
     'Pierre-Auguste Renoir',
     'Edgar Degas',
@@ -19,6 +26,7 @@ export const ARTISTS_BY_STYLE = {
   ],
   Expressionism: [
     'Edvard Munch',
+    'Vincent van Gogh',
     'Wassily Kandinsky',
     'Egon Schiele',
     'Ernst Ludwig Kirchner',
@@ -34,6 +42,8 @@ export const ARTISTS_BY_STYLE = {
     'Jackson Pollock',
     'Joan Miró',
     'Helen Frankenthaler',
+    'Gustav Klimt',
+    'Robert Delaunay',
   ],
 } as const;
 
