@@ -12,8 +12,16 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    height: 100%;
+    overscroll-behavior-y: none;
   }
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
+    min-height: 100%;
+    overscroll-behavior-y: none;
+  }
+  #root {
+    min-height: 100%;
+    overscroll-behavior-y: none;
   }
 }
