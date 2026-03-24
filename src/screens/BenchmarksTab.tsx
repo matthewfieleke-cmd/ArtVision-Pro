@@ -9,9 +9,9 @@ export function BenchmarksTab() {
       <header>
         <h2 className="font-display text-2xl font-normal text-slate-900">Gold standard artists</h2>
         <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-          “Master” ratings in ArtVision Pro are framed against the technical and expressive bar of these painters—not
-          for imitation, but for clear standards of composition, value, color, and voice. Tap a name for a short
-          scholarly overview and work-based technique notes.
+          “Master” ratings are framed against the technical and expressive bar of these painters—including modern
+          acrylic benchmarks (Photorealism, Hockney, Basquiat, Frankenthaler)—not for imitation, but for clear
+          standards of composition, value, color, and voice. Tap a name for an overview and work-based technique notes.
         </p>
       </header>
       <div className="space-y-3">

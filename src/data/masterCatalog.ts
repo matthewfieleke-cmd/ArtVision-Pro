@@ -255,6 +255,40 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
   },
   {
+    slug: slugFor('Realism', 'Richard Estes'),
+    style: 'Realism',
+    displayName: 'Richard Estes',
+    tagline: 'Photorealism, acrylic, and the poetry of reflective glass',
+    intro:
+      'Richard Estes (born 1932) helped define American Photorealism: city views where shop windows, chrome, and glass stack reflections until the picture plane becomes a compressed optical puzzle. He often worked in acrylic for its capacity to hold crisp edges and rapid layering.',
+    historicalPlacement:
+      '1960s–70s New York; Photorealism emerged alongside Pop and Minimalism, sometimes mistaken for mechanical copying. Scholarship emphasizes camera-aided observation, deliberate editing, and the uncanny stillness of urban infrastructure.',
+    whyMaster: [
+      'Turns mundane street furniture into rigorous studies of reflection, transparency, and doubling.',
+      'Maintains believable space while fracturing the view—Photorealist discipline as composition, not gimmick.',
+      'Exploits acrylic’s fast drying to build complex glazed information without muddiness.',
+    ],
+    figures: [
+      {
+        workTitle: 'Telephone Booths',
+        year: '1967',
+        medium: 'Acrylic on Masonite',
+        collection: 'Private collection / reproduced in major Photorealism literature',
+        analysis:
+          'Repeated glass panels create a hall of mirrors: street, signage, and sky reappear in skewed shards. Estes asks you to track which edges are object, which are reflection, and where they contradict—value steps stay discrete so confusion reads as clarity. For painters: study how he reserves the sharpest accents for metal mullions and lettering while letting reflected buildings soften. Copyright restricts embedding; use museum or auction-house authorized images for zoom-level study.',
+        imageUrl: undefined,
+        imageAlt: 'Richard Estes, Telephone Booths (view authorized reproduction)',
+        credit:
+          'Artwork © Richard Estes / ARS, New York. High-resolution reproduction not embedded; consult major collection or catalogue raisonné.',
+        moreInfoUrl: 'https://en.wikipedia.org/wiki/Telephone_Booths_(painting)',
+      },
+    ],
+    readings: [
+      { label: 'Linda Chase, Hyperrealism (Photorealism today)', url: 'https://www.worldcat.org/search?q=Chase+Hyperrealism' },
+      { label: 'Louis K. Meisel, Photorealism (catalogue tradition)', url: 'https://www.worldcat.org/search?q=Meisel+Photorealism' },
+    ],
+  },
+  {
     slug: slugFor('Impressionism', 'Claude Monet'),
     style: 'Impressionism',
     displayName: 'Claude Monet',
@@ -444,6 +478,39 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     readings: [
       { label: 'Griselda Pollock, Mary Cassatt (exh. cat. context)', url: 'https://www.worldcat.org/search?q=Pollock+Cassatt' },
+    ],
+  },
+  {
+    slug: slugFor('Impressionism', 'David Hockney'),
+    style: 'Impressionism',
+    displayName: 'David Hockney',
+    tagline: 'California light, acrylic flatness, and the long look at a short splash',
+    intro:
+      'David Hockney (born 1937) moved between graphic design clarity, photographic collage, and lush painting. His 1960s Los Angeles pool pictures use acrylic’s opaque, even films to describe modernist architecture, then switch to obsessive small-brush work where water becomes a field of event.',
+    historicalPlacement:
+      'British Pop roots and transatlantic queer modernity; Hockney’s pools belong to Southern California leisure culture and to art-historical dialogue with Matisse and Picasso. Critics note the paradox of extended studio time depicting an instantaneous splash.',
+    whyMaster: [
+      'Balances graphic simplicity (deck, sky, building) with turbulent micro-detail where narrative lives.',
+      'Uses acrylic to separate “still” structure from “moving” surface logic.',
+      'Updates Impressionist interest in the moment without mimicking 1870s broken color.',
+    ],
+    figures: [
+      {
+        workTitle: 'A Bigger Splash',
+        year: '1967',
+        medium: 'Acrylic on canvas',
+        collection: 'Tate, London',
+        analysis:
+          'The diving board and empty chair imply a body that just left; the splash is the painting’s protagonist—white filaments against turquoise. Hockney’s flat color blocks read as heat and emptiness; the splash contradicts with bristling strokes. Lesson: one high-energy motif can carry the whole if everything else is ruthlessly simplified. © David Hockney; use Tate’s collection page for authorized images.',
+        imageUrl: undefined,
+        imageAlt: 'David Hockney, A Bigger Splash (view at Tate)',
+        credit: 'Artwork © David Hockney. Reproduction not embedded; use Tate authorized viewer.',
+        moreInfoUrl: 'https://www.tate.org.uk/art/artworks/hockney-a-bigger-splash-t01839',
+      },
+    ],
+    readings: [
+      { label: 'Marco Livingstone, David Hockney', url: 'https://www.worldcat.org/search?q=Livingstone+Hockney' },
+      { label: 'Lawrence Weschler, True to Life: Twenty-Five Years of Conversations with David Hockney', url: 'https://www.worldcat.org/search?q=Weschler+Hockney' },
     ],
   },
   {
@@ -639,6 +706,39 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     readings: [
       { label: 'Rainer Stamm, Paula Modersohn-Becker', url: 'https://www.worldcat.org/search?q=Stamm+Modersohn-Becker' },
+    ],
+  },
+  {
+    slug: slugFor('Expressionism', 'Jean-Michel Basquiat'),
+    style: 'Expressionism',
+    displayName: 'Jean-Michel Basquiat',
+    tagline: 'Neo-Expressionism, street glyph, and layered urgency',
+    intro:
+      'Jean-Michel Basquiat (1960–1988) fused graffiti tempo, art-historical sampling, and raw figuration into large canvases that read like public walls turned inward. Acrylic, oil stick, and spray paint let him stack speeds: fast ground, slower drawing, sudden aerosol atmosphere.',
+    historicalPlacement:
+      '1980s New York downtown scene; Basquiat’s rise intersects with hip-hop, punk, and the market’s appetite for painterly return. Scholarship addresses primitivist framing, collaboration with Andy Warhol, and the politics of Black representation in the neo-avant-garde.',
+    whyMaster: [
+      'Builds iconic central forms (skull, crown, mask) that hold chaotic peripheral marks.',
+      'Layers media for legible sequence—flat color, then scratch, then spray—without total mud.',
+      'Merges text, symbol, and figure into a contemporary hieroglyphic voice.',
+    ],
+    figures: [
+      {
+        workTitle: 'Untitled (Skull)',
+        year: '1982',
+        medium: 'Acrylic, spray paint, and oil stick on canvas',
+        collection: 'Private collection (sold Sotheby’s 2017; exhibited Brooklyn Museum, Seattle Art Museum, others)',
+        analysis:
+          'The skull fills the vertical canvas like a totem; eyes and teeth are scoured and redrawn, suggesting violence and vulnerability at once. Electric blue ground pushes warm bone tones forward; oil stick drags over acrylic flats, preserving underlayer hue. Lesson: reserve a simple silhouette, then allow the surface to accrete “errors” that become expression. © The Estate of Jean-Michel Basquiat; use museum or estate-authorized sources for images.',
+        imageUrl: undefined,
+        imageAlt: 'Jean-Michel Basquiat, Untitled Skull (view authorized reproduction)',
+        credit: 'Artwork © The Estate of Jean-Michel Basquiat / ADAGP, Paris / ARS, New York. Reproduction not embedded.',
+        moreInfoUrl: 'https://en.wikipedia.org/wiki/Untitled_(1982_Basquiat_skull_painting)',
+      },
+    ],
+    readings: [
+      { label: 'Fred Hoffman, The Art of Jean-Michel Basquiat', url: 'https://www.worldcat.org/search?q=Hoffman+Basquiat' },
+      { label: 'Dieter Buchhart & Eleanor Nairne, Basquiat: Boom for Real (exh. cat.)', url: 'https://www.worldcat.org/search?q=Buchhart+Basquiat+Boom' },
     ],
   },
   {
@@ -849,6 +949,39 @@ export const MASTER_ENTRIES: MasterEntry[] = [
     ],
     readings: [
       { label: 'Margit Rowell, Joan Miró: Selected Writings and Interviews', url: 'https://www.worldcat.org/search?q=Rowell+Mir%C3%B3' },
+    ],
+  },
+  {
+    slug: slugFor('Abstract Art', 'Helen Frankenthaler'),
+    style: 'Abstract Art',
+    displayName: 'Helen Frankenthaler',
+    tagline: 'Soak-stain, acrylic, and luminous fields on raw canvas',
+    intro:
+      'Helen Frankenthaler (1928–2011) extended Abstract Expressionist scale toward poured, thinned paint that sank into unprimed canvas—her “soak-stain” method influenced Morris Louis and Kenneth Noland. When she shifted to fluid acrylic in the early 1960s, she gained permanence and color stability while keeping aqueous flow.',
+    historicalPlacement:
+      'Postwar New York; Frankenthaler’s 1950s Mountains and Sea (oil thinned with turpentine) is the mythic origin of stain painting. Later acrylic pours belong to Color Field’s second generation—debates continue on finish, feminized craft narratives, and material longevity on raw support.',
+    whyMaster: [
+      'Replaces bravura impasto with optical depth from within the weave.',
+      'Composes with tides of color—shapes born from liquid behavior, not pre-drawn contour.',
+      'Demonstrates how dilution and gravity become collaborators.',
+    ],
+    figures: [
+      {
+        workTitle: 'The Bay',
+        year: '1963',
+        medium: 'Acrylic on canvas',
+        collection: 'National Gallery of Art, Washington, D.C.',
+        analysis:
+          'Veils of green-blue spread across raw canvas like tidal flats; edges feather where pigment concentration changes. There is little traditional brush “show”—instead, soak fronts and overlaps create hierarchy. Compare to Rothko’s stacked veils: Frankenthaler’s light often feels lateral and flooded rather than vertical and tragic. Study authorized NGA photography for true color; embedded reproduction omitted here due to rights.',
+        imageUrl: undefined,
+        imageAlt: 'Helen Frankenthaler, The Bay (view at National Gallery of Art)',
+        credit: 'Artwork © 2024 Frankenthaler Foundation, Inc. / ARS, New York. Reproduction not embedded.',
+        moreInfoUrl: 'https://www.nga.gov/collection/art-object-page.43994.html',
+      },
+    ],
+    readings: [
+      { label: 'John Elderfield, Frankenthaler', url: 'https://www.worldcat.org/search?q=Elderfield+Frankenthaler' },
+      { label: 'Pepe Karmel, “A Clear Vision: Helen Frankenthaler’s Mountains and Sea” (MoMA)', url: 'https://www.moma.org/magazine/articles/805' },
     ],
   },
 ];
