@@ -53,6 +53,35 @@ const IMAGES = [
     "Kazimir Malevich - 'Suprematist Composition- White on White', oil on canvas, 1918, Museum of Modern Art.jpg",
   ],
   ['miro-1938-detail.jpg', 'JOAN_MIRO_PAINTING_1938_DETAIL.jpg'],
+  ['daily-vermeer-pearl.jpg', 'Meisje met de parel.jpg'],
+  [
+    'daily-seurat-grande-jatte.jpg',
+    'Georges Seurat - A Sunday on La Grande Jatte -- 1884 - Google Art Project.jpg',
+  ],
+  [
+    'daily-velazquez-las-meninas.jpg',
+    'Las Meninas, by Diego Velázquez, from Prado in Google Earth.jpg',
+  ],
+  [
+    'daily-goya-third-may.jpg',
+    'El Tres de Mayo, by Francisco de Goya, from Prado in Google Earth.jpg',
+  ],
+  [
+    'daily-cezanne-mont-sainte-victoire.jpg',
+    'Paul Cezanne - Mont Sainte-Victoire and Château Noir - Google Art Project.jpg',
+  ],
+  ['daily-van-gogh-starry-night.jpg', 'Vincent van Gogh - Starry Night - Google Art Project.jpg'],
+  [
+    'daily-turner-temeraire.jpg',
+    'Turner, J. M. W. - The Fighting Téméraire tugged to her last Berth to be broken.jpg',
+  ],
+  [
+    'daily-sargent-madame-x.jpg',
+    'Madame X (Madame Pierre Gautreau) MET DT278076.jpg',
+  ],
+  ['daily-klimt-kiss.jpg', 'The Kiss - Gustav Klimt - Google Cultural Institute.jpg'],
+  ['daily-monet-water-lilies.jpg', 'Claude Monet - Pond with Water Lilies - Google Art Project.jpg'],
+  ['daily-delaunay-ville-paris.jpg', 'Robert Delaunay - La ville de Paris - Google Art Project.jpg'],
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
