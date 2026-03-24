@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { getCriterionMasterSignals } from '../shared/masterCriteriaRubric.js';
 import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes.js';
 import {
