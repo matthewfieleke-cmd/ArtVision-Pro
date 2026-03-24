@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
 import { CriterionLearnLink } from '../components/CriterionLearnLink';
+import { PreviewEditBlendCard } from '../components/PreviewEditBlendCard';
 import type { CritiqueResult, SavedPainting } from '../types';
 import { CRITERIA } from '../types';
 import { formatShortDate, progressPercentFromPainting } from '../utils';
@@ -25,6 +26,14 @@ function levelWidth(level: string): string {
     default:
       return '100%';
   }
+}
+
+function previewTargetForVersion(
+  critique: CritiqueResult,
+  criterion: (typeof CRITERIA)[number]
+) {
+  const cat = critique.categories.find((c) => c.criterion === criterion);
+  return cat ?? critique.categories[0]!;
 }
 
 function CritiquePanels({ critique }: { critique: CritiqueResult }) {
@@ -86,7 +95,9 @@ export function StudioTab({
     const safeIdx = Math.min(compareIdx, Math.max(0, vCount - 2));
     const left = vCount >= 2 ? versions[safeIdx] : versions[0];
     const right = vCount >= 2 ? versions[vCount - 1] : versions[0];
+    const latest = versions[vCount - 1]!;
     const pct = progressPercentFromPainting(selected);
+    const latestPreview = latest.previewEdit;
 
     return (
       <div className="animate-slide-up space-y-4 px-4 pb-28 pt-2">
@@ -154,6 +165,22 @@ export function StudioTab({
             <img src={versions[0]?.imageDataUrl} alt="" className="w-full object-contain max-h-80 bg-slate-100" />
           </figure>
         )}
+
+        {latestPreview ? (
+          <section className="rounded-2xl border border-violet-200/80 bg-white p-3 shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Saved AI preview</h3>
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Blend slider uses this version’s photo and the illustrative edit saved from critique.
+            </p>
+            <div className="mt-3">
+              <PreviewEditBlendCard
+                originalSrc={latest.imageDataUrl}
+                revisedSrc={latestPreview.imageDataUrl}
+                target={previewTargetForVersion(latest.critique, latestPreview.criterion)}
+              />
+            </div>
+          </section>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           <button

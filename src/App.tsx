@@ -316,11 +316,20 @@ export default function App() {
       ...flow.critique,
       ...(savedTitle ? { paintingTitle: savedTitle } : {}),
     };
+    const priorityCat = priorityCritiqueCategory(flow.critique.categories);
     const version = {
       id: newId(),
       imageDataUrl: flow.imageDataUrl,
       createdAt: new Date().toISOString(),
       critique: critiqueToStore,
+      ...(previewImageDataUrl
+        ? {
+            previewEdit: {
+              imageDataUrl: previewImageDataUrl,
+              criterion: priorityCat.criterion,
+            },
+          }
+        : {}),
     };
     if (flow.mode === 'resubmit' && flow.targetPainting) {
       const t = flow.workingTitle.trim();
@@ -358,7 +367,7 @@ export default function App() {
       setTab('studio');
     }
     closeFlow();
-  }, [flow, closeFlow]);
+  }, [flow, closeFlow, previewImageDataUrl]);
 
   const deletePainting = useCallback((id: string) => {
     setPaintings((ps) => ps.filter((p) => p.id !== id));

@@ -43,11 +43,19 @@ export type CritiqueResult = {
   paintingTitle?: string;
 };
 
+/** AI illustrative edit for one criterion; pairs with the critique photo for blend compare. */
+export type VersionPreviewEdit = {
+  imageDataUrl: string;
+  criterion: Criterion;
+};
+
 export type PaintingVersion = {
   id: string;
   imageDataUrl: string;
   createdAt: string;
   critique: CritiqueResult;
+  /** Saved when “Generate preview” was used before Save to studio */
+  previewEdit?: VersionPreviewEdit;
 };
 
 export type SavedPainting = {
