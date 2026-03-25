@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import { Check, Crop, RotateCcw, X } from 'lucide-react';
-import { cropDataUrl } from '../imageUtils';
+import { Check, Crop, RotateCcw, Sparkles, Undo2, X } from 'lucide-react';
+import type { CropPreset } from '../imageUtils';
+import { cropDataUrlWithRotation, suggestPaintingCrop } from '../imageUtils';
 
 type Props = {
   imageSrc: string;
@@ -11,33 +12,66 @@ type Props = {
   onConfirm: (croppedImage: string) => void | Promise<void>;
 };
 
+const PRESETS: Array<{ id: CropPreset; label: string; aspect?: number }> = [
+  { id: 'freeform', label: 'Freeform' },
+  { id: 'portrait', label: 'Portrait', aspect: 3 / 4 },
+  { id: 'square', label: 'Square', aspect: 1 },
+  { id: 'landscape', label: 'Landscape', aspect: 4 / 3 },
+];
+
 export function ImageCropModal({
   imageSrc,
   title = 'Frame the painting before critique',
-  description = 'Drag and zoom to isolate the painted area. Use Freeform for unusual proportions or Locked for a portrait-style frame.',
+  description = 'Drag, zoom, and rotate to isolate the painted area. Start with Auto frame, then switch presets if you want a different crop shape.',
   onCancel,
   onConfirm,
 }: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
-  const [lockedAspect, setLockedAspect] = useState(true);
+  const [preset, setPreset] = useState<CropPreset>('portrait');
+  const [detecting, setDetecting] = useState(true);
 
   const onCropComplete = useCallback((_croppedArea: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
   }, []);
 
+  const aspect = useMemo(
+    () => PRESETS.find((entry) => entry.id === preset)?.aspect,
+    [preset]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setDetecting(true);
+    void suggestPaintingCrop(imageSrc)
+      .then((suggestion) => {
+        if (cancelled) return;
+        setRotation(suggestion.rotation);
+      })
+      .catch(() => {
+        if (!cancelled) setRotation(0);
+      })
+      .finally(() => {
+        if (!cancelled) setDetecting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageSrc]);
+
   const confirmCrop = useCallback(async () => {
     if (!croppedAreaPixels) return;
     setBusy(true);
     try {
-      const cropped = await cropDataUrl(imageSrc, croppedAreaPixels);
+      const cropped = await cropDataUrlWithRotation(imageSrc, croppedAreaPixels, rotation);
       await onConfirm(cropped);
     } finally {
       setBusy(false);
     }
-  }, [croppedAreaPixels, imageSrc, onConfirm]);
+  }, [croppedAreaPixels, imageSrc, onConfirm, rotation]);
 
   return (
     <div
@@ -70,24 +104,35 @@ export function ImageCropModal({
             {description}
           </p>
 
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-1">
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2">
+            {PRESETS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setPreset(entry.id)}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                  preset === entry.id ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                {entry.label}
+              </button>
+            ))}
             <button
               type="button"
-              onClick={() => setLockedAspect(true)}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                lockedAspect ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
-              }`}
+              onClick={() => {
+                setDetecting(true);
+                void suggestPaintingCrop(imageSrc)
+                  .then((suggestion) => {
+                    setRotation(suggestion.rotation);
+                    setZoom(1);
+                    setCrop({ x: 0, y: 0 });
+                  })
+                  .finally(() => setDetecting(false));
+              }}
+              className="ml-auto inline-flex items-center gap-1 rounded-xl border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
             >
-              Locked
-            </button>
-            <button
-              type="button"
-              onClick={() => setLockedAspect(false)}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                !lockedAspect ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              Freeform
+              <Sparkles className="h-4 w-4 text-violet-300" />
+              {detecting ? 'Framing…' : 'Auto frame'}
             </button>
           </div>
 
@@ -96,13 +141,15 @@ export function ImageCropModal({
               image={imageSrc}
               crop={crop}
               zoom={zoom}
-              aspect={lockedAspect ? 3 / 4 : undefined}
+              rotation={rotation}
+              aspect={aspect}
               cropShape="rect"
               objectFit="contain"
               showGrid={true}
               onCropChange={setCrop}
               onCropComplete={onCropComplete}
               onZoomChange={setZoom}
+              onRotationChange={setRotation}
             />
           </div>
 
@@ -114,13 +161,14 @@ export function ImageCropModal({
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300">
                   <Crop className="h-3.5 w-3.5" />
-                  {lockedAspect ? '3:4 frame' : 'Freeform'}
+                  {PRESETS.find((entry) => entry.id === preset)?.label ?? 'Freeform'}
                 </span>
                 <button
                   type="button"
                   onClick={() => {
                     setCrop({ x: 0, y: 0 });
                     setZoom(1);
+                    setRotation(0);
                   }}
                   className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800"
                 >
@@ -137,6 +185,29 @@ export function ImageCropModal({
               step={0.01}
               value={zoom}
               onChange={(e) => setZoom(Number(e.target.value))}
+              className="mt-3 h-2 w-full cursor-pointer accent-violet-500"
+            />
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <label htmlFor="crop-rotation" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Rotation
+              </label>
+              <button
+                type="button"
+                onClick={() => setRotation(0)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                Straighten
+              </button>
+            </div>
+            <input
+              id="crop-rotation"
+              type="range"
+              min={-15}
+              max={15}
+              step={0.1}
+              value={rotation}
+              onChange={(e) => setRotation(Number(e.target.value))}
               className="mt-3 h-2 w-full cursor-pointer accent-violet-500"
             />
           </div>

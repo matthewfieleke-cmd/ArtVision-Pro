@@ -18,12 +18,9 @@ import { CritiquePanels } from './components/CritiquePanels';
 import { ImageCropModal } from './components/ImageCropModal';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
-import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
-import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
-import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
@@ -82,25 +79,6 @@ function newId(): string {
 function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
   const rank = (l: (typeof RATING_LEVELS)[number]) => RATING_LEVELS.indexOf(l);
   return categories.reduce((a, b) => (rank(a.level) <= rank(b.level) ? a : b));
-}
-
-async function classifyStyleFromImage(dataUrl: string): Promise<{
-  style: Style;
-  rationale: string;
-  source: 'api' | 'local';
-}> {
-  const sample = await compressDataUrl(dataUrl);
-  if (shouldTryApiFirst()) {
-    try {
-      const r = await fetchClassifyStyleFromApi(sample);
-      return { ...r, source: 'api' as const };
-    } catch (e) {
-      console.warn('Style API fallback:', e);
-    }
-  }
-  const m = await computeImageMetrics(sample);
-  const h = classifyStyleFromMetrics(m);
-  return { style: h.style, rationale: h.rationale, source: 'local' as const };
 }
 
 export default function App() {
@@ -337,29 +315,16 @@ export default function App() {
     [flow, openCropperForImage]
   );
 
-  const onPickFileForClassify = useCallback(async (file: File | null) => {
-    if (!file || !flowRef.current || flowRef.current.step !== 'setup') return;
-    setClassifyBusy(true);
-    setAnalyzeError(null);
-    try {
+  const onPickFileForClassify = useCallback(
+    async (file: File | null) => {
+      if (!file || !flowRef.current || flowRef.current.step !== 'setup') return;
+      setAnalyzeError(null);
       const url = await fileToDataUrl(file);
-      const { style, rationale, source } = await classifyStyleFromImage(url);
-      setFlow((cur) =>
-        cur
-          ? {
-              ...cur,
-              style,
-              styleClassifyMeta: { rationale, source },
-              classifySourceImageDataUrl: url,
-            }
-          : cur
-      );
-    } catch (e) {
-      setAnalyzeError(e instanceof Error ? e.message : 'Could not categorize style');
-    } finally {
-      setClassifyBusy(false);
-    }
-  }, []);
+      stopCamera();
+      setPendingCrop({ imageSrc: url, source: 'gallery', action: 'classify' });
+    },
+    [stopCamera]
+  );
 
   const onShutter = useCallback(async () => {
     const shot = captureFrame();
