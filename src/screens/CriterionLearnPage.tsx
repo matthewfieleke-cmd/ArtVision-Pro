@@ -24,7 +24,7 @@ function ExampleImage({ src, alt, linkHref }: { src: string; alt: string; linkHr
       <img
         src={src}
         alt={alt}
-        className="max-h-[min(88vh,36rem)] w-full object-contain object-center"
+        className="max-h-[min(88vh,36rem)] w-full object-contain object-center lg:max-h-[min(80vh,44rem)]"
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
@@ -41,8 +41,8 @@ export function CriterionLearnPage() {
 
   if (!entry) {
     return (
-      <div className="min-h-[100dvh] bg-slate-50 px-4 pb-12 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <div className="mx-auto max-w-lg pt-8">
+      <div className="min-h-[100dvh] bg-slate-50 px-4 pb-12 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-lg pt-8 lg:max-w-2xl">
           <p className="text-slate-600">No guide found for this criterion.</p>
           <Link
             to="/"
@@ -57,9 +57,9 @@ export function CriterionLearnPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 pb-16 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
+    <div className="min-h-[100dvh] bg-slate-50 pb-16 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:px-10">
+      <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 xl:max-w-5xl">
           <button
             type="button"
             onClick={() => {
@@ -89,9 +89,9 @@ export function CriterionLearnPage() {
         </div>
       </header>
 
-      <article className="mx-auto max-w-2xl px-4 py-8">
-        <p className="text-lg leading-relaxed text-violet-800/95">{entry.tagline}</p>
-        <p className="mt-4 text-sm leading-relaxed text-slate-700">{entry.intro}</p>
+      <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:py-10 xl:max-w-5xl">
+        <p className="text-lg leading-relaxed text-violet-800/95 lg:text-xl">{entry.tagline}</p>
+        <p className="mt-4 text-sm leading-relaxed text-slate-700 lg:text-[15px] lg:leading-7">{entry.intro}</p>
 
         <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950">
           <p className="font-semibold text-amber-900">Images & rights</p>
@@ -104,16 +104,16 @@ export function CriterionLearnPage() {
           </p>
         </div>
 
-        <h2 className="mt-10 font-display text-xl text-slate-900">Two paintings that excel here</h2>
-        <p className="mt-2 text-sm text-slate-500">
+        <h2 className="mt-10 font-display text-xl text-slate-900 lg:text-2xl">Two paintings that excel here</h2>
+        <p className="mt-2 text-sm text-slate-500 lg:text-[15px]">
           Read for what to notice in your own work—not to copy these artists, but to calibrate your eye.
         </p>
 
-        <div className="mt-8 space-y-14">
+        <div className="mt-8 space-y-14 lg:space-y-16">
           {entry.examples.map((ex, idx) => (
-            <section key={ex.workTitle} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <section key={ex.workTitle} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm lg:p-6">
               <p className="text-xs font-bold uppercase tracking-wider text-violet-600">Example {idx + 1}</p>
-              <h3 className="mt-2 font-display text-xl text-slate-900">
+              <h3 className="mt-2 font-display text-xl text-slate-900 lg:text-2xl">
                 {ex.workTitle}
                 <span className="font-normal text-slate-600"> · {ex.artist}</span>
               </h3>
@@ -121,24 +121,27 @@ export function CriterionLearnPage() {
               {ex.medium ? <p className="text-sm text-slate-500">{ex.medium}</p> : null}
               {ex.collection ? <p className="text-sm text-slate-500">{ex.collection}</p> : null}
 
-              <div className="mt-4">
-                <ExampleImage src={ex.imageUrl} alt={ex.imageAlt} linkHref={ex.moreInfoUrl} />
+              <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-start lg:gap-10">
+                <div className="min-w-0">
+                  <ExampleImage src={ex.imageUrl} alt={ex.imageAlt} linkHref={ex.moreInfoUrl} />
+                </div>
+                <div className="min-w-0 lg:pt-0">
+                  <h4 className="mt-5 text-xs font-bold uppercase tracking-wider text-slate-400 lg:mt-0">
+                    Why it excels at {entry.criterion.toLowerCase()}
+                  </h4>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-700 lg:text-[15px] lg:leading-7">{ex.whyExcellence}</p>
+
+                  <p className="mt-3 text-xs text-slate-500">{ex.credit}</p>
+                  <a
+                    href={ex.moreInfoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-700"
+                  >
+                    File / collection source <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
               </div>
-
-              <h4 className="mt-5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                Why it excels at {entry.criterion.toLowerCase()}
-              </h4>
-              <p className="mt-2 text-sm leading-relaxed text-slate-700">{ex.whyExcellence}</p>
-
-              <p className="mt-3 text-xs text-slate-500">{ex.credit}</p>
-              <a
-                href={ex.moreInfoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-700"
-              >
-                File / collection source <ExternalLink className="h-3 w-3" />
-              </a>
             </section>
           ))}
         </div>

@@ -40,6 +40,7 @@ type Props = {
 
 /**
  * Blend slider between critique photo and AI preview (same behavior as results overlay).
+ * On large screens: discussion and images use a two-column layout so both photos sit side by side.
  */
 export function PreviewEditBlendCard({
   originalSrc,
@@ -60,8 +61,8 @@ export function PreviewEditBlendCard({
 
   const frameStyle: CSSProperties =
     aspectRatio != null
-      ? { aspectRatio, width: '100%' }
-      : { aspectRatio: '3 / 4', width: '100%', minHeight: 'min(40vh, 85vw)' };
+      ? { aspectRatio, width: '100%', maxHeight: 'min(42vh, 520px)' }
+      : { aspectRatio: '3 / 4', width: '100%', maxHeight: 'min(42vh, 520px)', minHeight: 'min(28vh, 200px)' };
 
   const isDark = variant === 'dark';
   const box = isDark
@@ -76,8 +77,10 @@ export function PreviewEditBlendCard({
   const hint = isDark ? 'text-slate-400' : 'text-slate-500';
 
   return (
-    <div className={`space-y-3 ${className}`}>
-      <div className={box}>
+    <div
+      className={`flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-start lg:gap-6 xl:gap-8 ${className}`}
+    >
+      <div className={`min-w-0 ${box}`}>
         <p>
           Suggested change preview for{' '}
           <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>{target.criterion}</strong> (current
@@ -87,12 +90,12 @@ export function PreviewEditBlendCard({
         <p className="mt-2 whitespace-pre-line">{target.actionPlan.trim()}</p>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="grid min-h-0 w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <figure className={`flex min-h-0 flex-col rounded-xl border p-2 ${figBorder}`}>
           <figcaption className={`mb-1 text-center text-[10px] font-bold uppercase tracking-wider ${capMuted}`}>
             Your photo
           </figcaption>
-          <div className={`relative mx-auto max-w-full overflow-hidden rounded-lg ${bgFrame}`} style={frameStyle}>
+          <div className={`relative mx-auto max-h-[min(42vh,520px)] w-full max-w-full overflow-hidden rounded-lg ${bgFrame}`} style={frameStyle}>
             <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
           </div>
         </figure>
@@ -125,7 +128,7 @@ export function PreviewEditBlendCard({
                 Slide right for the full suggested edit; slide left for your original photo.
               </p>
             </div>
-            <div className={`relative mx-auto max-w-full overflow-hidden rounded-lg ${bgFrame}`} style={frameStyle}>
+            <div className={`relative mx-auto max-h-[min(42vh,520px)] w-full max-w-full overflow-hidden rounded-lg ${bgFrame}`} style={frameStyle}>
               <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
               <img
                 src={revisedSrc}

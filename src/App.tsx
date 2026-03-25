@@ -18,11 +18,15 @@ import { BottomNav } from './components/BottomNav';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { CritiquePanels } from './components/CritiquePanels';
 import { ImageCropModal } from './components/ImageCropModal';
+import { PreviewEditBlendCard } from './components/PreviewEditBlendCard';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
 import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
+import { fetchClassifyStyleFromApi } from './classifyStyleApi';
+import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
+import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { useIsDesktop } from './hooks/useIsDesktop';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
@@ -92,6 +96,8 @@ export default function App() {
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
   const [flow, setFlow] = useState<FlowState | null>(null);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
+  const pendingCropRef = useRef<PendingCrop | null>(null);
+  pendingCropRef.current = pendingCrop;
   const flowRef = useRef(flow);
   flowRef.current = flow;
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -288,6 +294,54 @@ export default function App() {
     }
   }, []);
 
+  const runClassifyStyle = useCallback(async (rawDataUrl: string) => {
+    setClassifyBusy(true);
+    setAnalyzeError(null);
+    try {
+      const compressed = await compressDataUrl(rawDataUrl);
+      let style: Style;
+      let rationale: string;
+      let source: 'api' | 'local';
+
+      if (shouldTryApiFirst()) {
+        try {
+          const r = await fetchClassifyStyleFromApi(compressed);
+          style = r.style;
+          rationale = r.rationale;
+          source = 'api';
+        } catch (err) {
+          console.warn('Classify API unavailable, using heuristic:', err);
+          const metrics = await computeImageMetrics(compressed);
+          const h = classifyStyleFromMetrics(metrics);
+          style = h.style;
+          rationale = h.rationale;
+          source = 'local';
+        }
+      } else {
+        const metrics = await computeImageMetrics(compressed);
+        const h = classifyStyleFromMetrics(metrics);
+        style = h.style;
+        rationale = h.rationale;
+        source = 'local';
+      }
+
+      setFlow((cur) =>
+        cur
+          ? {
+              ...cur,
+              style,
+              styleClassifyMeta: { rationale, source },
+              classifySourceImageDataUrl: compressed,
+            }
+          : cur
+      );
+    } catch (e) {
+      setAnalyzeError(e instanceof Error ? e.message : 'Could not detect style');
+    } finally {
+      setClassifyBusy(false);
+    }
+  }, []);
+
   const openCropperForImage = useCallback(
     (imageSrc: string, source: CropSource) => {
       if (!flowRef.current) return;
@@ -301,15 +355,27 @@ export default function App() {
 
   const onCropConfirm = useCallback(
     async (croppedImage: string) => {
+      const action = pendingCropRef.current?.action ?? 'analyze';
       setPendingCrop(null);
-      await runAnalysis(croppedImage);
+      if (action === 'classify') {
+        await runClassifyStyle(croppedImage);
+      } else {
+        await runAnalysis(croppedImage);
+      }
     },
-    [runAnalysis]
+    [runAnalysis, runClassifyStyle]
   );
 
   const onCropCancel = useCallback(() => {
+    const pc = pendingCropRef.current;
     setPendingCrop(null);
-  }, []);
+    if (!pc) return;
+    if (pc.action === 'classify') {
+      void runClassifyStyle(pc.imageSrc);
+    } else {
+      void runAnalysis(pc.imageSrc);
+    }
+  }, [runAnalysis, runClassifyStyle]);
 
   const onPickFile = useCallback(
     async (file: File | null, source: CropSource = 'gallery') => {
@@ -562,6 +628,16 @@ export default function App() {
     []
   );
 
+  /** Leaving a critique via the desktop rail must close the flow so the chosen tab is visible. */
+  const handleDesktopSidebarChange = useCallback(
+    (t: TabId) => {
+      if (flowRef.current) closeFlow();
+      if (t === 'home') advanceDailyMasterpieceIndex();
+      setTab(t);
+    },
+    [closeFlow]
+  );
+
   return (
     <div
       className={
@@ -572,7 +648,7 @@ export default function App() {
     >
       {isDesktop ? (
         <div className="flex min-h-0 flex-1">
-          <DesktopSidebar active={tab} onChange={handleTabChange} />
+          <DesktopSidebar active={tab} onChange={handleDesktopSidebarChange} />
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 lg:px-10 lg:py-5">
               {!flow && tab === 'home' && (
@@ -1150,28 +1226,50 @@ export default function App() {
                     {previewError ? (
                       <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
                     ) : null}
-                    {previewImageDataUrl ? (
-                      <div className="mt-4 space-y-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          Illustrative result
-                        </p>
-                        <button
-                          type="button"
-                          onClick={openPreviewCompare}
-                          className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
-                        >
-                          <span className="text-sm font-bold text-violet-800">
-                            {previewCompareSeen ? 'Open compare again' : (isDesktop ? 'Click to compare with your photo' : 'Tap to compare with your photo')}
-                          </span>
-                          {!previewCompareSeen ? (
-                            <span className="text-xs font-medium leading-snug text-slate-500">
-                              Scroll to see your image, the AI preview, and what changed.
+                    {previewImageDataUrl && priorityCategory ? (
+                      isDesktop ? (
+                        <div className="mt-4 min-h-0 border-t border-violet-200/60 pt-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Illustrative result
+                          </p>
+                          <div className="mt-3">
+                            <PreviewEditBlendCard
+                              originalSrc={flow.imageDataUrl}
+                              revisedSrc={previewImageDataUrl}
+                              target={priorityCategory}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={openPreviewCompare}
+                            className="mt-4 w-full rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800 shadow-sm transition hover:bg-violet-50"
+                          >
+                            Open full-screen compare
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-4 space-y-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Illustrative result
+                          </p>
+                          <button
+                            type="button"
+                            onClick={openPreviewCompare}
+                            className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
+                          >
+                            <span className="text-sm font-bold text-violet-800">
+                              {previewCompareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
                             </span>
-                          ) : (
-                            <span className="text-xs text-slate-500">Your photo and the AI preview, with notes.</span>
-                          )}
-                        </button>
-                      </div>
+                            {!previewCompareSeen ? (
+                              <span className="text-xs font-medium leading-snug text-slate-500">
+                                Scroll to see your image, the AI preview, and what changed.
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-500">Your photo and the AI preview, with notes.</span>
+                            )}
+                          </button>
+                        </div>
+                      )
                     ) : null}
                   </section>
                 ) : null}
