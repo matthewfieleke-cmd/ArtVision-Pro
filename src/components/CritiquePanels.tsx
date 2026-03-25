@@ -27,7 +27,7 @@ function subskillBarWidth(score: number): string {
 }
 
 function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const headingId = useId();
   const panelId = useId();
 

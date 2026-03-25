@@ -40,7 +40,7 @@ type Props = {
 
 /**
  * Blend slider between critique photo and AI preview (same behavior as results overlay).
- * On large screens: discussion and images use a two-column layout so both photos sit side by side.
+ * On large screens: discussion left; original and AI preview sit side by side; blend slider sits under the AI panel.
  */
 export function PreviewEditBlendCard({
   originalSrc,
@@ -90,54 +90,58 @@ export function PreviewEditBlendCard({
         <p className="mt-2 whitespace-pre-line">{target.actionPlan.trim()}</p>
       </div>
 
-      <div className="grid min-h-0 w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+      <div className="grid min-h-0 w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start sm:gap-4 lg:grid-cols-2 lg:gap-6">
         <figure className={`flex min-h-0 flex-col rounded-xl border p-2 ${figBorder}`}>
-          <figcaption className={`mb-1 text-center text-[10px] font-bold uppercase tracking-wider ${capMuted}`}>
+          <figcaption className={`mb-2 text-center text-[10px] font-bold uppercase tracking-wider ${capMuted}`}>
             Your photo
           </figcaption>
-          <div className={`relative mx-auto max-h-[min(42vh,520px)] w-full max-w-full overflow-hidden rounded-lg ${bgFrame}`} style={frameStyle}>
+          <div
+            className={`relative w-full min-w-0 overflow-hidden rounded-lg ${bgFrame}`}
+            style={frameStyle}
+          >
             <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
           </div>
         </figure>
 
         <figure className={`flex min-h-0 flex-col rounded-xl border p-2 ${figBorderAi}`}>
-          <figcaption className={`mb-1 text-center text-[10px] font-bold uppercase tracking-wider ${capViolet}`}>
+          <figcaption className={`mb-2 text-center text-[10px] font-bold uppercase tracking-wider ${capViolet}`}>
             AI preview (blend)
           </figcaption>
-          <div className="space-y-2">
-            <div className={`rounded-lg border px-3 py-2 ${innerBox}`}>
-              <label htmlFor={sliderId} className="sr-only">
-                Blend between your photo and the AI-generated preview
-              </label>
-              <div
-                className={`mb-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider ${capMuted}`}
-              >
-                <span>Your photo</span>
-                <span className={capViolet}>AI changes</span>
-              </div>
-              <input
-                id={sliderId}
-                type="range"
-                min={0}
-                max={100}
-                value={blend}
-                onChange={(e) => setBlend(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer accent-violet-500"
-              />
-              <p className={`mt-1.5 text-center text-[10px] leading-snug ${hint}`}>
-                Slide right for the full suggested edit; slide left for your original photo.
-              </p>
+          <div
+            className={`relative w-full min-w-0 overflow-hidden rounded-lg ${bgFrame}`}
+            style={frameStyle}
+          >
+            <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
+            <img
+              src={revisedSrc}
+              alt=""
+              className={`${overlayImgClass} transition-opacity duration-75 ease-out`}
+              style={{ opacity: revisedOpacity }}
+              draggable={false}
+            />
+          </div>
+          <div className={`mt-3 rounded-lg border px-3 py-2 ${innerBox}`}>
+            <label htmlFor={sliderId} className="sr-only">
+              Blend between your photo and the AI-generated preview
+            </label>
+            <div
+              className={`mb-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider ${capMuted}`}
+            >
+              <span>Your photo</span>
+              <span className={capViolet}>AI changes</span>
             </div>
-            <div className={`relative mx-auto max-h-[min(42vh,520px)] w-full max-w-full overflow-hidden rounded-lg ${bgFrame}`} style={frameStyle}>
-              <img src={originalSrc} alt="" className={overlayImgClass} draggable={false} />
-              <img
-                src={revisedSrc}
-                alt=""
-                className={`${overlayImgClass} transition-opacity duration-75 ease-out`}
-                style={{ opacity: revisedOpacity }}
-                draggable={false}
-              />
-            </div>
+            <input
+              id={sliderId}
+              type="range"
+              min={0}
+              max={100}
+              value={blend}
+              onChange={(e) => setBlend(Number(e.target.value))}
+              className="h-2 w-full cursor-pointer accent-violet-500"
+            />
+            <p className={`mt-1.5 text-center text-[10px] leading-snug ${hint}`}>
+              Slide right for the full suggested edit; slide left for your original photo.
+            </p>
           </div>
         </figure>
       </div>

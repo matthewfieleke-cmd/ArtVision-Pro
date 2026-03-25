@@ -20,11 +20,16 @@ function ExampleImage({ src, alt, linkHref }: { src: string; alt: string; linkHr
     );
   }
   return (
-    <a href={linkHref} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-slate-100">
+    <a
+      href={linkHref}
+      target="_blank"
+      rel="noreferrer"
+      className="flex min-h-0 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-100 lg:aspect-[16/9] lg:max-h-[min(50vh,32rem)]"
+    >
       <img
         src={src}
         alt={alt}
-        className="max-h-[min(88vh,36rem)] w-full object-contain object-center lg:max-h-[min(80vh,44rem)]"
+        className="max-h-[min(88vh,36rem)] w-full object-contain object-center lg:max-h-full lg:max-w-full"
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
@@ -58,8 +63,8 @@ export function CriterionLearnPage() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 pb-16 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:px-10">
-      <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-4xl items-center gap-3 xl:max-w-5xl">
+      <header className="sticky top-0 z-10 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md sm:px-6 lg:px-10">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 xl:max-w-6xl 2xl:max-w-7xl">
           <button
             type="button"
             onClick={() => {
@@ -89,7 +94,7 @@ export function CriterionLearnPage() {
         </div>
       </header>
 
-      <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:py-10 xl:max-w-5xl">
+      <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:py-10 xl:max-w-6xl 2xl:max-w-7xl">
         <p className="text-lg leading-relaxed text-violet-800/95 lg:text-xl">{entry.tagline}</p>
         <p className="mt-4 text-sm leading-relaxed text-slate-700 lg:text-[15px] lg:leading-7">{entry.intro}</p>
 
@@ -121,16 +126,17 @@ export function CriterionLearnPage() {
               {ex.medium ? <p className="text-sm text-slate-500">{ex.medium}</p> : null}
               {ex.collection ? <p className="text-sm text-slate-500">{ex.collection}</p> : null}
 
-              <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-start lg:gap-10">
-                <div className="min-w-0">
+              <div className="mt-6 flex flex-col gap-6 lg:gap-8">
+                <div className="min-w-0 lg:w-full">
                   <ExampleImage src={ex.imageUrl} alt={ex.imageAlt} linkHref={ex.moreInfoUrl} />
                 </div>
-                <div className="min-w-0 lg:pt-0">
-                  <h4 className="mt-5 text-xs font-bold uppercase tracking-wider text-slate-400 lg:mt-0">
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Why it excels at {entry.criterion.toLowerCase()}
                   </h4>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-700 lg:text-[15px] lg:leading-7">{ex.whyExcellence}</p>
-
+                  <div className="mt-2 lg:columns-2 lg:gap-x-10 lg:[column-fill:balance]">
+                    <p className="text-sm leading-relaxed text-slate-700 lg:text-[15px] lg:leading-7">{ex.whyExcellence}</p>
+                  </div>
                   <p className="mt-3 text-xs text-slate-500">{ex.credit}</p>
                   <a
                     href={ex.moreInfoUrl}
