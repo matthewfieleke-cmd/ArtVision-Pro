@@ -3,7 +3,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { advanceDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
 import { getCriterionLearnEntryBySlug } from '../data/criterionExcellence';
-import { setReturnTabIntent } from '../navIntent';
+import { setReturnTabIntent, setReturnViewIntent } from '../navIntent';
 
 function ExampleImage({ src, alt, linkHref }: { src: string; alt: string; linkHref: string }) {
   const [failed, setFailed] = useState(false);
@@ -67,7 +67,7 @@ export function CriterionLearnPage() {
                 navigate(-1);
                 return;
               }
-              setReturnTabIntent('critique');
+              setReturnViewIntent({ kind: 'studio', selectedPaintingId: '' });
               navigate('/');
             }}
             className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
@@ -81,7 +81,7 @@ export function CriterionLearnPage() {
           </div>
           <Link
             to="/"
-            onClick={() => setReturnTabIntent('critique')}
+            onClick={() => setReturnTabIntent('benchmarks')}
             className="shrink-0 text-xs font-semibold text-violet-600 hover:text-violet-700"
           >
             Home

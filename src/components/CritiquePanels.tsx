@@ -17,13 +17,14 @@ function confidenceBadgeClass(confidence?: CritiqueCategory['confidence']): stri
 
 type CategoryCardProps = {
   category: CritiqueCategory;
+  onLearnMore?: () => void;
 };
 
 function subskillBarWidth(score: number): string {
   return `${Math.max(10, Math.round(score * 100))}%`;
 }
 
-function CategoryCard({ category }: CategoryCardProps) {
+function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
@@ -103,16 +104,17 @@ function CategoryCard({ category }: CategoryCardProps) {
           <p className="mt-1 text-xs leading-relaxed text-violet-950/90">{category.practiceExercise}</p>
         </div>
       ) : null}
-      <CriterionLearnLink criterion={category.criterion} />
+      <CriterionLearnLink criterion={category.criterion} onClick={onLearnMore} />
     </article>
   );
 }
 
 type Props = {
   critique: CritiqueResult;
+  onLearnMore?: () => void;
 };
 
-export function CritiquePanels({ critique }: Props) {
+export function CritiquePanels({ critique, onLearnMore }: Props) {
   return (
     <div className="space-y-3">
       {critique.photoQuality ? (
@@ -174,7 +176,7 @@ export function CritiquePanels({ critique }: Props) {
       ) : null}
       <p className="text-sm leading-relaxed text-slate-600">{critique.summary}</p>
       {critique.categories.map((category) => (
-        <CategoryCard key={category.criterion} category={category} />
+        <CategoryCard key={category.criterion} category={category} onLearnMore={onLearnMore} />
       ))}
     </div>
   );

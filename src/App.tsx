@@ -24,7 +24,7 @@ import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
-import { consumeReturnTabIntent } from './navIntent';
+import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { loadPaintings, savePaintings } from './storage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
@@ -123,11 +123,25 @@ export default function App() {
 
   useEffect(() => {
     if (location.pathname !== '/') return;
+    const returnView = consumeReturnViewIntent();
+    if (returnView?.kind === 'critique' && returnView.flow) {
+      setFlow(returnView.flow as FlowState);
+      setAnalyzeError(null);
+      setPreviewCompareOpen(false);
+      return;
+    }
+    if (returnView?.kind === 'studio') {
+      setFlow(null);
+      setStudioSelectedId(returnView.selectedPaintingId);
+      setTab('studio');
+      return;
+    }
     const intent = consumeReturnTabIntent();
     if (intent === 'benchmarks') setTab('benchmarks');
   }, [location.pathname, location.key]);
 
   const closeFlow = useCallback(() => {
+    clearReturnViewIntent();
     stopCamera();
     setFlow(null);
     setAnalyzeError(null);
@@ -140,6 +154,7 @@ export default function App() {
   }, [stopCamera]);
 
   const goHome = useCallback(() => {
+    clearReturnViewIntent();
     advanceDailyMasterpieceIndex();
     stopCamera();
     setFlow(null);
@@ -484,6 +499,19 @@ export default function App() {
     return priorityCritiqueCategory(flow.critique.categories);
   }, [flow?.critique]);
 
+  const rememberCritiqueReturn = useCallback(() => {
+    const current = flowRef.current;
+    if (current?.step === 'results' && current.critique && current.imageDataUrl) {
+      setReturnViewIntent({ kind: 'critique', flow: current });
+      return;
+    }
+    if (tab === 'studio' && studioSelectedId) {
+      setReturnViewIntent({ kind: 'studio', selectedPaintingId: studioSelectedId });
+      return;
+    }
+    clearReturnViewIntent();
+  }, [studioSelectedId, tab]);
+
   const runPreviewEdit = useCallback(async () => {
     if (!flow?.imageDataUrl || !flow.style || !flow.medium || !priorityCategory) return;
     const previewSource = flow.originalImageDataUrl ?? flow.imageDataUrl;
@@ -600,6 +628,7 @@ export default function App() {
                     flow.style &&
                     flow.styleClassifyMeta &&
                     flow.imageDataUrl;
+                  clearReturnViewIntent();
                   setFlow({
                     ...flow,
                     step: backToSetup ? 'setup' : 'capture',
@@ -1014,7 +1043,7 @@ export default function App() {
                     ) : null}
                   </section>
                 ) : null}
-                <CritiquePanels critique={flow.critique} />
+                <CritiquePanels critique={flow.critique} onLearnMore={rememberCritiqueReturn} />
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"

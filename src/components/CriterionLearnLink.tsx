@@ -6,13 +6,15 @@ import type { Criterion } from '../types';
 type Props = {
   criterion: Criterion;
   className?: string;
+  onClick?: () => void;
 };
 
-export function CriterionLearnLink({ criterion, className }: Props) {
+export function CriterionLearnLink({ criterion, className, onClick }: Props) {
   const to = learnPathForCriterion(criterion);
   return (
     <Link
       to={to}
+      onClick={onClick}
       className={
         className ??
         'mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 transition hover:text-violet-800'
