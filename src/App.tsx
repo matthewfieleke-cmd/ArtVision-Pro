@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { CritiquePanels } from './components/CritiquePanels';
+import { ImageCropModal } from './components/ImageCropModal';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
 import { analyzePainting } from './analyzePainting';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
@@ -42,6 +43,7 @@ import type {
 import { MEDIUMS, RATING_LEVELS, STYLES } from './types';
 
 type StyleMode = 'manual' | 'auto';
+type CropSource = 'gallery' | 'camera-file' | 'live-camera';
 
 type FlowState = {
   step: WizardStep;
@@ -63,6 +65,11 @@ type FlowState = {
   targetPainting?: SavedPainting;
   /** After the critique has been saved once, track the studio record so later saves update it. */
   savedPaintingId?: string;
+};
+
+type PendingCrop = {
+  imageSrc: string;
+  source: CropSource;
 };
 
 function newId(): string {
@@ -99,6 +106,7 @@ export default function App() {
   const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
   const [flow, setFlow] = useState<FlowState | null>(null);
+  const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
   const flowRef = useRef(flow);
   flowRef.current = flow;
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -143,6 +151,7 @@ export default function App() {
   const closeFlow = useCallback(() => {
     clearReturnViewIntent();
     stopCamera();
+    setPendingCrop(null);
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
@@ -157,6 +166,7 @@ export default function App() {
     clearReturnViewIntent();
     advanceDailyMasterpieceIndex();
     stopCamera();
+    setPendingCrop(null);
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
@@ -292,13 +302,36 @@ export default function App() {
     }
   }, []);
 
+  const openCropperForImage = useCallback(
+    (imageSrc: string, source: CropSource) => {
+      if (!flowRef.current) return;
+      stopCamera();
+      setAnalyzeError(null);
+      setPendingCrop({ imageSrc, source });
+      setFlow((cur) => (cur ? { ...cur, step: 'capture' } : cur));
+    },
+    [stopCamera]
+  );
+
+  const onCropConfirm = useCallback(
+    async (croppedImage: string) => {
+      setPendingCrop(null);
+      await runAnalysis(croppedImage);
+    },
+    [runAnalysis]
+  );
+
+  const onCropCancel = useCallback(() => {
+    setPendingCrop(null);
+  }, []);
+
   const onPickFile = useCallback(
-    async (file: File | null) => {
+    async (file: File | null, source: CropSource = 'gallery') => {
       if (!file || !flow) return;
       const url = await fileToDataUrl(file);
-      await runAnalysis(url);
+      openCropperForImage(url, source);
     },
-    [flow, runAnalysis]
+    [flow, openCropperForImage]
   );
 
   const onPickFileForClassify = useCallback(async (file: File | null) => {
@@ -331,8 +364,8 @@ export default function App() {
       setAnalyzeError('Could not read from camera. Try upload.');
       return;
     }
-    await runAnalysis(shot);
-  }, [captureFrame, runAnalysis]);
+    openCropperForImage(shot, 'live-camera');
+  }, [captureFrame, openCropperForImage]);
 
   const persistResult = useCallback(() => {
     if (!flow?.critique || !flow.imageDataUrl || !flow.style || !flow.medium) return;
@@ -1075,6 +1108,13 @@ export default function App() {
             revisedSrc={previewImageDataUrl}
             target={priorityCategory}
             onClose={() => setPreviewCompareOpen(false)}
+          />
+        ) : null}
+        {pendingCrop ? (
+          <ImageCropModal
+            imageSrc={pendingCrop.imageSrc}
+            onCancel={onCropCancel}
+            onConfirm={onCropConfirm}
           />
         ) : null}
         </>
