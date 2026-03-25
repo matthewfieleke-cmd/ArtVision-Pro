@@ -48,6 +48,7 @@ export type AutoCropSuggestion = {
   crop: PixelCrop;
   rotation: number;
   corners: PerspectiveCorners;
+  confidence: 'low' | 'medium' | 'high';
 };
 
 export type Point = {
@@ -56,6 +57,12 @@ export type Point = {
 };
 
 export type PerspectiveCorners = [Point, Point, Point, Point];
+
+type ImplicitLine = {
+  a: number;
+  b: number;
+  c: number;
+};
 export type CornerQuad = {
   topLeft: Point;
   topRight: Point;
@@ -150,6 +157,74 @@ function orderCorners(points: Point[]): PerspectiveCorners {
   const top = sorted.slice(0, 2).sort((a, b) => a.x - b.x);
   const bottom = sorted.slice(2).sort((a, b) => a.x - b.x);
   return [top[0]!, top[1]!, bottom[1]!, bottom[0]!];
+}
+
+function lineFromPoints(p1: Point, p2: Point): ImplicitLine {
+  const a = p1.y - p2.y;
+  const b = p2.x - p1.x;
+  const c = p1.x * p2.y - p2.x * p1.y;
+  return { a, b, c };
+}
+
+function intersectLines(l1: ImplicitLine, l2: ImplicitLine): Point | null {
+  const det = l1.a * l2.b - l2.a * l1.b;
+  if (Math.abs(det) < 1e-6) return null;
+  const x = (l1.b * l2.c - l2.b * l1.c) / det;
+  const y = (l2.a * l1.c - l1.a * l2.c) / det;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function clampPoint(point: Point, width: number, height: number): Point {
+  return {
+    x: Math.min(width, Math.max(0, point.x)),
+    y: Math.min(height, Math.max(0, point.y)),
+  };
+}
+
+function fitHorizontalEdge(points: Point[], fallbackY: number, width: number): ImplicitLine {
+  if (points.length < 2) {
+    return lineFromPoints({ x: 0, y: fallbackY }, { x: width, y: fallbackY });
+  }
+  const n = points.length;
+  const sumX = points.reduce((acc, p) => acc + p.x, 0);
+  const sumY = points.reduce((acc, p) => acc + p.y, 0);
+  const sumXX = points.reduce((acc, p) => acc + p.x * p.x, 0);
+  const sumXY = points.reduce((acc, p) => acc + p.x * p.y, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (Math.abs(denom) < 1e-6) {
+    return lineFromPoints({ x: 0, y: fallbackY }, { x: width, y: fallbackY });
+  }
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return lineFromPoints({ x: 0, y: intercept }, { x: width, y: slope * width + intercept });
+}
+
+function fitVerticalEdge(points: Point[], fallbackX: number, height: number): ImplicitLine {
+  if (points.length < 2) {
+    return lineFromPoints({ x: fallbackX, y: 0 }, { x: fallbackX, y: height });
+  }
+  const n = points.length;
+  const sumY = points.reduce((acc, p) => acc + p.y, 0);
+  const sumX = points.reduce((acc, p) => acc + p.x, 0);
+  const sumYY = points.reduce((acc, p) => acc + p.y * p.y, 0);
+  const sumYX = points.reduce((acc, p) => acc + p.y * p.x, 0);
+  const denom = n * sumYY - sumY * sumY;
+  if (Math.abs(denom) < 1e-6) {
+    return lineFromPoints({ x: fallbackX, y: 0 }, { x: fallbackX, y: height });
+  }
+  const slope = (n * sumYX - sumY * sumX) / denom;
+  const intercept = (sumX - slope * sumY) / n;
+  return lineFromPoints({ x: intercept, y: 0 }, { x: slope * height + intercept, y: height });
+}
+
+function buildRectCorners(crop: PixelCrop): PerspectiveCorners {
+  return [
+    { x: crop.x, y: crop.y },
+    { x: crop.x + crop.width, y: crop.y },
+    { x: crop.x + crop.width, y: crop.y + crop.height },
+    { x: crop.x, y: crop.y + crop.height },
+  ];
 }
 
 export async function perspectiveCropDataUrl(
@@ -302,6 +377,7 @@ export async function suggestPaintingCrop(dataUrl: string): Promise<AutoCropSugg
       crop: { x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight },
       rotation: 0,
       corners: fullCorners,
+      confidence: 'low',
     };
   }
 
@@ -317,12 +393,74 @@ export async function suggestPaintingCrop(dataUrl: string): Promise<AutoCropSugg
     height: Math.min(img.naturalHeight, Math.round((maxY - minY + padY * 2) * sy)),
   };
 
-  const corners: PerspectiveCorners = [
-    { x: crop.x, y: crop.y },
-    { x: crop.x + crop.width, y: crop.y },
-    { x: crop.x + crop.width, y: crop.y + crop.height },
-    { x: crop.x, y: crop.y + crop.height },
-  ];
+  const sampleBand = Math.max(4, Math.round(Math.min(width, height) * 0.08));
+  const xStep = Math.max(2, Math.round((maxX - minX) / 20));
+  const yStep = Math.max(2, Math.round((maxY - minY) / 20));
+  const isEdgePixel = (x: number, y: number): boolean => {
+    const idx = (y * width + x) * 4;
+    const L = lum(idx);
+    const right = lum((y * width + Math.min(width - 1, x + 1)) * 4);
+    const down = lum((Math.min(height - 1, y + 1) * width + x) * 4);
+    const edge = Math.abs(L - right) + Math.abs(L - down);
+    const borderDelta = Math.abs(L - borderMean);
+    return edge > threshold || borderDelta > threshold * 0.9;
+  };
 
-  return { crop, rotation: 0, corners };
+  const topPoints: Point[] = [];
+  const bottomPoints: Point[] = [];
+  const leftPoints: Point[] = [];
+  const rightPoints: Point[] = [];
+
+  for (let x = minX; x <= maxX; x += xStep) {
+    for (let y = Math.max(1, minY - sampleBand); y <= Math.min(height - 2, minY + sampleBand); y++) {
+      if (isEdgePixel(x, y)) {
+        topPoints.push({ x, y });
+        break;
+      }
+    }
+    for (let y = Math.min(height - 2, maxY + sampleBand); y >= Math.max(1, maxY - sampleBand); y--) {
+      if (isEdgePixel(x, y)) {
+        bottomPoints.push({ x, y });
+        break;
+      }
+    }
+  }
+
+  for (let y = minY; y <= maxY; y += yStep) {
+    for (let x = Math.max(1, minX - sampleBand); x <= Math.min(width - 2, minX + sampleBand); x++) {
+      if (isEdgePixel(x, y)) {
+        leftPoints.push({ x, y });
+        break;
+      }
+    }
+    for (let x = Math.min(width - 2, maxX + sampleBand); x >= Math.max(1, maxX - sampleBand); x--) {
+      if (isEdgePixel(x, y)) {
+        rightPoints.push({ x, y });
+        break;
+      }
+    }
+  }
+
+  const topLine = fitHorizontalEdge(topPoints, minY, width);
+  const bottomLine = fitHorizontalEdge(bottomPoints, maxY, width);
+  const leftLine = fitVerticalEdge(leftPoints, minX, height);
+  const rightLine = fitVerticalEdge(rightPoints, maxX, height);
+
+  const rectCorners = buildRectCorners(crop);
+  const corners = [
+    intersectLines(topLine, leftLine) ?? rectCorners[0],
+    intersectLines(topLine, rightLine) ?? rectCorners[1],
+    intersectLines(bottomLine, rightLine) ?? rectCorners[2],
+    intersectLines(bottomLine, leftLine) ?? rectCorners[3],
+  ].map((point) => clampPoint(point, img.naturalWidth, img.naturalHeight)) as PerspectiveCorners;
+
+  const areaCoverage = ((maxX - minX) * (maxY - minY)) / Math.max(1, width * height);
+  const confidence =
+    hits > (width * height) / 18 && areaCoverage > 0.2
+      ? 'high'
+      : hits > (width * height) / 35 && areaCoverage > 0.12
+        ? 'medium'
+        : 'low';
+
+  return { crop, rotation: 0, corners, confidence };
 }

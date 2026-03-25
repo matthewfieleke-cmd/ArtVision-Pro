@@ -34,6 +34,7 @@ export function ImageCropModal({
   const [preset, setPreset] = useState<CropPreset>('portrait');
   const [detecting, setDetecting] = useState(true);
   const [imageForEditing, setImageForEditing] = useState(imageSrc);
+  const [autoStraightened, setAutoStraightened] = useState(false);
   const [corners, setCorners] = useState<PerspectiveCorners | null>(null);
   const [cornersDraft, setCornersDraft] = useState<PerspectiveCorners | null>(null);
   const [mode, setMode] = useState<'crop' | 'perspective'>('crop');
@@ -54,12 +55,25 @@ export function ImageCropModal({
     let cancelled = false;
     setDetecting(true);
     setImageForEditing(imageSrc);
+    setAutoStraightened(false);
     void suggestPaintingCrop(imageSrc)
-      .then((suggestion) => {
+      .then(async (suggestion) => {
         if (cancelled) return;
         setCorners(suggestion.corners);
         setCornersDraft(suggestion.corners);
         setRotation(suggestion.rotation);
+        if (suggestion.confidence !== 'low') {
+          try {
+            const corrected = await perspectiveCropDataUrl(imageSrc, suggestion.corners);
+            if (cancelled) return;
+            setImageForEditing(corrected);
+            setCorners(null);
+            setCornersDraft(null);
+            setAutoStraightened(true);
+          } catch {
+            /* keep original if rectification fails */
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -98,6 +112,7 @@ export function ImageCropModal({
       setImageForEditing(corrected);
       setCorners(null);
       setCornersDraft(null);
+      setAutoStraightened(true);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
       setRotation(0);
@@ -225,6 +240,23 @@ export function ImageCropModal({
                 Straighten
               </button>
             ) : null}
+            {autoStraightened ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setImageForEditing(imageSrc);
+                  setAutoStraightened(false);
+                  setMode(corners ? 'perspective' : 'crop');
+                  setCrop({ x: 0, y: 0 });
+                  setZoom(1);
+                  setRotation(0);
+                }}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+              >
+                <Undo2 className="h-4 w-4" />
+                Original
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => {
@@ -235,9 +267,10 @@ export function ImageCropModal({
                     setCorners(suggestion.corners);
                     setCornersDraft(suggestion.corners);
                     setImageForEditing(imageSrc);
+                    setAutoStraightened(false);
                     setZoom(1);
                     setCrop({ x: 0, y: 0 });
-                    setMode('crop');
+                    setMode(suggestion.confidence !== 'low' ? 'crop' : 'perspective');
                   })
                   .finally(() => setDetecting(false));
               }}
@@ -315,8 +348,9 @@ export function ImageCropModal({
                     setZoom(1);
                     setRotation(0);
                     setImageForEditing(imageSrc);
+                    setAutoStraightened(false);
                     setCornersDraft(corners);
-                    setMode('crop');
+                    setMode(corners ? 'perspective' : 'crop');
                   }}
                   className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800"
                 >
