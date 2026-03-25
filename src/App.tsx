@@ -40,6 +40,7 @@ import type {
   CritiqueCategory,
   CritiqueResult,
   Medium,
+  PaintingVersion,
   SavedPainting,
   Style,
   TabId,
@@ -86,6 +87,30 @@ function newId(): string {
 function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
   const rank = (l: (typeof RATING_LEVELS)[number]) => RATING_LEVELS.indexOf(l);
   return categories.reduce((a, b) => (rank(a.level) <= rank(b.level) ? a : b));
+}
+
+/** When preview is generated after save, merge into the last version instead of appending a duplicate. */
+function mergePreviewIntoLastVersion(
+  versions: PaintingVersion[],
+  flowImageDataUrl: string,
+  critiqueToStore: CritiqueResult,
+  previewImageDataUrl: string,
+  previewCriterion: CritiqueCategory['criterion']
+): { versions: PaintingVersion[]; merged: boolean } {
+  const last = versions[versions.length - 1];
+  if (!last || last.imageDataUrl !== flowImageDataUrl) {
+    return { versions, merged: false };
+  }
+  const next = versions.slice(0, -1);
+  next.push({
+    ...last,
+    critique: critiqueToStore,
+    previewEdit: {
+      imageDataUrl: previewImageDataUrl,
+      criterion: previewCriterion,
+    },
+  });
+  return { versions: next, merged: true };
 }
 
 export default function App() {
@@ -424,141 +449,204 @@ export default function App() {
     openCropperForImage(shot, 'live-camera');
   }, [captureFrame, openCropperForImage]);
 
-  const persistResult = useCallback(() => {
-    if (!flow?.critique || !flow.imageDataUrl || !flow.style || !flow.medium) return;
-    const savedTitle =
-      flow.workingTitle.trim() ||
-      flow.critique.paintingTitle?.trim() ||
-      undefined;
-    const critiqueToStore: CritiqueResult = {
-      ...flow.critique,
-      ...(savedTitle ? { paintingTitle: savedTitle } : {}),
-    };
-    const priorityCat = priorityCritiqueCategory(flow.critique.categories);
-    const version = {
-      id: newId(),
-      imageDataUrl: flow.imageDataUrl,
-      createdAt: new Date().toISOString(),
-      critique: critiqueToStore,
-      ...(previewImageDataUrl
-        ? {
-            previewEdit: {
-              imageDataUrl: previewImageDataUrl,
-              criterion: priorityCat.criterion,
-            },
-          }
-        : {}),
-    };
-    if (flow.mode === 'resubmit' && flow.targetPainting) {
-      const t = flow.workingTitle.trim();
-      setPaintings((ps) =>
-        ps.map((p) =>
-          p.id === flow.targetPainting!.id
-            ? {
-                ...p,
-                ...(t.length > 0 ? { title: t } : {}),
-                versions: [...p.versions, version],
-              }
-            : p
-        )
-      );
-      setStudioSelectedId(flow.targetPainting.id);
-      setTab('studio');
-      setFlow((cur) =>
-        cur
-          ? {
-              ...cur,
-              mode: 'resubmit',
-              targetPainting:
-                cur.targetPainting
-                  ? {
-                      ...cur.targetPainting,
-                      ...(t.length > 0 ? { title: t } : {}),
-                      versions: [...cur.targetPainting.versions, version],
-                    }
-                  : cur.targetPainting,
-              savedPaintingId: flow.targetPainting?.id,
-            }
-          : cur
-      );
-      return;
-    }
-
-    if (flow.savedPaintingId) {
-      const t = flow.workingTitle.trim();
-      setPaintings((ps) =>
-        ps.map((p) =>
-          p.id === flow.savedPaintingId
-            ? {
-                ...p,
-                ...(t.length > 0 ? { title: t } : {}),
-                versions: [...p.versions, version],
-              }
-            : p
-        )
-      );
-      setStudioSelectedId(flow.savedPaintingId);
-      setTab('studio');
-      setFlow((cur) => {
-        if (!cur || !cur.style || !cur.medium) return cur;
-        const targetPainting =
-          cur.targetPainting && cur.targetPainting.id === flow.savedPaintingId
-            ? {
-                ...cur.targetPainting,
-                ...(t.length > 0 ? { title: t } : {}),
-                versions: [...cur.targetPainting.versions, version],
-              }
-            : {
-                id: flow.savedPaintingId!,
-                title:
-                  t.length > 0
-                    ? t
-                    : savedTitle && savedTitle.length > 0
-                      ? savedTitle
-                      : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
-                style: cur.style,
-                medium: cur.medium,
-                versions: [version],
-              };
-        return {
-          ...cur,
-          mode: 'resubmit',
-          targetPainting,
-          savedPaintingId: flow.savedPaintingId,
-        };
-      });
-      return;
-    } else {
-      const fromUser = flow.workingTitle.trim();
-      const fromCritique = flow.critique.paintingTitle?.trim();
-      const title =
-        fromUser.length > 0
-          ? fromUser
-          : fromCritique && fromCritique.length > 0
-            ? fromCritique
-            : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-      const painting: SavedPainting = {
-        id: newId(),
-        title,
-        style: flow.style,
-        medium: flow.medium,
-        versions: [version],
+  const persistResult = useCallback(
+    (opts?: { navigateToStudio?: boolean }) => {
+      const navigateToStudio = opts?.navigateToStudio !== false;
+      if (!flow?.critique || !flow.imageDataUrl || !flow.style || !flow.medium) return;
+      const savedTitle =
+        flow.workingTitle.trim() ||
+        flow.critique.paintingTitle?.trim() ||
+        undefined;
+      const critiqueToStore: CritiqueResult = {
+        ...flow.critique,
+        ...(savedTitle ? { paintingTitle: savedTitle } : {}),
       };
-      setPaintings((ps) => [painting, ...ps]);
-      setStudioSelectedId(painting.id);
-      setTab('studio');
-      setFlow((cur) =>
-        cur
+      const priorityCat = priorityCritiqueCategory(flow.critique.categories);
+      const version = {
+        id: newId(),
+        imageDataUrl: flow.imageDataUrl,
+        createdAt: new Date().toISOString(),
+        critique: critiqueToStore,
+        ...(previewImageDataUrl
           ? {
-              ...cur,
-              mode: 'resubmit',
-              targetPainting: painting,
-              savedPaintingId: painting.id,
+              previewEdit: {
+                imageDataUrl: previewImageDataUrl,
+                criterion: priorityCat.criterion,
+              },
             }
-          : cur
-      );
+          : {}),
+      };
+      if (flow.mode === 'resubmit' && flow.targetPainting) {
+        const t = flow.workingTitle.trim();
+        const merged = previewImageDataUrl
+          ? mergePreviewIntoLastVersion(
+              flow.targetPainting.versions,
+              flow.imageDataUrl,
+              critiqueToStore,
+              previewImageDataUrl,
+              priorityCat.criterion
+            )
+          : { versions: flow.targetPainting.versions, merged: false };
+        const nextVersions = merged.merged
+          ? merged.versions
+          : [...flow.targetPainting.versions, version];
+        setPaintings((ps) =>
+          ps.map((p) =>
+            p.id === flow.targetPainting!.id
+              ? {
+                  ...p,
+                  ...(t.length > 0 ? { title: t } : {}),
+                  versions: nextVersions,
+                }
+              : p
+          )
+        );
+        if (navigateToStudio) {
+          setStudioSelectedId(flow.targetPainting.id);
+          setTab('studio');
+        }
+        setFlow((cur) =>
+          cur
+            ? {
+                ...cur,
+                mode: 'resubmit',
+                targetPainting:
+                  cur.targetPainting
+                    ? {
+                        ...cur.targetPainting,
+                        ...(t.length > 0 ? { title: t } : {}),
+                        versions: nextVersions,
+                      }
+                    : cur.targetPainting,
+                savedPaintingId: flow.targetPainting?.id,
+              }
+            : cur
+        );
+        return;
+      }
+
+      if (flow.savedPaintingId) {
+        const t = flow.workingTitle.trim();
+        const existingPainting = paintings.find((p) => p.id === flow.savedPaintingId);
+
+        let nextVersions: PaintingVersion[];
+        if (previewImageDataUrl && existingPainting) {
+          const m = mergePreviewIntoLastVersion(
+            existingPainting.versions,
+            flow.imageDataUrl,
+            critiqueToStore,
+            previewImageDataUrl,
+            priorityCat.criterion
+          );
+          nextVersions = m.merged ? m.versions : [...existingPainting.versions, version];
+        } else if (existingPainting) {
+          nextVersions = [...existingPainting.versions, version];
+        } else {
+          nextVersions = [version];
+        }
+
+        setPaintings((ps) =>
+          ps.map((p) =>
+            p.id === flow.savedPaintingId
+              ? {
+                  ...p,
+                  ...(t.length > 0 ? { title: t } : {}),
+                  versions: nextVersions,
+                }
+              : p
+          )
+        );
+        if (navigateToStudio) {
+          setStudioSelectedId(flow.savedPaintingId);
+          setTab('studio');
+        }
+        setFlow((cur) => {
+          if (!cur || !cur.style || !cur.medium) return cur;
+          const targetPainting =
+            cur.targetPainting && cur.targetPainting.id === flow.savedPaintingId
+              ? {
+                  ...cur.targetPainting,
+                  ...(t.length > 0 ? { title: t } : {}),
+                  versions: nextVersions,
+                }
+              : {
+                  id: flow.savedPaintingId!,
+                  title:
+                    t.length > 0
+                      ? t
+                      : savedTitle && savedTitle.length > 0
+                        ? savedTitle
+                        : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+                  style: cur.style,
+                  medium: cur.medium,
+                  versions: nextVersions,
+                };
+          return {
+            ...cur,
+            mode: 'resubmit',
+            targetPainting,
+            savedPaintingId: flow.savedPaintingId,
+          };
+        });
+        return;
+      } else {
+        const fromUser = flow.workingTitle.trim();
+        const fromCritique = flow.critique.paintingTitle?.trim();
+        const title =
+          fromUser.length > 0
+            ? fromUser
+            : fromCritique && fromCritique.length > 0
+              ? fromCritique
+              : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+        const painting: SavedPainting = {
+          id: newId(),
+          title,
+          style: flow.style,
+          medium: flow.medium,
+          versions: [version],
+        };
+        setPaintings((ps) => [painting, ...ps]);
+        if (navigateToStudio) {
+          setStudioSelectedId(painting.id);
+          setTab('studio');
+        }
+        setFlow((cur) =>
+          cur
+            ? {
+                ...cur,
+                mode: 'resubmit',
+                targetPainting: painting,
+                savedPaintingId: painting.id,
+              }
+            : cur
+        );
+      }
+    },
+    [flow, paintings, previewImageDataUrl]
+  );
+
+  const persistResultRef = useRef(persistResult);
+  persistResultRef.current = persistResult;
+
+  const lastAutoPreviewSaveRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!previewImageDataUrl) {
+      lastAutoPreviewSaveRef.current = null;
     }
-  }, [flow, previewImageDataUrl]);
+  }, [previewImageDataUrl]);
+
+  /** When preview finishes for a work already in Studio, persist (merge preview into last version) without leaving results. */
+  useEffect(() => {
+    if (previewLoading || !previewImageDataUrl) return;
+    const f = flowRef.current;
+    if (!f?.critique || f.step !== 'results') return;
+    const hasStudio = f.mode === 'resubmit' || f.savedPaintingId != null;
+    if (!hasStudio) return;
+    if (lastAutoPreviewSaveRef.current === previewImageDataUrl) return;
+    lastAutoPreviewSaveRef.current = previewImageDataUrl;
+    persistResultRef.current({ navigateToStudio: false });
+  }, [previewImageDataUrl, previewLoading]);
 
   const deletePainting = useCallback((id: string) => {
     setPaintings((ps) => ps.filter((p) => p.id !== id));
@@ -1300,7 +1388,7 @@ export default function App() {
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={persistResult}
+                    onClick={() => persistResult()}
                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25"
                   >
                     <Save className="h-5 w-5" />
