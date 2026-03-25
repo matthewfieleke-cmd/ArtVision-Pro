@@ -3,18 +3,30 @@ import { getMasterSlug } from '../data/masterCatalog';
 import type { Style } from '../types';
 import { ARTISTS_BY_STYLE, STYLES } from '../types';
 
-export function BenchmarksTab() {
+type Props = { isDesktop?: boolean };
+
+export function BenchmarksTab({ isDesktop = false }: Props) {
   return (
-      <div className="animate-fade-in space-y-6 px-4 pb-28 pt-4 md:pb-8">
-      <header>
+      <div
+        className={`animate-fade-in space-y-6 ${
+          isDesktop
+            ? 'flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pt-1'
+            : 'px-4 pb-28 pt-4 md:pb-8'
+        }`}
+      >
+      <header className={isDesktop ? 'shrink-0' : ''}>
         <h2 className="font-display text-2xl font-normal text-slate-900">Gold standard artists</h2>
-        <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+        <p className="mt-1 text-sm leading-relaxed text-slate-500">
           “Master” ratings are framed against the technical and expressive bar of these painters—including modern
           acrylic benchmarks (Photorealism, Hockney, Basquiat, Frankenthaler)—not for imitation, but for clear
           standards of composition, value, color, and voice. Tap a name for an overview and work-based technique notes.
         </p>
       </header>
-      <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
+      <div
+        className={`space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 ${
+          isDesktop ? 'min-h-0 flex-1 overflow-y-auto lg:grid-cols-3 xl:grid-cols-4' : ''
+        }`}
+      >
         {STYLES.map((s: Style) => (
           <section
             key={s}

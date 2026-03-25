@@ -563,79 +563,113 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50">
-      {isDesktop && (
-        <DesktopSidebar active={tab} onChange={handleTabChange} />
-      )}
-
-      {!isDesktop && (
-        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <div className="mx-auto flex max-w-lg items-center justify-between">
-            <button
-              type="button"
-              onClick={goHome}
-              className="-ml-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-100/80"
-              aria-label="Go to home"
-            >
-              <p className="font-display text-xl font-normal tracking-tight text-slate-900">
-                ArtVision <span className="text-violet-600">Pro</span>
-              </p>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
-            </button>
-            {flow ? (
+    <div
+      className={
+        isDesktop
+          ? 'flex h-dvh flex-col overflow-hidden bg-slate-50'
+          : 'min-h-[100dvh] bg-slate-50'
+      }
+    >
+      {isDesktop ? (
+        <div className="flex min-h-0 flex-1">
+          <DesktopSidebar active={tab} onChange={handleTabChange} />
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 lg:px-10 lg:py-5">
+              {!flow && tab === 'home' && (
+                <HomeTab
+                  paintings={paintings}
+                  onNewCritique={startNewCritique}
+                  onOpenPainting={openPaintingFromHome}
+                  isDesktop
+                />
+              )}
+              {!flow && tab === 'studio' && (
+                <StudioTab
+                  paintings={paintings}
+                  selectedId={studioSelectedId}
+                  onSelectPainting={setStudioSelectedId}
+                  onBack={goHome}
+                  onDelete={deletePainting}
+                  onResubmit={startResubmit}
+                  isDesktop
+                />
+              )}
+              {!flow && tab === 'benchmarks' && <BenchmarksTab isDesktop />}
+              {!flow && tab === 'profile' && <ProfileTab isDesktop />}
+            </div>
+          </main>
+        </div>
+      ) : (
+        <>
+          <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="mx-auto flex max-w-lg items-center justify-between">
               <button
                 type="button"
-                onClick={closeFlow}
-                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                aria-label="Close"
+                onClick={goHome}
+                className="-ml-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-100/80"
+                aria-label="Go to home"
               >
-                <X className="h-5 w-5" />
+                <p className="font-display text-xl font-normal tracking-tight text-slate-900">
+                  ArtVision <span className="text-violet-600">Pro</span>
+                </p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
               </button>
-            ) : (
-              <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
+              {flow ? (
+                <button
+                  type="button"
+                  onClick={closeFlow}
+                  className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              ) : (
+                <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
+              )}
+            </div>
+          </header>
+
+          <main className="mx-auto max-w-lg">
+            {!flow && tab === 'home' && (
+              <HomeTab
+                paintings={paintings}
+                onNewCritique={startNewCritique}
+                onOpenPainting={openPaintingFromHome}
+                isDesktop={false}
+              />
             )}
-          </div>
-        </header>
-      )}
+            {!flow && tab === 'studio' && (
+              <StudioTab
+                paintings={paintings}
+                selectedId={studioSelectedId}
+                onSelectPainting={setStudioSelectedId}
+                onBack={goHome}
+                onDelete={deletePainting}
+                onResubmit={startResubmit}
+                isDesktop={false}
+              />
+            )}
+            {!flow && tab === 'benchmarks' && <BenchmarksTab />}
+            {!flow && tab === 'profile' && <ProfileTab />}
+          </main>
 
-      <main className={`mx-auto ${isDesktop ? 'ml-60 max-w-3xl px-8 py-6' : 'max-w-lg'}`}>
-        {!flow && tab === 'home' && (
-          <HomeTab
-            paintings={paintings}
-            onNewCritique={startNewCritique}
-            onOpenPainting={openPaintingFromHome}
-            isDesktop={isDesktop}
-          />
-        )}
-        {!flow && tab === 'studio' && (
-          <StudioTab
-            paintings={paintings}
-            selectedId={studioSelectedId}
-            onSelectPainting={setStudioSelectedId}
-            onBack={goHome}
-            onDelete={deletePainting}
-            onResubmit={startResubmit}
-          />
-        )}
-        {!flow && tab === 'benchmarks' && <BenchmarksTab />}
-        {!flow && tab === 'profile' && <ProfileTab />}
-      </main>
-
-      {!flow && !isDesktop && (
-        <BottomNav
-          active={tab}
-          onChange={handleTabChange}
-        />
+          {!flow && (
+            <BottomNav
+              active={tab}
+              onChange={handleTabChange}
+            />
+          )}
+        </>
       )}
 
       {flow && (
         <>
-        <div className={`fixed z-40 flex flex-col bg-slate-50 ${
-          isDesktop
-            ? 'inset-y-0 left-60 right-0'
-            : 'inset-0 pt-[env(safe-area-inset-top)]'
-        }`}>
-          <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 shadow-soft backdrop-blur-sm">
+        <div
+          className={`fixed z-40 flex min-h-0 flex-col overflow-hidden bg-slate-50 ${
+            isDesktop ? 'inset-y-0 left-60 right-0' : 'inset-0 pt-[env(safe-area-inset-top)]'
+          }`}
+        >
+          <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 shadow-soft backdrop-blur-sm">
             <button
               type="button"
               onClick={() => {
@@ -673,9 +707,11 @@ export default function App() {
             <span className="w-9" />
           </div>
 
-          <div className={`flex-1 overflow-y-auto pb-8 pt-5 ${
-            isDesktop ? 'mx-auto w-full max-w-2xl px-8' : 'px-4'
-          }`}>
+          <div
+            className={`min-h-0 flex-1 overflow-y-auto pb-6 pt-4 ${
+              isDesktop ? 'w-full px-8 lg:px-12' : 'px-4 pb-8 pt-5'
+            }`}
+          >
             {flow.step === 'setup' && (
               <div className="animate-slide-up space-y-7">
                 <div>
@@ -1024,33 +1060,46 @@ export default function App() {
             )}
 
             {flow.step === 'results' && flow.critique && flow.imageDataUrl && (
-              <div className="space-y-4 pb-8 animate-fade-in">
-                <div>
-                  <label htmlFor="results-working-title" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Title for this work
-                  </label>
-                  <input
-                    id="results-working-title"
-                    type="text"
-                    maxLength={120}
-                    value={flow.workingTitle}
-                    onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
-                    placeholder="Optional — used when you save to Studio"
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
-                    autoComplete="off"
-                  />
+              <div
+                className={`animate-fade-in space-y-4 pb-8 ${
+                  isDesktop
+                    ? 'md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-start md:gap-8 md:space-y-0 md:pb-4'
+                    : ''
+                }`}
+              >
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="results-working-title" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Title for this work
+                    </label>
+                    <input
+                      id="results-working-title"
+                      type="text"
+                      maxLength={120}
+                      value={flow.workingTitle}
+                      onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                      placeholder="Optional — used when you save to Studio"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+                    <img
+                      src={flow.imageDataUrl}
+                      alt=""
+                      className={`w-full object-contain bg-slate-100 ${isDesktop ? 'max-h-[min(52vh,28rem)] md:max-h-[min(58vh,32rem)]' : 'max-h-56'}`}
+                    />
+                  </div>
+                  {flow.critiqueSource === 'local' ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
+                      Offline / fallback critique (heuristic). Set{' '}
+                      <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">OPENAI_API_KEY</code> and run{' '}
+                      <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev</code> (API + UI) for
+                      full vision feedback.
+                    </p>
+                  ) : null}
                 </div>
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
-                  <img src={flow.imageDataUrl} alt="" className={`w-full object-contain bg-slate-100 ${isDesktop ? 'max-h-96' : 'max-h-56'}`} />
-                </div>
-                {flow.critiqueSource === 'local' ? (
-                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
-                    Offline / fallback critique (heuristic). Set{' '}
-                    <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">OPENAI_API_KEY</code> and run{' '}
-                    <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev</code> (API + UI) for
-                    full vision feedback.
-                  </p>
-                ) : null}
+                <div className="min-h-0 space-y-4">
                 {priorityCategory ? (
                   <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -1143,6 +1192,7 @@ export default function App() {
                   >
                     Discard
                   </button>
+                </div>
                 </div>
               </div>
             )}

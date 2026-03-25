@@ -1,18 +1,27 @@
 import { useState } from 'react';
 import { applyFontPreset, FONT_PRESETS, getStoredFontPresetId } from '../fontTheme';
 
-export function ProfileTab() {
+type Props = { isDesktop?: boolean };
+
+export function ProfileTab({ isDesktop = false }: Props) {
   const [activeId, setActiveId] = useState(() => getStoredFontPresetId());
 
   return (
-      <div className="animate-fade-in space-y-6 px-4 pb-28 pt-4 md:pb-8">
-      <header>
+      <div
+        className={`animate-fade-in ${
+          isDesktop
+            ? 'flex min-h-0 flex-1 flex-col gap-5 overflow-hidden pt-1'
+            : 'space-y-6 px-4 pb-28 pt-4 md:pb-8'
+        }`}
+      >
+      <header className={isDesktop ? 'shrink-0' : ''}>
         <h2 className="font-display text-2xl font-normal text-slate-900">Profile</h2>
-        <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+        <p className="mt-1 text-sm leading-relaxed text-slate-500">
           Preferences and growth charts can plug in here. This prototype keeps everything on-device in your browser.
         </p>
       </header>
 
+      <div className={isDesktop ? 'min-h-0 flex-1 space-y-5 overflow-y-auto pr-1' : 'space-y-6'}>
       <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Typography</h3>
         <p className="mt-1 text-sm text-slate-600">
@@ -67,6 +76,7 @@ export function ProfileTab() {
           comparisons.
         </p>
       </section>
+      </div>
     </div>
   );
 }

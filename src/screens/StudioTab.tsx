@@ -13,6 +13,7 @@ type Props = {
   onResubmit: (painting: SavedPainting) => void;
   onSelectPainting: (id: string | null) => void;
   selectedId: string | null;
+  isDesktop?: boolean;
 };
 
 function previewTargetForVersion(
@@ -30,6 +31,7 @@ export function StudioTab({
   onResubmit,
   onSelectPainting,
   selectedId,
+  isDesktop = false,
 }: Props) {
   const [compareIdx, setCompareIdx] = useState(0);
   const selected = useMemo(
@@ -47,9 +49,13 @@ export function StudioTab({
     const pct = progressPercentFromPainting(selected);
     const latestPreview = latest.previewEdit;
 
+    const shell = isDesktop
+      ? 'animate-slide-up flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pt-1'
+      : 'animate-slide-up space-y-4 px-4 pb-28 pt-2 md:pb-8';
+
     return (
-      <div className="animate-slide-up space-y-4 px-4 pb-28 pt-2 md:pb-8">
-        <div className="flex items-center gap-2">
+      <div className={shell}>
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => {
@@ -69,6 +75,11 @@ export function StudioTab({
           </div>
         </div>
 
+        <div
+          className={
+            isDesktop ? 'flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1' : 'contents'
+          }
+        >
         <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500">
             <span>Progress</span>
@@ -110,7 +121,11 @@ export function StudioTab({
           </div>
         ) : (
           <figure className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <img src={versions[0]?.imageDataUrl} alt="" className="w-full object-contain max-h-80 bg-slate-100" />
+            <img
+              src={versions[0]?.imageDataUrl}
+              alt=""
+              className={`w-full bg-slate-100 object-contain ${isDesktop ? 'max-h-[min(42vh,22rem)]' : 'max-h-80'}`}
+            />
           </figure>
         )}
 
@@ -152,13 +167,18 @@ export function StudioTab({
         </div>
 
         <CritiquePanels critique={versions[versions.length - 1]!.critique} />
+        </div>
       </div>
     );
   }
 
+  const listShell = isDesktop
+    ? 'animate-fade-in flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pt-1'
+    : 'animate-fade-in space-y-4 px-4 pb-28 pt-4 md:pb-8';
+
   return (
-    <div className="animate-fade-in space-y-4 px-4 pb-28 pt-4 md:pb-8">
-      <div className="flex items-center gap-2">
+    <div className={listShell}>
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onBack}
@@ -178,7 +198,11 @@ export function StudioTab({
           Nothing saved yet. Complete a critique and tap “Save to studio.”
         </div>
       ) : (
-        <ul className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
+        <ul
+          className={`space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 ${
+            isDesktop ? 'min-h-0 flex-1 overflow-y-auto pb-1 lg:grid-cols-3' : ''
+          }`}
+        >
           {paintings.map((p) => {
             const last = p.versions[p.versions.length - 1];
             const pct = progressPercentFromPainting(p);

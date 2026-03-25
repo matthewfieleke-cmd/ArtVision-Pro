@@ -15,7 +15,7 @@ type Props = {
 
 export function DesktopSidebar({ active, onChange }: Props) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-slate-200/80 bg-white">
+    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-slate-200/80 bg-white">
       <div className="flex items-center gap-2 px-5 py-5">
         <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
         <div>
