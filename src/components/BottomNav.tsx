@@ -1,8 +1,7 @@
-import { Home, ImageIcon, BookOpen, User } from 'lucide-react';
+import { ImageIcon, BookOpen, User } from 'lucide-react';
 import type { TabId } from '../types';
 
-const tabs: { id: TabId; label: string; icon: typeof Home; iconOnly?: boolean }[] = [
-  { id: 'home', label: 'Home', icon: Home, iconOnly: true },
+const tabs: { id: TabId; label: string; icon: typeof ImageIcon }[] = [
   { id: 'studio', label: 'Studio', icon: ImageIcon },
   { id: 'benchmarks', label: 'Masters', icon: BookOpen },
   { id: 'profile', label: 'Profile', icon: User },
@@ -11,16 +10,37 @@ const tabs: { id: TabId; label: string; icon: typeof Home; iconOnly?: boolean }[
 type Props = {
   active: TabId;
   onChange: (t: TabId) => void;
+  /** Opens the critique flow at Style & medium (replaces former Home tab slot). */
+  onStartCritique: () => void;
 };
 
-export function BottomNav({ active, onChange }: Props) {
+export function BottomNav({ active, onChange, onStartCritique }: Props) {
+  const critiqueOn = active === 'home';
+
   return (
     <nav
       className="fixed bottom-0 inset-x-0 z-20 border-t border-slate-200/90 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_-8px_rgba(15,23,42,0.08)]"
       aria-label="Main"
     >
       <div className="mx-auto flex max-w-lg justify-around px-2 pt-1.5">
-        {tabs.map(({ id, label, icon: Icon, iconOnly }) => {
+        <button
+          type="button"
+          onClick={onStartCritique}
+          className={`flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+            critiqueOn ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+          aria-label="New critique — style and medium"
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}critique.png`}
+            alt=""
+            className={`h-8 w-8 rounded-lg object-cover ${critiqueOn ? 'ring-2 ring-violet-500/40' : 'opacity-90'}`}
+            width={32}
+            height={32}
+            decoding="async"
+          />
+        </button>
+        {tabs.map(({ id, label, icon: Icon }) => {
           const on = active === id;
           return (
             <button
@@ -32,7 +52,7 @@ export function BottomNav({ active, onChange }: Props) {
               }`}
             >
               <Icon className={on ? 'h-6 w-6' : 'h-6 w-6 opacity-80'} strokeWidth={on ? 2.25 : 2} />
-              {iconOnly ? <span className="sr-only">{label}</span> : label}
+              {label}
             </button>
           );
         })}

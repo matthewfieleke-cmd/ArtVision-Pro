@@ -70,6 +70,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,jpg,jpeg,webmanifest}'],
+        /** Bottom-nav asset (~2.3MB); load on demand instead of precaching Workbox’s 2 MiB default limit. */
+        globIgnores: ['**/critique.png'],
       },
     }),
   ],

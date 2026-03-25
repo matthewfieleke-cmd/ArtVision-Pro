@@ -735,6 +735,11 @@ export default function App() {
     []
   );
 
+  const handleBottomNavCritique = useCallback(() => {
+    setTab('home');
+    startNewCritique();
+  }, [startNewCritique]);
+
   /** Leaving a critique via the desktop rail must close the flow so the chosen tab is visible. */
   const handleDesktopSidebarChange = useCallback(
     (t: TabId) => {
@@ -840,6 +845,7 @@ export default function App() {
             <BottomNav
               active={tab}
               onChange={handleTabChange}
+              onStartCritique={handleBottomNavCritique}
             />
           )}
         </>
