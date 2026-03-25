@@ -1077,7 +1077,9 @@ export default function App() {
                 ) : null}
 
                 {!isDesktop && (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div
+                    className={`grid grid-cols-1 gap-2 ${camStatus === 'live' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}
+                  >
                     <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
                       <FolderOpen className="h-5 w-5 text-violet-600" />
                       Photos
@@ -1088,17 +1090,19 @@ export default function App() {
                         onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
                       />
                     </label>
-                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-                      <ImagePlus className="h-5 w-5 text-violet-600" />
-                      Take photo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
-                      />
-                    </label>
+                    {camStatus !== 'live' ? (
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                        <ImagePlus className="h-5 w-5 text-violet-600" />
+                        Take photo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void onShutter()}
