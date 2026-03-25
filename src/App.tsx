@@ -1002,19 +1002,30 @@ export default function App() {
                       type="button"
                       disabled={previewLoading}
                       onClick={() => void runPreviewEdit()}
-                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:opacity-50"
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-400 disabled:text-white"
+                      style={{
+                        WebkitFontSmoothing: 'antialiased',
+                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translateZ(0)',
+                        willChange: 'transform',
+                        backfaceVisibility: 'hidden',
+                        WebkitBackfaceVisibility: 'hidden',
+                      }}
                     >
-                      {previewLoading ? (
-                        <>
+                      <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden>
+                        {previewLoading ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Generating preview…
-                        </>
-                      ) : (
-                        <>
+                        ) : (
                           <Wand2 className="h-4 w-4" />
-                          {previewImageDataUrl ? 'Regenerate preview' : 'Generate preview'}
-                        </>
-                      )}
+                        )}
+                      </span>
+                      <span className="inline-flex min-w-0 items-center justify-center">
+                        {previewLoading
+                          ? 'Generating preview…'
+                          : previewImageDataUrl
+                            ? 'Regenerate preview'
+                            : 'Generate preview'}
+                      </span>
                     </button>
                     {previewError ? (
                       <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
