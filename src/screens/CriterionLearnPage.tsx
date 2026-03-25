@@ -46,7 +46,7 @@ export function CriterionLearnPage() {
 
   if (!entry) {
     return (
-      <div className="min-h-[100dvh] bg-slate-50 px-4 pb-12 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-10">
+      <div className="min-h-[100dvh] bg-slate-50 px-4 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-10">
         <div className="mx-auto max-w-lg pt-8 lg:max-w-2xl">
           <p className="text-slate-600">No guide found for this criterion.</p>
           <Link
@@ -62,8 +62,8 @@ export function CriterionLearnPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 pb-16 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden lg:px-0 lg:pb-0">
-      <header className="sticky top-0 z-10 shrink-0 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md sm:px-6 lg:static lg:px-8 xl:px-12 2xl:px-16">
+    <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-50 sm:px-4 lg:h-dvh lg:max-h-none lg:min-h-[100dvh] lg:flex lg:flex-col lg:overflow-hidden lg:px-0 lg:pb-0">
+      <header className="z-10 shrink-0 border-b border-slate-200/80 bg-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-soft backdrop-blur-md sm:px-6 lg:static lg:px-8 xl:px-12 2xl:px-16">
         <div className="mx-auto flex w-full max-w-none items-center gap-3">
           <button
             type="button"
@@ -94,7 +94,7 @@ export function CriterionLearnPage() {
         </div>
       </header>
 
-      <article className="mx-auto w-full max-w-none flex-1 px-4 py-8 sm:px-6 lg:grid lg:min-h-0 lg:grid-cols-12 lg:gap-8 lg:overflow-y-auto lg:px-8 lg:py-4 xl:gap-10 xl:px-12 2xl:px-16">
+      <article className="mx-auto min-h-0 w-full max-w-none flex-1 overflow-y-auto overscroll-y-contain px-4 py-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 lg:grid lg:min-h-0 lg:grid-cols-12 lg:gap-8 lg:overflow-y-auto lg:px-8 lg:py-4 lg:pb-4 xl:gap-10 xl:px-12 2xl:px-16">
         <div className="lg:col-span-4 lg:flex lg:min-h-0 lg:flex-col lg:gap-3">
           <p className="text-lg leading-snug text-violet-800/95 lg:text-base xl:text-lg">{entry.tagline}</p>
           <p className="mt-3 text-sm leading-relaxed text-slate-700 lg:mt-0 lg:text-[13px] lg:leading-6 xl:text-sm">

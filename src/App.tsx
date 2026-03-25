@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Camera,
   FolderOpen,
+  Home,
   ImagePlus,
   Loader2,
   Palette,
@@ -886,7 +887,18 @@ export default function App() {
               {flow.step === 'analyzing' && 'Analyzing'}
               {flow.step === 'results' && 'Critique'}
             </p>
-            <span className="w-9" />
+            {!isDesktop && flow.step === 'results' ? (
+              <button
+                type="button"
+                onClick={goHome}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Go to home"
+              >
+                <Home className="h-5 w-5" />
+              </button>
+            ) : (
+              <span className="w-9" />
+            )}
           </div>
 
           <div
