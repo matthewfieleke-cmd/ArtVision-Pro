@@ -321,16 +321,16 @@ export function ImageCropModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex flex-col bg-slate-950/95 text-white"
+      className="fixed inset-0 z-[70] flex max-h-[100dvh] flex-col overflow-hidden bg-slate-950/95 text-white"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="crop-photo-title"
     >
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-800 px-4 py-2.5 sm:py-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">Crop photo</p>
-          <h2 id="crop-photo-title" className="mt-1 font-display text-lg font-normal text-white">
+          <h2 id="crop-photo-title" className="mt-0.5 font-display text-base font-normal text-white sm:text-lg">
             {title}
           </h2>
         </div>
@@ -344,29 +344,28 @@ export function ImageCropModal({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="mx-auto max-w-lg space-y-4">
-          <p className="text-sm leading-relaxed text-slate-300">{description}</p>
+      <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col gap-2 px-4 py-2 sm:gap-3 sm:py-3">
+        <p className="shrink-0 text-xs leading-snug text-slate-300 sm:text-sm sm:leading-relaxed">{description}</p>
 
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2">
-            {PRESETS.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => setPreset(entry.id)}
-                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                  preset === entry.id ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                {entry.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex shrink-0 flex-wrap gap-1.5 rounded-2xl border border-slate-800 bg-slate-900/70 p-1.5 sm:gap-2 sm:p-2">
+          {PRESETS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setPreset(entry.id)}
+              className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 sm:py-2 sm:text-sm ${
+                preset === entry.id ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
 
-          <div
-            ref={stageRef}
-            className="relative mx-auto aspect-[3/4] w-full max-w-md overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
-          >
+        <div
+          ref={stageRef}
+          className="relative min-h-[8rem] w-full min-w-0 flex-1 self-stretch overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl sm:max-w-md sm:self-center sm:rounded-3xl"
+        >
             {ready ? (
               <>
                 <img
@@ -527,12 +526,11 @@ export function ImageCropModal({
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-slate-500">Loading image…</div>
             )}
-          </div>
         </div>
       </div>
 
-      <div className="border-t border-slate-800 px-4 py-3">
-        <div className="mx-auto grid max-w-lg grid-cols-2 gap-3">
+      <div className="shrink-0 border-t border-slate-800 px-4 py-2.5 sm:py-3">
+        <div className="mx-auto grid max-w-lg grid-cols-2 gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onCancel}
