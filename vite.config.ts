@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import type { DisplayOverride } from 'vite-plugin-pwa';
 
 /** GitHub project Pages: set VITE_BASE=/YourRepoName/ at build time. User/org root site: leave unset or use /. */
 function appBase(): string {
@@ -63,9 +64,9 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'] as unknown as string[],
-        edge_side_panel: { preferred_width: 400 } as unknown as Record<string, number>,
-        handle_links: 'preferred' as unknown as string,
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'] as DisplayOverride[],
+        edge_side_panel: { preferred_width: 400 },
+        handle_links: 'preferred',
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,jpg,jpeg,webmanifest}'],
