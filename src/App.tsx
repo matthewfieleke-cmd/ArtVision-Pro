@@ -853,40 +853,6 @@ export default function App() {
           }`}
         >
           <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 shadow-soft backdrop-blur-sm">
-            <button
-              type="button"
-              onClick={() => {
-                if (flow.step === 'setup') closeFlow();
-                else if (flow.step === 'capture') {
-                  if (flow.mode === 'resubmit') closeFlow();
-                  else setFlow({ ...flow, step: 'setup' });
-                } else if (flow.step === 'results') {
-                  const backToSetup =
-                    flow.mode === 'new' &&
-                    flow.styleMode === 'auto' &&
-                    flow.style &&
-                    flow.styleClassifyMeta &&
-                    flow.imageDataUrl;
-                  clearReturnViewIntent();
-                  setFlow({
-                    ...flow,
-                    step: backToSetup ? 'setup' : 'capture',
-                    ...(backToSetup ? { classifySourceImageDataUrl: flow.imageDataUrl } : {}),
-                  });
-                }
-                else closeFlow();
-              }}
-              className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
-              aria-label="Back"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <p className="flex-1 text-center text-sm font-semibold text-slate-700">
-              {flow.step === 'setup' && 'Style & medium'}
-              {flow.step === 'capture' && (isDesktop ? 'Upload your painting' : 'Capture')}
-              {flow.step === 'analyzing' && 'Analyzing'}
-              {flow.step === 'results' && 'Critique'}
-            </p>
             {!isDesktop && flow.step === 'results' ? (
               <button
                 type="button"
@@ -897,8 +863,41 @@ export default function App() {
                 <Home className="h-5 w-5" />
               </button>
             ) : (
-              <span className="w-9" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (flow.step === 'setup') closeFlow();
+                  else if (flow.step === 'capture') {
+                    if (flow.mode === 'resubmit') closeFlow();
+                    else setFlow({ ...flow, step: 'setup' });
+                  } else if (flow.step === 'results') {
+                    const backToSetup =
+                      flow.mode === 'new' &&
+                      flow.styleMode === 'auto' &&
+                      flow.style &&
+                      flow.styleClassifyMeta &&
+                      flow.imageDataUrl;
+                    clearReturnViewIntent();
+                    setFlow({
+                      ...flow,
+                      step: backToSetup ? 'setup' : 'capture',
+                      ...(backToSetup ? { classifySourceImageDataUrl: flow.imageDataUrl } : {}),
+                    });
+                  } else closeFlow();
+                }}
+                className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
             )}
+            <p className="flex-1 text-center text-sm font-semibold text-slate-700">
+              {flow.step === 'setup' && 'Style & medium'}
+              {flow.step === 'capture' && (isDesktop ? 'Upload your painting' : 'Capture')}
+              {flow.step === 'analyzing' && 'Analyzing'}
+              {flow.step === 'results' && 'Critique'}
+            </p>
+            <span className="w-9 shrink-0" />
           </div>
 
           <div

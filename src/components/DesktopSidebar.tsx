@@ -1,8 +1,8 @@
 import { Home, ImageIcon, BookOpen, User, Sparkles } from 'lucide-react';
 import type { TabId } from '../types';
 
-const tabs: { id: TabId; label: string; icon: typeof Home }[] = [
-  { id: 'home', label: 'Home', icon: Home },
+const tabs: { id: TabId; label: string; icon: typeof Home; iconOnly?: boolean }[] = [
+  { id: 'home', label: 'Home', icon: Home, iconOnly: true },
   { id: 'studio', label: 'Studio', icon: ImageIcon },
   { id: 'benchmarks', label: 'Masters', icon: BookOpen },
   { id: 'profile', label: 'Profile', icon: User },
@@ -30,7 +30,7 @@ export function DesktopSidebar({ active, onChange }: Props) {
 
       <nav className="flex-1 px-3 pt-2" aria-label="Main">
         <ul className="space-y-1">
-          {tabs.map(({ id, label, icon: Icon }) => {
+          {tabs.map(({ id, label, icon: Icon, iconOnly }) => {
             const on = active === id;
             return (
               <li key={id}>
@@ -42,12 +42,13 @@ export function DesktopSidebar({ active, onChange }: Props) {
                       ? 'bg-violet-50 text-violet-700'
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                   }`}
+                  title={iconOnly ? label : undefined}
                 >
                   <Icon
-                    className={`h-5 w-5 ${on ? 'text-violet-600' : 'text-slate-400'}`}
+                    className={`h-5 w-5 shrink-0 ${on ? 'text-violet-600' : 'text-slate-400'}`}
                     strokeWidth={on ? 2.25 : 2}
                   />
-                  {label}
+                  {iconOnly ? <span className="sr-only">{label}</span> : label}
                 </button>
               </li>
             );

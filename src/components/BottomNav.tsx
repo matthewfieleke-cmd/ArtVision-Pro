@@ -1,8 +1,8 @@
 import { Home, ImageIcon, BookOpen, User } from 'lucide-react';
 import type { TabId } from '../types';
 
-const tabs: { id: TabId; label: string; icon: typeof Home }[] = [
-  { id: 'home', label: 'Home', icon: Home },
+const tabs: { id: TabId; label: string; icon: typeof Home; iconOnly?: boolean }[] = [
+  { id: 'home', label: 'Home', icon: Home, iconOnly: true },
   { id: 'studio', label: 'Studio', icon: ImageIcon },
   { id: 'benchmarks', label: 'Masters', icon: BookOpen },
   { id: 'profile', label: 'Profile', icon: User },
@@ -20,7 +20,7 @@ export function BottomNav({ active, onChange }: Props) {
       aria-label="Main"
     >
       <div className="mx-auto flex max-w-lg justify-around px-2 pt-1.5">
-        {tabs.map(({ id, label, icon: Icon }) => {
+        {tabs.map(({ id, label, icon: Icon, iconOnly }) => {
           const on = active === id;
           return (
             <button
@@ -32,7 +32,7 @@ export function BottomNav({ active, onChange }: Props) {
               }`}
             >
               <Icon className={on ? 'h-6 w-6' : 'h-6 w-6 opacity-80'} strokeWidth={on ? 2.25 : 2} />
-              {label}
+              {iconOnly ? <span className="sr-only">{label}</span> : label}
             </button>
           );
         })}

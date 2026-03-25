@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Home } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { advanceDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
 import { getCriterionLearnEntryBySlug } from '../data/criterionExcellence';
@@ -52,9 +52,10 @@ export function CriterionLearnPage() {
           <Link
             to="/"
             onClick={() => advanceDailyMasterpieceIndex()}
-            className="mt-4 inline-block font-semibold text-violet-600"
+            className="mt-4 inline-flex items-center justify-center rounded-full p-2 text-violet-600 transition hover:bg-violet-50"
+            aria-label="Go to home"
           >
-            Return home
+            <Home className="h-6 w-6" strokeWidth={2.25} />
           </Link>
         </div>
       </div>
@@ -87,9 +88,10 @@ export function CriterionLearnPage() {
           <Link
             to="/"
             onClick={() => setReturnTabIntent('benchmarks')}
-            className="shrink-0 text-xs font-semibold text-violet-600 hover:text-violet-700"
+            className="shrink-0 rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-violet-700"
+            aria-label="Go to home"
           >
-            Home
+            <Home className="h-5 w-5" />
           </Link>
         </div>
       </header>
