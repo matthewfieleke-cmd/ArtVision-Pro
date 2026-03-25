@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import {
   ArrowLeft,
   Camera,
@@ -1119,6 +1120,7 @@ export default function App() {
         ) : null}
         </>
       )}
+      <Analytics />
     </div>
   );
 }
