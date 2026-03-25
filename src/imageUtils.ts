@@ -47,7 +47,34 @@ export type CropPreset = 'freeform' | 'portrait' | 'square' | 'landscape';
 export type AutoCropSuggestion = {
   crop: PixelCrop;
   rotation: number;
+  corners: PerspectiveCorners;
 };
+
+export type Point = {
+  x: number;
+  y: number;
+};
+
+export type PerspectiveCorners = [Point, Point, Point, Point];
+export type CornerQuad = {
+  topLeft: Point;
+  topRight: Point;
+  bottomRight: Point;
+  bottomLeft: Point;
+};
+
+export function cornersToQuad(corners: PerspectiveCorners): CornerQuad {
+  return {
+    topLeft: corners[0],
+    topRight: corners[1],
+    bottomRight: corners[2],
+    bottomLeft: corners[3],
+  };
+}
+
+export function quadToCorners(quad: CornerQuad): PerspectiveCorners {
+  return [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
+}
 
 async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -118,6 +145,94 @@ export async function cropDataUrlWithRotation(
   return canvas.toDataURL('image/jpeg', quality);
 }
 
+function orderCorners(points: Point[]): PerspectiveCorners {
+  const sorted = [...points].sort((a, b) => a.y - b.y || a.x - b.x);
+  const top = sorted.slice(0, 2).sort((a, b) => a.x - b.x);
+  const bottom = sorted.slice(2).sort((a, b) => a.x - b.x);
+  return [top[0]!, top[1]!, bottom[1]!, bottom[0]!];
+}
+
+export async function perspectiveCropDataUrl(
+  dataUrl: string,
+  corners: PerspectiveCorners,
+  quality = 0.92
+): Promise<string> {
+  const [{ default: PerspectiveTransform }] = await Promise.all([
+    import('perspective-transform'),
+  ]);
+  const img = await loadImage(dataUrl);
+  const ordered = orderCorners(corners);
+  const topWidth = Math.hypot(ordered[1].x - ordered[0].x, ordered[1].y - ordered[0].y);
+  const bottomWidth = Math.hypot(ordered[2].x - ordered[3].x, ordered[2].y - ordered[3].y);
+  const leftHeight = Math.hypot(ordered[3].x - ordered[0].x, ordered[3].y - ordered[0].y);
+  const rightHeight = Math.hypot(ordered[2].x - ordered[1].x, ordered[2].y - ordered[1].y);
+  const outWidth = Math.max(1, Math.round(Math.max(topWidth, bottomWidth)));
+  const outHeight = Math.max(1, Math.round(Math.max(leftHeight, rightHeight)));
+
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = img.naturalWidth;
+  sourceCanvas.height = img.naturalHeight;
+  const srcCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+  if (!srcCtx) throw new Error('Canvas not supported');
+  srcCtx.drawImage(img, 0, 0);
+  const srcData = srcCtx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+
+  const outputCanvas = document.createElement('canvas');
+  outputCanvas.width = outWidth;
+  outputCanvas.height = outHeight;
+  const outCtx = outputCanvas.getContext('2d');
+  if (!outCtx) throw new Error('Canvas not supported');
+  const outData = outCtx.createImageData(outWidth, outHeight);
+
+  const transform = PerspectiveTransform(
+    [
+      ordered[0].x,
+      ordered[0].y,
+      ordered[1].x,
+      ordered[1].y,
+      ordered[2].x,
+      ordered[2].y,
+      ordered[3].x,
+      ordered[3].y,
+    ],
+    [0, 0, outWidth, 0, outWidth, outHeight, 0, outHeight]
+  );
+  const inverse = transform.inverse();
+
+  const sample = (x: number, y: number, channel: number): number => {
+    const sx = Math.min(img.naturalWidth - 1, Math.max(0, x));
+    const sy = Math.min(img.naturalHeight - 1, Math.max(0, y));
+    const x0 = Math.floor(sx);
+    const y0 = Math.floor(sy);
+    const x1 = Math.min(img.naturalWidth - 1, x0 + 1);
+    const y1 = Math.min(img.naturalHeight - 1, y0 + 1);
+    const dx = sx - x0;
+    const dy = sy - y0;
+    const idx = (px: number, py: number) => (py * img.naturalWidth + px) * 4 + channel;
+    const v00 = srcData.data[idx(x0, y0)]!;
+    const v10 = srcData.data[idx(x1, y0)]!;
+    const v01 = srcData.data[idx(x0, y1)]!;
+    const v11 = srcData.data[idx(x1, y1)]!;
+    const top = v00 * (1 - dx) + v10 * dx;
+    const bottom = v01 * (1 - dx) + v11 * dx;
+    return top * (1 - dy) + bottom * dy;
+  };
+
+  for (let y = 0; y < outHeight; y++) {
+    for (let x = 0; x < outWidth; x++) {
+      const [sx, sy] = inverse.transform(x, y) as [number, number];
+      const idx = (y * outWidth + x) * 4;
+      outData.data[idx] = Math.round(sample(sx, sy, 0));
+      outData.data[idx + 1] = Math.round(sample(sx, sy, 1));
+      outData.data[idx + 2] = Math.round(sample(sx, sy, 2));
+      outData.data[idx + 3] = 255;
+    }
+  }
+
+  outCtx.putImageData(outData, 0, 0);
+  return outputCanvas.toDataURL('image/jpeg', quality);
+}
+
 export async function suggestPaintingCrop(dataUrl: string): Promise<AutoCropSuggestion> {
   const img = await loadImage(dataUrl);
   const sampleMax = 300;
@@ -177,9 +292,16 @@ export async function suggestPaintingCrop(dataUrl: string): Promise<AutoCropSugg
   }
 
   if (!hits || maxX <= minX || maxY <= minY) {
+    const fullCorners: PerspectiveCorners = [
+      { x: 0, y: 0 },
+      { x: img.naturalWidth, y: 0 },
+      { x: img.naturalWidth, y: img.naturalHeight },
+      { x: 0, y: img.naturalHeight },
+    ];
     return {
       crop: { x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight },
       rotation: 0,
+      corners: fullCorners,
     };
   }
 
@@ -195,5 +317,12 @@ export async function suggestPaintingCrop(dataUrl: string): Promise<AutoCropSugg
     height: Math.min(img.naturalHeight, Math.round((maxY - minY + padY * 2) * sy)),
   };
 
-  return { crop, rotation: 0 };
+  const corners: PerspectiveCorners = [
+    { x: crop.x, y: crop.y },
+    { x: crop.x + crop.width, y: crop.y },
+    { x: crop.x + crop.width, y: crop.y + crop.height },
+    { x: crop.x, y: crop.y + crop.height },
+  ];
+
+  return { crop, rotation: 0, corners };
 }
