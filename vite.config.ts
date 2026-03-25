@@ -28,14 +28,15 @@ export default defineConfig({
       manifest: {
         name: 'ArtVision Pro',
         short_name: 'ArtVision Pro',
-        description: 'Professional painting critique based on master benchmarks',
+        description: 'Professional painting critique and feedback tool. Upload your artwork, choose a style and medium, and receive structured feedback across eight criteria benchmarked against the masters.',
         theme_color: '#7c3aed',
         background_color: '#f8fafc',
         display: 'standalone',
-        orientation: 'portrait',
-        // Relative to manifest URL so install + launch work under GitHub Pages project paths (/repo/).
+        orientation: 'any',
         start_url: './',
         scope: './',
+        lang: 'en-US',
+        categories: ['education', 'productivity', 'utilities'] as unknown as string[],
         icons: [
           {
             src: 'pwa-192.png',
@@ -62,6 +63,9 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'] as unknown as string[],
+        edge_side_panel: { preferred_width: 400 } as unknown as Record<string, number>,
+        handle_links: 'preferred' as unknown as string,
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,jpg,jpeg,webmanifest}'],

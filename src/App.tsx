@@ -10,10 +10,12 @@ import {
   Palette,
   Save,
   Sparkles,
+  Upload,
   Wand2,
   X,
 } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
+import { DesktopSidebar } from './components/DesktopSidebar';
 import { CritiquePanels } from './components/CritiquePanels';
 import { ImageCropModal } from './components/ImageCropModal';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
@@ -22,6 +24,7 @@ import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
+import { useIsDesktop } from './hooks/useIsDesktop';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { loadPaintings, savePaintings } from './storage';
@@ -83,6 +86,7 @@ function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCateg
 
 export default function App() {
   const location = useLocation();
+  const isDesktop = useIsDesktop();
   const [tab, setTab] = useState<TabId>('home');
   const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
@@ -92,6 +96,7 @@ export default function App() {
   flowRef.current = flow;
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [classifyBusy, setClassifyBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewImageDataUrl, setPreviewImageDataUrl] = useState<string | null>(null);
@@ -199,12 +204,12 @@ export default function App() {
   }, [stopCamera]);
 
   useEffect(() => {
-    if (flow?.step === 'capture') {
+    if (flow?.step === 'capture' && !isDesktop) {
       void startCamera();
       return () => stopCamera();
     }
     stopCamera();
-  }, [flow?.step, startCamera, stopCamera]);
+  }, [flow?.step, isDesktop, startCamera, stopCamera]);
 
   const runAnalysis = useCallback(async (rawDataUrl: string) => {
     const f = flowRef.current;
@@ -549,42 +554,57 @@ export default function App() {
     setPreviewCompareSeen(true);
   }, []);
 
+  const handleTabChange = useCallback(
+    (t: TabId) => {
+      if (t === 'home') advanceDailyMasterpieceIndex();
+      setTab(t);
+    },
+    []
+  );
+
   return (
     <div className="min-h-[100dvh] bg-slate-50">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <div className="mx-auto flex max-w-lg items-center justify-between">
-          <button
-            type="button"
-            onClick={goHome}
-            className="-ml-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-100/80"
-            aria-label="Go to home"
-          >
-            <p className="font-display text-xl font-normal tracking-tight text-slate-900">
-              ArtVision <span className="text-violet-600">Pro</span>
-            </p>
-            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
-          </button>
-          {flow ? (
+      {isDesktop && (
+        <DesktopSidebar active={tab} onChange={handleTabChange} />
+      )}
+
+      {!isDesktop && (
+        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white px-4 py-3 shadow-soft backdrop-blur-md pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div className="mx-auto flex max-w-lg items-center justify-between">
             <button
               type="button"
-              onClick={closeFlow}
-              className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-              aria-label="Close"
+              onClick={goHome}
+              className="-ml-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-100/80"
+              aria-label="Go to home"
             >
-              <X className="h-5 w-5" />
+              <p className="font-display text-xl font-normal tracking-tight text-slate-900">
+                ArtVision <span className="text-violet-600">Pro</span>
+              </p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
             </button>
-          ) : (
-            <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
-          )}
-        </div>
-      </header>
+            {flow ? (
+              <button
+                type="button"
+                onClick={closeFlow}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            ) : (
+              <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
+            )}
+          </div>
+        </header>
+      )}
 
-      <main className="mx-auto max-w-lg">
+      <main className={`mx-auto ${isDesktop ? 'ml-60 max-w-3xl px-8 py-6' : 'max-w-lg'}`}>
         {!flow && tab === 'home' && (
           <HomeTab
             paintings={paintings}
             onNewCritique={startNewCritique}
             onOpenPainting={openPaintingFromHome}
+            isDesktop={isDesktop}
           />
         )}
         {!flow && tab === 'studio' && (
@@ -601,19 +621,20 @@ export default function App() {
         {!flow && tab === 'profile' && <ProfileTab />}
       </main>
 
-      {!flow && (
+      {!flow && !isDesktop && (
         <BottomNav
           active={tab}
-          onChange={(t) => {
-            if (t === 'home') advanceDailyMasterpieceIndex();
-            setTab(t);
-          }}
+          onChange={handleTabChange}
         />
       )}
 
       {flow && (
         <>
-        <div className="fixed inset-0 z-40 flex flex-col bg-slate-50 pt-[env(safe-area-inset-top)]">
+        <div className={`fixed z-40 flex flex-col bg-slate-50 ${
+          isDesktop
+            ? 'inset-y-0 left-60 right-0'
+            : 'inset-0 pt-[env(safe-area-inset-top)]'
+        }`}>
           <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 shadow-soft backdrop-blur-sm">
             <button
               type="button"
@@ -645,14 +666,16 @@ export default function App() {
             </button>
             <p className="flex-1 text-center text-sm font-semibold text-slate-700">
               {flow.step === 'setup' && 'Style & medium'}
-              {flow.step === 'capture' && 'Capture'}
+              {flow.step === 'capture' && (isDesktop ? 'Upload your painting' : 'Capture')}
               {flow.step === 'analyzing' && 'Analyzing'}
               {flow.step === 'results' && 'Critique'}
             </p>
             <span className="w-9" />
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-8 pt-5">
+          <div className={`flex-1 overflow-y-auto pb-8 pt-5 ${
+            isDesktop ? 'mx-auto w-full max-w-2xl px-8' : 'px-4'
+          }`}>
             {flow.step === 'setup' && (
               <div className="animate-slide-up space-y-7">
                 <div>
@@ -840,7 +863,7 @@ export default function App() {
                       }
                       className="w-full rounded-2xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                     >
-                      Use camera or a different photo
+                      {isDesktop ? 'Upload a different photo' : 'Use camera or a different photo'}
                     </button>
                   </div>
                 ) : (
@@ -850,7 +873,7 @@ export default function App() {
                     onClick={() => setFlow((f) => (f ? { ...f, step: 'capture' } : f))}
                     className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition enabled:active:scale-[0.99] disabled:opacity-35"
                   >
-                    Continue to capture
+                    {isDesktop ? 'Continue to upload' : 'Continue to capture'}
                   </button>
                 )}
               </div>
@@ -873,67 +896,115 @@ export default function App() {
                     autoComplete="off"
                   />
                 </div>
-                <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-card">
-                  <video
-                    ref={videoRef}
-                    className="h-full w-full object-cover"
-                    playsInline
-                    muted
-                    autoPlay
-                  />
-                  {camStatus !== 'live' ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/75 p-4 text-center text-sm text-slate-200">
-                      {camStatus === 'requesting' ? (
-                        <>
-                          <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
-                          Starting camera…
-                        </>
-                      ) : (
-                        <>
-                          <Camera className="h-8 w-8 text-slate-500" />
-                          <p>{camError ?? 'Camera unavailable — use Photos below.'}</p>
-                        </>
-                      )}
+
+                {isDesktop ? (
+                  <label
+                    className={`group flex cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed px-8 py-16 transition ${
+                      dragOver
+                        ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-500/20'
+                        : 'border-slate-300 bg-white hover:border-violet-400 hover:bg-violet-50/30'
+                    }`}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOver(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file?.type.startsWith('image/')) void onPickFile(file);
+                    }}
+                  >
+                    <div className={`rounded-2xl p-4 transition ${dragOver ? 'bg-violet-200' : 'bg-violet-100'}`}>
+                      <Upload className="h-10 w-10 text-violet-600" />
                     </div>
-                  ) : null}
-                </div>
+                    <div className="text-center">
+                      <p className="text-base font-semibold text-slate-800">
+                        {dragOver ? 'Drop your image here' : 'Click to upload your painting'}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        or drag and drop an image file here
+                      </p>
+                      <p className="mt-2 text-xs text-slate-400">
+                        Supports JPG, PNG, WebP
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                ) : (
+                  /* ── Mobile: live camera viewfinder ── */
+                  <>
+                    <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-card">
+                      <video
+                        ref={videoRef}
+                        className="h-full w-full object-cover"
+                        playsInline
+                        muted
+                        autoPlay
+                      />
+                      {camStatus !== 'live' ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/75 p-4 text-center text-sm text-slate-200">
+                          {camStatus === 'requesting' ? (
+                            <>
+                              <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
+                              Starting camera…
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="h-8 w-8 text-slate-500" />
+                              <p>{camError ?? 'Camera unavailable — use Photos below.'}</p>
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    <p className="text-center text-xs text-slate-500">
+                      Align the canvas in frame. Even, diffuse light gives the fairest read.
+                    </p>
+                  </>
+                )}
+
                 {analyzeError ? (
                   <p className="text-center text-sm text-red-600">{analyzeError}</p>
                 ) : null}
-                <p className="text-center text-xs text-slate-500">
-                  Align the canvas in frame. Even, diffuse light gives the fairest read.
-                </p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-                    <FolderOpen className="h-5 w-5 text-violet-600" />
-                    Photos
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-                    <ImagePlus className="h-5 w-5 text-violet-600" />
-                    Take photo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void onShutter()}
-                    disabled={camStatus !== 'live'}
-                    className="rounded-2xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-slate-800 disabled:opacity-35"
-                  >
-                    Capture
-                  </button>
-                </div>
+
+                {!isDesktop && (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                      <FolderOpen className="h-5 w-5 text-violet-600" />
+                      Photos
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                      <ImagePlus className="h-5 w-5 text-violet-600" />
+                      Take photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void onShutter()}
+                      disabled={camStatus !== 'live'}
+                      className="rounded-2xl bg-slate-900 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-slate-800 disabled:opacity-35"
+                    >
+                      Capture
+                    </button>
+                  </div>
+                )}
+
                 <p className="text-center text-[11px] text-slate-400">
                   {flow.style} · {flow.medium}
                   {flow.mode === 'resubmit' ? ' · comparing to saved version' : ''}
@@ -1041,7 +1112,7 @@ export default function App() {
                           className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
                         >
                           <span className="text-sm font-bold text-violet-800">
-                            {previewCompareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
+                            {previewCompareSeen ? 'Open compare again' : (isDesktop ? 'Click to compare with your photo' : 'Tap to compare with your photo')}
                           </span>
                           {!previewCompareSeen ? (
                             <span className="text-xs font-medium leading-snug text-slate-500">

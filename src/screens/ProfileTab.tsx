@@ -5,7 +5,7 @@ export function ProfileTab() {
   const [activeId, setActiveId] = useState(() => getStoredFontPresetId());
 
   return (
-    <div className="animate-fade-in space-y-6 px-4 pb-28 pt-4">
+      <div className="animate-fade-in space-y-6 px-4 pb-28 pt-4 md:pb-8">
       <header>
         <h2 className="font-display text-2xl font-normal text-slate-900">Profile</h2>
         <p className="mt-1 text-sm text-slate-500 leading-relaxed">

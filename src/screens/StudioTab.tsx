@@ -48,7 +48,7 @@ export function StudioTab({
     const latestPreview = latest.previewEdit;
 
     return (
-      <div className="animate-slide-up space-y-4 px-4 pb-28 pt-2">
+      <div className="animate-slide-up space-y-4 px-4 pb-28 pt-2 md:pb-8">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -157,7 +157,7 @@ export function StudioTab({
   }
 
   return (
-    <div className="animate-fade-in space-y-4 px-4 pb-28 pt-4">
+    <div className="animate-fade-in space-y-4 px-4 pb-28 pt-4 md:pb-8">
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -178,7 +178,7 @@ export function StudioTab({
           Nothing saved yet. Complete a critique and tap “Save to studio.”
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
           {paintings.map((p) => {
             const last = p.versions[p.versions.length - 1];
             const pct = progressPercentFromPainting(p);

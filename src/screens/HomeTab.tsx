@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Camera, ChevronRight, ExternalLink } from 'lucide-react';
+import { Camera, ChevronRight, ExternalLink, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getMasterSlug } from '../data/masterCatalog';
 import { DAILY_MASTERPIECES } from '../data/dailyMasterpieces';
@@ -11,9 +11,10 @@ type Props = {
   paintings: SavedPainting[];
   onNewCritique: () => void;
   onOpenPainting: (id: string) => void;
+  isDesktop?: boolean;
 };
 
-export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
+export function HomeTab({ paintings, onNewCritique, onOpenPainting, isDesktop = false }: Props) {
   const daily = DAILY_MASTERPIECES[getDailyMasterpieceIndex()];
   const masterSlug = getMasterSlug(daily.style, daily.artist);
   const [masterpieceImgFailed, setMasterpieceImgFailed] = useState(false);
@@ -27,7 +28,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
   );
 
   return (
-    <div className="animate-fade-in space-y-8 px-4 pb-28 pt-4">
+    <div className="animate-fade-in space-y-8 px-4 pb-28 pt-4 md:pb-8">
       <section className="overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-slate-50 shadow-card">
         <p className="px-5 pt-5 text-xs font-semibold uppercase tracking-widest text-violet-600/90">
           Daily masterpiece
@@ -96,8 +97,9 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
       <header className="text-center">
         <h2 className="font-display text-3xl font-normal tracking-tight text-slate-900">Ready for a critique?</h2>
         <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
-          Capture your painting, choose style and medium, and get structured feedback on eight criteria—benchmarked
-          against the masters.
+          {isDesktop
+            ? 'Upload your painting, choose style and medium, and get structured feedback on eight criteria—benchmarked against the masters.'
+            : 'Capture your painting, choose style and medium, and get structured feedback on eight criteria—benchmarked against the masters.'}
         </p>
       </header>
 
@@ -110,11 +112,17 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
         <div className="relative flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="rounded-2xl bg-white/20 p-3 ring-1 ring-white/30">
-              <Camera className="h-8 w-8" strokeWidth={2} />
+              {isDesktop ? (
+                <Upload className="h-8 w-8" strokeWidth={2} />
+              ) : (
+                <Camera className="h-8 w-8" strokeWidth={2} />
+              )}
             </div>
             <div>
               <div className="text-lg font-bold">New critique</div>
-              <div className="text-sm text-violet-100/95">Style, medium, capture</div>
+              <div className="text-sm text-violet-100/95">
+                {isDesktop ? 'Style, medium, upload' : 'Style, medium, capture'}
+              </div>
             </div>
           </div>
           <ChevronRight className="h-6 w-6 shrink-0 opacity-90 transition group-hover:translate-x-0.5" />
@@ -123,10 +131,10 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
 
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Work in progress</h3>
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        <div className={`mt-3 gap-3 pb-2 ${isDesktop ? 'grid grid-cols-3 xl:grid-cols-4' : 'flex overflow-x-auto'}`}>
           {wip.length === 0 ? (
-            <div className="min-h-[11rem] min-w-[100%] rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
-              No paintings saved yet. Run a critique and tap “Save to studio.”
+            <div className={`min-h-[11rem] rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm ${isDesktop ? 'col-span-full' : 'min-w-[100%]'}`}>
+              No paintings saved yet. Run a critique and {isDesktop ? 'click' : 'tap'} “Save to studio.”
             </div>
           ) : (
             wip.map((p) => {
@@ -137,7 +145,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting }: Props) {
                   key={p.id}
                   type="button"
                   onClick={() => onOpenPainting(p.id)}
-                  className="w-36 shrink-0 text-left"
+                  className={`text-left ${isDesktop ? 'w-full' : 'w-36 shrink-0'}`}
                 >
                   <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card">
                     <div className="relative aspect-[3/4] bg-slate-100">

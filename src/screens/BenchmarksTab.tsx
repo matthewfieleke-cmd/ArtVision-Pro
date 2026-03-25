@@ -5,7 +5,7 @@ import { ARTISTS_BY_STYLE, STYLES } from '../types';
 
 export function BenchmarksTab() {
   return (
-    <div className="animate-fade-in space-y-6 px-4 pb-28 pt-4">
+      <div className="animate-fade-in space-y-6 px-4 pb-28 pt-4 md:pb-8">
       <header>
         <h2 className="font-display text-2xl font-normal text-slate-900">Gold standard artists</h2>
         <p className="mt-1 text-sm text-slate-500 leading-relaxed">
@@ -14,7 +14,7 @@ export function BenchmarksTab() {
           standards of composition, value, color, and voice. Tap a name for an overview and work-based technique notes.
         </p>
       </header>
-      <div className="space-y-3">
+      <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
         {STYLES.map((s: Style) => (
           <section
             key={s}
