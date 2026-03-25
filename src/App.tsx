@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import {
@@ -112,6 +112,31 @@ export default function App() {
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
+
+  const flowScrollRef = useRef<HTMLDivElement>(null);
+  const hadFlowRef = useRef(false);
+
+  /** Mobile: main tabs scroll with the window — reset when switching tab (not in critique flow). */
+  useLayoutEffect(() => {
+    if (isDesktop || flow) return;
+    window.scrollTo(0, 0);
+  }, [isDesktop, tab, flow]);
+
+  /** Mobile: opening or closing the full-screen critique flow — reset underlying page scroll. */
+  useLayoutEffect(() => {
+    if (isDesktop) return;
+    const now = !!flow;
+    if (now !== hadFlowRef.current) {
+      hadFlowRef.current = now;
+      window.scrollTo(0, 0);
+    }
+  }, [isDesktop, flow]);
+
+  /** Mobile critique overlay uses its own scroll container; reset on each wizard step. */
+  useLayoutEffect(() => {
+    if (isDesktop || !flow) return;
+    flowScrollRef.current?.scrollTo(0, 0);
+  }, [isDesktop, flow, flow?.step]);
 
   useEffect(() => {
     try {
@@ -777,6 +802,7 @@ export default function App() {
           </div>
 
           <div
+            ref={flowScrollRef}
             className={`min-h-0 flex-1 overflow-y-auto pb-6 pt-4 ${
               isDesktop ? 'w-full px-8 lg:px-12' : 'px-4 pb-8 pt-5'
             }`}
