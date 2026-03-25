@@ -42,7 +42,7 @@ export type PixelCrop = {
   height: number;
 };
 
-export type CropPreset = 'portrait' | 'landscape';
+export type CropPreset = 'full' | 'portrait' | 'landscape';
 
 export type AutoCropSuggestion = {
   crop: PixelCrop;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Check, RotateCcw, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import type { CropPreset, PixelCrop } from '../imageUtils';
 import { cropDataUrl } from '../imageUtils';
 
@@ -11,7 +11,8 @@ type Props = {
   onConfirm: (croppedImage: string) => void | Promise<void>;
 };
 
-const PRESETS: Array<{ id: CropPreset; label: string; aspect: number }> = [
+const PRESETS: Array<{ id: CropPreset; label: string; aspect?: number }> = [
+  { id: 'full', label: 'Full frame' },
   { id: 'portrait', label: 'Portrait', aspect: 3 / 4 },
   { id: 'landscape', label: 'Landscape', aspect: 4 / 3 },
 ];
@@ -69,14 +70,14 @@ function layoutImageInStage(
 export function ImageCropModal({
   imageSrc,
   title = 'Frame the painting before critique',
-  description = 'Choose portrait or landscape to start, then drag any edge or corner to adjust the crop. Use photo when you are ready to analyze.',
+  description = 'Drag edges or corners to adjust the crop, or pick Portrait or Landscape for a centered frame. Use photo when you are ready to analyze.',
   onCancel,
   onConfirm,
 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
   const [natural, setNatural] = useState({ w: 0, h: 0 });
-  const [preset, setPreset] = useState<CropPreset>('portrait');
+  const [preset, setPreset] = useState<CropPreset>('full');
   const [cropRect, setCropRect] = useState<PixelCrop>({ x: 0, y: 0, width: 1, height: 1 });
   const [busy, setBusy] = useState(false);
   type ActiveDrag = DragKind & { pointerId: number };
@@ -126,6 +127,10 @@ export function ImageCropModal({
   const applyPreset = useCallback(
     (p: CropPreset) => {
       if (natural.w <= 0 || natural.h <= 0) return;
+      if (p === 'full') {
+        setCropRect(clampCrop({ x: 0, y: 0, width: natural.w, height: natural.h }, natural.w, natural.h, minSide));
+        return;
+      }
       const aspect = PRESETS.find((e) => e.id === p)?.aspect ?? 3 / 4;
       const next = maxCenteredAspectCrop(natural.w, natural.h, aspect);
       setCropRect(clampCrop(next, natural.w, natural.h, minSide));
@@ -356,19 +361,6 @@ export function ImageCropModal({
                 {entry.label}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => {
-                if (natural.w > 0 && natural.h > 0) {
-                  setCropRect(clampCrop({ x: 0, y: 0, width: natural.w, height: natural.h }, natural.w, natural.h, minSide));
-                }
-              }}
-              disabled={!ready}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Full frame
-            </button>
           </div>
 
           <div
