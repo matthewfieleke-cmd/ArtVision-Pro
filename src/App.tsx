@@ -367,15 +367,8 @@ export default function App() {
   );
 
   const onCropCancel = useCallback(() => {
-    const pc = pendingCropRef.current;
     setPendingCrop(null);
-    if (!pc) return;
-    if (pc.action === 'classify') {
-      void runClassifyStyle(pc.imageSrc);
-    } else {
-      void runAnalysis(pc.imageSrc);
-    }
-  }, [runAnalysis, runClassifyStyle]);
+  }, []);
 
   const onPickFile = useCallback(
     async (file: File | null, source: CropSource = 'gallery') => {
