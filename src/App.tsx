@@ -41,6 +41,7 @@ import type {
   WizardStep,
 } from './types';
 import { MEDIUMS, RATING_LEVELS, STYLES } from './types';
+import { Analytics } from '@vercel/analytics/react';
 
 type StyleMode = 'manual' | 'auto';
 type CropSource = 'gallery' | 'camera-file' | 'live-camera';
@@ -1119,6 +1120,7 @@ export default function App() {
         ) : null}
         </>
       )}
+      <Analytics />
     </div>
   );
 }
