@@ -43,7 +43,8 @@ import type {
 import { MEDIUMS, RATING_LEVELS, STYLES } from './types';
 
 type StyleMode = 'manual' | 'auto';
-type CropSource = 'gallery' | 'camera-file' | 'live-camera';
+type CropSource = 'gallery' | 'camera-file' | 'live-camera' | 'classify-upload';
+type CropAction = 'analyze' | 'classify';
 
 type FlowState = {
   step: WizardStep;
@@ -70,6 +71,7 @@ type FlowState = {
 type PendingCrop = {
   imageSrc: string;
   source: CropSource;
+  action: CropAction;
 };
 
 function newId(): string {
@@ -307,7 +309,7 @@ export default function App() {
       if (!flowRef.current) return;
       stopCamera();
       setAnalyzeError(null);
-      setPendingCrop({ imageSrc, source });
+      setPendingCrop({ imageSrc, source, action: 'analyze' });
       setFlow((cur) => (cur ? { ...cur, step: 'capture' } : cur));
     },
     [stopCamera]

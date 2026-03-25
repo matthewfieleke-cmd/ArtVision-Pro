@@ -1,19 +1,28 @@
 import { useCallback, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
-import { Check, RotateCcw, X } from 'lucide-react';
+import { Check, Crop, RotateCcw, X } from 'lucide-react';
 import { cropDataUrl } from '../imageUtils';
 
 type Props = {
   imageSrc: string;
+  title?: string;
+  description?: string;
   onCancel: () => void;
   onConfirm: (croppedImage: string) => void | Promise<void>;
 };
 
-export function ImageCropModal({ imageSrc, onCancel, onConfirm }: Props) {
+export function ImageCropModal({
+  imageSrc,
+  title = 'Frame the painting before critique',
+  description = 'Drag and zoom to isolate the painted area. Use Freeform for unusual proportions or Locked for a portrait-style frame.',
+  onCancel,
+  onConfirm,
+}: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lockedAspect, setLockedAspect] = useState(true);
 
   const onCropComplete = useCallback((_croppedArea: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
@@ -42,7 +51,7 @@ export function ImageCropModal({ imageSrc, onCancel, onConfirm }: Props) {
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">Crop photo</p>
           <h2 id="crop-photo-title" className="mt-1 font-display text-lg font-normal text-white">
-            Frame the painting before critique
+            {title}
           </h2>
         </div>
         <button
@@ -58,15 +67,36 @@ export function ImageCropModal({ imageSrc, onCancel, onConfirm }: Props) {
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto max-w-lg space-y-4">
           <p className="text-sm leading-relaxed text-slate-300">
-            Drag to center the canvas and pinch or use the slider to remove extra room around the painting.
+            {description}
           </p>
+
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-1">
+            <button
+              type="button"
+              onClick={() => setLockedAspect(true)}
+              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                lockedAspect ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              Locked
+            </button>
+            <button
+              type="button"
+              onClick={() => setLockedAspect(false)}
+              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                !lockedAspect ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              Freeform
+            </button>
+          </div>
 
           <div className="relative aspect-[3/4] overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
             <Cropper
               image={imageSrc}
               crop={crop}
               zoom={zoom}
-              aspect={3 / 4}
+              aspect={lockedAspect ? 3 / 4 : undefined}
               cropShape="rect"
               objectFit="contain"
               showGrid={true}
@@ -81,17 +111,23 @@ export function ImageCropModal({ imageSrc, onCancel, onConfirm }: Props) {
               <label htmlFor="crop-zoom" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Zoom
               </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setCrop({ x: 0, y: 0 });
-                  setZoom(1);
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300">
+                  <Crop className="h-3.5 w-3.5" />
+                  {lockedAspect ? '3:4 frame' : 'Freeform'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCrop({ x: 0, y: 0 });
+                    setZoom(1);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset
+                </button>
+              </div>
             </div>
             <input
               id="crop-zoom"
