@@ -1041,7 +1041,7 @@ export default function App() {
                   />
                 </div>
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
-                  <img src={flow.imageDataUrl} alt="" className="max-h-56 w-full object-contain bg-slate-100" />
+                  <img src={flow.imageDataUrl} alt="" className={`w-full object-contain bg-slate-100 ${isDesktop ? 'max-h-96' : 'max-h-56'}`} />
                 </div>
                 {flow.critiqueSource === 'local' ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
