@@ -596,14 +596,14 @@ function intentRead(style: Style, medium: Medium, strongest: Criterion): string 
     'Abstract Art': 'organize shape, rhythm, and color into a self-sustaining pictorial system',
   };
   const strongestRead: Record<Criterion, string> = {
-    Composition: 'The strongest pull right now is the way the painting tries to organize attention.',
-    'Value structure': 'The painting is most convincing where light and dark masses start to lock together.',
-    'Color relationships': 'Its best claim right now is through palette and temperature relationships.',
-    'Drawing and proportion': 'Its clearest ambition is to make form and placement feel convincing.',
-    'Edge control': 'The painting is most alive where edge decisions begin to direct the eye.',
-    'Brushwork / handling': 'The surface is doing important work in how the image speaks.',
-    'Unity and variety': 'The painting is trying to hold the whole together without going dead.',
-    'Originality / expressive force': 'The image is leaning toward mood and point of view more than pure description.',
+    Composition: 'Right now its clearest strength is the way it tries to organize attention.',
+    'Value structure': 'Right now its clearest strength is the way light and dark masses begin to lock together.',
+    'Color relationships': 'Right now its clearest strength is the way palette and temperature start to carry the mood.',
+    'Drawing and proportion': 'Right now its clearest strength is the attempt to make form and placement feel convincing.',
+    'Edge control': 'Right now its clearest strength is the way edge shifts begin to direct the eye.',
+    'Brushwork / handling': 'Right now its clearest strength is the way the surface starts to speak through the marks.',
+    'Unity and variety': 'Right now its clearest strength is the attempt to hold the whole together without going dead.',
+    'Originality / expressive force': 'Right now its clearest strength is the mood or point of view starting to come through.',
   };
   return `This ${medium.toLowerCase()} ${style.toLowerCase()} study seems to be trying to ${styleRead[style]}. ${strongestRead[strongest]}`;
 }
@@ -614,21 +614,21 @@ function workingBullets(
   photoQuality: PhotoQualityAssessment
 ): string[] {
   const byCriterion: Record<Criterion, string> = {
-    Composition: 'The large shape layout already gives the eye a place to land.',
-    'Value structure': 'The big light-dark read is starting to hold when you step back.',
-    'Color relationships': 'The palette already has a usable family instead of drifting everywhere.',
-    'Drawing and proportion': 'The main shape placement is stable enough to build on.',
+    Composition: 'The large shape layout already gives the eye a place to land instead of wandering everywhere.',
+    'Value structure': 'The big light-dark read is starting to hold when you step back from the painting.',
+    'Color relationships': 'The palette already lives in one believable family instead of drifting into unrelated color notes.',
+    'Drawing and proportion': 'The main shape placement is stable enough that you can correct weaker passages off it.',
     'Edge control': 'A few passages already separate focus from support through edge changes.',
-    'Brushwork / handling': 'Some marks already feel committed rather than fussy.',
-    'Unity and variety': 'The picture has at least one repeating idea that helps it hang together.',
+    'Brushwork / handling': 'Some marks already feel committed and useful instead of overworked.',
+    'Unity and variety': 'The picture already has a repeating idea that helps the whole hang together.',
     'Originality / expressive force': 'There is already a mood or point of view worth protecting.',
   };
   const levelText =
     strongestLevel === 'Master'
-      ? 'That strength already reads as a real asset in the painting.'
+      ? 'That strength already reads as a real asset in the painting, not just a partial success.'
       : strongestLevel === 'Advanced'
         ? 'That area is carrying more of the picture than the others right now.'
-        : 'That gives you a reliable place to build from.';
+        : 'That gives you a reliable place to build from while you correct weaker structure elsewhere.';
   const photoText =
     photoQuality.level === 'good'
       ? 'The photo is clear enough that these reads are reasonably trustworthy.'
@@ -638,21 +638,22 @@ function workingBullets(
 
 function mainIssueText(criterion: Criterion): string {
   const map: Record<Criterion, string> = {
-    Composition: 'The main thing holding the painting back is composition: the eye path and hierarchy are not clear enough yet.',
+    Composition:
+      'The main thing holding the painting back is composition: the eye path and hierarchy are not clear enough yet, so the painting does not fully tell you where to look or why.',
     'Value structure':
-      'The main thing holding the painting back is value structure: the big light and dark masses are not separating clearly enough.',
+      'The main thing holding the painting back is value structure: the big light and dark masses are not separating clearly enough, so the painting loses force when you step back.',
     'Color relationships':
-      'The main thing holding the painting back is color relationships: the palette is not yet organized enough to carry the mood and structure.',
+      'The main thing holding the painting back is color relationships: the palette is not yet organized enough to carry the mood, the space, and the main idea together.',
     'Drawing and proportion':
-      'The main thing holding the painting back is drawing and proportion: shape relationships are not stable enough yet.',
+      'The main thing holding the painting back is drawing and proportion: shape relationships are not stable enough yet, so the painting cannot fully convince as a built form or image.',
     'Edge control':
-      'The main thing holding the painting back is edge control: too many passages have the same edge weight.',
+      'The main thing holding the painting back is edge control: too many passages have the same edge weight, so focus and atmosphere are fighting each other.',
     'Brushwork / handling':
-      'The main thing holding the painting back is handling: the marks do not yet feel selective enough.',
+      'The main thing holding the painting back is handling: the marks do not yet feel selective enough, so the surface works harder than it needs to.',
     'Unity and variety':
-      'The main thing holding the painting back is unity and variety: the painting is not yet balancing repetition and contrast cleanly.',
+      'The main thing holding the painting back is unity and variety: the painting is not yet balancing repetition and contrast cleanly, so parts of it separate instead of belonging to one world.',
     'Originality / expressive force':
-      'The main thing holding the painting back is expressive force: the painting does not yet press its point of view strongly enough.',
+      'The main thing holding the painting back is expressive force: the painting does not yet press its point of view strongly enough, so it reads as competent before it reads as necessary.',
   };
   return map[criterion];
 }

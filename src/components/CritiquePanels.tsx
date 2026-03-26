@@ -81,7 +81,7 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
           <p className="text-sm leading-relaxed text-slate-600">{category.feedback}</p>
           {category.subskills?.length ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skills behind the grade</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What is driving this read</p>
               <div className="mt-2 space-y-2">
                 {category.subskills.map((subskill) => (
                   <div key={subskill.label}>
@@ -104,7 +104,7 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
           ) : null}
           {category.evidenceSignals?.length ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Why this grade</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What I am seeing</p>
               <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-700">
                 {category.evidenceSignals.map((signal) => (
                   <li key={signal} className="flex gap-2">
@@ -122,12 +122,12 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
             </div>
           ) : null}
           <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-700">{category.actionPlan}</p>
           </div>
           {category.practiceExercise ? (
             <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Practice exercise</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Practice this skill</p>
               <p className="mt-1 text-xs leading-relaxed text-violet-950/90">{category.practiceExercise}</p>
             </div>
           ) : null}
