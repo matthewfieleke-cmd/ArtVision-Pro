@@ -202,6 +202,22 @@ Top-level coaching fields:
 - If the painting is already very strong, the main issue can be modest. Do not force a major flaw where there is only a small refinement.
 - If the strongest truthful response is "keep the distributed structure, but refine one relationship inside it," say that instead of forcing a more conventional correction.
 
+Anti-pattern examples:
+- Bad: "The painting needs a stronger focal point."
+- Better: "The painting is already working through distributed attention. Keep that openness, but make the path-to-house transition slightly clearer so the eye can travel without forcing one dominant anchor."
+
+- Bad: "Increase contrast to create more depth."
+- Better: "The compressed value range is part of the mood. Keep that compression, but separate the warm roof plane from the cool tree mass by a smaller value and temperature shift."
+
+- Bad: "Refine the edges to improve clarity."
+- Better: "Most of the softness is doing useful atmospheric work. Keep the sky-tree edges soft, but sharpen only the roof peak where you want the eye to settle briefly."
+
+- Bad: "Make the composition more dynamic."
+- Better: "The current stillness is part of the painting's effect. Instead of forcing more drama, adjust one directional cue so the eye moves more naturally through the existing calm."
+
+- Bad: "Harmonize the colors."
+- Better: "Do not flatten the color differences that give the painting life. Keep the high-chroma accents, but quiet the one passage in the upper-left that currently breaks the painting's color world."
+
 Summary (string):
 - 2–4 sentences in simple language. State the overall read, where the painting already has life, and why the main issue matters.
 
