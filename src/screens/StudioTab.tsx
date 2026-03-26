@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
+import { criterionLabelMatches } from '../../shared/criteria';
 import { CritiquePanels } from '../components/CritiquePanels';
 import { PreviewEditBlendCard } from '../components/PreviewEditBlendCard';
 import type { CritiqueResult, SavedPainting } from '../types';
@@ -20,7 +21,7 @@ function previewTargetForVersion(
   critique: CritiqueResult,
   criterion: (typeof CRITERIA)[number]
 ) {
-  const cat = critique.categories.find((c) => c.criterion === criterion);
+  const cat = critique.categories.find((c) => criterionLabelMatches(c.criterion, criterion));
   return cat ?? critique.categories[0]!;
 }
 

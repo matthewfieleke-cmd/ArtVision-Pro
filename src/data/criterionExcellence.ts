@@ -1,4 +1,4 @@
-import { CRITERIA_ORDER } from '../../shared/criteria';
+import { CRITERIA_ORDER, canonicalCriterionLabel } from '../../shared/criteria';
 import { artImage } from '../artPublicUrl';
 import type { Criterion } from '../types';
 
@@ -19,6 +19,7 @@ export type CriterionExcellenceExample = {
 export type CriterionExcellenceEntry = {
   criterion: Criterion;
   slug: string;
+  legacySlugs?: string[];
   /** One line — what this criterion measures */
   tagline: string;
   intro: string;
@@ -35,8 +36,9 @@ function slugForCriterion(label: string): string {
 
 const ENTRIES: CriterionExcellenceEntry[] = [
   {
-    criterion: 'Composition',
-    slug: slugForCriterion('Composition'),
+    criterion: 'Composition and shape structure',
+    slug: slugForCriterion('Composition and shape structure'),
+    legacySlugs: [slugForCriterion('Composition')],
     tagline: 'How the whole image is organized—focal pull, rhythm, and balance.',
     intro:
       'Strong composition makes the eye move with purpose: a clear hierarchy of interest, repeated directions that rhyme, and supporting areas that stay subordinate. Study how masters stage the motif within the rectangle without crowding or drifting.',
@@ -72,8 +74,9 @@ const ENTRIES: CriterionExcellenceEntry[] = [
     ],
   },
   {
-    criterion: 'Value structure',
-    slug: slugForCriterion('Value structure'),
+    criterion: 'Value and light structure',
+    slug: slugForCriterion('Value and light structure'),
+    legacySlugs: [slugForCriterion('Value structure')],
     tagline: 'The big light-and-dark pattern that still reads when you squint.',
     intro:
       'Values do the structural work of making form readable at a distance. Masters group shadows and lights into families, reserve extremes for emphasis, and keep midtones in service of the whole.',
@@ -144,8 +147,9 @@ const ENTRIES: CriterionExcellenceEntry[] = [
     ],
   },
   {
-    criterion: 'Drawing and proportion',
-    slug: slugForCriterion('Drawing and proportion'),
+    criterion: 'Drawing, proportion, and spatial form',
+    slug: slugForCriterion('Drawing, proportion, and spatial form'),
+    legacySlugs: [slugForCriterion('Drawing and proportion')],
     tagline: 'Accuracy of form, scale, and spatial relationships in the motif.',
     intro:
       'Drawing here means the underlying structure: proportions, perspective, anatomy or geometry, and how forms occupy space. It can be tight or painterly, but it must convince.',
@@ -181,8 +185,9 @@ const ENTRIES: CriterionExcellenceEntry[] = [
     ],
   },
   {
-    criterion: 'Edge control',
-    slug: slugForCriterion('Edge control'),
+    criterion: 'Edge and focus control',
+    slug: slugForCriterion('Edge and focus control'),
+    legacySlugs: [slugForCriterion('Edge control')],
     tagline: 'Where forms turn hard, soft, or lost—and how that directs attention.',
     intro:
       'Edges are a compositional instrument: sharp accents pin focal points; lost edges weave masses together. Masters vary edge on purpose, not by accident.',
@@ -218,8 +223,9 @@ const ENTRIES: CriterionExcellenceEntry[] = [
     ],
   },
   {
-    criterion: 'Brushwork / handling',
-    slug: slugForCriterion('Brushwork / handling'),
+    criterion: 'Surface and medium handling',
+    slug: slugForCriterion('Surface and medium handling'),
+    legacySlugs: [slugForCriterion('Brushwork / handling')],
     tagline: 'The physical trace of paint—scale, direction, and surface energy.',
     intro:
       'Handling reveals decision: long wet strokes versus staccato touches, transparency versus impasto. Coherent brush logic makes the surface feel intentional.',
@@ -255,11 +261,12 @@ const ENTRIES: CriterionExcellenceEntry[] = [
     ],
   },
   {
-    criterion: 'Unity and variety',
-    slug: slugForCriterion('Unity and variety'),
-    tagline: 'The whole feels one statement while passages still surprise.',
+    criterion: 'Intent and necessity',
+    slug: slugForCriterion('Intent and necessity'),
+    legacySlugs: [slugForCriterion('Unity and variety')],
+    tagline: 'Whether the painting’s decisions feel necessary to what it is trying to do.',
     intro:
-      'Unity without monotony needs repeated shapes, colors, or rhythms plus controlled variation. Too much sameness flattens; too much randomness fractures.',
+      'This criterion asks whether the painting feels like one coherent effort rather than a pile of effects. The question is not just whether parts relate, but whether the structure, subject, and handling all seem to belong to the same ambition.',
     examples: [
       {
         workTitle: 'Composition VII',
@@ -291,11 +298,12 @@ const ENTRIES: CriterionExcellenceEntry[] = [
     ],
   },
   {
-    criterion: 'Originality / expressive force',
-    slug: slugForCriterion('Originality / expressive force'),
-    tagline: 'Distinct voice, risk, and emotional or conceptual pressure in the work.',
+    criterion: 'Presence, point of view, and human force',
+    slug: slugForCriterion('Presence, point-of-view, and human force'),
+    legacySlugs: [slugForCriterion('Originality / expressive force')],
+    tagline: 'Whether the painting has conviction, atmosphere, and a real way of seeing.',
     intro:
-      'This criterion is about whether the painting feels necessary—personal pressure, bold choices, or a point of view that could not be swapped for a generic solution.',
+      'This criterion is about more than novelty. It asks whether the painting carries a felt presence, a human pressure, or a particular viewpoint that makes it memorable rather than merely competent.',
     examples: [
       {
         workTitle: 'Self-Portrait with Physalis',
@@ -329,9 +337,13 @@ const ENTRIES: CriterionExcellenceEntry[] = [
   },
 ];
 
-const bySlug = new Map<string, CriterionExcellenceEntry>(
-  ENTRIES.map((e) => [e.slug, e])
-);
+const bySlug = new Map<string, CriterionExcellenceEntry>();
+for (const entry of ENTRIES) {
+  bySlug.set(entry.slug, entry);
+  for (const slug of entry.legacySlugs ?? []) {
+    bySlug.set(slug, entry);
+  }
+}
 
 const byCriterion = new Map<Criterion, CriterionExcellenceEntry>(
   ENTRIES.map((e) => [e.criterion, e])
@@ -342,9 +354,9 @@ function assertCriteriaAligned(): void {
   if (ENTRIES.length !== CRITERIA_ORDER.length) {
     throw new Error('criterionExcellence: expected one entry per CRITERIA_ORDER item');
   }
-  for (let i = 0; i < CRITERIA_ORDER.length; i++) {
-    if (ENTRIES[i]!.criterion !== CRITERIA_ORDER[i]) {
-      throw new Error(`criterionExcellence: order mismatch at index ${i}`);
+  for (const criterion of CRITERIA_ORDER) {
+    if (!ENTRIES.some((entry) => entry.criterion === criterion)) {
+      throw new Error(`criterionExcellence: missing entry for ${criterion}`);
     }
   }
 }
@@ -352,7 +364,8 @@ function assertCriteriaAligned(): void {
 assertCriteriaAligned();
 
 export function learnPathForCriterion(criterion: Criterion): string {
-  const e = byCriterion.get(criterion);
+  const canonical = canonicalCriterionLabel(criterion);
+  const e = canonical ? byCriterion.get(canonical) : undefined;
   if (!e) throw new Error(`No learn content for criterion: ${criterion}`);
   return `/learn/criterion/${e.slug}`;
 }

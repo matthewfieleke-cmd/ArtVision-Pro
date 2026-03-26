@@ -81,7 +81,7 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
           <p className="text-sm leading-relaxed text-slate-600">{category.feedback}</p>
           {category.subskills?.length ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skills behind the grade</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What is driving this read</p>
               <div className="mt-2 space-y-2">
                 {category.subskills.map((subskill) => (
                   <div key={subskill.label}>
@@ -104,7 +104,7 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
           ) : null}
           {category.evidenceSignals?.length ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Why this grade</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What I am seeing</p>
               <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-700">
                 {category.evidenceSignals.map((signal) => (
                   <li key={signal} className="flex gap-2">
@@ -122,12 +122,12 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
             </div>
           ) : null}
           <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next level</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-700">{category.actionPlan}</p>
           </div>
           {category.practiceExercise ? (
             <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Practice exercise</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Practice this skill</p>
               <p className="mt-1 text-xs leading-relaxed text-violet-950/90">{category.practiceExercise}</p>
             </div>
           ) : null}
@@ -146,6 +146,51 @@ type Props = {
 export function CritiquePanels({ critique, onLearnMore }: Props) {
   return (
     <div className="space-y-3">
+      {critique.simple ? (
+        <section className="rounded-2xl border border-violet-200/80 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Studio read</p>
+          <div className="mt-3 space-y-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What this painting is trying to do</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">{critique.simple.readOfWork}</p>
+            </div>
+            {critique.simple.working.length ? (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What is working</p>
+                <ul className="mt-1 space-y-1 text-sm leading-relaxed text-slate-700">
+                  {critique.simple.working.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="mt-[0.4rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Main issue</p>
+              <p className="mt-1 text-sm leading-relaxed text-amber-950">{critique.simple.mainIssue}</p>
+            </div>
+            {critique.simple.nextSteps.length ? (
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What to do next</p>
+                <ol className="mt-1 space-y-1 text-sm leading-relaxed text-slate-700">
+                  {critique.simple.nextSteps.map((step, idx) => (
+                    <li key={step} className="flex gap-2">
+                      <span className="min-w-[1rem] font-semibold text-violet-700">{idx + 1}.</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Keep this</p>
+              <p className="mt-1 text-sm leading-relaxed text-emerald-950/90">{critique.simple.preserve}</p>
+            </div>
+          </div>
+        </section>
+      ) : null}
       {critique.photoQuality ? (
         <section
           className={`rounded-2xl border p-4 text-sm ${
@@ -203,7 +248,11 @@ export function CritiquePanels({ critique, onLearnMore }: Props) {
           <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
         </div>
       ) : null}
-      <p className="text-sm leading-relaxed text-slate-600">{critique.summary}</p>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Full critique summary</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">{critique.summary}</p>
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Detailed criterion breakdown</p>
       {critique.categories.map((category) => (
         <CategoryCard key={category.criterion} category={category} onLearnMore={onLearnMore} />
       ))}
