@@ -7,8 +7,10 @@ const LINK_TABS: { id: TabId; label: string; icon: typeof ImageIcon }[] = [
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
-/** Same height for every tab so icons share one horizontal band; raster critique uses full slot. */
-const ICON_ROW = 'flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center';
+/** Shared icon frame keeps raster and vector tabs aligned on the same baseline. */
+const TAB_BUTTON =
+  'flex min-w-[4.5rem] flex-col items-center justify-start gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold leading-none transition';
+const ICON_ROW = 'flex h-8 w-8 shrink-0 items-center justify-center';
 
 type Props = {
   active: TabId;
@@ -25,11 +27,11 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
       className="fixed bottom-0 inset-x-0 z-20 border-t border-slate-200/90 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_-8px_rgba(15,23,42,0.08)]"
       aria-label="Main"
     >
-      <div className="mx-auto flex max-w-lg items-end justify-around px-2 pt-1.5">
+      <div className="mx-auto flex max-w-lg items-start justify-around px-2 pt-1.5">
         <button
           type="button"
           onClick={onStartCritique}
-          className={`flex min-w-[4.5rem] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+          className={`${TAB_BUTTON} ${
             critiqueOn ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'
           }`}
           aria-label="New critique — style and medium"
@@ -38,7 +40,7 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
             <img
               src={`${import.meta.env.BASE_URL}critique.png`}
               alt=""
-              className={`h-full w-full object-cover object-top ${critiqueOn ? '' : 'opacity-80'}`}
+              className={`h-full w-full object-contain ${critiqueOn ? '' : 'opacity-80'}`}
               width={72}
               height={72}
               decoding="async"
@@ -54,7 +56,7 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
               key={id}
               type="button"
               onClick={() => onChange(id)}
-              className={`flex min-w-[4.5rem] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+              className={`${TAB_BUTTON} ${
                 on ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
