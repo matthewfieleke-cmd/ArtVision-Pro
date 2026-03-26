@@ -13,7 +13,7 @@ export type CriterionRubric = {
 
 const REALISM_RUBRIC: CriterionRubric[] = [
   {
-    criterion: 'Composition',
+    criterion: 'Composition and shape structure',
     masterSignals: [
       'Frieze or pyramid grouping with clear figure–ground (Courbet, Millet); diagonal narrative pull (Repin); measured spatial depth (Eakins).',
       'Social or moral focus staged through who is centered and who labors (Courbet, Daumier, Millet).',
@@ -23,7 +23,7 @@ const REALISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Value structure',
+    criterion: 'Value and light structure',
     masterSignals: [
       'Big readable masses when squinting; differentiated blacks and earth families (Courbet, Daumier).',
       'Outdoor light that explains form and weight—cool reflected light, warm top light (Repin, Homer, Eakins).',
@@ -44,7 +44,7 @@ const REALISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Drawing and proportion',
+    criterion: 'Drawing, proportion, and spatial form',
     masterSignals: [
       'Anatomy and architecture observed with construction underneath (Eakins, Repin).',
       'Graphic clarity of type and posture with few strokes (Daumier); weight and contact read convincingly.',
@@ -54,7 +54,7 @@ const REALISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Edge control',
+    criterion: 'Edge and focus control',
     masterSignals: [
       'Hard silhouettes where bodies meet sky vs softer internal modeling (Millet, Courbet).',
       'Selective sharpness on hands, faces, and narrative hooks vs atmospheric recession (Homer water, Repin ropes).',
@@ -64,7 +64,7 @@ const REALISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Brushwork / handling',
+    criterion: 'Surface and medium handling',
     masterSignals: [
       'Facture supports description—rough stone, wet water, fabric weight (Courbet, Homer).',
       'Economy: large accurate passages before detail (Homer, Daumier lithographic logic in oil).',
@@ -76,29 +76,28 @@ const REALISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Unity and variety',
+    criterion: 'Intent and necessity',
     masterSignals: [
-      'Repeating motifs (backs, waves, carriage riders) with controlled variation (Millet, Daumier).',
-      'Weather and scale unify figure and setting (Homer); multi-figure clarity without clutter (Repin).',
-      'Court ensemble as rhythm of verticals and intervals—dog, dwarf, door as counterbeats (Velázquez).',
+      'Every formal choice feels tied to the subject’s social and human weight, not added as generic polish (Courbet, Millet, Daumier).',
+      'Observation, staging, and facture all serve one pictorial aim—nothing feels merely decorative (Eakins, Homer).',
+      'Modern urban exactitude turns ordinary infrastructure into a coherent visual argument, not a pile of detail (Estes).',
+      'Each decision about focus, silhouette, and interval feels necessary to the painting’s point, as in Velázquez and Vermeer.',
     ],
   },
   {
-    criterion: 'Originality / expressive force',
+    criterion: 'Presence, point of view, and human force',
     masterSignals: [
-      'Ordinary life given moral or pictorial weight without sentimentality (Millet, Courbet).',
-      'American isolation or endurance as clear voice (Homer); unflinching observation (Eakins).',
-      'Modern urban stillness—banal infrastructure made riveting through optical exactitude (Estes).',
-      'Private gaze and material modesty elevated to iconic presence (Vermeer).',
-      'Execution scene as modern history painting—pity without theatrical prettiness (Goya).',
-      'Society portrait as psychological dare—beauty and scandal in one silhouette (Sargent).',
+      'Ordinary life is given moral or human weight without sentimentality (Millet, Courbet).',
+      'A distinct way of seeing governs the image—private, severe, tender, or unflinching (Vermeer, Eakins, Homer).',
+      'The painting carries atmosphere or psychological charge that lingers after the first read (Goya, Sargent).',
+      'Subject and treatment feel inseparable, so the work reads as necessary rather than merely well made.',
     ],
   },
 ];
 
 const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
   {
-    criterion: 'Composition',
+    criterion: 'Composition and shape structure',
     masterSignals: [
       'Casual crop, off-center emphasis, modern life framing (Degas, Cassatt, Morisot).',
       'Horizon and water geometry carry the design (Monet, Pissarro); leisure clusters (Renoir).',
@@ -108,7 +107,7 @@ const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Value structure',
+    criterion: 'Value and light structure',
     masterSignals: [
       'Few value keys; light as the true subject—still reads when squinting (Monet).',
       'High-key interiors with soft envelope of light (Morisot, Cassatt).',
@@ -128,7 +127,7 @@ const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Drawing and proportion',
+    criterion: 'Drawing, proportion, and spatial form',
     masterSignals: [
       'Drawing dissolved into sensation but structure underneath figures (Degas, Morisot).',
       'Tender observation of gesture without stiff outline (Cassatt, Renoir).',
@@ -138,7 +137,7 @@ const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Edge control',
+    criterion: 'Edge and focus control',
     masterSignals: [
       'Lost edges in light, found edges in silhouette and contour (Monet, Pissarro).',
       'Pastel-like softness vs decisive contour where the story needs it (Cassatt, Degas).',
@@ -148,7 +147,7 @@ const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Brushwork / handling',
+    criterion: 'Surface and medium handling',
     masterSignals: [
       'Separate touches that fuse optically at distance (Monet, Pissarro).',
       'Feathered veils and scumble for atmosphere (Morisot); brisk figure notation (Degas).',
@@ -158,28 +157,28 @@ const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Unity and variety',
+    criterion: 'Intent and necessity',
     masterSignals: [
-      'Repeated brush logic across the canvas; accents placed sparingly (Monet series discipline).',
-      'Figure and setting share one light-world (Renoir ball scenes; Cassatt domestic space).',
-      'Umbrellas, skirts, and dogs repeat intervals across the lawn without identical repetition (Seurat).',
+      'Light, crop, and touch all serve the chosen sensation of the moment rather than competing for attention (Monet, Pissarro).',
+      'Figure and setting belong to one atmosphere and one way of seeing (Cassatt, Morisot, Renoir).',
+      'The painting’s looseness is disciplined: apparent spontaneity still feels organized and necessary (Monet series, Cézanne, Hockney).',
+      'Optical decisions read as a coherent pictorial problem, not a collection of Impressionist effects.',
     ],
   },
   {
-    criterion: 'Originality / expressive force',
+    criterion: 'Presence, point of view, and human force',
     masterSignals: [
-      'Optical truth as argument—why this moment, this weather (Monet).',
-      'Intimacy and modern life without anecdotal clutter (Cassatt, Morisot).',
-      'Contemporary leisure and light—Impressionist “instant” updated with California clarity and wit (Hockney).',
-      'Neo-Impressionist rigor—leisure made laboratory (Seurat).',
-      'From Impressionist light toward modern structure—mountain as permanent experiment (Cézanne).',
+      'A specific lived sensation—light, weather, intimacy, leisure, or stillness—comes through clearly (Monet, Cassatt, Morisot).',
+      'The painting carries a recognizable viewpoint without needing theatrical drama (Renoir, Pissarro).',
+      'Modern life is filtered through a distinct sensibility rather than merely recorded (Seurat, Hockney).',
+      'Atmosphere and point of view stay memorable even when drawing and edges remain open.',
     ],
   },
 ];
 
 const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
   {
-    criterion: 'Composition',
+    criterion: 'Composition and shape structure',
     masterSignals: [
       'Distortion and diagonal stress as psychological fact (Munch, Kirchner).',
       'Compressed monumentality and stillness (Modersohn-Becker) vs diagrammatic panic (Munch).',
@@ -188,7 +187,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Value structure',
+    criterion: 'Value and light structure',
     masterSignals: [
       'Non-naturalistic value still serves hierarchy and mood (Munch, Nolde).',
       'High-contrast graphic clarity in compressed space (Schiele, Kirchner).',
@@ -206,7 +205,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Drawing and proportion',
+    criterion: 'Drawing, proportion, and spatial form',
     masterSignals: [
       'Deliberate elongation, hinge joints, exposed structure (Schiele, Modersohn-Becker).',
       'Wavy perspective and simplified masses as inner state (Munch).',
@@ -215,7 +214,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Edge control',
+    criterion: 'Edge and focus control',
     masterSignals: [
       'Nervous contour vs blunt blocked shapes—chosen for anxiety or weight (Schiele, Nolde).',
       'Carved outlines around figures in street scenes (Kirchner).',
@@ -224,7 +223,7 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Brushwork / handling',
+    criterion: 'Surface and medium handling',
     masterSignals: [
       'Scratch, drag, stain—surface matches emotional temperature (Kirchner, Nolde).',
       'Heavy simplicity and tactile earth (Modersohn-Becker); graphic wipe in Munch skies.',
@@ -233,27 +232,28 @@ const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Unity and variety',
+    criterion: 'Intent and necessity',
     masterSignals: [
-      'Repeating angularity or curves as motif across the canvas (Kirchner, Kandinsky early).',
-      'One dominant emotional temperature with controlled counter-accents (Munch).',
-      'Whole sky and river reflections obey one stroke grammar while the bank and figures stay comparatively calm (van Gogh).',
+      'Distortion, chroma, and brush energy all serve one emotional pressure rather than pulling in different directions (Munch, Kirchner).',
+      'The work knows when to simplify and when to intensify; force comes from selection, not noise (Modersohn-Becker, Nolde).',
+      'Graphic signs, figures, and marks all belong to one expressive system (Basquiat).',
+      'Stroke rhythm and motif handling feel necessary to the mood the painting is trying to create (van Gogh).',
     ],
   },
   {
-    criterion: 'Originality / expressive force',
+    criterion: 'Presence, point of view, and human force',
     masterSignals: [
-      'Inner life made visible through color and form, not illustration (Munch, Schiele).',
-      'Bold reduction and quiet intensity (Modersohn-Becker); raw chroma as voice (Nolde).',
-      'Urban myth-making—words, symbols, and crowned heads as contemporary hieroglyph (Basquiat).',
-      'Landscape as spiritual agitation—post-Impressionist path to Expressionism (van Gogh).',
+      'Inner life becomes visible through color, distortion, and surface rather than literal storytelling (Munch, Schiele).',
+      'The painting carries a clear emotional or psychological temperature that does not dilute itself (Nolde, Modersohn-Becker).',
+      'Subject and treatment fuse into a point of view that feels unmistakably personal (Basquiat, van Gogh).',
+      'Even rough or unstable passages contribute to conviction instead of reading as unresolved by accident.',
     ],
   },
 ];
 
 const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
   {
-    criterion: 'Composition',
+    criterion: 'Composition and shape structure',
     masterSignals: [
       'Grid equilibrium and dynamic asymmetry (Mondrian); stacked intervals (Rothko).',
       'All-over rhythm without a single “hero” motif (Pollock); biomorphic placement (Miró, Kandinsky).',
@@ -263,7 +263,7 @@ const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Value structure',
+    criterion: 'Value and light structure',
     masterSignals: [
       'Intervals of white, grey, and black as active space (Mondrian, Malevich).',
       'Close-value fields that breathe—luminosity from layering (Rothko).',
@@ -282,7 +282,7 @@ const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Drawing and proportion',
+    criterion: 'Drawing, proportion, and spatial form',
     masterSignals: [
       'Internal proportion of intervals, bars, and shapes—not depiction (Mondrian, Malevich).',
       'Calligraphic drawing merged with field (Pollock, Miró).',
@@ -292,7 +292,7 @@ const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Edge control',
+    criterion: 'Edge and focus control',
     masterSignals: [
       'Knife-sharp junctions vs matte correction (Mondrian); feathered horizontals (Rothko).',
       'Linear skeins as edge and texture (Pollock).',
@@ -302,7 +302,7 @@ const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Brushwork / handling',
+    criterion: 'Surface and medium handling',
     masterSignals: [
       'Hidden brushing in veils (Rothko); visible drip choreography (Pollock).',
       'Flat discipline and sanded revision (Mondrian); graphic sign-painting clarity (Miró, Malevich).',
@@ -312,21 +312,21 @@ const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
     ],
   },
   {
-    criterion: 'Unity and variety',
+    criterion: 'Intent and necessity',
     masterSignals: [
-      'Repeating modules with slight variation—bars, drips, stacks (Mondrian, Pollock).',
-      'Whole canvas obeys one structural law (Malevich square; Rothko stacks).',
-      'Ornamental grid repeats with variation—whiplash and circle motifs (Klimt).',
+      'Every interval, color decision, and shape family feels governed by one pictorial law (Mondrian, Malevich, Rothko).',
+      'Gesture, stain, or pattern behaves as a system rather than as unrelated incidents (Pollock, Frankenthaler, Klimt).',
+      'Even playfulness or openness still feels structurally committed, not casual (Miró, Delaunay).',
+      'The work reads as a deliberate proposition about painting, not simply an arrangement of attractive abstract parts.',
     ],
   },
   {
-    criterion: 'Originality / expressive force',
+    criterion: 'Presence, point of view, and human force',
     masterSignals: [
-      'Reduction as radical invention (Malevich); spiritual scale without illustration (Rothko).',
-      'Play and primitive signs as modern voice (Miró); bodily scale of mark (Pollock).',
-      'Inventing a new optical softness—stain as radical alternative to impasto monument (Frankenthaler).',
-      'Secessionist synthesis—fine art, craft, and eros in one plane (Klimt).',
-      'Modernity as color-music—city and technology as abstract joy (Delaunay).',
+      'The painting carries conviction through scale, interval, atmosphere, or sign rather than representational subject matter (Rothko, Malevich).',
+      'A distinct voice appears in the way the surface and structure meet—bodily, lyrical, severe, or ecstatic (Pollock, Miró, Frankenthaler).',
+      'Abstraction still generates felt presence: the work seems inhabited by a way of seeing (Klimt, Delaunay).',
+      'Reduction, ornament, or gesture become memorable because they feel necessary, not merely novel.',
     ],
   },
 ];

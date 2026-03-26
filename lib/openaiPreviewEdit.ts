@@ -233,14 +233,22 @@ function criterionGainScore(
   candidate: ImageStats
 ): number {
   switch (criterion) {
-    case 'Composition':
+    case 'Intent and necessity':
+      return clamp01(
+        0.38 * (candidate.centerFocus - original.centerFocus) +
+          0.22 * (candidate.valueSpread - original.valueSpread) +
+          0.2 * (candidate.colorHarmony - original.colorHarmony) +
+          0.2 * (centeredScore(candidate.focalOffset, 0.28, 0.28) - centeredScore(original.focalOffset, 0.28, 0.28)) +
+          0.5
+      );
+    case 'Composition and shape structure':
       return clamp01(
         0.4 * (centeredScore(candidate.focalOffset, 0.3, 0.3) - centeredScore(original.focalOffset, 0.3, 0.3)) +
           0.35 * (candidate.centerFocus - original.centerFocus) +
           0.25 * (centeredScore(candidate.borderActivity, 0.14, 0.18) - centeredScore(original.borderActivity, 0.14, 0.18)) +
           0.5
       );
-    case 'Value structure':
+    case 'Value and light structure':
       return clamp01(
         0.45 * (candidate.valueSpread - original.valueSpread) +
           0.35 * (candidate.contrast - original.contrast) +
@@ -254,39 +262,33 @@ function criterionGainScore(
           0.25 * (centeredScore(candidate.saturationMean, 0.18, 0.16) - centeredScore(original.saturationMean, 0.18, 0.16)) +
           0.5
       );
-    case 'Drawing and proportion':
+    case 'Drawing, proportion, and spatial form':
       return clamp01(
         0.45 * (candidate.centerFocus - original.centerFocus) +
           0.3 * (centeredScore(candidate.borderActivity, 0.12, 0.18) - centeredScore(original.borderActivity, 0.12, 0.18)) +
           0.25 * (candidate.contrast - original.contrast) +
           0.5
       );
-    case 'Edge control':
+    case 'Edge and focus control':
       return clamp01(
         0.45 * (centeredScore(candidate.edgeBalance, 0.18, 0.2) - centeredScore(original.edgeBalance, 0.18, 0.2)) +
           0.3 * (centeredScore(candidate.edgeDensity, 0.28, 0.28) - centeredScore(original.edgeDensity, 0.28, 0.28)) +
           0.25 * (candidate.valueSpread - original.valueSpread) +
           0.5
       );
-    case 'Brushwork / handling':
+    case 'Surface and medium handling':
       return clamp01(
         0.5 * (candidate.textureScore - original.textureScore) +
           0.25 * (candidate.edgeDensity - original.edgeDensity) +
           0.25 * (centeredScore(candidate.edgeBalance, 0.2, 0.22) - centeredScore(original.edgeBalance, 0.2, 0.22)) +
           0.5
       );
-    case 'Unity and variety':
+    case 'Presence, point of view, and human force':
       return clamp01(
-        0.45 * (candidate.colorHarmony - original.colorHarmony) +
-          0.25 * (centeredScore(candidate.saturationStd, 0.12, 0.16) - centeredScore(original.saturationStd, 0.12, 0.16)) +
-          0.3 * (candidate.contrast - original.contrast) +
-          0.5
-      );
-    case 'Originality / expressive force':
-      return clamp01(
-        0.4 * (candidate.textureScore - original.textureScore) +
-          0.3 * (candidate.saturationStd - original.saturationStd) +
-          0.3 * (candidate.focalOffset - original.focalOffset) +
+        0.34 * (candidate.textureScore - original.textureScore) +
+          0.24 * (candidate.saturationStd - original.saturationStd) +
+          0.18 * (candidate.focalOffset - original.focalOffset) +
+          0.24 * (candidate.borderActivity - original.borderActivity) +
           0.5
       );
   }
