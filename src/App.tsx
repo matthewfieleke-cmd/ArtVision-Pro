@@ -10,7 +10,6 @@ import {
   Loader2,
   Palette,
   Save,
-  Sparkles,
   Upload,
   Wand2,
   X,
@@ -812,7 +811,14 @@ export default function App() {
                   <X className="h-5 w-5" />
                 </button>
               ) : (
-                <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
+                <button
+                  type="button"
+                  onClick={goHome}
+                  className="rounded-full p-2 text-violet-500 transition md:hover:bg-violet-50 md:hover:text-violet-700"
+                  aria-label="Go to home"
+                >
+                  <Home className="h-6 w-6" />
+                </button>
               )}
             </div>
           </header>
