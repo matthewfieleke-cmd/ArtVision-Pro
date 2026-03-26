@@ -37,9 +37,9 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
             <img
               src={`${import.meta.env.BASE_URL}critique.png`}
               alt=""
-              className={`max-h-6 max-w-6 object-contain ${critiqueOn ? '' : 'opacity-80'}`}
-              width={24}
-              height={24}
+              className={`h-full w-full object-contain object-center ${critiqueOn ? '' : 'opacity-80'}`}
+              width={36}
+              height={36}
               decoding="async"
               aria-hidden
             />
