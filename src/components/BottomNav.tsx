@@ -11,6 +11,7 @@ const LINK_TABS: { id: TabId; label: string; icon: typeof ImageIcon }[] = [
 const TAB_BUTTON =
   'flex min-w-[4.5rem] flex-col items-center justify-start gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold leading-none transition';
 const ICON_ROW = 'flex h-8 w-8 shrink-0 items-center justify-center';
+const CRITIQUE_ICON_FRAME = 'flex h-7 w-7 items-center justify-center overflow-hidden';
 
 type Props = {
   active: TabId;
@@ -37,15 +38,17 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
           aria-label="New critique — style and medium"
         >
           <span className={ICON_ROW}>
-            <img
-              src={`${import.meta.env.BASE_URL}critique.png`}
-              alt=""
-              className={`h-full w-full object-contain ${critiqueOn ? '' : 'opacity-80'}`}
-              width={72}
-              height={72}
-              decoding="async"
-              aria-hidden
-            />
+            <span className={CRITIQUE_ICON_FRAME}>
+              <img
+                src={`${import.meta.env.BASE_URL}critique.png`}
+                alt=""
+                className={`h-full w-full scale-[1.35] object-contain ${critiqueOn ? '' : 'opacity-80'}`}
+                width={72}
+                height={72}
+                decoding="async"
+                aria-hidden
+              />
+            </span>
           </span>
           Critique
         </button>
