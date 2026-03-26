@@ -3,6 +3,82 @@ import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 
+const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
+  name: 'painting_critique_evidence',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'intentHypothesis',
+      'strongestVisibleQualities',
+      'mainTensions',
+      'criterionEvidence',
+      'photoQualityRead',
+      'comparisonObservations',
+    ],
+    properties: {
+      intentHypothesis: { type: 'string' },
+      strongestVisibleQualities: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 4,
+        items: { type: 'string' },
+      },
+      mainTensions: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 4,
+        items: { type: 'string' },
+      },
+      photoQualityRead: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['level', 'summary', 'issues'],
+        properties: {
+          level: { type: 'string', enum: ['poor', 'fair', 'good'] },
+          summary: { type: 'string' },
+          issues: {
+            type: 'array',
+            minItems: 0,
+            maxItems: 4,
+            items: { type: 'string' },
+          },
+        },
+      },
+      comparisonObservations: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 4,
+        items: { type: 'string' },
+      },
+      criterionEvidence: {
+        type: 'array',
+        minItems: CRITERIA_ORDER.length,
+        maxItems: CRITERIA_ORDER.length,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['criterion', 'visibleEvidence', 'strengthRead', 'tensionRead', 'preserve', 'confidence'],
+          properties: {
+            criterion: { type: 'string', enum: [...CRITERIA_ORDER] },
+            visibleEvidence: {
+              type: 'array',
+              minItems: 2,
+              maxItems: 5,
+              items: { type: 'string' },
+            },
+            strengthRead: { type: 'string' },
+            tensionRead: { type: 'string' },
+            preserve: { type: 'string' },
+            confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 const CRITIQUE_JSON_SCHEMA = {
   name: 'painting_critique',
   strict: true,
@@ -111,135 +187,265 @@ function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
 }
 
-function buildSystemPrompt(style: string, medium: string): string {
+type CritiqueEvidenceDTO = {
+  intentHypothesis: string;
+  strongestVisibleQualities: string[];
+  mainTensions: string[];
+  photoQualityRead: {
+    level: 'poor' | 'fair' | 'good';
+    summary: string;
+    issues: string[];
+  };
+  comparisonObservations: string[];
+  criterionEvidence: Array<{
+    criterion: (typeof CRITERIA_ORDER)[number];
+    visibleEvidence: string[];
+    strengthRead: string;
+    tensionRead: string;
+    preserve: string;
+    confidence: 'low' | 'medium' | 'high';
+  }>;
+};
+
+function buildEvidencePrompt(style: string, medium: string): string {
   const benchmarks = isStyleKey(style)
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
-  return `You are a senior painting critic-teacher combining the strengths of major critics, historians, and studio painters.
+  return `You are stage 1 of a painting critique system.
 
-Core voice:
-- Judge the painting by what it is trying to do.
-- Check whether structure, surface, and handling support that aim.
-- Notice viewpoint, atmosphere, and human force—not just polish.
-- Give feedback a painter can use immediately in the studio.
-- Use simple, clear language. Never sound academic for its own sake.
-- Do not assume every good painting should become smoother, tighter, more finished, or more realistic.
-- Protect ambiguity, strangeness, or roughness when they are helping the painting.
-- If the work already reads as strong or master-level in a criterion, say so plainly and avoid inventing corrections just to have something to fix.
+Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
 
-Before giving any criticism, test these failure modes and avoid them unless the visible evidence is strong:
-- Do not default to "stronger focal point" if the painting is intentionally distributed, atmospheric, or all-over.
-- Do not default to "more contrast" if the current value compression is part of the painting's mood or light logic.
-- Do not default to "more clarity" if partial ambiguity is helping atmosphere, mystery, softness, or movement.
-- Do not default to "sharper edges" if softness or instability is doing meaningful pictorial work.
-
-Your job is to help THIS artist improve THIS specific piece—not to flatter them.
+Rules:
+- Stay at the level of evidence, tensions, and what should be preserved.
+- Do not prescribe fixes.
+- Do not invent weaknesses just because the painting could be different.
+- If a painting is already strong in a criterion, say so plainly.
+- If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
+- If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
 
 Context:
 - Declared style: ${style}
 - Declared medium: ${medium}
+- Benchmarks for what "Master" means in this style: ${benchmarks}
 
-Benchmark what "Master" means in this style (technical + expressive bar, not imitation): ${benchmarks}.
-
-Style-specific master signals (judge the image against these observable techniques; do not ask them to copy a master):
+Style-specific master signals:
 ${rubricBlock}
 
-Before you write JSON, mentally scan the image in quadrants (upper-left, upper-right, lower-left, lower-right) and note focal area vs periphery, largest value shapes, and where edges are hard vs soft. Use that scan in your writing.
+For each criterion, provide:
+- visibleEvidence: short concrete observations tied to areas of the canvas
+- strengthRead: what already works in that criterion
+- tensionRead: what seems unresolved, if anything
+- preserve: what should survive revision
+- confidence: high / medium / low
 
-Rate the work on exactly these 8 criteria, in this order, using only these labels:
-${CRITERIA_ORDER.map((c: (typeof CRITERIA_ORDER)[number], i: number) => `${i + 1}. ${c}`).join('\n')}
+Return JSON only.`;
+}
 
-Rating scale per criterion: Beginner, Intermediate, Advanced, Master.
-- Master = could plausibly sit with the named benchmarks in control and intent for this style/medium. Account for phone photos (glare, skew, compression)—name artifacts briefly if they limit what you see, then judge the painting.
-- For famous masterworks or obviously strong paintings, do not downgrade them to create “useful” critique. Your usefulness comes from precision, not from forced criticism.
+function buildWritingPrompt(style: string): string {
+  const benchmarks = isStyleKey(style)
+    ? ARTISTS_BY_STYLE[style].join(', ')
+    : 'the masters listed for the selected style';
+  return `You are stage 2 of a painting critique system.
 
-Per criterion — feedback (string):
-- Minimum 3 sentences. Every criterion must mention at least one concrete location (e.g. upper-left sky, center figure, foreground shadow, right edge) or relational cue (foreground vs background, focal vs supporting area).
-- Cite observable facts: value (light/dark grouping), edge quality (sharp/lost), color temperature, brush handling, proportion, negative space, rhythm—whichever fits that criterion.
-- Name the main issue or strength in painterly terms; connect it to at least one rubric signal above.
-- Judge the painting on its own terms first: do not criticize expressive distortion as if it were failed realism, and do not demand extra finish if openness is helping the work.
-- If you claim something is weak, name the exact visible evidence that makes it weak. If you cannot point to visible evidence, do not make the claim.
-- If you recommend more focal hierarchy, more contrast, more edge definition, or more spatial separation, you must explain why the painting's current version fails on its own terms without that change.
-- Forbidden: empty praise ("beautiful", "great job") without a tied observation; generic advice that could apply to any painting; repeating the same sentence across criteria—each criterion must add new, criterion-specific detail.
+You are now writing the critique from already extracted evidence.
 
-Per criterion — actionPlan (string):
-- 3–5 short numbered steps (1. 2. 3.) the artist can do in the studio on the current piece or its next layer. Each step names WHAT to change WHERE (area of the canvas) and HOW (tool, edge, value shift, temperature, etc.).
-- Target the *next* level up from your rating. If already Master, give advanced refinement or sustainment steps (subtle orchestration, risk-taking within control).
-- If a criterion is already Master, the steps should mostly be preservation, sustainment, or optional refinement—not basic correction.
-- Prefer smaller, more exact changes over broad generic fixes. A good step sounds like a painter's next move, not like a rubric slogan.
+Rules:
+- Use ONLY the supplied evidence JSON as your factual base.
+- Do not invent visible claims that are not supported by the evidence.
+- Judge the painting on its own terms.
+- Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
+- If the evidence suggests a strong work, let the critique say the issue is modest.
+- If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
+- Your usefulness comes from precision, not from forced criticism.
 
-Per criterion — confidence (string):
-- high, medium, or low depending on how reliably the photo supports this judgment.
-- Downgrade confidence when glare, blur, skew, crop, or low resolution make the call uncertain.
-
-Per criterion — evidenceSignals (array of 2-4 strings):
-- Short observable reason codes behind the grade (for example: "foreground shadow family stays compressed", "sharpest edge is on the right cheek", "palette splits into unrelated cool and warm zones").
-- These should be concise fragments, not full sentences.
-
-Per criterion — preserve (string):
-- One sentence on what is already working and should survive the next revision.
-
-Per criterion — practiceExercise (string):
-- One short exercise for training this skill outside the main piece.
-
-Per criterion — nextTarget (string):
-- A brief coaching label framed as the next target, e.g. "Push edge control toward Advanced."
-
-Per criterion — subskills (array):
-- Return 2-4 sub-skills that explain the category grade.
-- Each subskill has label, score (0-1), and level.
-- Keep them concrete and observable from the photo, not generic art-school abstractions.
-
-Top-level coaching fields:
-- intent (string): 1-2 sentences on what the painting seems to be trying to do in plain language.
-- working (array of 2-3 strings): the clearest strengths already present. Tie each one to visible evidence.
-- mainIssue (string): the single biggest problem holding the painting back right now. Keep it concise and actionable.
-- nextSteps (array of 2-3 strings): immediate studio actions in priority order. Each item should say what to change and where.
-- preserveSummary (string): one short paragraph on what must not be lost while revising.
-- The top-level fields should read like guidance from a demanding but helpful painting teacher, not a museum label.
-- Make "mainIssue" and "nextSteps" the highest-priority advice. Do not give five equal problems.
-- If the painting is already very strong, the main issue can be modest. Do not force a major flaw where there is only a small refinement.
-- If the strongest truthful response is "keep the distributed structure, but refine one relationship inside it," say that instead of forcing a more conventional correction.
+Benchmarks for what "Master" means in this style: ${benchmarks}
 
 Anti-pattern examples:
 - Bad: "The painting needs a stronger focal point."
-- Better: "The painting is already working through distributed attention. Keep that openness, but make the path-to-house transition slightly clearer so the eye can travel without forcing one dominant anchor."
+- Better: "The eye already moves through several active areas. Keep that distributed attention, but quiet the one competing accent that interrupts the painting's main rhythm."
 
 - Bad: "Increase contrast to create more depth."
-- Better: "The compressed value range is part of the mood. Keep that compression, but separate the warm roof plane from the cool tree mass by a smaller value and temperature shift."
+- Better: "The compressed value range is part of the mood. Keep that compression, but separate one important shape from its neighbor with a smaller value and temperature shift."
 
 - Bad: "Refine the edges to improve clarity."
-- Better: "Most of the softness is doing useful atmospheric work. Keep the sky-tree edges soft, but sharpen only the roof peak where you want the eye to settle briefly."
+- Better: "Most of the softness is doing useful atmospheric work. Keep the broad soft passages, but sharpen only the one edge that truly needs to hold the eye."
 
 - Bad: "Make the composition more dynamic."
-- Better: "The current stillness is part of the painting's effect. Instead of forcing more drama, adjust one directional cue so the eye moves more naturally through the existing calm."
+- Better: "The stillness is part of the work's effect. Instead of forcing more drama, adjust one directional cue so the eye moves more naturally through the existing calm."
 
 - Bad: "Harmonize the colors."
-- Better: "Do not flatten the color differences that give the painting life. Keep the high-chroma accents, but quiet the one passage in the upper-left that currently breaks the painting's color world."
+- Better: "Do not flatten the color differences that give the painting life. Keep the vivid accents, but quiet the one passage that breaks the painting's color world."
 
-Summary (string):
-- 2–4 sentences in simple language. State the overall read, where the painting already has life, and why the main issue matters.
-
-overallConfidence (string):
-- high, medium, or low for the critique as a whole.
-
-photoQuality (object):
-- Report the reliability of the photo itself.
-- level = good, fair, or poor.
-- summary = one sentence on whether the photo is trustworthy for critique.
-- issues = short bullets about glare, blur, skew, crop, clipped values, or weak color capture.
-- tips = short bullets on how to re-shoot for better feedback.
-
-If previous image + prior critique JSON are provided, set comparisonNote (non-null string): what visibly improved, what regressed or stalled, and what to tackle next—name regions and tie to prior feedback when relevant. If no previous version, set comparisonNote to null.
-
-Tone: direct, respectful, specific. Assume the artist wants rigor, but make every sentence easy to understand.`;
+Return JSON only matching the schema.`;
 }
 
 function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
   if (!m) throw new Error('Invalid image data URL');
   return { mime: m[1]!, base64: m[2]! };
+}
+
+function buildCritiqueSchemaInstruction(): string {
+  return `Return JSON with:
+- summary
+- intent
+- working
+- mainIssue
+- nextSteps
+- preserveSummary
+- categories
+- comparisonNote
+- overallConfidence
+- photoQuality
+
+For each criterion:
+- feedback: 3+ sentences grounded in visible evidence
+- actionPlan: 3-5 numbered steps tied to exact areas and concrete painterly moves
+- confidence
+- evidenceSignals
+- preserve
+- practiceExercise
+- nextTarget
+- subskills`;
+}
+
+function fallbackSubskills(
+  criterion: (typeof CRITERIA_ORDER)[number],
+  level: (typeof RATING_LEVELS)[number],
+  evidenceSignals: string[]
+): Array<{
+  label: string;
+  score: number;
+  level: (typeof RATING_LEVELS)[number];
+}> {
+  const fallbackLabels: Record<(typeof CRITERIA_ORDER)[number], [string, string]> = {
+    'Intent and necessity': ['Coherence of aim', 'Support from formal choices'],
+    'Composition and shape structure': ['Big-shape organization', 'Eye path control'],
+    'Value and light structure': ['Light-dark grouping', 'Range control'],
+    'Color relationships': ['Palette harmony', 'Temperature control'],
+    'Drawing, proportion, and spatial form': ['Shape placement', 'Spatial construction'],
+    'Edge and focus control': ['Edge hierarchy', 'Focus placement'],
+    'Surface and medium handling': ['Mark economy', 'Surface character'],
+    'Presence, point of view, and human force': ['Atmospheric force', 'Point of view'],
+  };
+
+  const numericLevel =
+    level === 'Master' ? 0.92 : level === 'Advanced' ? 0.74 : level === 'Intermediate' ? 0.5 : 0.28;
+
+  const fromEvidence = evidenceSignals
+    .slice(0, 2)
+    .map((signal, idx) => ({
+      label: signal
+        .replace(/^[a-z]/, (m) => m.toUpperCase())
+        .replace(/\.$/, '')
+        .slice(0, 48),
+      score: Math.max(0, Math.min(1, numericLevel - idx * 0.04)),
+      level,
+    }))
+    .filter((entry) => entry.label.length > 0);
+
+  if (fromEvidence.length >= 2) return fromEvidence;
+
+  const [labelA, labelB] = fallbackLabels[criterion];
+  return [
+    { label: labelA, score: numericLevel, level },
+    { label: labelB, score: Math.max(0, Math.min(1, numericLevel - 0.06)), level },
+  ];
+}
+
+function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
+  if (!raw || typeof raw !== 'object') throw new Error('Invalid evidence API response');
+  const o = raw as Record<string, unknown>;
+  if (typeof o.intentHypothesis !== 'string') throw new Error('Invalid evidence: intentHypothesis');
+  if (
+    !Array.isArray(o.strongestVisibleQualities) ||
+    o.strongestVisibleQualities.length < 2 ||
+    o.strongestVisibleQualities.length > 4 ||
+    o.strongestVisibleQualities.some((v) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid evidence: strongestVisibleQualities');
+  }
+  if (
+    !Array.isArray(o.mainTensions) ||
+    o.mainTensions.length < 2 ||
+    o.mainTensions.length > 4 ||
+    o.mainTensions.some((v) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid evidence: mainTensions');
+  }
+  if (
+    !o.photoQualityRead ||
+    typeof o.photoQualityRead !== 'object' ||
+    !Array.isArray((o.photoQualityRead as Record<string, unknown>).issues)
+  ) {
+    throw new Error('Invalid evidence: photoQualityRead');
+  }
+  const p = o.photoQualityRead as Record<string, unknown>;
+  if (
+    typeof p.level !== 'string' ||
+    !(['poor', 'fair', 'good'] as const).includes(p.level as 'poor' | 'fair' | 'good') ||
+    typeof p.summary !== 'string' ||
+    (p.issues as unknown[]).some((v) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid evidence: photoQualityRead fields');
+  }
+  if (
+    !Array.isArray(o.comparisonObservations) ||
+    o.comparisonObservations.some((v) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid evidence: comparisonObservations');
+  }
+  const criterionEvidence = o.criterionEvidence;
+  if (!Array.isArray(criterionEvidence) || criterionEvidence.length !== CRITERIA_ORDER.length) {
+    throw new Error('Invalid evidence: criterionEvidence length');
+  }
+  const normalized = CRITERIA_ORDER.map((expected, i) => {
+    const c = criterionEvidence[i];
+    if (!c || typeof c !== 'object') throw new Error('Invalid evidence criterion');
+    const r = c as Record<string, unknown>;
+    if (typeof r.criterion !== 'string' || r.criterion !== expected) {
+      throw new Error(`Invalid evidence criterion at index ${i}`);
+    }
+    if (
+      !Array.isArray(r.visibleEvidence) ||
+      r.visibleEvidence.length < 2 ||
+      r.visibleEvidence.length > 5 ||
+      r.visibleEvidence.some((v) => typeof v !== 'string')
+    ) {
+      throw new Error(`Invalid visibleEvidence for ${expected}`);
+    }
+    if (
+      typeof r.strengthRead !== 'string' ||
+      typeof r.tensionRead !== 'string' ||
+      typeof r.preserve !== 'string' ||
+      typeof r.confidence !== 'string' ||
+      !(['low', 'medium', 'high'] as const).includes(r.confidence as 'low' | 'medium' | 'high')
+    ) {
+      throw new Error(`Invalid evidence fields for ${expected}`);
+    }
+    return {
+      criterion: expected,
+      visibleEvidence: r.visibleEvidence as string[],
+      strengthRead: r.strengthRead,
+      tensionRead: r.tensionRead,
+      preserve: r.preserve,
+      confidence: r.confidence as 'low' | 'medium' | 'high',
+    };
+  });
+
+  return {
+    intentHypothesis: o.intentHypothesis,
+    strongestVisibleQualities: o.strongestVisibleQualities as string[],
+    mainTensions: o.mainTensions as string[],
+    photoQualityRead: {
+      level: p.level as 'poor' | 'fair' | 'good',
+      summary: p.summary,
+      issues: p.issues as string[],
+    },
+    comparisonObservations: o.comparisonObservations as string[],
+    criterionEvidence: normalized,
+  };
 }
 
 function validateResult(raw: unknown): CritiqueResultDTO {
@@ -299,11 +505,11 @@ function validateResult(raw: unknown): CritiqueResultDTO {
     ) {
       throw new Error(`Invalid coaching metadata for ${expected}`);
     }
-    if (
-      !Array.isArray(r.subskills) ||
-      r.subskills.length < 2 ||
-      r.subskills.length > 4 ||
-      r.subskills.some((entry) => {
+    const subskills =
+      Array.isArray(r.subskills) &&
+      r.subskills.length >= 2 &&
+      r.subskills.length <= 4 &&
+      !r.subskills.some((entry) => {
         if (!entry || typeof entry !== 'object') return true;
         const sub = entry as Record<string, unknown>;
         return (
@@ -315,9 +521,16 @@ function validateResult(raw: unknown): CritiqueResultDTO {
           !RATING_LEVELS.includes(sub.level as (typeof RATING_LEVELS)[number])
         );
       })
-    ) {
-      throw new Error(`Invalid subskills for ${expected}`);
-    }
+        ? (r.subskills as Array<{
+            label: string;
+            score: number;
+            level: (typeof RATING_LEVELS)[number];
+          }>)
+        : fallbackSubskills(
+            expected,
+            r.level as (typeof RATING_LEVELS)[number],
+            Array.isArray(r.evidenceSignals) ? (r.evidenceSignals as string[]) : []
+          );
     return {
       criterion: r.criterion as (typeof CRITERIA_ORDER)[number],
       level: r.level as (typeof RATING_LEVELS)[number],
@@ -328,11 +541,7 @@ function validateResult(raw: unknown): CritiqueResultDTO {
       preserve: r.preserve,
       practiceExercise: r.practiceExercise,
       nextTarget: r.nextTarget,
-      subskills: r.subskills as Array<{
-        label: string;
-        score: number;
-        level: (typeof RATING_LEVELS)[number];
-      }>,
+      subskills,
     };
   });
   const cn = o.comparisonNote;
@@ -503,7 +712,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const evidenceRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -512,22 +721,64 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     body: JSON.stringify({
       model,
       temperature: 0.28,
+      max_tokens: 3200,
+      response_format: {
+        type: 'json_schema',
+        json_schema: CRITIQUE_EVIDENCE_JSON_SCHEMA,
+      },
+      messages: [
+        { role: 'system', content: buildEvidencePrompt(body.style, body.medium) },
+        { role: 'user', content: userContent },
+      ],
+    }),
+  });
+
+  const evidenceJson = (await evidenceRes.json()) as Record<string, unknown>;
+  if (!evidenceRes.ok) {
+    const err = evidenceJson.error as { message?: string } | undefined;
+    throw new Error(err?.message ?? `OpenAI error ${evidenceRes.status}`);
+  }
+  const evidenceChoices = evidenceJson.choices as Array<{ message?: { content?: string } }> | undefined;
+  const evidenceText = evidenceChoices?.[0]?.message?.content;
+  if (!evidenceText || typeof evidenceText !== 'string') throw new Error('Empty evidence response');
+
+  let evidenceParsed: unknown;
+  try {
+    evidenceParsed = JSON.parse(evidenceText);
+  } catch {
+    throw new Error('Evidence stage returned non-JSON');
+  }
+
+  const evidence = validateEvidenceResult(evidenceParsed);
+
+  const writingRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.22,
       max_tokens: 4500,
       response_format: {
         type: 'json_schema',
         json_schema: CRITIQUE_JSON_SCHEMA,
       },
       messages: [
-        { role: 'system', content: buildSystemPrompt(body.style, body.medium) },
-        { role: 'user', content: userContent },
+        { role: 'system', content: buildWritingPrompt(body.style) },
+        {
+          role: 'user',
+          content: `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildCritiqueSchemaInstruction()}`,
+        },
       ],
     }),
   });
 
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
+  const json = (await writingRes.json()) as Record<string, unknown>;
+  if (!writingRes.ok) {
     const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI error ${res.status}`);
+    throw new Error(err?.message ?? `OpenAI error ${writingRes.status}`);
   }
 
   const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;

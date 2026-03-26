@@ -14,6 +14,7 @@
     "critique:review:oils": "tsx scripts/run-oil-critique-review.ts",
     "critique:review:new": "tsx scripts/run-additional-painting-review.ts",
     "critique:review:focused": "tsx scripts/run-focused-exemplar-rerun.ts",
+    "critique:review:ten": "tsx scripts/run-ten-painting-review.ts",
     "critique:review:latest": "tsx scripts/run-latest-upload-review.ts",
     "prebuild": "node scripts/fetch-art-images.mjs && node scripts/generate-pwa-icons.mjs",
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
