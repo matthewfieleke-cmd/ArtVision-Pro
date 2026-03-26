@@ -1183,7 +1183,7 @@ export default function App() {
             )}
 
             {flow.step === 'capture' && (
-              <div className="space-y-4 animate-slide-up">
+              <div className="space-y-3 animate-slide-up">
                 <div>
                   <label htmlFor="capture-working-title" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                     Title <span className="font-normal normal-case text-slate-400">(optional)</span>
@@ -1240,7 +1240,7 @@ export default function App() {
                 ) : (
                   /* ── Mobile: live camera viewfinder ── */
                   <>
-                    <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-card">
+                    <div className="relative aspect-[4/5] max-h-[52vh] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-card">
                       <video
                         ref={videoRef}
                         className="h-full w-full object-cover"
@@ -1264,7 +1264,7 @@ export default function App() {
                         </div>
                       ) : null}
                     </div>
-                    <p className="text-center text-xs text-slate-500">
+                    <p className="text-center text-[11px] leading-snug text-slate-500">
                       Align the canvas in frame. Even, diffuse light gives the fairest read.
                     </p>
                   </>
