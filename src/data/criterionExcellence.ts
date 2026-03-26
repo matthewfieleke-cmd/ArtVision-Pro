@@ -354,9 +354,9 @@ function assertCriteriaAligned(): void {
   if (ENTRIES.length !== CRITERIA_ORDER.length) {
     throw new Error('criterionExcellence: expected one entry per CRITERIA_ORDER item');
   }
-  for (let i = 0; i < CRITERIA_ORDER.length; i++) {
-    if (ENTRIES[i]!.criterion !== CRITERIA_ORDER[i]) {
-      throw new Error(`criterionExcellence: order mismatch at index ${i}`);
+  for (const criterion of CRITERIA_ORDER) {
+    if (!ENTRIES.some((entry) => entry.criterion === criterion)) {
+      throw new Error(`criterionExcellence: missing entry for ${criterion}`);
     }
   }
 }

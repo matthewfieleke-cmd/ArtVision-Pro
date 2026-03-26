@@ -10,6 +10,7 @@
     "dev:full": "npm run dev",
     "icons": "node scripts/generate-pwa-icons.mjs",
     "critique:fixtures": "node scripts/print-critique-qa-fixtures.mjs",
+    "critique:review": "tsx scripts/run-critique-qa-review.ts",
     "prebuild": "node scripts/fetch-art-images.mjs && node scripts/generate-pwa-icons.mjs",
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
     "lint": "eslint .",

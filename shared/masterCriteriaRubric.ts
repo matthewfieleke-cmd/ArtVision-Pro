@@ -354,7 +354,10 @@ export function formatRubricForPrompt(style: string): string {
   const key = style as StyleKey;
   const rows = BY_STYLE[key as StyleKey];
   if (!rows) return '';
-  return rows
+  const ordered = CRITERIA_ORDER.map((criterion) => rows.find((row) => row.criterion === criterion)).filter(
+    (row): row is CriterionRubric => Boolean(row)
+  );
+  return ordered
     .map((r) => {
       const bullets = r.masterSignals.map((s) => `  - ${s}`).join('\n');
       return `${r.criterion}:\n${bullets}`;
@@ -362,14 +365,15 @@ export function formatRubricForPrompt(style: string): string {
     .join('\n\n');
 }
 
-/** Ensures rubric order matches CRITERIA_ORDER for a given style */
+/** Ensures every style supplies one rubric row per criterion label. */
 function assertRubricOrder(): void {
   for (const style of Object.keys(BY_STYLE) as StyleKey[]) {
     const rubric = BY_STYLE[style];
     if (rubric.length !== CRITERIA_ORDER.length) throw new Error(`Rubric length mismatch for ${style}`);
-    for (let i = 0; i < CRITERIA_ORDER.length; i++) {
-      if (rubric[i]!.criterion !== CRITERIA_ORDER[i]) {
-        throw new Error(`Rubric criterion order mismatch at ${style} index ${i}`);
+    const seen = new Set(rubric.map((row) => row.criterion));
+    for (const criterion of CRITERIA_ORDER) {
+      if (!seen.has(criterion)) {
+        throw new Error(`Rubric criterion missing at ${style}: ${criterion}`);
       }
     }
   }
