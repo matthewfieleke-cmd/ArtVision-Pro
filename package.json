@@ -12,6 +12,7 @@
     "critique:fixtures": "node scripts/print-critique-qa-fixtures.mjs",
     "critique:review": "tsx scripts/run-critique-qa-review.ts",
     "critique:review:oils": "tsx scripts/run-oil-critique-review.ts",
+    "critique:review:new": "tsx scripts/run-additional-painting-review.ts",
     "prebuild": "node scripts/fetch-art-images.mjs && node scripts/generate-pwa-icons.mjs",
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
     "lint": "eslint .",
