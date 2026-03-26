@@ -8,6 +8,7 @@
     "dev:ui": "vite",
     "dev:api": "tsx server/dev-api.ts",
     "dev:full": "npm run dev",
+    "test:architecture": "tsx scripts/run-architecture-tests.ts",
     "icons": "node scripts/generate-pwa-icons.mjs",
     "critique:fixtures": "node scripts/print-critique-qa-fixtures.mjs",
     "critique:review": "tsx scripts/run-critique-qa-review.ts",

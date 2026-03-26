@@ -25,55 +25,41 @@ import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
+import {
+  applyDetectedStyle,
+  backFromCapture,
+  backFromResults,
+  beginAnalysis,
+  canContinueFromSetup,
+  chooseMedium,
+  chooseStyle,
+  clearClassifySource,
+  completeAnalysis,
+  createNewFlow,
+  createResubmitFlow,
+  enterCapture,
+  isCritiqueFlow,
+  recoverFromAnalysisError,
+  switchToAutoStyle,
+  switchToManualStyle,
+  updateWorkingTitle,
+  type CritiqueFlow,
+} from './critiqueFlow';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { useIsDesktop } from './hooks/useIsDesktop';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
-import { clearPendingPreviewRequest, getPendingPreviewRequest, setPendingPreviewRequest } from './previewResume';
 import { loadPaintings, savePaintings } from './storage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
 import { ProfileTab } from './screens/ProfileTab';
 import { StudioTab } from './screens/StudioTab';
-import type {
-  CritiqueCategory,
-  CritiqueResult,
-  Medium,
-  PaintingVersion,
-  SavedPainting,
-  Style,
-  TabId,
-  WizardStep,
-} from './types';
+import type { CritiqueCategory, CritiqueResult, PaintingVersion, SavedPainting, Style, TabId } from './types';
 import { MEDIUMS, RATING_LEVELS, STYLES } from './types';
-
-type StyleMode = 'manual' | 'auto';
 type CropSource = 'gallery' | 'camera-file' | 'live-camera' | 'classify-upload';
 type CropAction = 'analyze' | 'classify';
-
-type FlowState = {
-  step: WizardStep;
-  styleMode: StyleMode;
-  style: Style | null;
-  medium: Medium | null;
-  /** Optional title for this work (new critique or override on resubmit) */
-  workingTitle: string;
-  /** Original full-resolution source, preserved for preview edits. */
-  originalImageDataUrl?: string;
-  imageDataUrl?: string;
-  critique?: CritiqueResult;
-  critiqueSource?: 'api' | 'local';
-  /** After auto style: vision or heuristic note */
-  styleClassifyMeta?: { rationale: string; source: 'api' | 'local' };
-  /** Photo uploaded for “Categorize for me”—reuse for critique without capture step */
-  classifySourceImageDataUrl?: string;
-  mode: 'new' | 'resubmit';
-  targetPainting?: SavedPainting;
-  /** After the critique has been saved once, track the studio record so later saves update it. */
-  savedPaintingId?: string;
-};
 
 type PendingCrop = {
   imageSrc: string;
@@ -83,17 +69,6 @@ type PendingCrop = {
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function shouldResumePreviewError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
-  return (
-    message.includes('abort') ||
-    message.includes('networkerror') ||
-    message.includes('failed to fetch') ||
-    message.includes('load failed')
-  );
 }
 
 function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
@@ -131,7 +106,7 @@ export default function App() {
   const [tab, setTab] = useState<TabId>('home');
   const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
-  const [flow, setFlow] = useState<FlowState | null>(null);
+  const [flow, setFlow] = useState<CritiqueFlow | null>(null);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
   const pendingCropRef = useRef<PendingCrop | null>(null);
   pendingCropRef.current = pendingCrop;
@@ -146,7 +121,6 @@ export default function App() {
   const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
-  const previewResumeAttemptedRef = useRef<string | null>(null);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -187,8 +161,8 @@ export default function App() {
   useEffect(() => {
     if (location.pathname !== '/') return;
     const returnView = consumeReturnViewIntent();
-    if (returnView?.kind === 'critique' && returnView.flow) {
-      setFlow(returnView.flow as FlowState);
+    if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
+      setFlow(returnView.flow);
       setAnalyzeError(null);
       setPreviewCompareOpen(false);
       return;
@@ -205,7 +179,6 @@ export default function App() {
 
   const closeFlow = useCallback(() => {
     clearReturnViewIntent();
-    clearPendingPreviewRequest();
     stopCamera();
     setPendingCrop(null);
     setFlow(null);
@@ -220,7 +193,6 @@ export default function App() {
 
   const goHome = useCallback(() => {
     clearReturnViewIntent();
-    clearPendingPreviewRequest();
     advanceDailyMasterpieceIndex();
     stopCamera();
     setPendingCrop(null);
@@ -243,14 +215,7 @@ export default function App() {
     setPreviewImageDataUrl(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
-    setFlow({
-      mode: 'new',
-      step: 'setup',
-      styleMode: 'manual',
-      style: null,
-      medium: null,
-      workingTitle: '',
-    });
+    setFlow(createNewFlow());
   }, []);
 
   const startResubmit = useCallback((p: SavedPainting) => {
@@ -262,15 +227,7 @@ export default function App() {
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     stopCamera();
-    setFlow({
-      mode: 'resubmit',
-      step: 'capture',
-      styleMode: 'manual',
-      style: p.style,
-      medium: p.medium,
-      workingTitle: p.title,
-      targetPainting: p,
-    });
+    setFlow(createResubmitFlow(p));
     setTab('studio');
   }, [stopCamera]);
 
@@ -284,9 +241,12 @@ export default function App() {
 
   const runAnalysis = useCallback(async (rawDataUrl: string) => {
     const f = flowRef.current;
-    if (!f?.style || !f.medium) return;
+    if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
+    if (!f.style || !f.medium) return;
+    const startedFlow = beginAnalysis(f, rawDataUrl);
+    if (!startedFlow) return;
     setAnalyzeError(null);
-    setFlow((cur) => (cur ? { ...cur, step: 'analyzing', imageDataUrl: rawDataUrl } : cur));
+    setFlow(startedFlow);
     try {
       const compressed = await compressDataUrl(rawDataUrl);
       const prev =
@@ -335,27 +295,10 @@ export default function App() {
       setPreviewError(null);
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
-      setFlow((cur) =>
-        cur
-          ? {
-              ...cur,
-              step: 'results',
-              imageDataUrl: compressed,
-              critique,
-              critiqueSource,
-            }
-          : cur
-      );
+      setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource }));
     } catch (e) {
       setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed');
-      setFlow((cur) =>
-        cur
-          ? {
-              ...cur,
-              step: cur.classifySourceImageDataUrl ? 'setup' : 'capture',
-            }
-          : cur
-      );
+      setFlow(recoverFromAnalysisError(startedFlow));
     }
   }, []);
 
@@ -390,16 +333,7 @@ export default function App() {
         source = 'local';
       }
 
-      setFlow((cur) =>
-        cur
-          ? {
-              ...cur,
-              style,
-              styleClassifyMeta: { rationale, source },
-              classifySourceImageDataUrl: compressed,
-            }
-          : cur
-      );
+      setFlow((cur) => (cur?.step === 'setup' ? applyDetectedStyle(cur, { style, rationale, source, imageDataUrl: compressed }) : cur));
     } catch (e) {
       setAnalyzeError(e instanceof Error ? e.message : 'Could not detect style');
     } finally {
@@ -409,11 +343,15 @@ export default function App() {
 
   const openCropperForImage = useCallback(
     (imageSrc: string, source: CropSource) => {
-      if (!flowRef.current) return;
+      const current = flowRef.current;
+      if (!current) return;
       stopCamera();
       setAnalyzeError(null);
       setPendingCrop({ imageSrc, source, action: 'analyze' });
-      setFlow((cur) => (cur ? { ...cur, step: 'capture' } : cur));
+      if (current.step === 'setup') {
+        const capture = enterCapture(current);
+        if (capture) setFlow(capture);
+      }
     },
     [stopCamera]
   );
@@ -467,19 +405,20 @@ export default function App() {
   const persistResult = useCallback(
     (opts?: { navigateToStudio?: boolean }) => {
       const navigateToStudio = opts?.navigateToStudio !== false;
-      if (!flow?.critique || !flow.imageDataUrl || !flow.style || !flow.medium) return;
+      if (!flow || flow.step !== 'results') return;
+      const resultFlow = flow;
       const savedTitle =
-        flow.workingTitle.trim() ||
-        flow.critique.paintingTitle?.trim() ||
+        resultFlow.workingTitle.trim() ||
+        resultFlow.critique.paintingTitle?.trim() ||
         undefined;
       const critiqueToStore: CritiqueResult = {
-        ...flow.critique,
+        ...resultFlow.critique,
         ...(savedTitle ? { paintingTitle: savedTitle } : {}),
       };
-      const priorityCat = priorityCritiqueCategory(flow.critique.categories);
+      const priorityCat = priorityCritiqueCategory(resultFlow.critique.categories);
       const version = {
         id: newId(),
-        imageDataUrl: flow.imageDataUrl,
+        imageDataUrl: resultFlow.imageDataUrl,
         createdAt: new Date().toISOString(),
         critique: critiqueToStore,
         ...(previewImageDataUrl
@@ -491,23 +430,23 @@ export default function App() {
             }
           : {}),
       };
-      if (flow.mode === 'resubmit' && flow.targetPainting) {
-        const t = flow.workingTitle.trim();
+      if (resultFlow.mode === 'resubmit') {
+        const t = resultFlow.workingTitle.trim();
         const merged = previewImageDataUrl
           ? mergePreviewIntoLastVersion(
-              flow.targetPainting.versions,
-              flow.imageDataUrl,
+              resultFlow.targetPainting.versions,
+              resultFlow.imageDataUrl,
               critiqueToStore,
               previewImageDataUrl,
               priorityCat.criterion
             )
-          : { versions: flow.targetPainting.versions, merged: false };
+          : { versions: resultFlow.targetPainting.versions, merged: false };
         const nextVersions = merged.merged
           ? merged.versions
-          : [...flow.targetPainting.versions, version];
+          : [...resultFlow.targetPainting.versions, version];
         setPaintings((ps) =>
           ps.map((p) =>
-            p.id === flow.targetPainting!.id
+            p.id === resultFlow.targetPainting.id
               ? {
                   ...p,
                   ...(t.length > 0 ? { title: t } : {}),
@@ -517,38 +456,33 @@ export default function App() {
           )
         );
         if (navigateToStudio) {
-          setStudioSelectedId(flow.targetPainting.id);
+          setStudioSelectedId(resultFlow.targetPainting.id);
           setTab('studio');
         }
-        setFlow((cur) =>
-          cur
-            ? {
-                ...cur,
-                mode: 'resubmit',
-                targetPainting:
-                  cur.targetPainting
-                    ? {
-                        ...cur.targetPainting,
-                        ...(t.length > 0 ? { title: t } : {}),
-                        versions: nextVersions,
-                      }
-                    : cur.targetPainting,
-                savedPaintingId: flow.targetPainting?.id,
-              }
-            : cur
-        );
+        setFlow((cur) => {
+          if (!cur || cur.step !== 'results' || cur.mode !== 'resubmit') return cur;
+          return {
+            ...cur,
+            targetPainting: {
+              ...cur.targetPainting,
+              ...(t.length > 0 ? { title: t } : {}),
+              versions: nextVersions,
+            },
+            savedPaintingId: resultFlow.targetPainting.id,
+          };
+        });
         return;
       }
 
-      if (flow.savedPaintingId) {
-        const t = flow.workingTitle.trim();
-        const existingPainting = paintings.find((p) => p.id === flow.savedPaintingId);
+      if (resultFlow.savedPaintingId) {
+        const t = resultFlow.workingTitle.trim();
+        const existingPainting = paintings.find((p) => p.id === resultFlow.savedPaintingId);
 
         let nextVersions: PaintingVersion[];
         if (previewImageDataUrl && existingPainting) {
           const m = mergePreviewIntoLastVersion(
             existingPainting.versions,
-            flow.imageDataUrl,
+            resultFlow.imageDataUrl,
             critiqueToStore,
             previewImageDataUrl,
             priorityCat.criterion
@@ -562,7 +496,7 @@ export default function App() {
 
         setPaintings((ps) =>
           ps.map((p) =>
-            p.id === flow.savedPaintingId
+            p.id === resultFlow.savedPaintingId
               ? {
                   ...p,
                   ...(t.length > 0 ? { title: t } : {}),
@@ -572,13 +506,13 @@ export default function App() {
           )
         );
         if (navigateToStudio) {
-          setStudioSelectedId(flow.savedPaintingId);
+          setStudioSelectedId(resultFlow.savedPaintingId);
           setTab('studio');
         }
         setFlow((cur) => {
-          if (!cur || !cur.style || !cur.medium) return cur;
+          if (!cur || cur.step !== 'results') return cur;
           const targetPainting =
-            cur.targetPainting && cur.targetPainting.id === flow.savedPaintingId
+            cur.mode === 'resubmit' && cur.targetPainting.id === resultFlow.savedPaintingId
               ? {
                   ...cur.targetPainting,
                   ...(t.length > 0 ? { title: t } : {}),
@@ -600,13 +534,13 @@ export default function App() {
             ...cur,
             mode: 'resubmit',
             targetPainting,
-            savedPaintingId: flow.savedPaintingId,
+            savedPaintingId: resultFlow.savedPaintingId,
           };
         });
         return;
       } else {
-        const fromUser = flow.workingTitle.trim();
-        const fromCritique = flow.critique.paintingTitle?.trim();
+        const fromUser = resultFlow.workingTitle.trim();
+        const fromCritique = resultFlow.critique.paintingTitle?.trim();
         const title =
           fromUser.length > 0
             ? fromUser
@@ -616,8 +550,8 @@ export default function App() {
         const painting: SavedPainting = {
           id: newId(),
           title,
-          style: flow.style,
-          medium: flow.medium,
+          style: resultFlow.style,
+          medium: resultFlow.medium,
           versions: [version],
         };
         setPaintings((ps) => [painting, ...ps]);
@@ -626,7 +560,7 @@ export default function App() {
           setTab('studio');
         }
         setFlow((cur) =>
-          cur
+          cur && cur.step === 'results'
             ? {
                 ...cur,
                 mode: 'resubmit',
@@ -655,7 +589,7 @@ export default function App() {
   useEffect(() => {
     if (previewLoading || !previewImageDataUrl) return;
     const f = flowRef.current;
-    if (!f?.critique || f.step !== 'results') return;
+    if (!f || f.step !== 'results') return;
     const hasStudio = f.mode === 'resubmit' || f.savedPaintingId != null;
     if (!hasStudio) return;
     if (lastAutoPreviewSaveRef.current === previewImageDataUrl) return;
@@ -673,11 +607,6 @@ export default function App() {
     setTab('studio');
   }, []);
 
-  const canContinueFromSetup =
-    flow &&
-    flow.medium &&
-    (flow.styleMode === 'manual' ? flow.style !== null : flow.style !== null && !classifyBusy);
-
   const canRunCritiqueFromClassifyUpload =
     Boolean(
       flow?.styleMode === 'auto' &&
@@ -688,9 +617,9 @@ export default function App() {
     );
 
   const priorityCategory = useMemo(() => {
-    if (!flow?.critique?.categories.length) return null;
+    if (!flow || flow.step !== 'results' || !flow.critique.categories.length) return null;
     return priorityCritiqueCategory(flow.critique.categories);
-  }, [flow?.critique]);
+  }, [flow]);
 
   const rememberCritiqueReturn = useCallback(() => {
     const current = flowRef.current;
@@ -705,11 +634,11 @@ export default function App() {
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
 
-  const runPreviewEdit = useCallback(async (opts?: { requestId?: string; fromResume?: boolean }) => {
+  const runPreviewEdit = useCallback(async () => {
     const currentFlow = flowRef.current;
-    if (!currentFlow?.imageDataUrl || !currentFlow.style || !currentFlow.medium) return;
+    if (!currentFlow || currentFlow.step !== 'results') return;
     const currentPriority =
-      currentFlow.critique?.categories && currentFlow.critique.categories.length > 0
+      currentFlow.critique.categories.length > 0
         ? priorityCritiqueCategory(currentFlow.critique.categories)
         : null;
     if (!currentPriority) return;
@@ -718,13 +647,7 @@ export default function App() {
       setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
       return;
     }
-    const requestId = opts?.requestId ?? newId();
     setReturnViewIntent({ kind: 'critique', flow: currentFlow });
-    setPendingPreviewRequest({
-      flowImageDataUrl: currentFlow.imageDataUrl,
-      requestId,
-      startedAt: new Date().toISOString(),
-    });
     setPreviewError(null);
     setPreviewLoading(true);
     try {
@@ -738,47 +661,20 @@ export default function App() {
           feedback: currentPriority.feedback,
           actionPlan: currentPriority.actionPlan,
         },
-        requestId,
       });
-      clearPendingPreviewRequest();
-      previewResumeAttemptedRef.current = null;
       setPreviewImageDataUrl(imageDataUrl);
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
     } catch (e) {
-      if (shouldResumePreviewError(e)) {
-        if (opts?.fromResume) {
-          setPreviewError('Preview is still resuming. Return to this screen in a moment if needed.');
-        } else {
-          setPreviewError('Preview will resume when you return to the app.');
-        }
-      } else {
-        clearPendingPreviewRequest();
-        previewResumeAttemptedRef.current = null;
-        setPreviewError(e instanceof Error ? e.message : 'Preview failed');
-      }
+      setPreviewError(
+        e instanceof Error
+          ? e.message
+          : 'Preview failed. Please retry from the critique screen.'
+      );
     } finally {
       setPreviewLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (isDesktop) return;
-    const onVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
-      const pending = getPendingPreviewRequest();
-      const currentFlow = flowRef.current;
-      if (!pending || !currentFlow?.imageDataUrl || currentFlow.step !== 'results') return;
-      if (pending.flowImageDataUrl !== currentFlow.imageDataUrl) return;
-      if (previewLoading) return;
-      if (previewResumeAttemptedRef.current === pending.requestId) return;
-      previewResumeAttemptedRef.current = pending.requestId;
-      void runPreviewEdit({ requestId: pending.requestId, fromResume: true });
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    onVisibilityChange();
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [isDesktop, previewLoading, runPreviewEdit]);
 
   const openPreviewCompare = useCallback(() => {
     setPreviewCompareOpen(true);
@@ -939,21 +835,12 @@ export default function App() {
                 onClick={() => {
                   if (flow.step === 'setup') closeFlow();
                   else if (flow.step === 'capture') {
-                    if (flow.mode === 'resubmit') closeFlow();
-                    else setFlow({ ...flow, step: 'setup' });
+                    const previousFlow = backFromCapture(flow);
+                    if (!previousFlow) closeFlow();
+                    else setFlow(previousFlow);
                   } else if (flow.step === 'results') {
-                    const backToSetup =
-                      flow.mode === 'new' &&
-                      flow.styleMode === 'auto' &&
-                      flow.style &&
-                      flow.styleClassifyMeta &&
-                      flow.imageDataUrl;
                     clearReturnViewIntent();
-                    setFlow({
-                      ...flow,
-                      step: backToSetup ? 'setup' : 'capture',
-                      ...(backToSetup ? { classifySourceImageDataUrl: flow.imageDataUrl } : {}),
-                    });
+                    setFlow(backFromResults(flow));
                   } else closeFlow();
                 }}
                 className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
@@ -986,18 +873,7 @@ export default function App() {
                   <div className="mt-2 flex gap-1 rounded-xl bg-slate-100/90 p-1">
                     <button
                       type="button"
-                      onClick={() =>
-                        setFlow((f) =>
-                          f
-                            ? {
-                                ...f,
-                                styleMode: 'manual',
-                                styleClassifyMeta: undefined,
-                                classifySourceImageDataUrl: undefined,
-                              }
-                            : f
-                        )
-                      }
+                      onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToManualStyle(f) : f))}
                       className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
                         flow.styleMode === 'manual'
                           ? 'bg-white text-slate-900 shadow-sm'
@@ -1008,19 +884,7 @@ export default function App() {
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        setFlow((f) =>
-                          f
-                            ? {
-                                ...f,
-                                styleMode: 'auto',
-                                style: null,
-                                styleClassifyMeta: undefined,
-                                classifySourceImageDataUrl: undefined,
-                              }
-                            : f
-                        )
-                      }
+                      onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToAutoStyle(f) : f))}
                       className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${
                         flow.styleMode === 'auto'
                           ? 'bg-white text-violet-700 shadow-sm'
@@ -1038,7 +902,7 @@ export default function App() {
                         <button
                           key={s}
                           type="button"
-                          onClick={() => setFlow((f) => (f ? { ...f, style: s } : f))}
+                          onClick={() => setFlow((f) => (f?.step === 'setup' ? chooseStyle(f, s) : f))}
                           className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
                             flow.style === s
                               ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
@@ -1107,7 +971,7 @@ export default function App() {
                       <button
                         key={m}
                         type="button"
-                        onClick={() => setFlow((f) => (f ? { ...f, medium: m } : f))}
+                        onClick={() => setFlow((f) => (f?.step === 'setup' ? chooseMedium(f, m) : f))}
                         className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
                           flow.medium === m
                             ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
@@ -1129,7 +993,7 @@ export default function App() {
                     type="text"
                     maxLength={120}
                     value={flow.workingTitle}
-                    onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                    onChange={(e) => setFlow((f) => (f ? updateWorkingTitle(f, e.target.value) : f))}
                     placeholder="e.g. Morning light on the harbor"
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                     autoComplete="off"
@@ -1154,15 +1018,11 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() =>
-                        setFlow((f) =>
-                          f
-                            ? {
-                                ...f,
-                                step: 'capture',
-                                classifySourceImageDataUrl: undefined,
-                              }
-                            : f
-                        )
+                        setFlow((f) => {
+                          if (f?.step !== 'setup') return f;
+                          const cleared = clearClassifySource(f);
+                          return enterCapture(cleared) ?? f;
+                        })
                       }
                       className="w-full rounded-2xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                     >
@@ -1172,8 +1032,8 @@ export default function App() {
                 ) : (
                   <button
                     type="button"
-                    disabled={!canContinueFromSetup}
-                    onClick={() => setFlow((f) => (f ? { ...f, step: 'capture' } : f))}
+                    disabled={flow.step !== 'setup' ? true : !canContinueFromSetup(flow, classifyBusy)}
+                    onClick={() => setFlow((f) => (f?.step === 'setup' ? enterCapture(f) ?? f : f))}
                     className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition enabled:active:scale-[0.99] disabled:opacity-35"
                   >
                     {isDesktop ? 'Continue to upload' : 'Continue to capture'}
@@ -1193,7 +1053,7 @@ export default function App() {
                     type="text"
                     maxLength={120}
                     value={flow.workingTitle}
-                    onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                    onChange={(e) => setFlow((f) => (f ? updateWorkingTitle(f, e.target.value) : f))}
                     placeholder="Name this piece for the critique"
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                     autoComplete="off"
@@ -1348,7 +1208,7 @@ export default function App() {
                       type="text"
                       maxLength={120}
                       value={flow.workingTitle}
-                      onChange={(e) => setFlow((f) => (f ? { ...f, workingTitle: e.target.value } : f))}
+                      onChange={(e) => setFlow((f) => (f ? updateWorkingTitle(f, e.target.value) : f))}
                       placeholder="Optional — used when you save to Studio"
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                       autoComplete="off"

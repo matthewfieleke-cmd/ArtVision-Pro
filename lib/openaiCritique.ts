@@ -1,9 +1,85 @@
 import { applyCritiqueGuardrails } from './critiqueAudit.js';
-import { parseDataUrl, runEvidenceStage } from './critiqueEvidenceStage.js';
-import { CRITIQUE_JSON_SCHEMA } from './critiqueSchemas.js';
+import { CRITIQUE_EVIDENCE_JSON_SCHEMA } from './critiqueSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
-import { buildCritiqueSchemaInstruction, validateResult } from './critiqueValidation.js';
-import { buildWritingPrompt, runWritingStage } from './critiqueWritingStage.js';
+import { validateCritiqueResult, validateEvidenceResult } from './critiqueValidation.js';
+import { runCritiqueWritingStage } from './critiqueWritingStage.js';
+
+function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
+  if (!match) throw new Error('Invalid image data URL');
+  return { mime: match[1]!, base64: match[2]! };
+}
+
+async function runCritiqueEvidenceStage(
+  apiKey: string,
+  args: {
+    model: string;
+    style: string;
+    medium: string;
+    userContent: Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string; detail: 'high' | 'low' } }
+    >;
+  }
+): Promise<ReturnType<typeof validateEvidenceResult>> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: args.model,
+      temperature: 0.15,
+      response_format: {
+        type: 'json_schema',
+        json_schema: CRITIQUE_EVIDENCE_JSON_SCHEMA,
+      },
+      messages: [
+        {
+          role: 'system',
+          content: `You are stage 1 of a painting critique system.
+
+Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
+
+Rules:
+- Stay at the level of evidence, tensions, and what should be preserved.
+- Do not prescribe fixes.
+- Do not invent weaknesses just because the painting could be different.
+- If a painting is already strong in a criterion, say so plainly.
+- If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
+- If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
+
+Context:
+- Declared style: ${args.style}
+- Declared medium: ${args.medium}
+
+Return JSON only.`,
+        },
+        {
+          role: 'user',
+          content: args.userContent,
+        },
+      ],
+    }),
+  });
+
+  const json = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    const err = json.error as { message?: string } | undefined;
+    throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+  }
+
+  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
+  const text = choices?.[0]?.message?.content;
+  if (!text || typeof text !== 'string') throw new Error('Empty model response');
+
+  try {
+    return validateEvidenceResult(JSON.parse(text));
+  } catch {
+    throw new Error('Model returned invalid evidence JSON');
+  }
+}
 
 export async function runOpenAICritique(
   apiKey: string,
@@ -54,23 +130,16 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  const evidence = await runEvidenceStage(apiKey, {
+  const evidence = await runCritiqueEvidenceStage(apiKey, {
     model,
     style: body.style,
     medium: body.medium,
     userContent,
   });
 
-  const parsed = await runWritingStage(apiKey, {
-    model,
-    style: body.style,
-    evidence,
-    jsonSchema: CRITIQUE_JSON_SCHEMA,
-    schemaInstruction: buildCritiqueSchemaInstruction(),
-    writingPrompt: buildWritingPrompt(body.style),
-  });
+  const parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
 
-  const validated = applyCritiqueGuardrails(validateResult(parsed));
+  const validated = applyCritiqueGuardrails(validateCritiqueResult(parsed));
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   return trimmedTitle ? { ...validated, paintingTitle: trimmedTitle } : validated;
