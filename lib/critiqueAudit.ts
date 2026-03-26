@@ -61,19 +61,97 @@ function rewriteGenericStep(step: string, preserve: string, intent: string): str
   return step;
 }
 
-export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const simple = critique.simpleFeedback;
-  if (!simple) return critique;
+function toneDownOverpraise(
+  critique: CritiqueResultDTO
+): CritiqueResultDTO {
+  const allMaster = critique.categories.length > 0 && critique.categories.every((category) => category.level === 'Master');
+  if (!allMaster) return critique;
 
-  const nextSteps = simple.nextSteps.map((step) =>
-    rewriteGenericStep(step, simple.preserve, simple.intent)
+  const simple = critique.simpleFeedback;
+  const hasNoIssueLanguage = Boolean(
+    simple &&
+      containsAny(simple.mainIssue, [
+        /no significant issues/i,
+        /strong across all evaluated criteria/i,
+        /successfully achieves/i,
+      ])
   );
+
+  if (!hasNoIssueLanguage) return critique;
+
+  const softenedCategories = critique.categories.map((category) => {
+    if (
+      category.criterion === 'Intent and necessity' ||
+      category.criterion === 'Drawing, proportion, and spatial form'
+    ) {
+      return {
+        ...category,
+        level: 'Advanced' as const,
+      };
+    }
+    return category;
+  });
+
+  const softenedMainIssue = simple
+    ? /no significant issues/i.test(simple.mainIssue)
+      ? 'The painting is strong overall; the most useful next step is to protect what is already working while identifying one relationship that could become more deliberate.'
+      : simple.mainIssue
+    : undefined;
 
   return {
     ...critique,
+    categories: softenedCategories,
+    ...(simple
+      ? {
+          simpleFeedback: {
+            ...simple,
+            mainIssue: softenedMainIssue ?? simple.mainIssue,
+          },
+        }
+      : {}),
+  };
+}
+
+function rewriteMediumInsensitiveStep(step: string, critique: CritiqueResultDTO): string {
+  const text = normalizeWhitespace(step);
+  const medium = critique.summary + ' ' + (critique.simpleFeedback?.intent ?? '');
+
+  if (/subtle color variations/i.test(text) && /drawing/i.test(medium)) {
+    return 'Instead of adding color, use pressure, edge weight, and value grouping to deepen the mood without weakening the drawing medium.';
+  }
+
+  if (/brushwork techniques/i.test(text) && /pastel/i.test(medium)) {
+    return 'Use changes in pastel stroke direction, pressure, and layering to vary surface energy instead of treating the medium like oil brushwork.';
+  }
+
+  if (/line thickness/i.test(text) && /watercolor/i.test(medium)) {
+    return 'Use wash edge, lost-and-found transitions, and reserved light shapes to redirect attention rather than relying on line-weight changes.';
+  }
+
+  return step;
+}
+
+export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
+  const tonedDown = toneDownOverpraise(critique);
+  const tonedSimple = tonedDown.simpleFeedback;
+  if (!tonedSimple) return tonedDown;
+
+  const nextSteps = tonedSimple.nextSteps.map((step) =>
+    rewriteMediumInsensitiveStep(
+      rewriteGenericStep(step, tonedSimple.preserve, tonedSimple.intent),
+      tonedDown
+    )
+  );
+
+  return {
+    ...tonedDown,
     simpleFeedback: {
-      ...simple,
-      mainIssue: rewriteGenericMainIssue(simple.mainIssue, simple.preserve, simple.working),
+      ...tonedSimple,
+      mainIssue: rewriteGenericMainIssue(
+        tonedSimple.mainIssue,
+        tonedSimple.preserve,
+        tonedSimple.working
+      ),
       nextSteps,
     },
   };

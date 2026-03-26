@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 
+import { applyCritiqueGuardrails } from '../lib/critiqueAudit.js';
 import {
   applyCorsHeaders,
   handleApiRequest,
@@ -204,9 +205,62 @@ async function testApiHelpers(): Promise<void> {
   assert.equal(invalidClassifyBody.status, 400);
 }
 
+function testCritiqueGuardrails(): void {
+  const guarded = applyCritiqueGuardrails({
+    summary: 'Strong painting.',
+    simpleFeedback: {
+      intent: 'A quiet, atmospheric watercolor landscape with soft transitions and a calm mood.',
+      working: ['The softness supports the atmosphere.', 'The composition already feels settled.'],
+      mainIssue: 'The painting needs a stronger focal point and more cohesion.',
+      nextSteps: [
+        'Increase contrast to create more depth.',
+        'Experiment with different textures to see how they interact with the existing composition.',
+        'Maintain the current balance while refining the edges.',
+      ],
+      preserve: 'Preserve the soft, tranquil atmosphere and the watercolor bloom in the sky.',
+    },
+    categories: [],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  assert.match(
+    guarded.simpleFeedback?.mainIssue ?? '',
+    /not simply that the painting needs more focus|not a lack of drama/i
+  );
+  assert.match(guarded.simpleFeedback?.nextSteps?.[0] ?? '', /Keep the current value compression/i);
+  assert.equal(
+    guarded.simpleFeedback?.nextSteps?.[2],
+    'Maintain the current balance while refining the edges.'
+  );
+
+  const drawingGuarded = applyCritiqueGuardrails({
+    summary: 'Strong drawing.',
+    simpleFeedback: {
+      intent: 'A graphite drawing focused on solitude and strong chiaroscuro.',
+      working: ['The line work is expressive.', 'The contrast creates mood.'],
+      mainIssue: 'The drawing could use more depth.',
+      nextSteps: [
+        'Experiment with subtle color variations in the background to enhance depth.',
+        'Maintain the dramatic effect.',
+      ],
+      preserve: 'Preserve the graphite line work and monochrome mood.',
+    },
+    categories: [],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  assert.doesNotMatch(drawingGuarded.simpleFeedback?.nextSteps?.[0] ?? '', /color variations/i);
+  assert.match(drawingGuarded.simpleFeedback?.nextSteps?.[0] ?? '', /pressure|edge weight|value grouping/i);
+}
+
 async function main(): Promise<void> {
   await testCritiqueFlow();
   await testApiHelpers();
+  testCritiqueGuardrails();
   console.log('Architecture tests passed.');
 }
 
