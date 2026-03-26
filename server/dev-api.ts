@@ -9,6 +9,7 @@ import type { PreviewEditRequestBody } from '../lib/previewEditTypes';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle';
 import { runOpenAICritique } from '../lib/openaiCritique';
 import { runOpenAIPreviewEdit } from '../lib/openaiPreviewEdit';
+import { runPreviewEditWithDedup } from '../lib/previewEditJobStore';
 
 config({ path: '.env.local' });
 config({ path: '.env' });
@@ -91,7 +92,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         res.end(JSON.stringify({ error: 'style, medium, and target required' }));
         return;
       }
-      const result = await runOpenAIPreviewEdit(key, parsed);
+      const result = await runPreviewEditWithDedup(parsed, () => runOpenAIPreviewEdit(key, parsed));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
       return;

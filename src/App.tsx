@@ -31,6 +31,7 @@ import { useCameraCapture } from './hooks/useCameraCapture';
 import { useIsDesktop } from './hooks/useIsDesktop';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
+import { clearPendingPreviewRequest, getPendingPreviewRequest, setPendingPreviewRequest } from './previewResume';
 import { loadPaintings, savePaintings } from './storage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
@@ -84,6 +85,17 @@ function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function shouldResumePreviewError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('abort') ||
+    message.includes('networkerror') ||
+    message.includes('failed to fetch') ||
+    message.includes('load failed')
+  );
+}
+
 function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
   const rank = (l: (typeof RATING_LEVELS)[number]) => RATING_LEVELS.indexOf(l);
   return categories.reduce((a, b) => (rank(a.level) <= rank(b.level) ? a : b));
@@ -134,6 +146,7 @@ export default function App() {
   const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
+  const previewResumeAttemptedRef = useRef<string | null>(null);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -192,6 +205,7 @@ export default function App() {
 
   const closeFlow = useCallback(() => {
     clearReturnViewIntent();
+    clearPendingPreviewRequest();
     stopCamera();
     setPendingCrop(null);
     setFlow(null);
@@ -206,6 +220,7 @@ export default function App() {
 
   const goHome = useCallback(() => {
     clearReturnViewIntent();
+    clearPendingPreviewRequest();
     advanceDailyMasterpieceIndex();
     stopCamera();
     setPendingCrop(null);
@@ -690,36 +705,80 @@ export default function App() {
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
 
-  const runPreviewEdit = useCallback(async () => {
-    if (!flow?.imageDataUrl || !flow.style || !flow.medium || !priorityCategory) return;
-    const previewSource = flow.originalImageDataUrl ?? flow.imageDataUrl;
+  const runPreviewEdit = useCallback(async (opts?: { requestId?: string; fromResume?: boolean }) => {
+    const currentFlow = flowRef.current;
+    if (!currentFlow?.imageDataUrl || !currentFlow.style || !currentFlow.medium) return;
+    const currentPriority =
+      currentFlow.critique?.categories && currentFlow.critique.categories.length > 0
+        ? priorityCritiqueCategory(currentFlow.critique.categories)
+        : null;
+    if (!currentPriority) return;
+    const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
     if (!shouldTryApiFirst()) {
       setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
       return;
     }
+    const requestId = opts?.requestId ?? newId();
+    setReturnViewIntent({ kind: 'critique', flow: currentFlow });
+    setPendingPreviewRequest({
+      flowImageDataUrl: currentFlow.imageDataUrl,
+      requestId,
+      startedAt: new Date().toISOString(),
+    });
     setPreviewError(null);
     setPreviewLoading(true);
     try {
       const { imageDataUrl } = await fetchPreviewEdit({
         imageDataUrl: previewSource,
-        style: flow.style,
-        medium: flow.medium,
+        style: currentFlow.style,
+        medium: currentFlow.medium,
         target: {
-          criterion: priorityCategory.criterion,
-          level: priorityCategory.level,
-          feedback: priorityCategory.feedback,
-          actionPlan: priorityCategory.actionPlan,
+          criterion: currentPriority.criterion,
+          level: currentPriority.level,
+          feedback: currentPriority.feedback,
+          actionPlan: currentPriority.actionPlan,
         },
+        requestId,
       });
+      clearPendingPreviewRequest();
+      previewResumeAttemptedRef.current = null;
       setPreviewImageDataUrl(imageDataUrl);
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
     } catch (e) {
-      setPreviewError(e instanceof Error ? e.message : 'Preview failed');
+      if (shouldResumePreviewError(e)) {
+        if (opts?.fromResume) {
+          setPreviewError('Preview is still resuming. Return to this screen in a moment if needed.');
+        } else {
+          setPreviewError('Preview will resume when you return to the app.');
+        }
+      } else {
+        clearPendingPreviewRequest();
+        previewResumeAttemptedRef.current = null;
+        setPreviewError(e instanceof Error ? e.message : 'Preview failed');
+      }
     } finally {
       setPreviewLoading(false);
     }
-  }, [flow?.imageDataUrl, flow?.medium, flow?.originalImageDataUrl, flow?.style, priorityCategory]);
+  }, []);
+
+  useEffect(() => {
+    if (isDesktop) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      const pending = getPendingPreviewRequest();
+      const currentFlow = flowRef.current;
+      if (!pending || !currentFlow?.imageDataUrl || currentFlow.step !== 'results') return;
+      if (pending.flowImageDataUrl !== currentFlow.imageDataUrl) return;
+      if (previewLoading) return;
+      if (previewResumeAttemptedRef.current === pending.requestId) return;
+      previewResumeAttemptedRef.current = pending.requestId;
+      void runPreviewEdit({ requestId: pending.requestId, fromResume: true });
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    onVisibilityChange();
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [isDesktop, previewLoading, runPreviewEdit]);
 
   const openPreviewCompare = useCallback(() => {
     setPreviewCompareOpen(true);

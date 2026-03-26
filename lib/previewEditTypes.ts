@@ -12,6 +12,8 @@ export type PreviewEditRequestBody = {
   style: string;
   medium: string;
   target: PreviewEditTarget;
+  /** Optional client request key so resumed mobile requests can reuse the same work. */
+  requestId?: string;
 };
 
 export type PreviewEditResponseBody = {

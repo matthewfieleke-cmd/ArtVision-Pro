@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { PreviewEditRequestBody } from '../lib/previewEditTypes.js';
+import { runPreviewEditWithDedup } from '../lib/previewEditJobStore.js';
 import { runOpenAIPreviewEdit } from '../lib/openaiPreviewEdit.js';
 
 function setCors(res: VercelResponse, origin: string | undefined): void {
@@ -44,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ error: 'style, medium, and target required' });
       return;
     }
-    const result = await runOpenAIPreviewEdit(key, body);
+    const result = await runPreviewEditWithDedup(body, () => runOpenAIPreviewEdit(key, body));
     res.status(200).json(result);
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : 'Preview edit failed' });

@@ -6,6 +6,7 @@ export type PreviewEditPayload = {
   style: Style;
   medium: Medium;
   target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'>;
+  requestId?: string;
 };
 
 function previewEditPath(): string {
