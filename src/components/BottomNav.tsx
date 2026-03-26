@@ -31,14 +31,17 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
           }`}
           aria-label="New critique — style and medium"
         >
-          <img
-            src={`${import.meta.env.BASE_URL}critique.png`}
-            alt=""
-            className={`h-6 w-6 rounded-md object-cover ${critiqueOn ? '' : 'opacity-80'}`}
-            width={24}
-            height={24}
-            decoding="async"
-          />
+          <span className="relative flex h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+            <img
+              src={`${import.meta.env.BASE_URL}critique.png`}
+              alt=""
+              className={`h-full w-full object-cover object-[center_18%] ${critiqueOn ? '' : 'opacity-80'}`}
+              width={72}
+              height={72}
+              decoding="async"
+              aria-hidden
+            />
+          </span>
           Critique
         </button>
         {tabs.map(({ id, label, icon: Icon }) => {
