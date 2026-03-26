@@ -34,11 +34,12 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
           <img
             src={`${import.meta.env.BASE_URL}critique.png`}
             alt=""
-            className={`h-8 w-8 rounded-lg object-cover ${critiqueOn ? 'ring-2 ring-violet-500/40' : 'opacity-90'}`}
-            width={32}
-            height={32}
+            className={`h-6 w-6 rounded-md object-cover ${critiqueOn ? '' : 'opacity-80'}`}
+            width={24}
+            height={24}
             decoding="async"
           />
+          Critique
         </button>
         {tabs.map(({ id, label, icon: Icon }) => {
           const on = active === id;
