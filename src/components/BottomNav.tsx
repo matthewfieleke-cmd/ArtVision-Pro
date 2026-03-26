@@ -42,7 +42,7 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
               <img
                 src={`${import.meta.env.BASE_URL}critique.png`}
                 alt=""
-                className={`h-full w-full translate-y-[1.5px] scale-[1.72] object-contain ${
+                className={`h-full w-full translate-y-[2.5px] scale-[1.72] object-contain ${
                   critiqueOn ? '' : 'opacity-80'
                 }`}
                 width={72}
