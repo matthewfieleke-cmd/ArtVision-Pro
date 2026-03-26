@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 
 type Fixture = {
@@ -124,6 +125,12 @@ async function main() {
       sections.push('#### Review checklist');
       sections.push('');
       sections.push(checklistBlock());
+      sections.push('');
+      sections.push('#### 11-expert assessment');
+      sections.push('');
+      for (const line of evaluateCritiqueQuality(critique).notes) {
+        sections.push(`- ${line}`);
+      }
       sections.push('');
       sections.push('#### Notes');
       sections.push('');

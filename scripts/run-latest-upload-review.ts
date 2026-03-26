@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.ts';
+import { evaluateCritiqueQuality } from '../lib/critiqueEval.js';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 
 type Fixture = {
@@ -42,52 +43,6 @@ async function imageFileToDataUrl(filePath: string): Promise<string> {
   const buffer = await readFile(filePath);
   const mime = mimeTypeFor(filePath);
   return `data:${mime};base64,${buffer.toString('base64')}`;
-}
-
-function expertAssessment(critique: Awaited<ReturnType<typeof runOpenAICritique>>): string[] {
-  const notes: string[] = [];
-  const simple = critique.simpleFeedback;
-  const genericMainIssue = simple
-    ? /(clearer focal|stronger focal|enhance depth|more depth|more contrast|spatial definition|guide the viewer|more cohesion)/i.test(
-        simple.mainIssue
-      )
-    : false;
-  const genericNextSteps = simple
-    ? simple.nextSteps.some((step) =>
-        /(increase contrast|enhance definition|refine edges|create a stronger focal point|improve spatial clarity|more cohesive)/i.test(
-          step
-        )
-      )
-    : false;
-  const weakEvidence = critique.categories.some(
-    (category) =>
-      !category.evidenceSignals ||
-      category.evidenceSignals.length < 2 ||
-      category.evidenceSignals.some((signal) => signal.trim().length < 12)
-  );
-
-  notes.push(
-    genericMainIssue
-      ? 'The top-level main issue still leans on generic correction language, which several of the 11 experts would find too default.'
-      : 'The top-level main issue feels more specific and less like a default workshop note.'
-  );
-  notes.push(
-    genericNextSteps
-      ? 'Some next steps still fall back on stock advice such as more contrast, stronger focal point, or sharper definition.'
-      : 'The next steps are more exact and less trapped in stock “clarify / contrast / focus” moves.'
-  );
-  notes.push(
-    weakEvidence
-      ? 'The evidence layer is still thinner than the 11-expert standard would want.'
-      : 'The evidence layer gives a visible basis for the judgment and increases trust.'
-  );
-  notes.push(
-    simple
-      ? 'Overall, this response would probably help the artist improve, but the key question is whether it respects the work’s own terms or pushes generic correction.'
-      : 'Without a clear simple feedback layer, the response would be less immediately usable for the painter.'
-  );
-
-  return notes;
 }
 
 async function main() {
@@ -150,7 +105,7 @@ async function main() {
 
     sections.push('### 11-expert assessment');
     sections.push('');
-    for (const line of expertAssessment(critique)) {
+    for (const line of evaluateCritiqueQuality(critique).notes) {
       sections.push(`- ${line}`);
     }
     sections.push('');

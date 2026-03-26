@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { evaluateCritiqueQuality } from '../lib/critiqueEval.js';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.ts';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 
@@ -39,67 +40,6 @@ async function imageFileToDataUrl(filePath: string): Promise<string> {
   const buffer = await readFile(filePath);
   const mime = mimeTypeFor(filePath);
   return `data:${mime};base64,${buffer.toString('base64')}`;
-}
-
-function expertAssessment(critique: Awaited<ReturnType<typeof runOpenAICritique>>): string[] {
-  const notes: string[] = [];
-  const simple = critique.simpleFeedback;
-  const genericMainIssue = simple
-    ? /(clearer focal|stronger focal|enhance depth|more depth|more contrast|spatial definition|guide the viewer|more cohesion)/i.test(
-        simple.mainIssue
-      )
-    : false;
-  const genericNextSteps = simple
-    ? simple.nextSteps.some((step) =>
-        /(increase contrast|enhance definition|refine edges|create a stronger focal point|improve spatial clarity|more cohesive)/i.test(
-          step
-        )
-      )
-    : false;
-  const weakEvidence = critique.categories.some(
-    (category) =>
-      !category.evidenceSignals ||
-      category.evidenceSignals.length < 2 ||
-      category.evidenceSignals.some((signal) => signal.trim().length < 12)
-  );
-
-  if (genericMainIssue) {
-    notes.push(
-      'The top-level main issue still leans on generic correction language, which Clark, Krauss, Doig, and Nemerov would likely find too default and insufficiently tied to the work’s actual terms.'
-    );
-  } else {
-    notes.push(
-      'The top-level main issue is specific enough to feel more like a serious studio critique than a generic art-coach response.'
-    );
-  }
-
-  if (genericNextSteps) {
-    notes.push(
-      'Some next steps still fall back on stock advice such as more contrast, stronger focal point, or sharper definition; Collins and Assael would want more exact, location-specific diagnosis.'
-    );
-  } else {
-    notes.push(
-      'The next steps are reasonably actionable and should help the painter know what to test in the next session.'
-    );
-  }
-
-  if (weakEvidence) {
-    notes.push(
-      'The evidence layer is still weaker than the 11-expert standard would want; Berger, Baxandall, and Fried would expect more visible proof for each judgment.'
-    );
-  } else {
-    notes.push(
-      'The evidence layer gives at least some visible basis for judgment, which makes the response more trustworthy and usable.'
-    );
-  }
-
-  notes.push(
-    simple
-      ? 'Overall, the response would probably help the artist improve in a practical sense, but the strongest experts would still push for less generic pressure toward clarification and more sensitivity to what is already necessary in the work.'
-      : 'Without a clear simple feedback layer, the response would be less immediately usable for the painter.'
-  );
-
-  return notes;
 }
 
 async function main() {
@@ -162,7 +102,7 @@ async function main() {
 
     sections.push('### 11-expert assessment');
     sections.push('');
-    for (const line of expertAssessment(critique)) {
+    for (const line of evaluateCritiqueQuality(critique).notes) {
       sections.push(`- ${line}`);
     }
     sections.push('');
