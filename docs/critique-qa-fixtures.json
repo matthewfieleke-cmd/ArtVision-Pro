@@ -1,0 +1,122 @@
+[
+  {
+    "id": "realism-courbet-burial",
+    "style": "Realism",
+    "medium": "Oil on Canvas",
+    "title": "A Burial at Ornans",
+    "artist": "Gustave Courbet",
+    "imagePath": "public/art/courbet-burial-ornans.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong realism example for composition and human force."
+  },
+  {
+    "id": "realism-millet-gleaners",
+    "style": "Realism",
+    "medium": "Oil on Canvas",
+    "title": "The Gleaners",
+    "artist": "Jean-François Millet",
+    "imagePath": "public/art/millet-gleaners.jpg",
+    "source": "dailyMasterpieces",
+    "reviewGoal": "Strong realism example for value/light and social weight."
+  },
+  {
+    "id": "realism-homer-gulf-stream",
+    "style": "Realism",
+    "medium": "Oil on Canvas",
+    "title": "The Gulf Stream",
+    "artist": "Winslow Homer",
+    "imagePath": "public/art/homer-gulf-stream.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong realism example for edge/focus and atmosphere."
+  },
+  {
+    "id": "impressionism-monet-sunrise",
+    "style": "Impressionism",
+    "medium": "Oil on Canvas",
+    "title": "Impression, Sunrise",
+    "artist": "Claude Monet",
+    "imagePath": "public/art/monet-impression-sunrise.jpg",
+    "source": "dailyMasterpieces",
+    "reviewGoal": "Strong impressionist example for color and atmosphere."
+  },
+  {
+    "id": "impressionism-degas-ballet",
+    "style": "Impressionism",
+    "medium": "Oil on Canvas",
+    "title": "The Ballet Class",
+    "artist": "Edgar Degas",
+    "imagePath": "public/art/degas-ballet-class.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong impressionist example for drawing and spatial form."
+  },
+  {
+    "id": "impressionism-morisot-cradle",
+    "style": "Impressionism",
+    "medium": "Oil on Canvas",
+    "title": "The Cradle",
+    "artist": "Berthe Morisot",
+    "imagePath": "public/art/morisot-cradle.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong impressionist example for edge/focus and intimacy."
+  },
+  {
+    "id": "expressionism-kirchner-street",
+    "style": "Expressionism",
+    "medium": "Oil on Canvas",
+    "title": "Street, Berlin",
+    "artist": "Ernst Ludwig Kirchner",
+    "imagePath": "public/art/kirchner-street-berlin.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong expressionist example for point of view and human force."
+  },
+  {
+    "id": "expressionism-schiele-self-portrait",
+    "style": "Expressionism",
+    "medium": "Oil on Canvas",
+    "title": "Self-Portrait with Physalis",
+    "artist": "Egon Schiele",
+    "imagePath": "public/art/schiele-self-portrait-physalis.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong expressionist example for drawing distortion and psychological presence."
+  },
+  {
+    "id": "expressionism-nolde-clematis-dahlia",
+    "style": "Expressionism",
+    "medium": "Oil on Canvas",
+    "title": "Clematis and Dahlia",
+    "artist": "Emil Nolde",
+    "imagePath": "public/art/nolde-prophet.jpg",
+    "source": "criterionExcellence",
+    "reviewGoal": "Expressionist surface-handling example; also checks noisy source naming."
+  },
+  {
+    "id": "abstract-kandinsky-vii",
+    "style": "Abstract Art",
+    "medium": "Oil on Canvas",
+    "title": "Composition VII",
+    "artist": "Wassily Kandinsky",
+    "imagePath": "public/art/kandinsky-composition-vii.jpg",
+    "source": "masterCatalog",
+    "reviewGoal": "Strong abstract example for intent/necessity and shape structure."
+  },
+  {
+    "id": "abstract-malevich-white",
+    "style": "Abstract Art",
+    "medium": "Oil on Canvas",
+    "title": "White on White",
+    "artist": "Kazimir Malevich",
+    "imagePath": "public/art/malevich-white-on-white.jpg",
+    "source": "criterionExcellence",
+    "reviewGoal": "Strong abstract example for restraint, light structure, and necessity."
+  },
+  {
+    "id": "abstract-mondrian-ii",
+    "style": "Abstract Art",
+    "medium": "Oil on Canvas",
+    "title": "Composition II in Red, Blue, and Yellow",
+    "artist": "Piet Mondrian",
+    "imagePath": "public/art/mondrian-composition-ii.jpg",
+    "source": "dailyMasterpieces",
+    "reviewGoal": "Strong abstract example for edge/focus, intervals, and structure."
+  }
+]
