@@ -26,9 +26,18 @@ export type CritiqueCategoryDTO = {
   }>;
 };
 
+export type CritiqueSimpleFeedbackDTO = {
+  intent: string;
+  working: string[];
+  mainIssue: string;
+  nextSteps: string[];
+  preserve: string;
+};
+
 export type CritiqueResultDTO = {
   categories: CritiqueCategoryDTO[];
   summary: string;
+  simpleFeedback?: CritiqueSimpleFeedbackDTO;
   comparisonNote?: string;
   paintingTitle?: string;
   analysisSource?: 'api' | 'local';

@@ -2,6 +2,7 @@ import type {
   CritiqueCategory,
   CritiqueConfidence,
   CritiqueResult,
+  CritiqueSimpleFeedback,
   Criterion,
   Medium,
   PhotoQualityAssessment,
@@ -77,6 +78,42 @@ export function deriveOverallConfidence(
   return confidence;
 }
 
+function fallbackSimpleRead(categories: CritiqueCategory[], summary: string): CritiqueSimpleFeedback {
+  const sorted = [...categories].sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level));
+  const mainIssue = sorted[0] ?? categories[0];
+  const strongest = [...categories].sort((a, b) => LEVEL_ORDER.indexOf(b.level) - LEVEL_ORDER.indexOf(a.level));
+  const keep = strongest[0] ?? categories[0];
+  const nextSteps = [mainIssue?.actionPlan, sorted[1]?.actionPlan]
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .slice(0, 2);
+  const working = strongest
+    .filter((cat) => LEVEL_ORDER.indexOf(cat.level) >= LEVEL_ORDER.indexOf('Advanced'))
+    .slice(0, 2)
+    .map((cat) => cat.preserve?.trim() || `${cat.criterion} is already giving the painting support.`)
+    .filter((line) => line.length > 0);
+
+  return {
+    readOfWork: summary,
+    working:
+      working.length > 0
+        ? working
+        : [
+            keep?.preserve?.trim() ||
+              'The painting already has one clear strength worth protecting while you revise the weaker passages.',
+          ],
+    mainIssue:
+      mainIssue?.feedback?.trim() ||
+      'One structural issue is holding the painting back more than the rest; focus there before chasing smaller fixes.',
+    nextSteps:
+      nextSteps.length > 0
+        ? nextSteps
+        : ['Choose the weakest passage, simplify it, and rebuild it with the strongest shapes and value groups first.'],
+    preserve:
+      keep?.preserve?.trim() ||
+      'Protect the clearest living quality already present in the piece while you revise.',
+  };
+}
+
 export function finalizeCritiqueResult(
   critique: CritiqueResult,
   options?: {
@@ -93,6 +130,9 @@ export function finalizeCritiqueResult(
   return {
     ...critique,
     categories,
+    simple:
+      critique.simple ??
+      fallbackSimpleRead(categories, critique.summary),
     ...(analysisSource ? { analysisSource } : {}),
     ...(photoQuality ? { photoQuality } : {}),
     overallConfidence:

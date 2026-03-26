@@ -9,9 +9,35 @@ const CRITIQUE_JSON_SCHEMA = {
   schema: {
     type: 'object',
     additionalProperties: false,
-    required: ['summary', 'categories', 'comparisonNote', 'overallConfidence', 'photoQuality'],
+    required: [
+      'summary',
+      'intent',
+      'working',
+      'mainIssue',
+      'nextSteps',
+      'preserveSummary',
+      'categories',
+      'comparisonNote',
+      'overallConfidence',
+      'photoQuality',
+    ],
     properties: {
       summary: { type: 'string' },
+      intent: { type: 'string' },
+      working: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 3,
+        items: { type: 'string' },
+      },
+      mainIssue: { type: 'string' },
+      nextSteps: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 3,
+        items: { type: 'string' },
+      },
+      preserveSummary: { type: 'string' },
       comparisonNote: { type: ['string', 'null'] },
       overallConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
       photoQuality: {
@@ -90,7 +116,16 @@ function buildSystemPrompt(style: string, medium: string): string {
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
-  return `You are a senior atelier instructor and working painter. Your job is to help THIS artist improve THIS specific piece—not to flatter them.
+  return `You are a senior painting critic-teacher combining the strengths of major critics, historians, and studio painters.
+
+Core voice:
+- Judge the painting by what it is trying to do.
+- Check whether structure, surface, and handling support that aim.
+- Notice viewpoint, atmosphere, and human force—not just polish.
+- Give feedback a painter can use immediately in the studio.
+- Use simple, clear language. Never sound academic for its own sake.
+
+Your job is to help THIS artist improve THIS specific piece—not to flatter them.
 
 Context:
 - Declared style: ${style}
@@ -141,8 +176,15 @@ Per criterion — subskills (array):
 - Each subskill has label, score (0-1), and level.
 - Keep them concrete and observable from the photo, not generic art-school abstractions.
 
+Top-level coaching fields:
+- intent (string): 1-2 sentences on what the painting seems to be trying to do in plain language.
+- working (array of 2-3 strings): the clearest strengths already present. Tie each one to visible evidence.
+- mainIssue (string): the single biggest problem holding the painting back right now. Keep it concise and actionable.
+- nextSteps (array of 2-3 strings): immediate studio actions in priority order. Each item should say what to change and where.
+- preserveSummary (string): one short paragraph on what must not be lost while revising.
+
 Summary (string):
-- 3–5 sentences: strongest 1–2 passages (where and why), the single biggest leverage gap, and how fixing that gap would change the read of the whole piece.
+- 2–4 sentences in simple language. State the overall read, where the painting already has life, and why the main issue matters.
 
 overallConfidence (string):
 - high, medium, or low for the critique as a whole.
@@ -156,7 +198,7 @@ photoQuality (object):
 
 If previous image + prior critique JSON are provided, set comparisonNote (non-null string): what visibly improved, what regressed or stalled, and what to tackle next—name regions and tie to prior feedback when relevant. If no previous version, set comparisonNote to null.
 
-Tone: direct, respectful, specific. Assume the artist wants rigor.`;
+Tone: direct, respectful, specific. Assume the artist wants rigor, but make every sentence easy to understand.`;
 }
 
 function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
@@ -169,6 +211,20 @@ function validateResult(raw: unknown): CritiqueResultDTO {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid API response');
   const o = raw as Record<string, unknown>;
   if (typeof o.summary !== 'string') throw new Error('Invalid critique: summary');
+  if (typeof o.intent !== 'string') throw new Error('Invalid critique: intent');
+  if (!Array.isArray(o.working) || o.working.length < 2 || o.working.length > 3 || o.working.some((v) => typeof v !== 'string')) {
+    throw new Error('Invalid critique: working');
+  }
+  if (typeof o.mainIssue !== 'string') throw new Error('Invalid critique: mainIssue');
+  if (
+    !Array.isArray(o.nextSteps) ||
+    o.nextSteps.length < 2 ||
+    o.nextSteps.length > 3 ||
+    o.nextSteps.some((v) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid critique: nextSteps');
+  }
+  if (typeof o.preserveSummary !== 'string') throw new Error('Invalid critique: preserveSummary');
   if (
     typeof o.overallConfidence !== 'string' ||
     !(['low', 'medium', 'high'] as const).includes(o.overallConfidence as 'low' | 'medium' | 'high')
@@ -264,6 +320,13 @@ function validateResult(raw: unknown): CritiqueResultDTO {
   }
   return {
     summary: o.summary,
+    simpleFeedback: {
+      intent: o.intent,
+      working: o.working as string[],
+      mainIssue: o.mainIssue,
+      nextSteps: o.nextSteps as string[],
+      preserve: o.preserveSummary,
+    },
     categories,
     overallConfidence: o.overallConfidence as 'low' | 'medium' | 'high',
     photoQuality: {

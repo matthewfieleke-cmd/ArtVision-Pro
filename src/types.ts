@@ -61,9 +61,24 @@ export type CritiqueCategory = {
   subskills?: CritiqueSubskill[];
 };
 
+export type CritiqueSimpleFeedback = {
+  /** Plain-language read of the painting's main aim. */
+  readOfWork: string;
+  /** Short, visible strengths the painter should keep building on. */
+  working: string[];
+  /** Single biggest leverage point for the next revision. */
+  mainIssue: string;
+  /** Immediate studio moves, written simply. */
+  nextSteps: string[];
+  /** Overall quality that must survive revision. */
+  preserve: string;
+};
+
 export type CritiqueResult = {
   categories: CritiqueCategory[];
   summary: string;
+  /** Simple top-level studio feedback shown before the detailed criterion breakdown. */
+  simple?: CritiqueSimpleFeedback;
   /** When comparing to a prior version */
   comparisonNote?: string;
   /** Optional title the artist gave this work for this critique */

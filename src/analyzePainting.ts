@@ -576,6 +576,96 @@ function compareMetrics(
   return bits.join(' ');
 }
 
+function mainIssueFromScores(scores: Record<Criterion, LocalCategoryScore>): Criterion {
+  return CRITERIA.reduce((lowest, criterion) =>
+    scores[criterion].score < scores[lowest].score ? criterion : lowest
+  );
+}
+
+function strongestCategory(scores: Record<Criterion, LocalCategoryScore>): Criterion {
+  return CRITERIA.reduce((best, criterion) =>
+    scores[criterion].score > scores[best].score ? criterion : best
+  );
+}
+
+function intentRead(style: Style, medium: Medium, strongest: Criterion): string {
+  const styleRead: Record<Style, string> = {
+    Realism: 'build a believable world through clear structure and observed form',
+    Impressionism: 'capture light, atmosphere, and shifting sensation without losing coherence',
+    Expressionism: 'push mood and pictorial pressure through deliberate distortion and handling',
+    'Abstract Art': 'organize shape, rhythm, and color into a self-sustaining pictorial system',
+  };
+  const strongestRead: Record<Criterion, string> = {
+    Composition: 'The strongest pull right now is the way the painting tries to organize attention.',
+    'Value structure': 'The painting is most convincing where light and dark masses start to lock together.',
+    'Color relationships': 'Its best claim right now is through palette and temperature relationships.',
+    'Drawing and proportion': 'Its clearest ambition is to make form and placement feel convincing.',
+    'Edge control': 'The painting is most alive where edge decisions begin to direct the eye.',
+    'Brushwork / handling': 'The surface is doing important work in how the image speaks.',
+    'Unity and variety': 'The painting is trying to hold the whole together without going dead.',
+    'Originality / expressive force': 'The image is leaning toward mood and point of view more than pure description.',
+  };
+  return `This ${medium.toLowerCase()} ${style.toLowerCase()} study seems to be trying to ${styleRead[style]}. ${strongestRead[strongest]}`;
+}
+
+function workingBullets(
+  strongest: Criterion,
+  strongestLevel: RatingLevel,
+  photoQuality: PhotoQualityAssessment
+): string[] {
+  const byCriterion: Record<Criterion, string> = {
+    Composition: 'The large shape layout already gives the eye a place to land.',
+    'Value structure': 'The big light-dark read is starting to hold when you step back.',
+    'Color relationships': 'The palette already has a usable family instead of drifting everywhere.',
+    'Drawing and proportion': 'The main shape placement is stable enough to build on.',
+    'Edge control': 'A few passages already separate focus from support through edge changes.',
+    'Brushwork / handling': 'Some marks already feel committed rather than fussy.',
+    'Unity and variety': 'The picture has at least one repeating idea that helps it hang together.',
+    'Originality / expressive force': 'There is already a mood or point of view worth protecting.',
+  };
+  const levelText =
+    strongestLevel === 'Master'
+      ? 'That strength already reads as a real asset in the painting.'
+      : strongestLevel === 'Advanced'
+        ? 'That area is carrying more of the picture than the others right now.'
+        : 'That gives you a reliable place to build from.';
+  const photoText =
+    photoQuality.level === 'good'
+      ? 'The photo is clear enough that these reads are reasonably trustworthy.'
+      : 'Even with capture limits, that strength still comes through.';
+  return [byCriterion[strongest], levelText, photoText];
+}
+
+function mainIssueText(criterion: Criterion): string {
+  const map: Record<Criterion, string> = {
+    Composition: 'The main thing holding the painting back is composition: the eye path and hierarchy are not clear enough yet.',
+    'Value structure':
+      'The main thing holding the painting back is value structure: the big light and dark masses are not separating clearly enough.',
+    'Color relationships':
+      'The main thing holding the painting back is color relationships: the palette is not yet organized enough to carry the mood and structure.',
+    'Drawing and proportion':
+      'The main thing holding the painting back is drawing and proportion: shape relationships are not stable enough yet.',
+    'Edge control':
+      'The main thing holding the painting back is edge control: too many passages have the same edge weight.',
+    'Brushwork / handling':
+      'The main thing holding the painting back is handling: the marks do not yet feel selective enough.',
+    'Unity and variety':
+      'The main thing holding the painting back is unity and variety: the painting is not yet balancing repetition and contrast cleanly.',
+    'Originality / expressive force':
+      'The main thing holding the painting back is expressive force: the painting does not yet press its point of view strongly enough.',
+  };
+  return map[criterion];
+}
+
+function nextStepList(category: CritiqueCategory): string[] {
+  return category.actionPlan
+    .split(/\s+(?=\d+\.)/)
+    .map((step) => step.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((step) => step.replace(/^\d+\.\s*/, ''));
+}
+
 export async function analyzePainting(
   imageDataUrl: string,
   style: Style,
@@ -595,6 +685,10 @@ export async function analyzePainting(
   const categories: CritiqueCategory[] = CRITERIA.map((c) =>
     buildCategory(c, scores[c].level, style, medium, benchmarks, m, scores[c].subskills)
   );
+  const mainIssue = mainIssueFromScores(scores);
+  const strongest = strongestCategory(scores);
+  const strongestCategoryCard = categories.find((c) => c.criterion === strongest) ?? categories[0]!;
+  const mainIssueCategory = categories.find((c) => c.criterion === mainIssue) ?? categories[0]!;
 
   const avg =
     Object.values(scores).reduce((a, b) => a + b.score, 0) / CRITERIA.length;
@@ -629,6 +723,16 @@ export async function analyzePainting(
     categories,
     summary,
     comparisonNote,
+    simple: {
+      readOfWork: `${titlePrefix}${intentRead(style, medium, strongest)}`,
+      working: workingBullets(strongest, strongestCategoryCard.level, photoQuality),
+      mainIssue: mainIssueText(mainIssue),
+      nextSteps: nextStepList(mainIssueCategory),
+      preserve:
+        mainIssueCategory.preserve ??
+        strongestCategoryCard.preserve ??
+        'Protect the liveliest passage while you revise the weaker structure around it.',
+    },
     analysisSource: 'local',
     photoQuality,
     ...(trimmed ? { paintingTitle: trimmed } : {}),
