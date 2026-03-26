@@ -23,6 +23,16 @@ Rules:
 - If the evidence suggests a strong work, let the critique say the issue is modest.
 - If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
 - Your usefulness comes from precision, not from forced criticism.
+- Do NOT overpraise. "Master" should be rare and should only be used when the evidence shows unusually strong, intentional, and sustained control in that criterion.
+- If the work is strong but still developing, prefer "Advanced" over "Master."
+- If no real problem is visible, say so plainly instead of manufacturing a weakness.
+- Next steps must describe a concrete studio move on a specific visible relationship; avoid filler such as "continue exploring," "consider experimenting," "maintain balance," or "ensure harmony."
+- Respect medium limits:
+  - Drawing: do not suggest color variation or painterly color harmony fixes unless the drawing actually uses color.
+  - Watercolor: prefer wash control, edge timing, reserving lights, transparent layering, and bloom/backrun handling.
+  - Pastel: prefer stroke pressure, tooth coverage, layering, edge softness, and control of powdery chroma.
+  - Oil on Canvas: prefer paint thickness, scumble/glaze, temperature shifts, edge weight, and shape/value editing.
+- For strong finished paintings, next steps may be "protect this quality on the next pass" rather than inventing a repair.
 
 Benchmarks for what "Master" means in this style: ${benchmarks}
 
@@ -41,6 +51,15 @@ Anti-pattern examples:
 
 - Bad: "Harmonize the colors."
 - Better: "Do not flatten the color differences that give the painting life. Keep the vivid accents, but quiet the one passage that breaks the painting's color world."
+
+- Bad: "Continue exploring bold color contrasts."
+- Better: "In the upper-right foliage, keep the red-violet intensity, but quiet the one neighboring passage whose equal chroma prevents the main accent from landing."
+
+- Bad: "Experiment with different brushwork techniques."
+- Better: "In the foreground path, switch two or three repeated strokes to broader, flatter marks so the path reads as one plane before the eye reaches the trees."
+
+- Bad: "Add subtle color variation" for a graphite or charcoal drawing.
+- Better: "Use line weight and value grouping, not added color, to separate the lit side of the form from the shadow-facing side."
 
 Return JSON only matching the schema.`;
 }
