@@ -1,5 +1,6 @@
 import type { CritiqueResult, Medium, Style } from './types';
 import { readApiJson } from './apiJson';
+import { finalizeCritiqueResult } from './critiqueCoach';
 
 type CritiqueRequestBody = {
   style: Style;
@@ -37,7 +38,33 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
     throw new Error(typeof data === 'object' && data && 'error' in data && data.error ? String(data.error) : `API ${res.status}`);
   }
   if ('error' in data && data.error) throw new Error(String(data.error));
-  return data as CritiqueResult;
+  const critique = data as CritiqueResult & {
+    simpleFeedback?: {
+      intent: string;
+      working: string[];
+      mainIssue: string;
+      nextSteps: string[];
+      preserve: string;
+    };
+  };
+  const normalized: CritiqueResult = {
+    ...critique,
+    ...(critique.simpleFeedback
+      ? {
+          simple: {
+            readOfWork: critique.simpleFeedback.intent,
+            working: critique.simpleFeedback.working,
+            mainIssue: critique.simpleFeedback.mainIssue,
+            nextSteps: critique.simpleFeedback.nextSteps,
+            preserve: critique.simpleFeedback.preserve,
+          },
+        }
+      : {}),
+  };
+  return finalizeCritiqueResult(normalized, {
+    analysisSource: normalized.analysisSource ?? 'api',
+    photoQuality: normalized.photoQuality,
+  });
 }
 
 export function shouldTryApiFirst(): boolean {
