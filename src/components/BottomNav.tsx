@@ -8,6 +8,8 @@ const LINK_TABS: { id: TabId; label: string; icon: typeof ImageIcon }[] = [
 ];
 
 const ICON_SLOT = 'flex h-9 w-9 shrink-0 items-center justify-center';
+/** Raster asset reads small vs line icons — use 2× the Lucide slot (72px) for similar visual weight. */
+const CRITIQUE_ICON_SLOT = 'flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center';
 
 type Props = {
   active: TabId;
@@ -33,13 +35,13 @@ export function BottomNav({ active, onChange, onStartCritique }: Props) {
           }`}
           aria-label="New critique — style and medium"
         >
-          <span className={ICON_SLOT}>
+          <span className={CRITIQUE_ICON_SLOT}>
             <img
               src={`${import.meta.env.BASE_URL}critique.png`}
               alt=""
               className={`h-full w-full object-contain object-center ${critiqueOn ? '' : 'opacity-80'}`}
-              width={36}
-              height={36}
+              width={72}
+              height={72}
               decoding="async"
               aria-hidden
             />
