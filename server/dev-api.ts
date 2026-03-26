@@ -4,12 +4,7 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { config } from 'dotenv';
-import type { CritiqueRequestBody } from '../lib/critiqueTypes';
-import type { PreviewEditRequestBody } from '../lib/previewEditTypes';
-import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle';
-import { runOpenAICritique } from '../lib/openaiCritique';
-import { runOpenAIPreviewEdit } from '../lib/openaiPreviewEdit';
-import { runPreviewEditWithDedup } from '../lib/previewEditJobStore';
+import { applyCorsHeaders, handleApiRequest, resolveApiRoute } from '../lib/apiHandlers';
 
 config({ path: '.env.local' });
 config({ path: '.env' });
@@ -17,44 +12,8 @@ config({ path: '.env' });
 const PORT = Number(process.env.CRITIQUE_API_PORT ?? 8787);
 const MAX_BODY = 35 * 1024 * 1024;
 
-function setCorsHeaders(res: ServerResponse, origin: string | undefined): void {
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Max-Age', '86400');
-}
-
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  setCorsHeaders(res, req.headers.origin);
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  const url = req.url ?? '';
-  const isCritique = url === '/api/critique';
-  const isClassify = url === '/api/classify-style';
-  const isPreview = url === '/api/preview-edit';
-
-  if (req.method !== 'POST' || (!isCritique && !isClassify && !isPreview)) {
-    res.writeHead(req.method === 'POST' ? 404 : 405, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not found' }));
-    return;
-  }
-
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    res.writeHead(503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Set OPENAI_API_KEY in .env.local' }));
-    return;
-  }
+  applyCorsHeaders((name, value) => res.setHeader(name, value), req.headers.origin);
 
   let body = '';
   for await (const chunk of req) {
@@ -66,51 +25,24 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     }
   }
 
+  let parsedBody: unknown;
   try {
-    if (isCritique) {
-      const parsed = JSON.parse(body) as CritiqueRequestBody;
-      if (!parsed?.imageDataUrl) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'imageDataUrl required' }));
-        return;
-      }
-      const result = await runOpenAICritique(key, parsed);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result));
-      return;
-    }
-
-    if (isPreview) {
-      const parsed = JSON.parse(body) as PreviewEditRequestBody;
-      if (!parsed?.imageDataUrl) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'imageDataUrl required' }));
-        return;
-      }
-      if (!parsed.style || !parsed.medium || !parsed.target?.criterion) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'style, medium, and target required' }));
-        return;
-      }
-      const result = await runPreviewEditWithDedup(parsed, () => runOpenAIPreviewEdit(key, parsed));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(result));
-      return;
-    }
-
-    const parsed = JSON.parse(body) as { imageDataUrl?: string };
-    if (!parsed?.imageDataUrl) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'imageDataUrl required' }));
-      return;
-    }
-    const result = await runOpenAIClassifyStyle(key, parsed.imageDataUrl);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(result));
-  } catch (e) {
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: e instanceof Error ? e.message : 'Request failed' }));
+    parsedBody = body ? JSON.parse(body) : {};
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+    return;
   }
+
+  const result = await handleApiRequest({
+    route: resolveApiRoute(req.url),
+    method: req.method,
+    apiKey: process.env.OPENAI_API_KEY,
+    body: parsedBody,
+  });
+
+  res.writeHead(result.status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(result.body));
 });
 
 server.listen(PORT, '127.0.0.1', () => {
