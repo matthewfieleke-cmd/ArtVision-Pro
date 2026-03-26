@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateCritiqueQuality } from '../lib/critiqueEval.js';
+import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.ts';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 
