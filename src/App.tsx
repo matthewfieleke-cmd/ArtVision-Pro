@@ -794,7 +794,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={goHome}
-                className="-ml-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-100/80"
+                className="-ml-1 rounded-lg px-1 py-0.5 text-left transition md:hover:bg-slate-100/80"
                 aria-label="Go to home"
               >
                 <p className="font-display text-xl font-normal tracking-tight text-slate-900">
