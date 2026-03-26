@@ -908,8 +908,10 @@ export default function App() {
 
           <div
             ref={flowScrollRef}
-            className={`min-h-0 flex-1 overflow-y-auto pb-6 pt-4 ${
-              isDesktop ? 'w-full px-8 lg:px-12' : 'px-4 pb-8 pt-5'
+            className={`min-h-0 flex-1 overflow-y-auto ${
+              isDesktop
+                ? 'w-full px-8 pb-6 pt-4 lg:px-12'
+                : 'px-4 pt-5 pb-[max(2rem,calc(1.25rem+env(safe-area-inset-bottom)))]'
             }`}
           >
             {flow.step === 'setup' && (
