@@ -1058,7 +1058,7 @@ export default function App() {
                           <Wand2 className="h-8 w-8 text-violet-500" />
                         )}
                         <span className="text-center text-sm font-semibold text-slate-800">
-                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a photo to detect style'}
+                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style'}
                         </span>
                         <span className="text-center text-xs text-slate-500">
                           We match Realism, Impressionism, Expressionism, or Abstract from the image.
@@ -1149,7 +1149,7 @@ export default function App() {
                       }}
                       className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition active:scale-[0.99]"
                     >
-                      Run critique on this photo
+                      Run critique on this painting
                     </button>
                     <button
                       type="button"
