@@ -484,6 +484,110 @@ function hasPaintingSpecificAnchor(text: string): boolean {
   );
 }
 
+/** Motifs, objects, or color words that tie advice to this picture—not just "background" or "one edge". */
+function hasStrictContentAnchor(text: string): boolean {
+  const t = text;
+  if (
+    /\b(cat|cats|dog|dogs|horse|horses|bird|birds|figure|figures|portrait|face|faces|head|table|chair|vase|bowl|flower|flowers|hand|hands|sleeve|sleeves|window|windows|door|roof|sky|water|boat|boats|person|people|child|children|animal|animals|fabric|drape|hair|skin|eyes?|apple|fruit|book|books|cup|mug|bottle|landscape|building|buildings|tree|trees|mountain|mountains|church|churches|field|path|rock|grass|sand|snow|foreground|still life|figure study)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (/\b(upper|lower|top|bottom)\s*[- ]?(left|right)\b/i.test(t)) return true;
+  if (/\b(left|right)\s+(side|edge|third)\b/i.test(t) && /\b(background|foreground|midground|figure|face|table|cloth|sky|cat|dog|object)\b/i.test(t)) {
+    return true;
+  }
+  if (/^(on|along|in)\s+the\s+(right|left)\b/i.test(t)) return true;
+  const colorHits = t.match(
+    /\b(red|blue|green|yellow|orange|violet|purple|pink|brown|ochre|sienna|ultramarine|cadmium|vermilion|turquoise|crimson|teal|maroon|navy|scarlet|ivory|sepia|grey|gray|black|white)s?\b/gi
+  );
+  if (colorHits && colorHits.length >= 2) return true;
+  if (
+    /\b(red|blue|green|yellow|orange|violet|purple|pink|crimson|ultramarine|cadmium)\b/i.test(t) &&
+    /\b(and|versus|vs\.?|meet|meets|against|near|into|between)\b/i.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+const VAGUE_NEXT_STEP_SUBJECT = /\b(one|the)\s+(important\s+)?(contour|neighbor|neighbour|passage|shape|zone|span|band|relationship)s?\b/i;
+const GENERIC_COLOR_FAMILIES = /two\s+color\s+families/i;
+const WEAKEST_EVIDENCE_PHRASE = /weakest\s+against\s+your\s+evidence|reads\s+weakest/i;
+const SUPPORTING_ZONE_GENERIC = /\bone\s+supporting\s+zone\b/i;
+
+function nextStepIsSpecificEnough(text: string): boolean {
+  const t = normalizeWhitespace(text);
+  if (t.length < 52) return false;
+  if (!hasConcreteAdjustment(t)) return false;
+  if (WEAKEST_EVIDENCE_PHRASE.test(t)) return false;
+  if (GENERIC_COLOR_FAMILIES.test(t)) return false;
+  if (SUPPORTING_ZONE_GENERIC.test(t)) return false;
+  if (/\bone\s+edge\b|\ban\s+edge\b/i.test(t) && !hasStrictContentAnchor(t)) return false;
+  if (VAGUE_NEXT_STEP_SUBJECT.test(t) && !hasStrictContentAnchor(t)) return false;
+  if (!hasStrictContentAnchor(t)) return false;
+  return true;
+}
+
+function collectContentAnchors(critique: CritiqueResultDTO): string[] {
+  const raw: string[] = [];
+  const s = critique.simpleFeedback;
+  if (s) {
+    if (typeof s.intent === 'string') raw.push(s.intent);
+    for (const w of s.working ?? []) raw.push(w);
+    if (typeof s.mainIssue === 'string') raw.push(s.mainIssue);
+    if (typeof s.preserve === 'string') raw.push(s.preserve);
+  }
+  if (typeof critique.summary === 'string') raw.push(critique.summary);
+  for (const c of critique.categories) {
+    for (const e of c.evidenceSignals ?? []) raw.push(e);
+    if (typeof c.feedback === 'string') raw.push(c.feedback);
+    if (typeof c.actionPlan === 'string') raw.push(c.actionPlan);
+  }
+  const phrases: string[] = [];
+  for (const block of raw) {
+    const n = normalizeWhitespace(block);
+    if (n.length < 14) continue;
+    const chunks = n.split(/\s*;\s*/).flatMap((p) => p.split(/(?<=[.!?])\s+/));
+    for (const chunk of chunks) {
+      const q = normalizeWhitespace(chunk);
+      if (q.length >= 14 && q.length <= 170) phrases.push(q);
+    }
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of phrases) {
+    const k = p.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+  }
+  return out;
+}
+
+function clipPhrase(s: string, max: number): string {
+  const t = normalizeWhitespace(s);
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1)).trim()}…`;
+}
+
+/** When model steps are too generic, rebuild from visible phrases already in the critique JSON. */
+function buildEvidenceAnchoredNextSteps(critique: CritiqueResultDTO): string[] {
+  const anchors = collectContentAnchors(critique);
+  if (!anchors.length) return [];
+  const a0 = clipPhrase(anchors[0]!, 95);
+  const a1 = clipPhrase(anchors[1] ?? anchors[0]!, 95);
+  const a2 = clipPhrase(anchors[2] ?? anchors[0]!, 95);
+  const a3 = clipPhrase(anchors[3] ?? anchors[1] ?? anchors[0]!, 95);
+  return [
+    `Starting from what is already visible (${a0}), separate the main mass there from what sits beside it with one clearer value step or a cleaner edge so that relationship reads first.`,
+    `In the passage your notes describe (${a1}), soften or simplify competing marks so the stronger area leads without equal-strength neighbors.`,
+    `Along the transition that still feels sticky (${a2}), sharpen or lose a short span of edge so depth and focus read more deliberately.`,
+    `Where color or temperature needs to knit together (${a3}), use a thin glaze or scumble so the shift supports space instead of flattening into a hard cut.`,
+  ];
+}
+
 function evidenceAnchorSnippet(category: CritiqueCategoryDTO): string {
   const signals = category.evidenceSignals ?? [];
   const pick = signals.find((s: string) => typeof s === 'string' && s.trim().length >= 8);
@@ -560,17 +664,10 @@ function enforceSpecificCategoryActionPlans(
 }
 
 function hasConcreteAdjustment(step: string): boolean {
-  return /soften|darken|lighten|group|separate|sharpen|lose|compress|cool|warm|straighten|widen|narrow|simplify|restate|quiet|reduce|push|shift|thicken|thin/i.test(
+  return /soften|darken|lighten|group|separate|sharpen|lose|compress|cool|warm|straighten|widen|narrow|simplify|restate|quiet|reduce|push|shift|thicken|thin|glaze|scumble|blend|drag|lift|mute|deepen|unify|knit/i.test(
     step
   );
 }
-
-const NEXT_STEP_FALLBACKS = [
-  'In the area that reads weakest against your evidence, simplify one busy passage and separate its main shape from the neighbor with a clearer value or edge decision.',
-  'In one supporting zone that competes with your focal read, quiet or soften the marks so the stronger passage leads without equal competition.',
-  'Along one important contour you already rely on, sharpen or lose a short span of edge so depth and focus read more deliberately.',
-  'Where two color families meet in the painting, adjust temperature or chroma in a narrow band so the transition supports the space instead of flattening it.',
-] as const;
 
 function enforceSpecificNextSteps(
   nextSteps: string[],
@@ -579,21 +676,14 @@ function enforceSpecificNextSteps(
   const hasBelowMasterCategory = critique.categories.some((category) => category.level !== 'Master');
   if (!hasBelowMasterCategory) return nextSteps.slice(0, 4);
 
-  const varied = nextSteps.map((step, index) => {
-    const text = normalizeWhitespace(step);
-    if (hasConcreteAdjustment(text) && hasPaintingSpecificAnchor(text)) return step;
+  const trimmed = nextSteps.map((s) => normalizeWhitespace(s)).filter(Boolean);
+  const allSpecific = trimmed.length >= 3 && trimmed.every((step) => nextStepIsSpecificEnough(step));
+  if (allSpecific) return trimmed.slice(0, 4);
 
-    return NEXT_STEP_FALLBACKS[Math.min(index, NEXT_STEP_FALLBACKS.length - 1)]!;
-  });
+  const anchored = buildEvidenceAnchoredNextSteps(critique);
+  if (anchored.length >= 3) return anchored.slice(0, 4);
 
-  const out = [...varied];
-  let padIndex = out.length;
-  while (out.length < 3 && padIndex < NEXT_STEP_FALLBACKS.length) {
-    out.push(NEXT_STEP_FALLBACKS[padIndex]!);
-    padIndex += 1;
-  }
-
-  return out.slice(0, 4);
+  return trimmed.slice(0, 4);
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {

@@ -557,6 +557,86 @@ function testCritiqueGuardrails(): void {
       /continue exploring|maintain the current balance|ensure harmony|keep going/i
     );
   }
+
+  const vagueNextStepsGuarded = applyCritiqueGuardrails({
+    summary: 'Landscape study: a dirt path cuts past oak trees into a pale evening sky.',
+    simpleFeedback: {
+      intent: 'Evening light on a path that bends past oak trunks toward a cool sky.',
+      working: ['The path reads as a clear entry.', 'The oak mass anchors the right side.'],
+      mainIssue: 'The path edge and grass still merge too much.',
+      nextSteps: [
+        'In the area that reads weakest against your evidence, simplify one busy passage and separate its main shape from the neighbor with a clearer value or edge decision.',
+        'Along one important contour you already rely on, sharpen or lose a short span of edge so depth and focus read more deliberately.',
+        'Where two color families meet in the painting, adjust temperature or chroma in a narrow band so the transition supports the space instead of flattening it.',
+      ],
+      preserve: 'Keep the path rhythm and the oak silhouette.',
+    },
+    categories: [
+      {
+        criterion: 'Intent and necessity',
+        level: 'Intermediate',
+        feedback: 'The path story is clear but some passages still compete.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['The path leads the eye inward.', 'Sky and trees share similar value bands.'],
+      },
+      {
+        criterion: 'Composition and shape structure',
+        level: 'Intermediate',
+        feedback: 'The path works but peripheral shapes compete.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['The path narrows convincingly into depth.', 'Grass texture repeats at the path edge.'],
+      },
+      {
+        criterion: 'Value and light structure',
+        level: 'Intermediate',
+        feedback: 'Evening compression is nice but edges need separation.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['Evening light flattens some foreground planes.', 'Oak trunks read darker than the path.'],
+      },
+      {
+        criterion: 'Color relationships',
+        level: 'Intermediate',
+        feedback: 'Warm path vs cool sky is promising.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['Warm ochres sit in the path.', 'Cool violets appear in the distant sky.'],
+      },
+      {
+        criterion: 'Drawing, proportion, and spatial form',
+        level: 'Intermediate',
+        feedback: 'Big shapes read; small overlaps wobble.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['Tree trunks tilt consistently.', 'Path width varies believably.'],
+      },
+      {
+        criterion: 'Edge and focus control',
+        level: 'Intermediate',
+        feedback: 'Path edge needs hierarchy.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['Grass strokes match the path edge sharpness.', 'Sky meets treetops softly.'],
+      },
+      {
+        criterion: 'Surface and medium handling',
+        level: 'Intermediate',
+        feedback: 'Marks are lively but repetitive near the path.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['Scumbled grass repeats similar length strokes.', 'Sky wash is smoother than foreground.'],
+      },
+      {
+        criterion: 'Presence, point of view, and human force',
+        level: 'Intermediate',
+        feedback: 'Calm evening mood comes through.',
+        actionPlan: '1. Keep going.',
+        evidenceSignals: ['Low light mood is consistent.', 'No single human focal point.'],
+      },
+    ],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  const joinedNext = vagueNextStepsGuarded.simpleFeedback?.nextSteps?.join(' ') ?? '';
+  assert.doesNotMatch(joinedNext, /weakest against your evidence|two color families|one important contour/i);
+  assert.match(joinedNext, /path|oak|sky|grass|tree|evening|foreground|treetops/i);
 }
 
 async function main(): Promise<void> {

@@ -50,7 +50,9 @@ Rules:
 - Do NOT overpraise. "Master" should be rare and should only be used when the evidence shows unusually strong, intentional, and sustained control in that criterion.
 - If the work is strong but still developing, prefer "Advanced" over "Master."
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
-- Top-level nextSteps (3–4 items): each must be a distinct, painting-specific studio move—name a visible area, shape, edge, color passage, or spatial relationship from the evidence (e.g. "In the upper-left sky, ..."). No two steps should repeat the same move. Avoid filler such as "continue exploring," "consider experimenting," "maintain balance," or "ensure harmony."
+- Top-level nextSteps (3–4 items): each must be a distinct studio move that names **specific content from the evidence**—not generic zones. Good: "On the right, separate the cat from the table with a darker value in the table plane…" / "Where the reds meet the blues along the sleeve, glaze a thin neutral…" Bad: "In one area…", "the weakest passage", "two color families", "one important contour", "the neighbor", "supporting zone" without naming what is actually in the picture.
+- Every nextStep must include at least one **identifiable subject** from the evidence (figure, animal, object, named color, or two concrete locators such as "background, left edge" plus what it borders). If the evidence names a motif, repeat that motif in the step.
+- No two nextSteps should repeat the same move or the same named passage.
 - If a work is rated below Master in any criterion, every next step must be a true revision move the artist can do now on this image, not general practice advice.
 - For non-master work, do not let "preserve" language replace correction. Name the exact passage or relationship to adjust.
 - Prefer verbs like soften, darken, simplify, group, separate, lose, sharpen, compress, cool, warm, straighten, widen, narrow, or restate when they are justified by the evidence.
@@ -86,6 +88,9 @@ Anti-pattern examples:
 
 - Bad: "Experiment with different brushwork techniques."
 - Better: "In the foreground path, switch two or three repeated strokes to broader, flatter marks so the path reads as one plane before the eye reaches the trees."
+
+- Bad: "Where two color families meet in the painting, adjust temperature…"
+- Better: "Where the cadmium red scarf meets the cool blue-gray background, drag a scumbled violet-gray bridge so the edge reads as atmosphere instead of a sticker outline."
 
 - Bad: "Add subtle color variation" for a graphite or charcoal drawing.
 - Better: "Use line weight and value grouping, not added color, to separate the lit side of the form from the shadow-facing side."
