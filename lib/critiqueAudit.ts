@@ -119,6 +119,102 @@ function toneDownOverpraise(
   };
 }
 
+function inferNoviceSignalCount(critique: CritiqueResultDTO): number {
+  const text = normalizeWhitespace(
+    [
+      critique.summary,
+      critique.simpleFeedback?.intent ?? '',
+      critique.simpleFeedback?.mainIssue ?? '',
+      critique.simpleFeedback?.preserve ?? '',
+      ...(critique.simpleFeedback?.working ?? []),
+      ...critique.categories.flatMap((category) => [
+        category.feedback,
+        category.actionPlan,
+        ...(category.evidenceSignals ?? []),
+        category.preserve ?? '',
+      ]),
+    ].join(' ')
+  );
+
+  const patterns = [
+    /childlike|child-like|second grader|second-grade|elementary/i,
+    /children'?s drawing|childhood|innocence|nostalgia/i,
+    /simplified forms?|simple shapes|basic shapes|readable big shapes|straightforward perspective/i,
+    /lack of depth|lack of perspective|flat spacing|flat scene|naive spacing|symbol-like/i,
+    /cheerful mood|playful theme|domestic, playful theme/i,
+    /bright local color|bright, flat colors|primary colors dominate/i,
+    /easy to read/i,
+  ];
+
+  return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
+}
+
+function capInflatedRatingsForNoviceLikeWork(
+  critique: CritiqueResultDTO
+): CritiqueResultDTO {
+  const noviceSignals = inferNoviceSignalCount(critique);
+  if (noviceSignals < 2) return critique;
+
+  const softenedCategories = critique.categories.map((category) => {
+    if (noviceSignals >= 4 && category.level === 'Master') {
+      return {
+        ...category,
+        level: 'Beginner' as const,
+      };
+    }
+
+    if (noviceSignals >= 4 && category.level === 'Advanced') {
+      return {
+        ...category,
+        level:
+          category.criterion === 'Intent and necessity' ||
+          category.criterion === 'Presence, point of view, and human force'
+            ? ('Beginner' as const)
+            : ('Intermediate' as const),
+      };
+    }
+
+    if (category.level === 'Master') {
+      return {
+        ...category,
+        level: 'Intermediate' as const,
+      };
+    }
+
+    if (category.level === 'Advanced') {
+      return {
+        ...category,
+        level: 'Intermediate' as const,
+      };
+    }
+
+    return category;
+  });
+
+  const simple = critique.simpleFeedback;
+  return {
+    ...critique,
+    categories: softenedCategories,
+    overallConfidence:
+      critique.overallConfidence === 'high'
+        ? noviceSignals >= 4
+          ? 'low'
+          : 'medium'
+        : critique.overallConfidence,
+    ...(simple
+      ? {
+          simpleFeedback: {
+            ...simple,
+            mainIssue:
+              noviceSignals >= 4
+                ? 'The main issue is that the picture is working with simple, early-stage decisions: the subject is readable, but drawing, spatial logic, value grouping, and edge control are still at a beginner-to-intermediate stage rather than an advanced one.'
+                : 'The main issue is that the picture is still working at a simple, early-stage level: the big shapes read, but drawing, value grouping, and edge control are not yet developed enough to support higher ratings.',
+          },
+        }
+      : {}),
+  };
+}
+
 function rewriteMediumInsensitiveStep(step: string, critique: CritiqueResultDTO): string {
   const text = normalizeWhitespace(step);
   const medium = critique.summary + ' ' + (critique.simpleFeedback?.intent ?? '');
@@ -160,18 +256,50 @@ function rewriteLowLeverageStep(step: string): string {
   return step;
 }
 
+function hasConcreteAdjustment(step: string): boolean {
+  return /soften|darken|lighten|group|separate|sharpen|lose|compress|cool|warm|straighten|widen|narrow|simplify|restate|quiet|reduce|push|shift|thicken|thin/i.test(
+    step
+  );
+}
+
+function enforceSpecificNextSteps(
+  nextSteps: string[],
+  critique: CritiqueResultDTO
+): string[] {
+  const hasBelowMasterCategory = critique.categories.some((category) => category.level !== 'Master');
+  if (!hasBelowMasterCategory) return nextSteps;
+
+  return nextSteps.map((step, index) => {
+    const text = normalizeWhitespace(step);
+    if (hasConcreteAdjustment(text)) return step;
+
+    if (index === 0) {
+      return 'On the next pass, adjust the weakest visible relationship first by simplifying one busy passage and separating its main shape from the neighboring shape with a clearer value or edge decision.';
+    }
+
+    if (index === 1) {
+      return 'After that, choose one supporting area and either quiet it, soften it, or group it more simply so the stronger passage can lead without competition.';
+    }
+
+    return 'Finish by checking one specific edge, value grouping, or color-temperature relationship that still feels undecided and correct only that passage.';
+  });
+}
+
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const tonedDown = toneDownOverpraise(critique);
+  const tonedDown = capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique));
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;
 
-  const nextSteps = tonedSimple.nextSteps.map((step) =>
-    rewriteLowLeverageStep(
-      rewriteMediumInsensitiveStep(
-        rewriteGenericStep(step, tonedSimple.preserve, tonedSimple.intent),
-        tonedDown
-      )
+  const nextSteps = enforceSpecificNextSteps(
+    tonedSimple.nextSteps.map((step) =>
+      rewriteLowLeverageStep(
+        rewriteMediumInsensitiveStep(
+          rewriteGenericStep(step, tonedSimple.preserve, tonedSimple.intent),
+          tonedDown
+        )
     )
+    ),
+    tonedDown
   );
 
   return {

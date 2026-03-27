@@ -290,6 +290,87 @@ function testCritiqueGuardrails(): void {
     weakActionGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
     /softening one background edge|smaller temperature or value shift|deepen the distance/i
   );
+
+  const belowMasterSpecificityGuarded = applyCritiqueGuardrails({
+    summary: 'A student watercolor with several unresolved structural relationships.',
+    simpleFeedback: {
+      intent: 'A simple watercolor scene with bright local color and childlike spacing.',
+      working: ['The mood is cheerful.', 'The main shapes are easy to read.'],
+      mainIssue: 'The work could be stronger overall.',
+      nextSteps: [
+        'Maintain the cheerful feeling.',
+        'Continue exploring the composition.',
+        'Consider adding more variety.',
+      ],
+      preserve: 'Preserve the cheerful mood and the readable big shapes.',
+    },
+    categories: [
+      {
+        criterion: 'Intent and necessity',
+        level: 'Advanced',
+        feedback: 'Good.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Composition and shape structure',
+        level: 'Intermediate',
+        feedback: 'Needs work.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Value and light structure',
+        level: 'Intermediate',
+        feedback: 'Needs work.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Color relationships',
+        level: 'Intermediate',
+        feedback: 'Needs work.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Drawing, proportion, and spatial form',
+        level: 'Intermediate',
+        feedback: 'Needs work.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Edge and focus control',
+        level: 'Intermediate',
+        feedback: 'Needs work.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Surface and medium handling',
+        level: 'Advanced',
+        feedback: 'Good.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Presence, point of view, and human force',
+        level: 'Intermediate',
+        feedback: 'Needs work.',
+        actionPlan: '1. Keep going.',
+      },
+    ],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  assert.doesNotMatch(
+    belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    /maintain the cheerful feeling/i
+  );
+  assert.match(
+    belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    /adjust|simplifying|separating|clearer value|edge decision/i
+  );
+  assert.match(
+    belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
+    /quiet|soften|group/i
+  );
 }
 
 async function main(): Promise<void> {
