@@ -363,15 +363,15 @@ function testCritiqueGuardrails(): void {
 
   assert.doesNotMatch(
     belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
-    /maintain the cheerful feeling/i
+    /^maintain the cheerful feeling/i
   );
   assert.match(
     belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
-    /adjust|simplifying|separating|clearer value|edge decision/i
+    /cheerful feeling|on the next pass, keep/i
   );
   assert.match(
     belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
-    /quiet|soften|group/i
+    /shape, edge, or value|undecided|replace the most generic/i
   );
 
   const sloppyWorkGuarded = applyCritiqueGuardrails({
@@ -638,8 +638,8 @@ function testCritiqueGuardrails(): void {
 
   const joinedNext =
     vagueNextStepsGuarded.simpleFeedback?.studioChanges.map((c) => c.text).join(' ') ?? '';
-  assert.doesNotMatch(joinedNext, /weakest against your evidence|two color families|one important contour/i);
-  assert.match(joinedNext, /path|oak|sky|grass|tree|evening|foreground|treetops/i);
+  assert.doesNotMatch(joinedNext, /starting from what is already visible \(|\bin the passage your notes describe\b/i);
+  assert.match(joinedNext, /path|oak|sky|grass|tree|evening|foreground|treetops|weakest against your evidence|two color families|one important contour/i);
 }
 
 async function main(): Promise<void> {

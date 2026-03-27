@@ -3,7 +3,6 @@ import type {
   CritiqueResultDTO,
   CritiqueSimpleFeedbackDTO,
 } from './critiqueTypes.js';
-import { CRITERIA_ORDER } from '../shared/criteria.js';
 
 function containsAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
@@ -500,121 +499,6 @@ function hasPaintingSpecificAnchor(text: string): boolean {
   );
 }
 
-/** Motifs, objects, geometry, or color words that tie advice to this picture—not just "background" or "one edge". */
-function hasStrictContentAnchor(text: string): boolean {
-  const t = text;
-  if (
-    /\b(cat|cats|dog|dogs|horse|horses|bird|birds|figure|figures|portrait|face|faces|head|table|chair|vase|bowl|flower|flowers|hand|hands|sleeve|sleeves|window|windows|door|roof|sky|water|boat|boats|person|people|child|children|animal|animals|fabric|drape|hair|skin|eyes?|apple|fruit|book|books|cup|mug|bottle|landscape|building|buildings|tree|trees|mountain|mountains|church|churches|field|path|rock|grass|sand|snow|still life|figure study)\b/i.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  if (
-    /\b(abstract|non-?objective|gestural|geometric|hard-?edge|color field|mark-?making|impasto|scumble|wash|glaze|drip|drips|stripe|stripes|slab|slabs|block|blocks|band|bands|grid|grids|diagonal|verticals?|horizontals?|rectangle|squares?|circle|circles|triangle|ellipse|canvas|panel|composition|motif|motifs|passage|passages)\b/i.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  if (/\b(upper|lower|top|bottom)\s*[- ]?(left|right)\b/i.test(t)) return true;
-  if (/\b(left|right)\s+(side|edge|third)\b/i.test(t) && /\b(background|foreground|midground|figure|face|table|cloth|sky|cat|dog|object)\b/i.test(t)) {
-    return true;
-  }
-  if (
-    /\b(left|right|upper|lower)\s+(third|quadrant|corner|band|edge|field)\b/i.test(t) &&
-    /\b(background|foreground|midground|sky|ground|plane|field|band|passage|wash|slab|mark|marks|area)\b/i.test(t)
-  ) {
-    return true;
-  }
-  if (/^(on|along|in)\s+the\s+(right|left)\b/i.test(t)) return true;
-  const colorHits = t.match(
-    /\b(red|blue|green|yellow|orange|violet|purple|pink|brown|ochre|sienna|ultramarine|cadmium|vermilion|turquoise|crimson|teal|maroon|navy|scarlet|ivory|sepia|grey|gray|black|white)s?\b/gi
-  );
-  if (colorHits && colorHits.length >= 2) return true;
-  if (
-    /\b(red|blue|green|yellow|orange|violet|purple|pink|crimson|ultramarine|cadmium)\b/i.test(t) &&
-    /\b(and|versus|vs\.?|meet|meets|against|near|into|between)\b/i.test(t)
-  ) {
-    return true;
-  }
-  return false;
-}
-
-const VAGUE_NEXT_STEP_SUBJECT = /\b(one|the)\s+(important\s+)?(contour|neighbor|neighbour|passage|shape|zone|span|band|relationship)s?\b/i;
-const GENERIC_COLOR_FAMILIES = /two\s+color\s+families/i;
-const WEAKEST_EVIDENCE_PHRASE = /weakest\s+against\s+your\s+evidence|reads\s+weakest/i;
-const SUPPORTING_ZONE_GENERIC = /\bone\s+supporting\s+zone\b/i;
-
-function nextStepIsSpecificEnough(text: string): boolean {
-  const t = normalizeWhitespace(text);
-  if (t.length < 52) return false;
-  if (!hasConcreteAdjustment(t)) return false;
-  if (WEAKEST_EVIDENCE_PHRASE.test(t)) return false;
-  if (GENERIC_COLOR_FAMILIES.test(t)) return false;
-  if (SUPPORTING_ZONE_GENERIC.test(t)) return false;
-  if (/\bone\s+edge\b|\ban\s+edge\b/i.test(t) && !hasStrictContentAnchor(t)) return false;
-  if (VAGUE_NEXT_STEP_SUBJECT.test(t) && !hasStrictContentAnchor(t)) return false;
-  if (!hasStrictContentAnchor(t)) return false;
-  return true;
-}
-
-function collectContentAnchors(critique: CritiqueResultDTO): string[] {
-  const raw: string[] = [];
-  const s = critique.simpleFeedback;
-  if (s) {
-    raw.push(s.studioAnalysis.whatWorks, s.studioAnalysis.whatCouldImprove);
-    /* Do not pull studioChanges into anchors — weak steps would be recycled into “evidence” fallbacks. */
-  }
-  if (typeof critique.summary === 'string') raw.push(critique.summary);
-  for (const c of critique.categories) {
-    for (const e of c.evidenceSignals ?? []) raw.push(e);
-    if (typeof c.feedback === 'string') raw.push(c.feedback);
-    if (typeof c.actionPlan === 'string') raw.push(c.actionPlan);
-  }
-  const phrases: string[] = [];
-  for (const block of raw) {
-    const n = normalizeWhitespace(block);
-    if (n.length < 14) continue;
-    const chunks = n.split(/\s*;\s*/).flatMap((p) => p.split(/(?<=[.!?])\s+/));
-    for (const chunk of chunks) {
-      const q = normalizeWhitespace(chunk);
-      if (q.length >= 14 && q.length <= 170) phrases.push(q);
-    }
-  }
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const p of phrases) {
-    const k = p.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(p);
-  }
-  return out;
-}
-
-function clipPhrase(s: string, max: number): string {
-  const t = normalizeWhitespace(s);
-  if (t.length <= max) return t;
-  return `${t.slice(0, Math.max(0, max - 1)).trim()}…`;
-}
-
-/** When model steps are too generic, rebuild from visible phrases already in the critique JSON. */
-function buildEvidenceAnchoredNextSteps(critique: CritiqueResultDTO): string[] {
-  const anchors = collectContentAnchors(critique);
-  if (!anchors.length) return [];
-  const a0 = clipPhrase(anchors[0]!, 95);
-  const a1 = clipPhrase(anchors[1] ?? anchors[0]!, 95);
-  const a2 = clipPhrase(anchors[2] ?? anchors[0]!, 95);
-  const a3 = clipPhrase(anchors[3] ?? anchors[1] ?? anchors[0]!, 95);
-  return [
-    `Starting from what is already visible (${a0}), separate the main mass there from what sits beside it with one clearer value step or a cleaner edge so that relationship reads first.`,
-    `In the passage your notes describe (${a1}), soften or simplify competing marks so the stronger area leads without equal-strength neighbors.`,
-    `Along the transition that still feels sticky (${a2}), sharpen or lose a short span of edge so depth and focus read more deliberately.`,
-    `Where color or temperature needs to knit together (${a3}), use a thin glaze or scumble so the shift supports space instead of flattening into a hard cut.`,
-  ];
-}
-
 function evidenceAnchorSnippet(category: CritiqueCategoryDTO): string {
   const signals = category.evidenceSignals ?? [];
   const pick = signals.find((s: string) => typeof s === 'string' && s.trim().length >= 8);
@@ -690,34 +574,6 @@ function enforceSpecificCategoryActionPlans(
   };
 }
 
-function hasConcreteAdjustment(step: string): boolean {
-  return /soften|darken|lighten|group|separate|sharpen|lose|compress|cool|warm|straighten|widen|narrow|simplify|restate|quiet|reduce|push|shift|thicken|thin|glaze|scumble|blend|drag|lift|mute|deepen|unify|knit/i.test(
-    step
-  );
-}
-
-function enforceSpecificStudioChanges(
-  changes: CritiqueSimpleFeedbackDTO['studioChanges'],
-  critique: CritiqueResultDTO
-): CritiqueSimpleFeedbackDTO['studioChanges'] {
-  const hasBelowMasterCategory = critique.categories.some((category) => category.level !== 'Master');
-  if (!hasBelowMasterCategory) return changes.slice(0, 5);
-
-  const texts = changes.map((c) => normalizeWhitespace(c.text)).filter(Boolean);
-  const allSpecific = texts.length >= 2 && texts.every((step) => nextStepIsSpecificEnough(step));
-  if (allSpecific) return changes.slice(0, 5);
-
-  const anchored = buildEvidenceAnchoredNextSteps(critique);
-  if (anchored.length >= 2) {
-    return anchored.slice(0, 5).map((text, i) => ({
-      text,
-      previewCriterion: CRITERIA_ORDER[Math.min(i, CRITERIA_ORDER.length - 1)]!,
-    }));
-  }
-
-  return changes.slice(0, 5);
-}
-
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
   const tonedDown = enforceSpecificCategoryActionPlans(
     capInflatedRatingsWhenFundamentalsAreWeak(
@@ -731,15 +587,12 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
 
   const ctxA = tonedSimple.studioAnalysis.whatWorks;
   const ctxB = tonedSimple.studioAnalysis.whatCouldImprove;
-  const studioChanges = enforceSpecificStudioChanges(
-    tonedSimple.studioChanges.map((ch) => ({
-      ...ch,
-      text: rewriteLowLeverageStep(
-        rewriteMediumInsensitiveStep(rewriteGenericStep(ch.text, ctxA, ctxB), tonedDown)
-      ),
-    })),
-    tonedDown
-  );
+  const studioChanges = tonedSimple.studioChanges.map((ch) => ({
+    ...ch,
+    text: rewriteLowLeverageStep(
+      rewriteMediumInsensitiveStep(rewriteGenericStep(ch.text, ctxA, ctxB), tonedDown)
+    ),
+  })).slice(0, 5);
 
   return {
     ...tonedDown,
