@@ -26,6 +26,10 @@ function subskillBarWidth(score: number): string {
   return `${Math.max(10, Math.round(score * 100))}%`;
 }
 
+function hasDriverDetails(category: CritiqueCategory): boolean {
+  return Boolean(category.subskills?.length || category.evidenceSignals?.length);
+}
+
 function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
   const [open, setOpen] = useState(false);
   const headingId = useId();
@@ -79,40 +83,40 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
             ) : null}
           </div>
           <p className="text-sm leading-relaxed text-slate-600">{category.feedback}</p>
-          {category.subskills?.length ? (
+          {hasDriverDetails(category) ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What is driving this read</p>
-              <div className="mt-2 space-y-2">
-                {category.subskills.map((subskill) => (
-                  <div key={subskill.label}>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        {subskill.level}
-                      </span>
+              {category.evidenceSignals?.length ? (
+                <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-700">
+                  {category.evidenceSignals.map((signal) => (
+                    <li key={signal} className="flex gap-2">
+                      <span className="mt-[0.35rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
+                      <span>{signal}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {category.subskills?.length ? (
+                <div className={`${category.evidenceSignals?.length ? 'mt-3 border-t border-slate-200 pt-3' : 'mt-2'} space-y-2`}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skill snapshot</p>
+                  {category.subskills.map((subskill) => (
+                    <div key={subskill.label}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          {subskill.level}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
+                        <div
+                          className="h-full rounded-full bg-violet-400 transition-all duration-700"
+                          style={{ width: subskillBarWidth(subskill.score) }}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
-                      <div
-                        className="h-full rounded-full bg-violet-400 transition-all duration-700"
-                        style={{ width: subskillBarWidth(subskill.score) }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {category.evidenceSignals?.length ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What I am seeing</p>
-              <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-700">
-                {category.evidenceSignals.map((signal) => (
-                  <li key={signal} className="flex gap-2">
-                    <span className="mt-[0.35rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
-                    <span>{signal}</span>
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
           {category.preserve ? (
