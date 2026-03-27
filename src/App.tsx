@@ -62,7 +62,15 @@ import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
 import { ProfileTab } from './screens/ProfileTab';
 import { StudioTab } from './screens/StudioTab';
-import type { CritiqueCategory, CritiqueResult, PaintingVersion, SavedPainting, Style, TabId } from './types';
+import type {
+  CritiqueCategory,
+  CritiqueResult,
+  PaintingVersion,
+  SavedPainting,
+  SavedPreviewEdit,
+  Style,
+  TabId,
+} from './types';
 import { MEDIUMS, RATING_LEVELS, STYLES } from './types';
 type CropSource = 'gallery' | 'camera-file' | 'live-camera' | 'classify-upload';
 type CropAction = 'analyze' | 'classify';
@@ -76,7 +84,7 @@ type PendingCrop = {
 type PreviewEditTargetPayload = Pick<
   CritiqueCategory,
   'criterion' | 'level' | 'feedback' | 'actionPlan'
-> & { studioChangeRecommendation?: string };
+> & { studioChangeRecommendation?: string; combinedVoiceBChanges?: string };
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -87,30 +95,81 @@ function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCateg
   return categories.reduce((a, b) => (rank(a.level) <= rank(b.level) ? a : b));
 }
 
-/** When preview is generated after save, merge into the last version instead of appending a duplicate. */
+/** When saving after preview, merge into the last version instead of appending a duplicate. */
 function mergePreviewIntoLastVersion(
   versions: PaintingVersion[],
   flowImageDataUrl: string,
   critiqueToStore: CritiqueResult,
-  previewImageDataUrl: string,
-  previewCriterion: CritiqueCategory['criterion'],
-  studioChangeRecommendation?: string
+  previewEdits: SavedPreviewEdit[]
 ): { versions: PaintingVersion[]; merged: boolean } {
   const last = versions[versions.length - 1];
   if (!last || last.imageDataUrl !== flowImageDataUrl) {
     return { versions, merged: false };
   }
   const next = versions.slice(0, -1);
+  const existing = last.previewEdits ?? [];
+  const byId = new Map(existing.map((e) => [e.id, e]));
+  for (const e of previewEdits) byId.set(e.id, e);
+  const mergedEdits = [...byId.values()];
   next.push({
     ...last,
     critique: critiqueToStore,
-    previewEdit: {
-      imageDataUrl: previewImageDataUrl,
-      criterion: previewCriterion,
-      ...(studioChangeRecommendation ? { studioChangeRecommendation } : {}),
-    },
+    ...(mergedEdits.length ? { previewEdits: mergedEdits } : {}),
+    previewEdit: undefined,
   });
   return { versions: next, merged: true };
+}
+
+function previewDisplayTarget(
+  flow: CritiqueFlow,
+  activePreviewEditId: string | null,
+  previewStudioChangeIndex: number
+): PreviewEditTargetPayload | null {
+  if (flow.step !== 'results' || !flow.critique.categories.length) return null;
+  const catList = flow.critique.categories;
+  const session = flow.sessionPreviewEdits ?? [];
+  const active = activePreviewEditId ? session.find((e) => e.id === activePreviewEditId) : undefined;
+  if (active) {
+    const cat =
+      catList.find((c) => c.criterion === active.criterion) ?? priorityCritiqueCategory(catList);
+    if (active.mode === 'combined') {
+      return {
+        criterion: active.criterion,
+        level: cat.level,
+        feedback: cat.feedback,
+        actionPlan: cat.actionPlan,
+        combinedVoiceBChanges: active.studioChangeRecommendation,
+      };
+    }
+    return {
+      criterion: active.criterion,
+      level: cat.level,
+      feedback: cat.feedback,
+      actionPlan: cat.actionPlan,
+      studioChangeRecommendation: active.studioChangeRecommendation,
+    };
+  }
+  const changes = flow.critique.simple?.studioChanges;
+  if (changes && changes.length > 0) {
+    const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+    const ch = changes[idx]!;
+    const cat =
+      catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+    return {
+      criterion: ch.previewCriterion,
+      level: cat.level,
+      feedback: cat.feedback,
+      actionPlan: cat.actionPlan,
+      studioChangeRecommendation: ch.text,
+    };
+  }
+  const p = priorityCritiqueCategory(catList);
+  return {
+    criterion: p.criterion,
+    level: p.level,
+    feedback: p.feedback,
+    actionPlan: p.actionPlan,
+  };
 }
 
 export default function App() {
@@ -130,7 +189,8 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previewImageDataUrl, setPreviewImageDataUrl] = useState<string | null>(null);
+  /** Which generated preview is shown in the blend card / compare overlay. */
+  const [activePreviewEditId, setActivePreviewEditId] = useState<string | null>(null);
   const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
@@ -223,7 +283,7 @@ export default function App() {
     setClassifyBusy(false);
     setPreviewLoading(false);
     setPreviewError(null);
-    setPreviewImageDataUrl(null);
+    setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
@@ -240,7 +300,7 @@ export default function App() {
     setClassifyBusy(false);
     setPreviewLoading(false);
     setPreviewError(null);
-    setPreviewImageDataUrl(null);
+    setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
@@ -253,7 +313,7 @@ export default function App() {
     setClassifyBusy(false);
     setPreviewLoading(false);
     setPreviewError(null);
-    setPreviewImageDataUrl(null);
+    setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
@@ -266,7 +326,7 @@ export default function App() {
     setClassifyBusy(false);
     setPreviewLoading(false);
     setPreviewError(null);
-    setPreviewImageDataUrl(null);
+    setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
@@ -394,7 +454,7 @@ export default function App() {
 
       if (runId !== analysisRunTokenRef.current) return;
 
-      setPreviewImageDataUrl(null);
+      setActivePreviewEditId(null);
       setPreviewError(null);
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
@@ -554,41 +614,22 @@ export default function App() {
         ...resultFlow.critique,
         ...(savedTitle ? { paintingTitle: savedTitle } : {}),
       };
-      const catList = resultFlow.critique.categories;
-      const changes = critiqueToStore.simple?.studioChanges;
-      let previewCriterion = priorityCritiqueCategory(catList).criterion;
-      let studioRec: string | undefined;
-      if (changes && changes.length > 0) {
-        const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-        const ch = changes[idx]!;
-        previewCriterion = ch.previewCriterion;
-        studioRec = ch.text;
-      }
+      const sessionPreviews = resultFlow.sessionPreviewEdits ?? [];
       const version = {
         id: newId(),
         imageDataUrl: resultFlow.imageDataUrl,
         createdAt: new Date().toISOString(),
         critique: critiqueToStore,
-        ...(previewImageDataUrl
-          ? {
-              previewEdit: {
-                imageDataUrl: previewImageDataUrl,
-                criterion: previewCriterion,
-                ...(studioRec ? { studioChangeRecommendation: studioRec } : {}),
-              },
-            }
-          : {}),
+        ...(sessionPreviews.length ? { previewEdits: sessionPreviews } : {}),
       };
       if (resultFlow.mode === 'resubmit') {
         const t = resultFlow.workingTitle.trim();
-        const merged = previewImageDataUrl
+        const merged = sessionPreviews.length
           ? mergePreviewIntoLastVersion(
               resultFlow.targetPainting.versions,
               resultFlow.imageDataUrl,
               critiqueToStore,
-              previewImageDataUrl,
-              previewCriterion,
-              studioRec
+              sessionPreviews
             )
           : { versions: resultFlow.targetPainting.versions, merged: false };
         const nextVersions = merged.merged
@@ -629,14 +670,12 @@ export default function App() {
         const existingPainting = paintings.find((p) => p.id === resultFlow.savedPaintingId);
 
         let nextVersions: PaintingVersion[];
-        if (previewImageDataUrl && existingPainting) {
+        if (sessionPreviews.length && existingPainting) {
           const m = mergePreviewIntoLastVersion(
             existingPainting.versions,
             resultFlow.imageDataUrl,
             critiqueToStore,
-            previewImageDataUrl,
-            previewCriterion,
-            studioRec
+            sessionPreviews
           );
           nextVersions = m.merged ? m.versions : [...existingPainting.versions, version];
         } else if (existingPainting) {
@@ -722,7 +761,7 @@ export default function App() {
         );
       }
     },
-    [flow, paintings, previewImageDataUrl, previewStudioChangeIndex]
+    [flow, paintings]
   );
 
   const persistResultRef = useRef(persistResult);
@@ -731,22 +770,29 @@ export default function App() {
   const lastAutoPreviewSaveRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!previewImageDataUrl) {
+    if (!flow || flow.step !== 'results') {
       lastAutoPreviewSaveRef.current = null;
+      return;
     }
-  }, [previewImageDataUrl]);
+    const list = flow.sessionPreviewEdits ?? [];
+    const sig = list.map((e) => e.id).join('|');
+    if (!sig) lastAutoPreviewSaveRef.current = null;
+  }, [flow]);
 
-  /** When preview finishes for a work already in Studio, persist (merge preview into last version) without leaving results. */
+  /** When preview finishes for a work already in Studio, persist (merge previews into last version) without leaving results. */
   useEffect(() => {
-    if (previewLoading || !previewImageDataUrl) return;
+    if (previewLoading) return;
     const f = flowRef.current;
     if (!f || f.step !== 'results') return;
+    const list = f.sessionPreviewEdits ?? [];
+    if (!list.length) return;
     const hasStudio = f.mode === 'resubmit' || f.savedPaintingId != null;
     if (!hasStudio) return;
-    if (lastAutoPreviewSaveRef.current === previewImageDataUrl) return;
-    lastAutoPreviewSaveRef.current = previewImageDataUrl;
+    const sig = list.map((e) => e.id).join('|');
+    if (lastAutoPreviewSaveRef.current === sig) return;
+    lastAutoPreviewSaveRef.current = sig;
     persistResultRef.current({ navigateToStudio: false });
-  }, [previewImageDataUrl, previewLoading]);
+  }, [flow, previewLoading]);
 
   const deletePainting = useCallback((id: string) => {
     setPaintings((ps) => ps.filter((p) => p.id !== id));
@@ -767,31 +813,15 @@ export default function App() {
         !classifyBusy
     );
 
-  const previewTarget = useMemo((): PreviewEditTargetPayload | null => {
-    if (!flow || flow.step !== 'results' || !flow.critique.categories.length) return null;
-    const catList = flow.critique.categories;
-    const changes = flow.critique.simple?.studioChanges;
-    if (changes && changes.length > 0) {
-      const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-      const ch = changes[idx]!;
-      const cat =
-        catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-      return {
-        criterion: ch.previewCriterion,
-        level: cat.level,
-        feedback: cat.feedback,
-        actionPlan: cat.actionPlan,
-        studioChangeRecommendation: ch.text,
-      };
-    }
-    const p = priorityCritiqueCategory(catList);
-    return {
-      criterion: p.criterion,
-      level: p.level,
-      feedback: p.feedback,
-      actionPlan: p.actionPlan,
-    };
-  }, [flow, previewStudioChangeIndex]);
+  const previewTarget = useMemo(
+    () => (flow ? previewDisplayTarget(flow, activePreviewEditId, previewStudioChangeIndex) : null),
+    [flow, activePreviewEditId, previewStudioChangeIndex]
+  );
+
+  const activePreviewImageDataUrl = useMemo(() => {
+    if (!flow || flow.step !== 'results' || !activePreviewEditId) return null;
+    return flow.sessionPreviewEdits?.find((e) => e.id === activePreviewEditId)?.imageDataUrl ?? null;
+  }, [flow, activePreviewEditId]);
 
   const rememberCritiqueReturn = useCallback(() => {
     const current = flowRef.current;
@@ -806,61 +836,122 @@ export default function App() {
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
 
-  const runPreviewEdit = useCallback(async () => {
-    const currentFlow = flowRef.current;
-    if (!currentFlow || currentFlow.step !== 'results') return;
-    const catList = currentFlow.critique.categories;
-    if (catList.length === 0) return;
-    const changes = currentFlow.critique.simple?.studioChanges;
-    let target: PreviewEditTargetPayload;
-    if (changes && changes.length > 0) {
-      const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-      const ch = changes[idx]!;
-      const cat = catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-      target = {
-        criterion: ch.previewCriterion,
-        level: cat.level,
-        feedback: cat.feedback,
-        actionPlan: cat.actionPlan,
-        studioChangeRecommendation: ch.text,
-      };
-    } else {
-      const p = priorityCritiqueCategory(catList);
-      target = {
-        criterion: p.criterion,
-        level: p.level,
-        feedback: p.feedback,
-        actionPlan: p.actionPlan,
-      };
-    }
-    const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
-    if (!shouldTryApiFirst()) {
-      setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
-      return;
-    }
-    setReturnViewIntent({ kind: 'critique', flow: currentFlow });
-    setPreviewError(null);
-    setPreviewLoading(true);
-    try {
-      const { imageDataUrl } = await fetchPreviewEdit({
-        imageDataUrl: previewSource,
-        style: currentFlow.style,
-        medium: currentFlow.medium,
-        target,
-      });
-      setPreviewImageDataUrl(imageDataUrl);
-      setPreviewCompareOpen(false);
-      setPreviewCompareSeen(false);
-    } catch (e) {
-      setPreviewError(
-        e instanceof Error
-          ? e.message
-          : 'Preview failed. Please retry from the critique screen.'
-      );
-    } finally {
-      setPreviewLoading(false);
-    }
-  }, [previewStudioChangeIndex]);
+  const runPreviewEdit = useCallback(
+    async (mode: 'single' | 'combined') => {
+      const currentFlow = flowRef.current;
+      if (!currentFlow || currentFlow.step !== 'results') return;
+      const catList = currentFlow.critique.categories;
+      if (catList.length === 0) return;
+      const changes = currentFlow.critique.simple?.studioChanges;
+      let target: PreviewEditTargetPayload;
+      if (mode === 'combined') {
+        if (!changes?.length) return;
+        const p = priorityCritiqueCategory(catList);
+        const numbered = changes.map((ch, i) => `${i + 1}. [${ch.previewCriterion}] ${ch.text}`).join('\n');
+        target = {
+          criterion: p.criterion,
+          level: p.level,
+          feedback: p.feedback,
+          actionPlan: p.actionPlan,
+          combinedVoiceBChanges: numbered,
+        };
+      } else if (changes && changes.length > 0) {
+        const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+        const ch = changes[idx]!;
+        const cat = catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+        target = {
+          criterion: ch.previewCriterion,
+          level: cat.level,
+          feedback: cat.feedback,
+          actionPlan: cat.actionPlan,
+          studioChangeRecommendation: ch.text,
+        };
+      } else {
+        const p = priorityCritiqueCategory(catList);
+        target = {
+          criterion: p.criterion,
+          level: p.level,
+          feedback: p.feedback,
+          actionPlan: p.actionPlan,
+        };
+      }
+      const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
+      if (!shouldTryApiFirst()) {
+        setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
+        return;
+      }
+      setPreviewError(null);
+      setPreviewLoading(true);
+      try {
+        const { imageDataUrl } = await fetchPreviewEdit({
+          imageDataUrl: previewSource,
+          style: currentFlow.style,
+          medium: currentFlow.medium,
+          target,
+        });
+        const id = newId();
+        const entry: SavedPreviewEdit =
+          mode === 'combined'
+            ? {
+                id,
+                imageDataUrl,
+                criterion: target.criterion,
+                mode: 'combined',
+                studioChangeRecommendation: target.combinedVoiceBChanges,
+              }
+            : {
+                id,
+                imageDataUrl,
+                criterion: target.criterion,
+                mode: 'single',
+                studioChangeRecommendation: target.studioChangeRecommendation,
+              };
+        setFlow((cur) => {
+          if (!cur || cur.step !== 'results') return cur;
+          const prev = cur.sessionPreviewEdits ?? [];
+          const withoutDup =
+            mode === 'combined'
+              ? prev.filter((e) => e.mode !== 'combined')
+              : prev.filter(
+                  (e) =>
+                    !(
+                      e.mode === 'single' &&
+                      e.studioChangeRecommendation === entry.studioChangeRecommendation
+                    )
+                );
+          const next = { ...cur, sessionPreviewEdits: [...withoutDup, entry] };
+          queueMicrotask(() => {
+            if (isCritiqueFlow(next)) setReturnViewIntent({ kind: 'critique', flow: next });
+          });
+          return next;
+        });
+        setActivePreviewEditId(id);
+        setPreviewCompareOpen(false);
+        setPreviewCompareSeen(false);
+      } catch (e) {
+        setPreviewError(
+          e instanceof Error
+            ? e.message
+            : 'Preview failed. Please retry from the critique screen.'
+        );
+      } finally {
+        setPreviewLoading(false);
+      }
+    },
+    [previewStudioChangeIndex]
+  );
+
+  useEffect(() => {
+    if (!flow || flow.step !== 'results') return;
+    const changes = flow.critique.simple?.studioChanges;
+    if (!changes?.length) return;
+    const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+    const line = changes[idx]!.text;
+    const match = flow.sessionPreviewEdits?.find(
+      (e) => e.mode === 'single' && e.studioChangeRecommendation === line
+    );
+    setActivePreviewEditId(match?.id ?? null);
+  }, [flow, previewStudioChangeIndex]);
 
   const openPreviewCompare = useCallback(() => {
     setPreviewCompareOpen(true);
@@ -1444,10 +1535,27 @@ export default function App() {
                       </div>
                       <Palette className="h-8 w-8 shrink-0 text-violet-500" aria-hidden />
                     </div>
+                    {flow.critique.simple?.studioChanges && flow.critique.simple.studioChanges.length > 1 ? (
+                      <button
+                        type="button"
+                        disabled={previewLoading}
+                        onClick={() => void runPreviewEdit('combined')}
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-violet-300 bg-white py-3 text-sm font-bold text-violet-800 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden>
+                          {previewLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Wand2 className="h-4 w-4" />
+                          )}
+                        </span>
+                        Perform all suggested changes
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       disabled={previewLoading}
-                      onClick={() => void runPreviewEdit()}
+                      onClick={() => void runPreviewEdit('single')}
                       className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-400 disabled:text-white"
                       style={{
                         WebkitFontSmoothing: 'antialiased',
@@ -1468,15 +1576,38 @@ export default function App() {
                       <span className="inline-flex min-w-0 items-center justify-center">
                         {previewLoading
                           ? 'Generating preview…'
-                          : previewImageDataUrl
+                          : activePreviewImageDataUrl
                             ? 'Regenerate preview'
                             : 'Generate preview'}
                       </span>
                     </button>
+                    {flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 ? (
+                      <div className="mt-3 rounded-xl border border-violet-200/60 bg-white/80 p-2">
+                        <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Generated previews ({flow.sessionPreviewEdits.length})
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {flow.sessionPreviewEdits.map((e) => (
+                            <button
+                              key={e.id}
+                              type="button"
+                              onClick={() => setActivePreviewEditId(e.id)}
+                              className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
+                                activePreviewEditId === e.id
+                                  ? 'border-violet-500 bg-violet-100 text-violet-900'
+                                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
+                              }`}
+                            >
+                              {e.mode === 'combined' ? 'All changes' : 'Single change'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {previewError ? (
                       <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
                     ) : null}
-                    {previewImageDataUrl && previewTarget ? (
+                    {activePreviewImageDataUrl && previewTarget ? (
                       isDesktop ? (
                         <div className="mt-4 min-h-0 border-t border-violet-200/60 pt-4">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1485,7 +1616,7 @@ export default function App() {
                           <div className="mt-3">
                             <PreviewEditBlendCard
                               originalSrc={flow.imageDataUrl}
-                              revisedSrc={previewImageDataUrl}
+                              revisedSrc={activePreviewImageDataUrl}
                               target={previewTarget}
                             />
                           </div>
@@ -1554,11 +1685,11 @@ export default function App() {
         {previewCompareOpen &&
         flow.step === 'results' &&
         flow.imageDataUrl &&
-        previewImageDataUrl &&
+        activePreviewImageDataUrl &&
         previewTarget ? (
           <PreviewCompareOverlay
             originalSrc={flow.imageDataUrl}
-            revisedSrc={previewImageDataUrl}
+            revisedSrc={activePreviewImageDataUrl}
             target={previewTarget}
             onClose={() => setPreviewCompareOpen(false)}
           />

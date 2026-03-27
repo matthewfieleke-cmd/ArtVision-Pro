@@ -1,6 +1,6 @@
 import { canonicalCriterionLabel } from '../shared/criteria';
 import { migrateCritiqueSimpleFeedback } from './critiqueCoach';
-import type { CritiqueCategory, CritiqueResult, SavedPainting } from './types';
+import type { CritiqueCategory, CritiqueResult, SavedPainting, SavedPreviewEdit } from './types';
 
 const KEY = 'artvision-pro-paintings-v1';
 
@@ -19,24 +19,40 @@ function migrateCritiqueResult(critique: CritiqueResult): CritiqueResult {
   };
 }
 
+function migrateVersionPreviewEdits(version: {
+  previewEdits?: SavedPreviewEdit[];
+  previewEdit?: { imageDataUrl: string; criterion: string; studioChangeRecommendation?: string };
+}): { previewEdits?: SavedPreviewEdit[]; previewEdit?: never } {
+  const edits: SavedPreviewEdit[] = [...(version.previewEdits ?? [])];
+  if (version.previewEdit && edits.length === 0) {
+    const c = canonicalCriterionLabel(version.previewEdit.criterion);
+    if (c) {
+      edits.push({
+        id: `legacy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        imageDataUrl: version.previewEdit.imageDataUrl,
+        criterion: c,
+        mode: 'single',
+        studioChangeRecommendation: version.previewEdit.studioChangeRecommendation,
+      });
+    }
+  }
+  const normalized = edits.map((e) => ({
+    ...e,
+    criterion: canonicalCriterionLabel(e.criterion) ?? e.criterion,
+  }));
+  return normalized.length ? { previewEdits: normalized } : {};
+}
+
 function migratePainting(painting: SavedPainting): SavedPainting {
   return {
     ...painting,
     versions: painting.versions.map((version) => {
-      const previewCriterion = version.previewEdit?.criterion
-        ? canonicalCriterionLabel(version.previewEdit.criterion)
-        : null;
+      const migratedPreviews = migrateVersionPreviewEdits(version);
       return {
         ...version,
         critique: migrateCritiqueResult(version.critique),
-        ...(version.previewEdit
-          ? {
-              previewEdit: {
-                ...version.previewEdit,
-                criterion: previewCriterion ?? version.previewEdit.criterion,
-              },
-            }
-          : {}),
+        ...migratedPreviews,
+        previewEdit: undefined,
       };
     }),
   };

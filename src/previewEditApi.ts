@@ -7,6 +7,7 @@ export type PreviewEditPayload = {
   medium: Medium;
   target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
     studioChangeRecommendation?: string;
+    combinedVoiceBChanges?: string;
   };
   requestId?: string;
 };

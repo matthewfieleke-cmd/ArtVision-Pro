@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
 import { criterionLabelMatches } from '../../shared/criteria';
 import { CritiquePanels } from '../components/CritiquePanels';
 import { PreviewEditBlendCard } from '../components/PreviewEditBlendCard';
-import type { CritiqueResult, SavedPainting } from '../types';
+import type { CritiqueResult, SavedPainting, SavedPreviewEdit } from '../types';
 import { CRITERIA } from '../types';
 import { formatShortDate, progressPercentFromPainting } from '../utils';
 
@@ -25,6 +25,26 @@ function previewTargetForVersion(
   return cat ?? critique.categories[0]!;
 }
 
+function blendTargetForSavedEdit(
+  critique: CritiqueResult,
+  edit: SavedPreviewEdit
+): ReturnType<typeof previewTargetForVersion> & {
+  studioChangeRecommendation?: string;
+  combinedVoiceBChanges?: string;
+} {
+  const base = previewTargetForVersion(critique, edit.criterion);
+  if (edit.mode === 'combined') {
+    return {
+      ...base,
+      combinedVoiceBChanges: edit.studioChangeRecommendation,
+    };
+  }
+  return {
+    ...base,
+    studioChangeRecommendation: edit.studioChangeRecommendation,
+  };
+}
+
 export function StudioTab({
   paintings,
   onBack,
@@ -35,10 +55,29 @@ export function StudioTab({
   isDesktop = false,
 }: Props) {
   const [compareIdx, setCompareIdx] = useState(0);
+  const [studioPreviewPickId, setStudioPreviewPickId] = useState<string | null>(null);
   const selected = useMemo(
     () => paintings.find((p) => p.id === selectedId) ?? null,
     [paintings, selectedId]
   );
+
+  const studioPreviewSig = useMemo(() => {
+    if (!selected?.versions.length) return '';
+    const v = selected.versions[selected.versions.length - 1]!;
+    return `${v.id}:${(v.previewEdits ?? []).map((e) => e.id).join(',')}`;
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selected || !studioPreviewSig) return;
+    const list = selected.versions[selected.versions.length - 1]!.previewEdits ?? [];
+    if (!list.length) {
+      setStudioPreviewPickId(null);
+      return;
+    }
+    setStudioPreviewPickId((prev) =>
+      prev && list.some((e) => e.id === prev) ? prev : list[list.length - 1]!.id
+    );
+  }, [selected, studioPreviewSig]);
 
   if (selected) {
     const versions = selected.versions;
@@ -48,7 +87,11 @@ export function StudioTab({
     const right = vCount >= 2 ? versions[vCount - 1] : versions[0];
     const latest = versions[vCount - 1]!;
     const pct = progressPercentFromPainting(selected);
-    const latestPreview = latest.previewEdit;
+    const savedPreviewEdits = latest.previewEdits ?? [];
+
+    const activeSavedPreview =
+      savedPreviewEdits.find((e) => e.id === studioPreviewPickId) ??
+      savedPreviewEdits[savedPreviewEdits.length - 1];
 
     const shell = isDesktop
       ? 'animate-slide-up flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pt-1'
@@ -130,22 +173,35 @@ export function StudioTab({
           </figure>
         )}
 
-        {latestPreview ? (
+        {activeSavedPreview ? (
           <section className="rounded-2xl border border-violet-200/80 bg-white p-3 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Saved AI preview</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Saved AI previews</h3>
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
-              Blend slider uses this version’s photo and the illustrative edit saved from critique.
+              All previews generated before save. Pick one to compare with this version’s photo.
             </p>
+            {savedPreviewEdits.length > 1 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {savedPreviewEdits.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => setStudioPreviewPickId(e.id)}
+                    className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
+                      studioPreviewPickId === e.id
+                        ? 'border-violet-500 bg-violet-100 text-violet-900'
+                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {e.mode === 'combined' ? 'All changes' : 'Single'}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="mt-3">
               <PreviewEditBlendCard
                 originalSrc={latest.imageDataUrl}
-                revisedSrc={latestPreview.imageDataUrl}
-                target={{
-                  ...previewTargetForVersion(latest.critique, latestPreview.criterion),
-                  ...(latestPreview.studioChangeRecommendation
-                    ? { studioChangeRecommendation: latestPreview.studioChangeRecommendation }
-                    : {}),
-                }}
+                revisedSrc={activeSavedPreview.imageDataUrl}
+                target={blendTargetForSavedEdit(latest.critique, activeSavedPreview)}
               />
             </div>
           </section>

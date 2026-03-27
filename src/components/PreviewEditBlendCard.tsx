@@ -34,6 +34,7 @@ type Props = {
   revisedSrc: string;
   target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
     studioChangeRecommendation?: string;
+    combinedVoiceBChanges?: string;
   };
   /** Light background for Studio; dark for full-screen overlay */
   variant?: 'light' | 'dark';
@@ -88,7 +89,14 @@ export function PreviewEditBlendCard({
           <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>{target.criterion}</strong> (current
           level: {target.level}). Illustrative only—not a substitute for repainting.
         </p>
-        {target.studioChangeRecommendation?.trim() ? (
+        {target.combinedVoiceBChanges?.trim() ? (
+          <div className="mt-2 space-y-2">
+            <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              All suggested changes (combined pass)
+            </p>
+            <p className="whitespace-pre-line font-medium">{target.combinedVoiceBChanges.trim()}</p>
+          </div>
+        ) : target.studioChangeRecommendation?.trim() ? (
           <p className="mt-2 whitespace-pre-line font-medium">{target.studioChangeRecommendation.trim()}</p>
         ) : (
           <>

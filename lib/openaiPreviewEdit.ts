@@ -310,6 +310,30 @@ function buildEditPrompt(body: PreviewEditRequestBody): string {
     .slice(0, 4)
     .map((signal: string) => `- ${signal}`)
     .join('\n');
+  const combined = target.combinedVoiceBChanges?.trim();
+  if (combined) {
+    return `You are a master painter doing ONE coordinated revision pass on the artist's OWN work for teaching purposes.
+
+Context: ${style}, medium ${medium}.
+
+The mentor listed ALL of the following studio changes for this single painting. Implement every item below in this one image pass—integrate them so they work together (not as unrelated patches). Prioritize the relationships each line names; if two lines touch the same area, merge the adjustment.
+
+All suggested changes (Voice B):
+${combined}
+
+Master-level signals to honor in ${style} (use as overall quality bar; ${target.criterion} is the routing focus):
+${masterSignals || '- Use the strongest available style-consistent master signals.'}
+
+Rules — quality and fidelity:
+- Preserve identity: same subject, pose, composition, crop, and viewing angle. Do not invent new objects, figures, or a new scene.
+- Preserve the hand of the artist: match existing brush scale, stroke direction, and surface texture (${medium}).
+- Edge-to-edge: fill the full frame; no inset, no frame-within-frame, no added borders or captions.
+- Lighting: keep the same light direction and color of light unless a listed change explicitly requires otherwise.
+- Photo artifacts: reduce mild glare or color cast only if needed so the revision reads clearly.
+
+Output: one photorealistic image after applying ALL listed changes together—museum documentation quality, faithful geometry, revised passages integrated with untouched paint.`;
+  }
+
   const changeBlock =
     target.studioChangeRecommendation?.trim() ??
     `${target.feedback}\n\n${target.actionPlan}`;

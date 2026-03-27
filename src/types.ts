@@ -106,11 +106,20 @@ export type CritiqueResult = {
   completionRead?: CompletionRead;
 };
 
-/** AI illustrative edit for one criterion; pairs with the critique photo for blend compare. */
+/** AI illustrative edit; pairs with the critique photo for blend compare. */
+export type SavedPreviewEdit = {
+  id: string;
+  imageDataUrl: string;
+  criterion: Criterion;
+  /** Voice B line for a single change, or omitted for combined pass. */
+  studioChangeRecommendation?: string;
+  mode: 'single' | 'combined';
+};
+
+/** @deprecated Use previewEdits; kept for migration from older saves. */
 export type VersionPreviewEdit = {
   imageDataUrl: string;
   criterion: Criterion;
-  /** Voice B line the preview illustrated, when generated from Studio read. */
   studioChangeRecommendation?: string;
 };
 
@@ -119,7 +128,9 @@ export type PaintingVersion = {
   imageDataUrl: string;
   createdAt: string;
   critique: CritiqueResult;
-  /** Saved when “Generate preview” was used before Save to studio */
+  /** All AI previews generated for this version (single changes + optional combined). */
+  previewEdits?: SavedPreviewEdit[];
+  /** @deprecated Migrated into previewEdits[0] when loading. */
   previewEdit?: VersionPreviewEdit;
 };
 

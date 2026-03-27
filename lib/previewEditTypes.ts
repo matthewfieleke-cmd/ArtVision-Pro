@@ -7,6 +7,8 @@ export type PreviewEditTarget = {
   actionPlan: string;
   /** When set, the image edit is driven primarily by this Voice B line from Studio read. */
   studioChangeRecommendation?: string;
+  /** Numbered Voice B lines to apply in one pass (all suggested changes). */
+  combinedVoiceBChanges?: string;
 };
 
 export type PreviewEditRequestBody = {

@@ -1,4 +1,4 @@
-import type { CritiqueResult, Medium, SavedPainting, Style } from './types';
+import type { CritiqueResult, Medium, SavedPainting, SavedPreviewEdit, Style } from './types';
 
 export type StyleMode = 'manual' | 'auto';
 export type CritiqueSource = 'api' | 'local';
@@ -52,11 +52,14 @@ export type ResultsFlow = (NewFlowBase & {
   imageDataUrl: string;
   critique: CritiqueResult;
   critiqueSource: CritiqueSource;
+  /** Session-only: AI previews generated before save (not serialized to sessionStorage if large). */
+  sessionPreviewEdits?: SavedPreviewEdit[];
 }) | (ResubmitFlowBase & {
   step: 'results';
   imageDataUrl: string;
   critique: CritiqueResult;
   critiqueSource: CritiqueSource;
+  sessionPreviewEdits?: SavedPreviewEdit[];
 });
 
 export type CritiqueFlow = SetupFlow | CaptureFlow | AnalyzingFlow | ResultsFlow;
@@ -214,6 +217,7 @@ export function completeAnalysis(
     imageDataUrl: result.imageDataUrl,
     critique: result.critique,
     critiqueSource: result.critiqueSource,
+    sessionPreviewEdits: [],
   };
 }
 
