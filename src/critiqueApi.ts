@@ -9,6 +9,7 @@ type CritiqueRequestBody = {
   paintingTitle?: string;
   previousImageDataUrl?: string;
   previousCritique?: CritiqueResult;
+  signal?: AbortSignal;
 };
 
 /** Same-origin API under Vite base (e.g. /repo/api/critique on GitHub Pages if you add a Pages Action for API—usually use VITE_CRITIQUE_API_URL instead). */
@@ -28,10 +29,12 @@ function critiqueUrl(): string {
  * Calls the serverless critique endpoint when available. Throws on HTTP/network errors.
  */
 export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<CritiqueResult> {
+  const { signal, ...jsonBody } = body;
   const res = await fetch(critiqueUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(jsonBody),
+    signal,
   });
   const data = await readApiJson<{ error?: string } | CritiqueResult>(res);
   if (!res.ok) {

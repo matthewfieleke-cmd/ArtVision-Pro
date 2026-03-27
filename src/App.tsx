@@ -20,6 +20,12 @@ import { CritiquePanels } from './components/CritiquePanels';
 import { ImageCropModal } from './components/ImageCropModal';
 import { PreviewEditBlendCard } from './components/PreviewEditBlendCard';
 import { PreviewCompareOverlay } from './components/PreviewCompareOverlay';
+import {
+  ANALYSIS_HIDDEN_RETRY_MS,
+  isAbortError,
+  requestScreenWakeLock,
+  type WakeLockHandle,
+} from './analysisKeepAlive';
 import { analyzePainting } from './analyzePainting';
 import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
@@ -130,6 +136,15 @@ export default function App() {
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
   /** Which Voice B studio change (index) drives Generate preview. */
   const [previewStudioChangeIndex, setPreviewStudioChangeIndex] = useState(0);
+  const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
+
+  const analysisAbortRef = useRef<AbortController | null>(null);
+  const analysisHiddenAtRef = useRef<number | null>(null);
+  const analysisRetryUsedRef = useRef(false);
+  /** True only when abort() was triggered from the visibility resume path (eligible for one API retry). */
+  const analysisVisibilityAbortRef = useRef(false);
+  const analysisWakeRef = useRef<WakeLockHandle | null>(null);
+  const analysisRunTokenRef = useRef(0);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -186,9 +201,22 @@ export default function App() {
     if (intent === 'benchmarks') setTab('benchmarks');
   }, [location.pathname, location.key]);
 
+  const cancelAnalysisKeepAlive = useCallback(() => {
+    analysisRunTokenRef.current += 1;
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
+    void analysisWakeRef.current?.release().catch(() => {});
+    analysisWakeRef.current = null;
+    analysisHiddenAtRef.current = null;
+    analysisRetryUsedRef.current = false;
+    analysisVisibilityAbortRef.current = false;
+    setAnalysisRetryNotice(false);
+  }, []);
+
   const closeFlow = useCallback(() => {
     clearReturnViewIntent();
     stopCamera();
+    cancelAnalysisKeepAlive();
     setPendingCrop(null);
     setFlow(null);
     setAnalyzeError(null);
@@ -199,12 +227,13 @@ export default function App() {
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
-  }, [stopCamera]);
+  }, [stopCamera, cancelAnalysisKeepAlive]);
 
   const goHome = useCallback(() => {
     clearReturnViewIntent();
     advanceDailyMasterpieceIndex();
     stopCamera();
+    cancelAnalysisKeepAlive();
     setPendingCrop(null);
     setFlow(null);
     setAnalyzeError(null);
@@ -216,9 +245,10 @@ export default function App() {
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
     setTab('home');
-  }, [stopCamera]);
+  }, [stopCamera, cancelAnalysisKeepAlive]);
 
   const startNewCritique = useCallback(() => {
+    cancelAnalysisKeepAlive();
     setAnalyzeError(null);
     setClassifyBusy(false);
     setPreviewLoading(false);
@@ -228,9 +258,10 @@ export default function App() {
     setPreviewCompareSeen(false);
     setPreviewStudioChangeIndex(0);
     setFlow(createNewFlow());
-  }, []);
+  }, [cancelAnalysisKeepAlive]);
 
   const startResubmit = useCallback((p: SavedPainting) => {
+    cancelAnalysisKeepAlive();
     setAnalyzeError(null);
     setClassifyBusy(false);
     setPreviewLoading(false);
@@ -242,7 +273,7 @@ export default function App() {
     stopCamera();
     setFlow(createResubmitFlow(p));
     setTab('studio');
-  }, [stopCamera]);
+  }, [stopCamera, cancelAnalysisKeepAlive]);
 
   useEffect(() => {
     if (flow?.step === 'capture' && !isDesktop) {
@@ -258,8 +289,33 @@ export default function App() {
     if (!f.style || !f.medium) return;
     const startedFlow = beginAnalysis(f, rawDataUrl);
     if (!startedFlow) return;
+    const runId = ++analysisRunTokenRef.current;
     setAnalyzeError(null);
+    setAnalysisRetryNotice(false);
     setFlow(startedFlow);
+
+    analysisAbortRef.current?.abort();
+    const ac = new AbortController();
+    analysisAbortRef.current = ac;
+    analysisHiddenAtRef.current = null;
+    analysisRetryUsedRef.current = false;
+    analysisVisibilityAbortRef.current = false;
+
+    void analysisWakeRef.current?.release().catch(() => {});
+    analysisWakeRef.current = null;
+    const wl = await requestScreenWakeLock();
+    if (runId === analysisRunTokenRef.current) {
+      analysisWakeRef.current = wl;
+    } else {
+      void wl?.release().catch(() => {});
+    }
+
+    const releaseWakeIfCurrent = () => {
+      if (runId !== analysisRunTokenRef.current) return;
+      void analysisWakeRef.current?.release().catch(() => {});
+      analysisWakeRef.current = null;
+    };
+
     try {
       const compressed = await compressDataUrl(rawDataUrl);
       const prev =
@@ -279,30 +335,64 @@ export default function App() {
       const titleForCritique = f.workingTitle.trim();
       const titleArg = titleForCritique.length > 0 ? titleForCritique : undefined;
 
+      const apiBody = {
+        style: f.style,
+        medium: f.medium,
+        imageDataUrl: compressed,
+        ...(titleArg ? { paintingTitle: titleArg } : {}),
+        ...(prevPayload
+          ? {
+              previousImageDataUrl: prevPayload.imageDataUrl,
+              previousCritique: prevPayload.critique,
+            }
+          : {}),
+      };
+
       if (shouldTryApiFirst()) {
+        const attemptApi = async (signal: AbortSignal): Promise<CritiqueResult> =>
+          fetchCritiqueFromApi({ ...apiBody, signal });
+
         try {
-          critique = await fetchCritiqueFromApi({
-            style: f.style,
-            medium: f.medium,
-            imageDataUrl: compressed,
-            ...(titleArg ? { paintingTitle: titleArg } : {}),
-            ...(prevPayload
-              ? {
-                  previousImageDataUrl: prevPayload.imageDataUrl,
-                  previousCritique: prevPayload.critique,
-                }
-              : {}),
-          });
+          critique = await attemptApi(ac.signal);
           critiqueSource = 'api';
         } catch (err) {
-          console.warn('Critique API unavailable, using local analysis:', err);
-          critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
-          critiqueSource = 'local';
+          const visibilityRetry =
+            isAbortError(err) &&
+            analysisVisibilityAbortRef.current &&
+            !analysisRetryUsedRef.current &&
+            runId === analysisRunTokenRef.current;
+
+          if (visibilityRetry) {
+            analysisVisibilityAbortRef.current = false;
+            analysisRetryUsedRef.current = true;
+            setAnalysisRetryNotice(true);
+            const ac2 = new AbortController();
+            analysisAbortRef.current = ac2;
+            try {
+              critique = await attemptApi(ac2.signal);
+              critiqueSource = 'api';
+            } catch (err2) {
+              console.warn('Critique API unavailable after resume retry, using local analysis:', err2);
+              critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
+              critiqueSource = 'local';
+            }
+          } else if (isAbortError(err)) {
+            analysisVisibilityAbortRef.current = false;
+            critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
+            critiqueSource = 'local';
+          } else {
+            analysisVisibilityAbortRef.current = false;
+            console.warn('Critique API unavailable, using local analysis:', err);
+            critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
+            critiqueSource = 'local';
+          }
         }
       } else {
         critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
         critiqueSource = 'local';
       }
+
+      if (runId !== analysisRunTokenRef.current) return;
 
       setPreviewImageDataUrl(null);
       setPreviewError(null);
@@ -311,9 +401,44 @@ export default function App() {
       setPreviewStudioChangeIndex(0);
       setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource }));
     } catch (e) {
+      if (runId !== analysisRunTokenRef.current) return;
       setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed');
       setFlow(recoverFromAnalysisError(startedFlow));
+    } finally {
+      if (runId === analysisRunTokenRef.current) {
+        analysisAbortRef.current = null;
+      }
+      releaseWakeIfCurrent();
     }
+  }, []);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (flowRef.current?.step === 'analyzing') {
+          analysisHiddenAtRef.current = Date.now();
+        }
+        return;
+      }
+      if (document.visibilityState !== 'visible') return;
+      if (flowRef.current?.step !== 'analyzing') {
+        analysisHiddenAtRef.current = null;
+        return;
+      }
+      if (!shouldTryApiFirst()) return;
+      const hiddenAt = analysisHiddenAtRef.current;
+      if (hiddenAt == null) return;
+      const elapsed = Date.now() - hiddenAt;
+      analysisHiddenAtRef.current = null;
+      if (elapsed < ANALYSIS_HIDDEN_RETRY_MS) return;
+      if (analysisRetryUsedRef.current) return;
+      const ac = analysisAbortRef.current;
+      if (!ac) return;
+      analysisVisibilityAbortRef.current = true;
+      ac.abort();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   const runClassifyStyle = useCallback(async (rawDataUrl: string) => {
@@ -1241,13 +1366,22 @@ export default function App() {
             )}
 
             {flow.step === 'analyzing' && (
-              <div className="flex flex-col items-center justify-center gap-4 py-20">
+              <div className="flex flex-col items-center justify-center gap-4 px-4 py-20">
                 <Loader2 className="h-12 w-12 animate-spin text-violet-500" />
                 <p className="text-sm text-slate-500">
                   {shouldTryApiFirst()
                     ? 'Consulting the vision model—usually 15–45s…'
                     : 'Mapping value, edges, color, and surface…'}
                 </p>
+                <p className="max-w-sm text-center text-xs leading-relaxed text-slate-400">
+                  For best results, stay on this screen until the critique finishes. Switching apps or locking the
+                  screen can slow or interrupt the request; we try one automatic retry when you return.
+                </p>
+                {analysisRetryNotice ? (
+                  <p className="max-w-sm text-center text-xs font-medium text-violet-700">
+                    Connection may have paused in the background—retrying the vision request…
+                  </p>
+                ) : null}
               </div>
             )}
 
