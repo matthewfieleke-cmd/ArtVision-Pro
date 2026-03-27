@@ -84,7 +84,15 @@ type PendingCrop = {
 type PreviewEditTargetPayload = Pick<
   CritiqueCategory,
   'criterion' | 'level' | 'feedback' | 'actionPlan'
-> & { studioChangeRecommendation?: string; combinedVoiceBChanges?: string };
+> & {
+  studioChangeRecommendation?: string;
+  combinedVoiceBChanges?: string;
+  /** Sequential “perform all” pass (1-based), for API prompt context. */
+  chainPassIndex?: number;
+  chainPassTotal?: number;
+  /** Voice B lines already applied in earlier chain steps (plain text). */
+  completedChainInstructions?: string;
+};
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -188,6 +196,10 @@ export default function App() {
   const [classifyBusy, setClassifyBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  /** During “Perform all suggested changes”, which sequential edit is running (1-based). */
+  const [previewAllProgress, setPreviewAllProgress] = useState<{ current: number; total: number } | null>(
+    null
+  );
   const [previewError, setPreviewError] = useState<string | null>(null);
   /** Which generated preview is shown in the blend card / compare overlay. */
   const [activePreviewEditId, setActivePreviewEditId] = useState<string | null>(null);
@@ -843,69 +855,103 @@ export default function App() {
       const catList = currentFlow.critique.categories;
       if (catList.length === 0) return;
       const changes = currentFlow.critique.simple?.studioChanges;
-      let target: PreviewEditTargetPayload;
-      if (mode === 'combined') {
-        if (!changes?.length) return;
-        const p = priorityCritiqueCategory(catList);
-        const numbered = changes.map((ch, i) => `${i + 1}. [${ch.previewCriterion}] ${ch.text}`).join('\n');
-        target = {
-          criterion: p.criterion,
-          level: p.level,
-          feedback: p.feedback,
-          actionPlan: p.actionPlan,
-          combinedVoiceBChanges: numbered,
-        };
-      } else if (changes && changes.length > 0) {
-        const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-        const ch = changes[idx]!;
-        const cat = catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-        target = {
-          criterion: ch.previewCriterion,
-          level: cat.level,
-          feedback: cat.feedback,
-          actionPlan: cat.actionPlan,
-          studioChangeRecommendation: ch.text,
-        };
-      } else {
-        const p = priorityCritiqueCategory(catList);
-        target = {
-          criterion: p.criterion,
-          level: p.level,
-          feedback: p.feedback,
-          actionPlan: p.actionPlan,
-        };
-      }
       const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
+      if (mode === 'combined' && !changes?.length) return;
       if (!shouldTryApiFirst()) {
         setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
         return;
       }
       setPreviewError(null);
       setPreviewLoading(true);
+      setPreviewAllProgress(null);
       try {
-        const { imageDataUrl } = await fetchPreviewEdit({
-          imageDataUrl: previewSource,
-          style: currentFlow.style,
-          medium: currentFlow.medium,
-          target,
-        });
-        const id = newId();
-        const entry: SavedPreviewEdit =
-          mode === 'combined'
-            ? {
-                id,
-                imageDataUrl,
-                criterion: target.criterion,
-                mode: 'combined',
-                studioChangeRecommendation: target.combinedVoiceBChanges,
-              }
-            : {
-                id,
-                imageDataUrl,
-                criterion: target.criterion,
-                mode: 'single',
-                studioChangeRecommendation: target.studioChangeRecommendation,
-              };
+        let entry: SavedPreviewEdit;
+
+        if (mode === 'combined') {
+          if (!changes?.length) return;
+          const studioChanges = changes;
+          const p = priorityCritiqueCategory(catList);
+          const numbered = studioChanges
+            .map((ch, i) => `${i + 1}. [${ch.previewCriterion}] ${ch.text}`)
+            .join('\n');
+          let working = previewSource;
+          for (let i = 0; i < studioChanges.length; i++) {
+            setPreviewAllProgress({ current: i + 1, total: studioChanges.length });
+            const ch = studioChanges[i]!;
+            const cat =
+              catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+            const completedChainInstructions =
+              i > 0
+                ? studioChanges
+                    .slice(0, i)
+                    .map((prev, j) => `${j + 1}. [${prev.previewCriterion}] ${prev.text}`)
+                    .join('\n')
+                : undefined;
+            const stepTarget: PreviewEditTargetPayload = {
+              criterion: ch.previewCriterion,
+              level: cat.level,
+              feedback: cat.feedback,
+              actionPlan: cat.actionPlan,
+              studioChangeRecommendation: ch.text,
+              chainPassIndex: i + 1,
+              chainPassTotal: studioChanges.length,
+              ...(completedChainInstructions ? { completedChainInstructions } : {}),
+            };
+            const { imageDataUrl: nextUrl } = await fetchPreviewEdit({
+              imageDataUrl: working,
+              style: currentFlow.style,
+              medium: currentFlow.medium,
+              target: stepTarget,
+              requestId: `${newId()}-chain-${i + 1}-of-${studioChanges.length}`,
+            });
+            working = nextUrl;
+          }
+          entry = {
+            id: newId(),
+            imageDataUrl: working,
+            criterion: p.criterion,
+            mode: 'combined',
+            studioChangeRecommendation: numbered,
+          };
+        } else {
+          let target: PreviewEditTargetPayload;
+          if (changes && changes.length > 0) {
+            const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+            const ch = changes[idx]!;
+            const cat =
+              catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+            target = {
+              criterion: ch.previewCriterion,
+              level: cat.level,
+              feedback: cat.feedback,
+              actionPlan: cat.actionPlan,
+              studioChangeRecommendation: ch.text,
+            };
+          } else {
+            const p = priorityCritiqueCategory(catList);
+            target = {
+              criterion: p.criterion,
+              level: p.level,
+              feedback: p.feedback,
+              actionPlan: p.actionPlan,
+            };
+          }
+          const { imageDataUrl } = await fetchPreviewEdit({
+            imageDataUrl: previewSource,
+            style: currentFlow.style,
+            medium: currentFlow.medium,
+            target,
+          });
+          entry = {
+            id: newId(),
+            imageDataUrl,
+            criterion: target.criterion,
+            mode: 'single',
+            ...(target.studioChangeRecommendation
+              ? { studioChangeRecommendation: target.studioChangeRecommendation }
+              : {}),
+          };
+        }
         setFlow((cur) => {
           if (!cur || cur.step !== 'results') return cur;
           const prev = cur.sessionPreviewEdits ?? [];
@@ -925,7 +971,7 @@ export default function App() {
           });
           return next;
         });
-        setActivePreviewEditId(id);
+        setActivePreviewEditId(entry.id);
         setPreviewCompareOpen(false);
         setPreviewCompareSeen(false);
       } catch (e) {
@@ -935,6 +981,7 @@ export default function App() {
             : 'Preview failed. Please retry from the critique screen.'
         );
       } finally {
+        setPreviewAllProgress(null);
         setPreviewLoading(false);
       }
     },
@@ -1530,7 +1577,8 @@ export default function App() {
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-slate-600">
                           Illustrates the selected line under &quot;Changes to make&quot; when you tap Preview this
-                          change—interpretation only, not a substitute for painting.
+                          change—interpretation only, not a substitute for painting. &quot;Perform all&quot; runs one
+                          high-quality edit per suggestion in order, each building on the last.
                         </p>
                       </div>
                       <Palette className="h-8 w-8 shrink-0 text-violet-500" aria-hidden />
@@ -1549,7 +1597,11 @@ export default function App() {
                             <Wand2 className="h-4 w-4" />
                           )}
                         </span>
-                        Perform all suggested changes
+                        {previewLoading
+                          ? previewAllProgress
+                            ? `Applying all changes (${previewAllProgress.current}/${previewAllProgress.total})…`
+                            : 'Preparing chained edits…'
+                          : 'Perform all suggested changes'}
                       </button>
                     ) : null}
                     <button
@@ -1575,7 +1627,9 @@ export default function App() {
                       </span>
                       <span className="inline-flex min-w-0 items-center justify-center">
                         {previewLoading
-                          ? 'Generating preview…'
+                          ? previewAllProgress
+                            ? `Applying change ${previewAllProgress.current} of ${previewAllProgress.total}…`
+                            : 'Generating preview…'
                           : activePreviewImageDataUrl
                             ? 'Regenerate preview'
                             : 'Generate preview'}

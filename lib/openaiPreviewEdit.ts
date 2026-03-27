@@ -337,10 +337,25 @@ Output: one photorealistic image after applying ALL listed changes together—mu
   const changeBlock =
     target.studioChangeRecommendation?.trim() ??
     `${target.feedback}\n\n${target.actionPlan}`;
+  const chainIdx = target.chainPassIndex;
+  const chainTotal = target.chainPassTotal;
+  const completed = target.completedChainInstructions?.trim();
+  const chainContext =
+    chainIdx != null &&
+    chainTotal != null &&
+    chainTotal > 1 &&
+    chainIdx >= 1 &&
+    chainIdx <= chainTotal
+      ? `\n\nSequential studio pass: this is step ${chainIdx} of ${chainTotal} in a chained “apply all Voice B changes” run. The input image already reflects earlier steps—preserve those improvements; do not undo them. Only add the new change below (and minor integration tweaks in the same passages if needed).\n${
+          completed
+            ? `Already applied in earlier steps (leave as-is unless this step explicitly revises the same area):\n${completed}\n`
+            : ''
+        }`
+      : '';
   return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
 Context: ${style}, medium ${medium}.
-
+${chainContext}
 Focus ONLY on: "${target.criterion}" (rated ${target.level}).
 
 What to address — specific change to implement on this canvas (from the artist's critique):

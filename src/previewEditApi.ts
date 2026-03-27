@@ -8,6 +8,9 @@ export type PreviewEditPayload = {
   target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
     studioChangeRecommendation?: string;
     combinedVoiceBChanges?: string;
+    chainPassIndex?: number;
+    chainPassTotal?: number;
+    completedChainInstructions?: string;
   };
   requestId?: string;
 };
