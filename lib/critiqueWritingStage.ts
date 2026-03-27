@@ -26,8 +26,8 @@ Rules:
 - Do NOT overpraise. "Master" should be rare and should only be used when the evidence shows unusually strong, intentional, and sustained control in that criterion.
 - If the work is strong but still developing, prefer "Advanced" over "Master."
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
-- Next steps must describe a concrete studio move on a specific visible relationship; avoid filler such as "continue exploring," "consider experimenting," "maintain balance," or "ensure harmony."
-- If a work is rated below Master in any criterion, at least two next steps must be true revision moves the artist can do now, not general practice advice.
+- Top-level nextSteps (3–4 items): each must be a distinct, painting-specific studio move—name a visible area, shape, edge, color passage, or spatial relationship from the evidence (e.g. "In the upper-left sky, ..."). No two steps should repeat the same move. Avoid filler such as "continue exploring," "consider experimenting," "maintain balance," or "ensure harmony."
+- If a work is rated below Master in any criterion, every next step must be a true revision move the artist can do now on this image, not general practice advice.
 - For non-master work, do not let "preserve" language replace correction. Name the exact passage or relationship to adjust.
 - Prefer verbs like soften, darken, simplify, group, separate, lose, sharpen, compress, cool, warm, straighten, widen, narrow, or restate when they are justified by the evidence.
 - Avoid empty advisory language such as "continue to explore," "consider adding," "experiment with," or "maintain" unless the sentence also names one visible area and one specific adjustment.
@@ -36,7 +36,8 @@ Rules:
   - Watercolor: prefer wash control, edge timing, reserving lights, transparent layering, and bloom/backrun handling.
   - Pastel: prefer stroke pressure, tooth coverage, layering, edge softness, and control of powdery chroma.
   - Oil on Canvas: prefer paint thickness, scumble/glaze, temperature shifts, edge weight, and shape/value editing.
-- For strong finished paintings, one next step may be "protect this quality on the next pass," but do not let all next steps collapse into preservation language unless the work is genuinely at Master level across the board.
+- For strong finished paintings, at most one next step may be preservation-only; the rest must still name something concrete in the picture to refine or protect in place.
+- Per category, actionPlan must be exactly ONE sentence with no numbering: the single clearest adjustment for THAT criterion in THIS painting, tied to visible evidence (not a generic exercise).
 
 Benchmarks for what "Master" means in this style: ${benchmarks}
 

@@ -106,8 +106,8 @@ export const CRITIQUE_JSON_SCHEMA = {
       mainIssue: { type: 'string' },
       nextSteps: {
         type: 'array',
-        minItems: 2,
-        maxItems: 3,
+        minItems: 3,
+        maxItems: 4,
         items: { type: 'string' },
       },
       preserveSummary: { type: 'string' },
@@ -147,7 +147,11 @@ export const CRITIQUE_JSON_SCHEMA = {
             criterion: { type: 'string', enum: [...CRITERIA_ORDER] },
             level: { type: 'string', enum: [...RATING_LEVELS] },
             feedback: { type: 'string' },
-            actionPlan: { type: 'string' },
+            actionPlan: {
+              type: 'string',
+              description:
+                'Exactly one concrete sentence: one adjustment for THIS criterion in THIS painting, naming a visible area or element from the evidence.',
+            },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
             evidenceSignals: {
               type: 'array',
@@ -195,7 +199,7 @@ export function buildCritiqueSchemaInstruction(): string {
 
 For each criterion:
 - feedback: 3+ sentences grounded in visible evidence
-- actionPlan: 3-5 numbered steps tied to exact areas and concrete painterly moves
+- actionPlan: exactly ONE sentence (no numbering, no list): the single most important adjustment for this criterion in this painting, naming a specific visible area, shape, edge, or color passage from the evidence—not generic practice advice
 - confidence
 - evidenceSignals
 - preserve

@@ -1,4 +1,4 @@
-import type { CritiqueResultDTO } from './critiqueTypes.js';
+import type { CritiqueCategoryDTO, CritiqueResultDTO } from './critiqueTypes.js';
 
 function containsAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
@@ -470,10 +470,27 @@ function stripNumberPrefix(step: string): string {
   return step.replace(/^\d+\.\s*/, '').trim();
 }
 
+/** First sentence only; keeps decimals inside the sentence intact. */
+function firstSentence(text: string): string {
+  const t = normalizeWhitespace(text);
+  if (!t) return t;
+  const match = t.match(/^(.+?[.!?])(\s+|$)/);
+  return match ? match[1]!.trim() : t;
+}
+
 function hasPaintingSpecificAnchor(text: string): boolean {
-  return /(foreground|background|middle ground|midground|upper|lower|left|right|center|central|edge|sky|tree|trees|figure|figures|face|hands|roof|house|path|water|shadow|light|horizon|canvas|building|window|door|boat|mountain|cloud)/i.test(
+  return /(foreground|background|middle ground|midground|upper|lower|left|right|center|central|corner|edge|sky|tree|trees|foliage|figure|figures|face|hands|roof|house|path|water|shadow|highlight|light|horizon|canvas|building|window|door|boat|mountain|cloud|vase|table|cloth|ground|floor|wall|street|hair|skin|flowers|object|shape|mass|passage|area|plane|motif)/i.test(
     text
   );
+}
+
+function evidenceAnchorSnippet(category: CritiqueCategoryDTO): string {
+  const signals = category.evidenceSignals ?? [];
+  const pick = signals.find((s: string) => typeof s === 'string' && s.trim().length >= 8);
+  if (!pick) return '';
+  const t = normalizeWhitespace(pick);
+  if (t.length <= 100) return t;
+  return `${t.slice(0, 97)}…`;
 }
 
 function rewriteGenericActionPlanStep(step: string): string {
@@ -494,35 +511,45 @@ function rewriteGenericActionPlanStep(step: string): string {
   return text;
 }
 
+function fallbackCategoryImprovement(category: CritiqueCategoryDTO): string {
+  const anchor = evidenceAnchorSnippet(category);
+  const crit = category.criterion;
+  if (anchor) {
+    return `In the passage described by your evidence (${anchor}), make one focused change for ${crit}: separate the main shape from what sits beside it with a smaller value shift or a cleaner edge so this area reads more decisively.`;
+  }
+  return `For ${crit} in this painting, pick the busiest visible area and simplify it with one grouping move—fewer competing accents—so the stronger passage can lead without everything calling for equal attention.`;
+}
+
+/**
+ * One painting-specific sentence per category for the "How to improve it" UI.
+ */
 function enforceSpecificCategoryActionPlans(
   critique: CritiqueResultDTO
 ): CritiqueResultDTO {
   const categories = critique.categories.map((category) => {
     const numberedSteps = splitNumberedActionPlan(category.actionPlan);
-    if (!numberedSteps.length) return category;
+    const primary =
+      numberedSteps.length > 0
+        ? normalizeWhitespace(stripNumberPrefix(numberedSteps[0]!))
+        : normalizeWhitespace(category.actionPlan);
 
-    const rewrittenSteps = numberedSteps.map((step, index) => {
-      const cleaned = rewriteGenericActionPlanStep(step);
-      const anchored = hasPaintingSpecificAnchor(cleaned);
+    let sentence = firstSentence(primary);
+    sentence = rewriteGenericActionPlanStep(`1. ${sentence}`).replace(/^\d+\.\s*/, '').trim();
+    sentence = firstSentence(sentence);
 
-      if (anchored) {
-        return `${index + 1}. ${cleaned}`;
-      }
+    const anchored = hasPaintingSpecificAnchor(sentence);
+    const tooThin = sentence.length < 36;
+    if (!anchored || tooThin) {
+      sentence = fallbackCategoryImprovement(category);
+    }
 
-      if (index === 0) {
-        return `${index + 1}. Adjust one specific visible area in this painting first: simplify a busy passage or separate one main shape from the shape next to it with a clearer edge or value decision.`;
-      }
-
-      if (index === 1) {
-        return `${index + 1}. In one supporting area, quiet, soften, or group the marks more simply so the stronger passage can lead without competition.`;
-      }
-
-      return `${index + 1}. Finish by correcting one concrete edge, value grouping, or color-temperature relationship that is still undecided in the picture.`;
-    });
+    if (!/[.!?]$/.test(sentence)) {
+      sentence = `${sentence}.`;
+    }
 
     return {
       ...category,
-      actionPlan: rewrittenSteps.join(' '),
+      actionPlan: sentence,
     };
   });
 
@@ -538,27 +565,35 @@ function hasConcreteAdjustment(step: string): boolean {
   );
 }
 
+const NEXT_STEP_FALLBACKS = [
+  'In the area that reads weakest against your evidence, simplify one busy passage and separate its main shape from the neighbor with a clearer value or edge decision.',
+  'In one supporting zone that competes with your focal read, quiet or soften the marks so the stronger passage leads without equal competition.',
+  'Along one important contour you already rely on, sharpen or lose a short span of edge so depth and focus read more deliberately.',
+  'Where two color families meet in the painting, adjust temperature or chroma in a narrow band so the transition supports the space instead of flattening it.',
+] as const;
+
 function enforceSpecificNextSteps(
   nextSteps: string[],
   critique: CritiqueResultDTO
 ): string[] {
   const hasBelowMasterCategory = critique.categories.some((category) => category.level !== 'Master');
-  if (!hasBelowMasterCategory) return nextSteps;
+  if (!hasBelowMasterCategory) return nextSteps.slice(0, 4);
 
-  return nextSteps.map((step, index) => {
+  const varied = nextSteps.map((step, index) => {
     const text = normalizeWhitespace(step);
-    if (hasConcreteAdjustment(text)) return step;
+    if (hasConcreteAdjustment(text) && hasPaintingSpecificAnchor(text)) return step;
 
-    if (index === 0) {
-      return 'On the next pass, adjust the weakest visible relationship first by simplifying one busy passage and separating its main shape from the neighboring shape with a clearer value or edge decision.';
-    }
-
-    if (index === 1) {
-      return 'After that, choose one supporting area and either quiet it, soften it, or group it more simply so the stronger passage can lead without competition.';
-    }
-
-    return 'Finish by checking one specific edge, value grouping, or color-temperature relationship that still feels undecided and correct only that passage.';
+    return NEXT_STEP_FALLBACKS[Math.min(index, NEXT_STEP_FALLBACKS.length - 1)]!;
   });
+
+  const out = [...varied];
+  let padIndex = out.length;
+  while (out.length < 3 && padIndex < NEXT_STEP_FALLBACKS.length) {
+    out.push(NEXT_STEP_FALLBACKS[padIndex]!);
+    padIndex += 1;
+  }
+
+  return out.slice(0, 4);
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {

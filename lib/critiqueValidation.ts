@@ -36,7 +36,7 @@ export function buildCritiqueSchemaInstruction(): string {
 
 For each criterion:
 - feedback: 3+ sentences grounded in visible evidence
-- actionPlan: 3-5 numbered steps tied to exact areas and concrete painterly moves
+- actionPlan: exactly ONE sentence (no list): one concrete adjustment for this criterion in this painting, naming a visible area or element from the evidence
 - confidence
 - evidenceSignals
 - preserve
@@ -194,8 +194,8 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   if (typeof o.mainIssue !== 'string') throw new Error('Invalid critique: mainIssue');
   if (
     !Array.isArray(o.nextSteps) ||
-    o.nextSteps.length < 2 ||
-    o.nextSteps.length > 3 ||
+    o.nextSteps.length < 3 ||
+    o.nextSteps.length > 4 ||
     o.nextSteps.some((v) => typeof v !== 'string')
   ) {
     throw new Error('Invalid critique: nextSteps');
