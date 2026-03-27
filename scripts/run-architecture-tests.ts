@@ -24,6 +24,7 @@ import {
   switchToManualStyle,
 } from '../src/critiqueFlow.js';
 import type { CritiqueResult, SavedPainting } from '../src/types.js';
+import { runPreviewResizeTests } from './test-preview-resize.js';
 
 function makeCritiqueResult(): CritiqueResult {
   return {
@@ -645,6 +646,7 @@ async function main(): Promise<void> {
   await testCritiqueFlow();
   await testApiHelpers();
   testCritiqueGuardrails();
+  await runPreviewResizeTests();
   console.log('Architecture tests passed.');
 }
 
