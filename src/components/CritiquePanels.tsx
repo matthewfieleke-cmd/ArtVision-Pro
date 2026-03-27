@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
 import type { CritiqueCategory, CritiqueResult, WorkCompletionState } from '../types';
@@ -7,9 +7,13 @@ import type { CritiqueCategory, CritiqueResult, WorkCompletionState } from '../t
 type CritiquePanelsProps = {
   critique: CritiqueResult;
   onLearnMore?: () => void;
-  /** Index of studio change used for Perform single change (Voice B). */
-  selectedStudioChangeIndex?: number | null;
-  onSelectStudioChange?: (index: number) => void;
+  canGenerateAiEdits?: boolean;
+  onGenerateAiEditForChange?: (changeIndex: number) => void;
+  onGenerateAiEditAll?: () => void;
+  previewLoading?: boolean;
+  /** Only the matching button shows a spinner. */
+  previewLoadingTarget?: null | { kind: 'combined' } | { kind: 'single'; changeIndex: number };
+  previewAllProgress?: { current: number; total: number } | null;
 };
 
 function completionBadgeClasses(state: WorkCompletionState): string {
@@ -214,8 +218,12 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
 export function CritiquePanels({
   critique,
   onLearnMore,
-  selectedStudioChangeIndex = null,
-  onSelectStudioChange,
+  canGenerateAiEdits = false,
+  onGenerateAiEditForChange,
+  onGenerateAiEditAll,
+  previewLoading = false,
+  previewLoadingTarget = null,
+  previewAllProgress = null,
 }: CritiquePanelsProps) {
   return (
     <div className="space-y-3">
@@ -272,39 +280,68 @@ export function CritiquePanels({
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Changes to make · Voice B</p>
               <p className="mt-1 text-[11px] font-medium text-slate-600">
-                Concrete studio moves for this painting. &quot;Preview this change&quot; selects which line Perform single change follows.
+                Concrete studio moves for this painting. Generate an AI edit to see an illustrative pass for one line or
+                for all lines together (saved with the work when you save to Studio).
               </p>
               <ol className="mt-3 space-y-3 text-sm leading-relaxed text-slate-800">
                 {critique.simple.studioChanges.map((ch, idx) => {
-                  const selected = selectedStudioChangeIndex === idx;
+                  const thisLoading =
+                    previewLoading &&
+                    previewLoadingTarget?.kind === 'single' &&
+                    previewLoadingTarget.changeIndex === idx;
                   return (
                     <li key={`${idx}-${ch.previewCriterion}`} className="flex flex-col gap-2 rounded-lg border border-violet-200/60 bg-white/90 p-3">
-                      <div className="flex gap-2">
-                        <span className="min-w-[1.25rem] font-semibold text-violet-700">{idx + 1}.</span>
-                        <div className="min-w-0 flex-1">
-                          <p>{ch.text}</p>
-                          <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                            Relates to: {ch.previewCriterion}
-                          </p>
+                      <div className="flex flex-wrap items-end justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 gap-2">
+                          <span className="min-w-[1.25rem] font-semibold text-violet-700">{idx + 1}.</span>
+                          <div className="min-w-0 flex-1">
+                            <p>{ch.text}</p>
+                            <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                              Relates to: {ch.previewCriterion}
+                            </p>
+                          </div>
                         </div>
+                        {canGenerateAiEdits && onGenerateAiEditForChange ? (
+                          <button
+                            type="button"
+                            disabled={previewLoading}
+                            aria-busy={thisLoading}
+                            onClick={() => onGenerateAiEditForChange(idx)}
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {thisLoading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                            ) : (
+                              <Wand2 className="h-3.5 w-3.5" aria-hidden />
+                            )}
+                            {thisLoading ? 'Generating…' : 'Generate AI edit'}
+                          </button>
+                        ) : null}
                       </div>
-                      {onSelectStudioChange ? (
-                        <button
-                          type="button"
-                          onClick={() => onSelectStudioChange(idx)}
-                          className={`self-start rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                            selected
-                              ? 'bg-violet-600 text-white'
-                              : 'border border-violet-300 bg-white text-violet-800 hover:bg-violet-100'
-                          }`}
-                        >
-                          {selected ? 'Used for preview' : 'Preview this change'}
-                        </button>
-                      ) : null}
                     </li>
                   );
                 })}
               </ol>
+              {canGenerateAiEdits && onGenerateAiEditAll ? (
+                <button
+                  type="button"
+                  disabled={previewLoading}
+                  aria-busy={previewLoading && previewLoadingTarget?.kind === 'combined'}
+                  onClick={() => onGenerateAiEditAll()}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-400 disabled:text-white"
+                >
+                  {previewLoading && previewLoadingTarget?.kind === 'combined' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Wand2 className="h-4 w-4" aria-hidden />
+                  )}
+                  {previewLoading && previewLoadingTarget?.kind === 'combined'
+                    ? previewAllProgress
+                      ? `Generating all (${previewAllProgress.current}/${previewAllProgress.total})…`
+                      : 'Preparing…'
+                    : 'Generate AI image with all suggested changes'}
+                </button>
+              ) : null}
             </div>
           </div>
         </section>

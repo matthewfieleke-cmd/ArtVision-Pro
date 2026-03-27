@@ -8,7 +8,6 @@ import {
   Home,
   ImagePlus,
   Loader2,
-  Palette,
   Save,
   Upload,
   Wand2,
@@ -130,8 +129,7 @@ function mergePreviewIntoLastVersion(
 
 function previewDisplayTarget(
   flow: CritiqueFlow,
-  activePreviewEditId: string | null,
-  previewStudioChangeIndex: number
+  activePreviewEditId: string | null
 ): PreviewEditTargetPayload | null {
   if (flow.step !== 'results' || !flow.critique.categories.length) return null;
   const catList = flow.critique.categories;
@@ -159,8 +157,7 @@ function previewDisplayTarget(
   }
   const changes = flow.critique.simple?.studioChanges;
   if (changes && changes.length > 0) {
-    const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-    const ch = changes[idx]!;
+    const ch = changes[0]!;
     const cat =
       catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
     return {
@@ -196,8 +193,10 @@ export default function App() {
   const [classifyBusy, setClassifyBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
-  /** Which preview action is in flight (so only that button shows a spinner). */
-  const [previewLoadingMode, setPreviewLoadingMode] = useState<'single' | 'combined' | null>(null);
+  /** Which generate action is in flight so only that button shows a spinner. */
+  const [previewLoadingTarget, setPreviewLoadingTarget] = useState<
+    null | { kind: 'combined' } | { kind: 'single'; changeIndex: number }
+  >(null);
   /** During “Perform all suggested changes”, which sequential edit is running (1-based). */
   const [previewAllProgress, setPreviewAllProgress] = useState<{ current: number; total: number } | null>(
     null
@@ -208,8 +207,6 @@ export default function App() {
   const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
-  /** Which Voice B studio change (index) drives Perform single change. */
-  const [previewStudioChangeIndex, setPreviewStudioChangeIndex] = useState(0);
   const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
 
   const analysisAbortRef = useRef<AbortController | null>(null);
@@ -300,7 +297,8 @@ export default function App() {
     setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
-    setPreviewStudioChangeIndex(0);
+    setPreviewLoadingTarget(null);
+    setPreviewAllProgress(null);
   }, [stopCamera, cancelAnalysisKeepAlive]);
 
   const goHome = useCallback(() => {
@@ -317,7 +315,8 @@ export default function App() {
     setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
-    setPreviewStudioChangeIndex(0);
+    setPreviewLoadingTarget(null);
+    setPreviewAllProgress(null);
     setTab('home');
   }, [stopCamera, cancelAnalysisKeepAlive]);
 
@@ -330,7 +329,8 @@ export default function App() {
     setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
-    setPreviewStudioChangeIndex(0);
+    setPreviewLoadingTarget(null);
+    setPreviewAllProgress(null);
     setFlow(createNewFlow());
   }, [cancelAnalysisKeepAlive]);
 
@@ -343,7 +343,8 @@ export default function App() {
     setActivePreviewEditId(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
-    setPreviewStudioChangeIndex(0);
+    setPreviewLoadingTarget(null);
+    setPreviewAllProgress(null);
     stopCamera();
     setFlow(createResubmitFlow(p));
     setTab('studio');
@@ -472,7 +473,7 @@ export default function App() {
       setPreviewError(null);
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
-      setPreviewStudioChangeIndex(0);
+      setPreviewLoadingTarget(null);
       setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource }));
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
@@ -828,8 +829,8 @@ export default function App() {
     );
 
   const previewTarget = useMemo(
-    () => (flow ? previewDisplayTarget(flow, activePreviewEditId, previewStudioChangeIndex) : null),
-    [flow, activePreviewEditId, previewStudioChangeIndex]
+    () => (flow ? previewDisplayTarget(flow, activePreviewEditId) : null),
+    [flow, activePreviewEditId]
   );
 
   const activePreviewImageDataUrl = useMemo(() => {
@@ -850,159 +851,155 @@ export default function App() {
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
 
-  const runPreviewEdit = useCallback(
-    async (mode: 'single' | 'combined') => {
-      const currentFlow = flowRef.current;
-      if (!currentFlow || currentFlow.step !== 'results') return;
-      const catList = currentFlow.critique.categories;
-      if (catList.length === 0) return;
-      const changes = currentFlow.critique.simple?.studioChanges;
-      const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
-      if (mode === 'combined' && !changes?.length) return;
-      if (!shouldTryApiFirst()) {
-        setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
-        return;
-      }
-      setPreviewError(null);
-      setPreviewLoadingMode(mode);
-      setPreviewLoading(true);
-      setPreviewAllProgress(null);
-      try {
-        let entry: SavedPreviewEdit;
+  const runPreviewEdit = useCallback(async (mode: 'single' | 'combined', singleChangeIndex?: number) => {
+    const currentFlow = flowRef.current;
+    if (!currentFlow || currentFlow.step !== 'results') return;
+    const catList = currentFlow.critique.categories;
+    if (catList.length === 0) return;
+    const changes = currentFlow.critique.simple?.studioChanges;
+    const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
+    if (mode === 'combined' && !changes?.length) return;
+    if (!shouldTryApiFirst()) {
+      setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
+      return;
+    }
+    const singleIdx =
+      mode === 'single' && changes?.length
+        ? Math.min(Math.max(0, singleChangeIndex ?? 0), changes.length - 1)
+        : 0;
+    setPreviewError(null);
+    setPreviewLoadingTarget(
+      mode === 'combined' ? { kind: 'combined' } : { kind: 'single', changeIndex: singleIdx }
+    );
+    setPreviewLoading(true);
+    setPreviewAllProgress(null);
+    try {
+      let entry: SavedPreviewEdit;
 
-        if (mode === 'combined') {
-          if (!changes?.length) return;
-          const studioChanges = changes;
-          const p = priorityCritiqueCategory(catList);
-          const numbered = studioChanges
-            .map((ch, i) => `${i + 1}. [${ch.previewCriterion}] ${ch.text}`)
-            .join('\n');
-          let working = previewSource;
-          for (let i = 0; i < studioChanges.length; i++) {
-            setPreviewAllProgress({ current: i + 1, total: studioChanges.length });
-            const ch = studioChanges[i]!;
-            const cat =
-              catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-            const completedChainInstructions =
-              i > 0
-                ? studioChanges
-                    .slice(0, i)
-                    .map((prev, j) => `${j + 1}. [${prev.previewCriterion}] ${prev.text}`)
-                    .join('\n')
-                : undefined;
-            const stepTarget: PreviewEditTargetPayload = {
-              criterion: ch.previewCriterion,
-              level: cat.level,
-              feedback: cat.feedback,
-              actionPlan: cat.actionPlan,
-              studioChangeRecommendation: ch.text,
-              chainPassIndex: i + 1,
-              chainPassTotal: studioChanges.length,
-              ...(completedChainInstructions ? { completedChainInstructions } : {}),
-            };
-            const { imageDataUrl: nextUrl } = await fetchPreviewEdit({
-              imageDataUrl: working,
-              style: currentFlow.style,
-              medium: currentFlow.medium,
-              target: stepTarget,
-              requestId: `${newId()}-chain-${i + 1}-of-${studioChanges.length}`,
-            });
-            working = nextUrl;
-          }
-          entry = {
-            id: newId(),
-            imageDataUrl: working,
-            criterion: p.criterion,
-            mode: 'combined',
-            studioChangeRecommendation: numbered,
+      if (mode === 'combined') {
+        const studioChanges = changes!;
+        const p = priorityCritiqueCategory(catList);
+        const numbered = studioChanges
+          .map((ch, i) => `${i + 1}. [${ch.previewCriterion}] ${ch.text}`)
+          .join('\n');
+        let working = previewSource;
+        for (let i = 0; i < studioChanges.length; i++) {
+          setPreviewAllProgress({ current: i + 1, total: studioChanges.length });
+          const ch = studioChanges[i]!;
+          const cat =
+            catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+          const completedChainInstructions =
+            i > 0
+              ? studioChanges
+                  .slice(0, i)
+                  .map((prev, j) => `${j + 1}. [${prev.previewCriterion}] ${prev.text}`)
+                  .join('\n')
+              : undefined;
+          const stepTarget: PreviewEditTargetPayload = {
+            criterion: ch.previewCriterion,
+            level: cat.level,
+            feedback: cat.feedback,
+            actionPlan: cat.actionPlan,
+            studioChangeRecommendation: ch.text,
+            chainPassIndex: i + 1,
+            chainPassTotal: studioChanges.length,
+            ...(completedChainInstructions ? { completedChainInstructions } : {}),
           };
-        } else {
-          let target: PreviewEditTargetPayload;
-          if (changes && changes.length > 0) {
-            const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-            const ch = changes[idx]!;
-            const cat =
-              catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-            target = {
-              criterion: ch.previewCriterion,
-              level: cat.level,
-              feedback: cat.feedback,
-              actionPlan: cat.actionPlan,
-              studioChangeRecommendation: ch.text,
-            };
-          } else {
-            const p = priorityCritiqueCategory(catList);
-            target = {
-              criterion: p.criterion,
-              level: p.level,
-              feedback: p.feedback,
-              actionPlan: p.actionPlan,
-            };
-          }
-          const { imageDataUrl } = await fetchPreviewEdit({
-            imageDataUrl: previewSource,
+          const { imageDataUrl: nextUrl } = await fetchPreviewEdit({
+            imageDataUrl: working,
             style: currentFlow.style,
             medium: currentFlow.medium,
-            target,
+            target: stepTarget,
+            requestId: `${newId()}-chain-${i + 1}-of-${studioChanges.length}`,
           });
-          entry = {
-            id: newId(),
-            imageDataUrl,
-            criterion: target.criterion,
-            mode: 'single',
-            ...(target.studioChangeRecommendation
-              ? { studioChangeRecommendation: target.studioChangeRecommendation }
-              : {}),
+          working = nextUrl;
+        }
+        entry = {
+          id: newId(),
+          imageDataUrl: working,
+          criterion: p.criterion,
+          mode: 'combined',
+          studioChangeRecommendation: numbered,
+        };
+      } else {
+        let target: PreviewEditTargetPayload;
+        if (changes && changes.length > 0) {
+          const idx = singleIdx;
+          const ch = changes[idx]!;
+          const cat =
+            catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+          target = {
+            criterion: ch.previewCriterion,
+            level: cat.level,
+            feedback: cat.feedback,
+            actionPlan: cat.actionPlan,
+            studioChangeRecommendation: ch.text,
+          };
+        } else {
+          const p = priorityCritiqueCategory(catList);
+          target = {
+            criterion: p.criterion,
+            level: p.level,
+            feedback: p.feedback,
+            actionPlan: p.actionPlan,
           };
         }
-        setFlow((cur) => {
-          if (!cur || cur.step !== 'results') return cur;
-          const prev = cur.sessionPreviewEdits ?? [];
-          const withoutDup =
-            mode === 'combined'
-              ? prev.filter((e) => e.mode !== 'combined')
-              : prev.filter(
-                  (e) =>
-                    !(
-                      e.mode === 'single' &&
-                      e.studioChangeRecommendation === entry.studioChangeRecommendation
-                    )
-                );
-          const next = { ...cur, sessionPreviewEdits: [...withoutDup, entry] };
-          queueMicrotask(() => {
-            if (isCritiqueFlow(next)) setReturnViewIntent({ kind: 'critique', flow: next });
-          });
-          return next;
+        const { imageDataUrl } = await fetchPreviewEdit({
+          imageDataUrl: previewSource,
+          style: currentFlow.style,
+          medium: currentFlow.medium,
+          target,
         });
-        setActivePreviewEditId(entry.id);
-        setPreviewCompareOpen(false);
-        setPreviewCompareSeen(false);
-      } catch (e) {
-        setPreviewError(
-          e instanceof Error
-            ? e.message
-            : 'Preview failed. Please retry from the critique screen.'
-        );
-      } finally {
-        setPreviewAllProgress(null);
-        setPreviewLoading(false);
-        setPreviewLoadingMode(null);
+        entry = {
+          id: newId(),
+          imageDataUrl,
+          criterion: target.criterion,
+          mode: 'single',
+          ...(target.studioChangeRecommendation
+            ? { studioChangeRecommendation: target.studioChangeRecommendation }
+            : {}),
+        };
       }
-    },
-    [previewStudioChangeIndex]
-  );
+      setFlow((cur) => {
+        if (!cur || cur.step !== 'results') return cur;
+        const prev = cur.sessionPreviewEdits ?? [];
+        const withoutDup =
+          mode === 'combined'
+            ? prev.filter((e) => e.mode !== 'combined')
+            : prev.filter(
+                (e) =>
+                  !(
+                    e.mode === 'single' &&
+                    e.studioChangeRecommendation === entry.studioChangeRecommendation
+                  )
+              );
+        const next = { ...cur, sessionPreviewEdits: [...withoutDup, entry] };
+        queueMicrotask(() => {
+          if (isCritiqueFlow(next)) setReturnViewIntent({ kind: 'critique', flow: next });
+        });
+        return next;
+      });
+      setActivePreviewEditId(entry.id);
+      setPreviewCompareOpen(false);
+      setPreviewCompareSeen(false);
+    } catch (e) {
+      setPreviewError(
+        e instanceof Error ? e.message : 'Preview failed. Please retry from the critique screen.'
+      );
+    } finally {
+      setPreviewAllProgress(null);
+      setPreviewLoading(false);
+      setPreviewLoadingTarget(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!flow || flow.step !== 'results') return;
-    const changes = flow.critique.simple?.studioChanges;
-    if (!changes?.length) return;
-    const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
-    const line = changes[idx]!.text;
-    const match = flow.sessionPreviewEdits?.find(
-      (e) => e.mode === 'single' && e.studioChangeRecommendation === line
-    );
-    setActivePreviewEditId(match?.id ?? null);
-  }, [flow, previewStudioChangeIndex]);
+    const list = flow.sessionPreviewEdits ?? [];
+    if (!list.length) return;
+    if (activePreviewEditId && list.some((e) => e.id === activePreviewEditId)) return;
+    setActivePreviewEditId(list[list.length - 1]!.id);
+  }, [flow, activePreviewEditId]);
 
   const openPreviewCompare = useCallback(() => {
     setPreviewCompareOpen(true);
@@ -1568,108 +1565,52 @@ export default function App() {
                   ) : null}
                 </div>
                 <div className="min-h-0 space-y-4">
-                {previewTarget ? (
+                <CritiquePanels
+                  critique={flow.critique}
+                  onLearnMore={rememberCritiqueReturn}
+                  canGenerateAiEdits={shouldTryApiFirst()}
+                  onGenerateAiEditForChange={(idx) => void runPreviewEdit('single', idx)}
+                  onGenerateAiEditAll={() => void runPreviewEdit('combined')}
+                  previewLoading={previewLoading}
+                  previewLoadingTarget={previewLoadingTarget}
+                  previewAllProgress={previewAllProgress}
+                />
+                {flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 && previewTarget ? (
                   <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
-                          Suggested change preview
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-slate-800">
-                          Focus: {previewTarget.criterion}{' '}
-                          <span className="font-normal text-slate-500">({previewTarget.level})</span>
-                        </p>
-                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                          Illustrates the selected line under &quot;Changes to make&quot; when you tap Preview this
-                          change—interpretation only, not a substitute for painting. &quot;Perform all&quot; runs one
-                          high-quality edit per suggestion in order, each building on the last.
-                        </p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">AI edits this session</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      Illustrative only—not a substitute for painting. Saved with the work when you save to Studio;
+                      discarded if you leave without saving.
+                    </p>
+                    <div className="mt-3 rounded-xl border border-violet-200/60 bg-white/80 p-2">
+                      <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Select preview ({flow.sessionPreviewEdits.length})
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {flow.sessionPreviewEdits.map((e) => (
+                          <button
+                            key={e.id}
+                            type="button"
+                            onClick={() => setActivePreviewEditId(e.id)}
+                            className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
+                              activePreviewEditId === e.id
+                                ? 'border-violet-500 bg-violet-100 text-violet-900'
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
+                            }`}
+                          >
+                            {e.mode === 'combined' ? 'All changes' : 'Single change'}
+                          </button>
+                        ))}
                       </div>
-                      <Palette className="h-8 w-8 shrink-0 text-violet-500" aria-hidden />
                     </div>
-                    {flow.critique.simple?.studioChanges && flow.critique.simple.studioChanges.length > 1 ? (
-                      <button
-                        type="button"
-                        disabled={previewLoading}
-                        aria-busy={previewLoading && previewLoadingMode === 'combined'}
-                        onClick={() => void runPreviewEdit('combined')}
-                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-violet-300 bg-white py-3 text-sm font-bold text-violet-800 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden>
-                          {previewLoading && previewLoadingMode === 'combined' ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Wand2 className="h-4 w-4" />
-                          )}
-                        </span>
-                        {previewLoading && previewLoadingMode === 'combined'
-                          ? previewAllProgress
-                            ? `Applying all changes (${previewAllProgress.current}/${previewAllProgress.total})…`
-                            : 'Preparing chained edits…'
-                          : 'Perform all suggested changes'}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      disabled={previewLoading}
-                      aria-busy={previewLoading && previewLoadingMode === 'single'}
-                      onClick={() => void runPreviewEdit('single')}
-                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-400 disabled:text-white"
-                      style={{
-                        WebkitFontSmoothing: 'antialiased',
-                        transform: 'translateZ(0)',
-                        WebkitTransform: 'translateZ(0)',
-                        willChange: 'transform',
-                        backfaceVisibility: 'hidden',
-                        WebkitBackfaceVisibility: 'hidden',
-                      }}
-                    >
-                      <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden>
-                        {previewLoading && previewLoadingMode === 'single' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Wand2 className="h-4 w-4" />
-                        )}
-                      </span>
-                      <span className="inline-flex min-w-0 items-center justify-center">
-                        {previewLoading && previewLoadingMode === 'single'
-                          ? 'Applying change…'
-                          : activePreviewImageDataUrl
-                            ? 'Perform single change again'
-                            : 'Perform single change'}
-                      </span>
-                    </button>
-                    {flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 ? (
-                      <div className="mt-3 rounded-xl border border-violet-200/60 bg-white/80 p-2">
-                        <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          Generated previews ({flow.sessionPreviewEdits.length})
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {flow.sessionPreviewEdits.map((e) => (
-                            <button
-                              key={e.id}
-                              type="button"
-                              onClick={() => setActivePreviewEditId(e.id)}
-                              className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
-                                activePreviewEditId === e.id
-                                  ? 'border-violet-500 bg-violet-100 text-violet-900'
-                                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
-                              }`}
-                            >
-                              {e.mode === 'combined' ? 'All changes' : 'Single change'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
                     {previewError ? (
                       <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
                     ) : null}
-                    {activePreviewImageDataUrl && previewTarget ? (
+                    {activePreviewImageDataUrl ? (
                       isDesktop ? (
                         <div className="mt-4 min-h-0 border-t border-violet-200/60 pt-4">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            Illustrative result
+                            Compare
                           </p>
                           <div className="mt-3">
                             <PreviewEditBlendCard
@@ -1689,7 +1630,7 @@ export default function App() {
                       ) : (
                         <div className="mt-4 space-y-2">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            Illustrative result
+                            Compare
                           </p>
                           <button
                             type="button"
@@ -1701,7 +1642,7 @@ export default function App() {
                             </span>
                             {!previewCompareSeen ? (
                               <span className="text-xs font-medium leading-snug text-slate-500">
-                                Scroll to see your image, the AI preview, and what changed.
+                                Your image, the AI preview, and notes on what changed.
                               </span>
                             ) : (
                               <span className="text-xs text-slate-500">Your photo and the AI preview, with notes.</span>
@@ -1711,13 +1652,11 @@ export default function App() {
                       )
                     ) : null}
                   </section>
+                ) : previewError ? (
+                  <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-center text-xs text-red-700">
+                    {previewError}
+                  </p>
                 ) : null}
-                <CritiquePanels
-                  critique={flow.critique}
-                  onLearnMore={rememberCritiqueReturn}
-                  selectedStudioChangeIndex={previewStudioChangeIndex}
-                  onSelectStudioChange={setPreviewStudioChangeIndex}
-                />
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"
