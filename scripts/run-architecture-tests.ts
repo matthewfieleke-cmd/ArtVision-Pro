@@ -371,6 +371,82 @@ function testCritiqueGuardrails(): void {
     belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
     /quiet|soften|group/i
   );
+
+  const sloppyWorkGuarded = applyCritiqueGuardrails({
+    summary:
+      'A colorful but underdeveloped painting with loose brushwork, simplified forms, and a balanced but naïve scene.',
+    simpleFeedback: {
+      intent: 'A playful, inviting scene with bright color and expression over precision.',
+      working: ['Bright color catches the eye.', 'The subject is readable.'],
+      mainIssue: 'The work could be stronger overall.',
+      nextSteps: [
+        'Maintain the vibrant palette.',
+        'Continue exploring the playful composition.',
+        'Preserve the expressive brushwork.',
+      ],
+      preserve: 'Preserve the playful mood and bright colors.',
+    },
+    categories: [
+      {
+        criterion: 'Intent and necessity',
+        level: 'Advanced',
+        feedback: 'The playful arrangement is readable but still simple.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Composition and shape structure',
+        level: 'Advanced',
+        feedback: 'Balanced composition, but simple.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Value and light structure',
+        level: 'Intermediate',
+        feedback: 'Light is suggested without clear value grouping.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Color relationships',
+        level: 'Advanced',
+        feedback: 'Bright color is lively but not disciplined.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Drawing, proportion, and spatial form',
+        level: 'Intermediate',
+        feedback: 'Forms are simplified and space is uncertain.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Edge and focus control',
+        level: 'Intermediate',
+        feedback: 'Edges stay loose and distributed.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Surface and medium handling',
+        level: 'Advanced',
+        feedback: 'Loose brushwork is visible throughout.',
+        actionPlan: '1. Keep going.',
+      },
+      {
+        criterion: 'Presence, point of view, and human force',
+        level: 'Advanced',
+        feedback: 'The scene feels playful and inviting.',
+        actionPlan: '1. Keep going.',
+      },
+    ],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  const sloppyLevels = sloppyWorkGuarded.categories.reduce<Record<string, number>>((acc, category) => {
+    acc[category.level] = (acc[category.level] ?? 0) + 1;
+    return acc;
+  }, {});
+  assert.ok((sloppyLevels.Beginner ?? 0) >= 5);
+  assert.ok((sloppyLevels.Beginner ?? 0) + (sloppyLevels.Intermediate ?? 0) === 8);
 }
 
 async function main(): Promise<void> {

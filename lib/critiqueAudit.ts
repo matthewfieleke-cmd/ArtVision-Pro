@@ -143,7 +143,12 @@ function inferNoviceSignalCount(critique: CritiqueResultDTO): number {
     /lack of depth|lack of perspective|flat spacing|flat scene|naive spacing|symbol-like/i,
     /cheerful mood|playful theme|domestic, playful theme/i,
     /bright local color|bright, flat colors|primary colors dominate/i,
-    /easy to read/i,
+    /easy to read|clear and easy to interpret/i,
+    /stylized|simplified and distorted|expression over realism/i,
+    /whimsical|playful visual interest/i,
+    /focus on simplicity/i,
+    /soft edges are used throughout|focus is evenly distributed across the scene/i,
+    /the path provides a sense of perspective|spatial depth is suggested/i,
   ];
 
   return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
@@ -163,12 +168,21 @@ function capInflatedRatingsForNoviceLikeWork(
       };
     }
 
+    if (noviceSignals >= 6 && category.level === 'Advanced') {
+      return {
+        ...category,
+        level: 'Beginner' as const,
+      };
+    }
+
     if (noviceSignals >= 4 && category.level === 'Advanced') {
       return {
         ...category,
         level:
           category.criterion === 'Intent and necessity' ||
-          category.criterion === 'Presence, point of view, and human force'
+          category.criterion === 'Presence, point of view, and human force' ||
+          category.criterion === 'Drawing, proportion, and spatial form' ||
+          category.criterion === 'Edge and focus control'
             ? ('Beginner' as const)
             : ('Intermediate' as const),
       };
@@ -209,6 +223,110 @@ function capInflatedRatingsForNoviceLikeWork(
               noviceSignals >= 4
                 ? 'The main issue is that the picture is working with simple, early-stage decisions: the subject is readable, but drawing, spatial logic, value grouping, and edge control are still at a beginner-to-intermediate stage rather than an advanced one.'
                 : 'The main issue is that the picture is still working at a simple, early-stage level: the big shapes read, but drawing, value grouping, and edge control are not yet developed enough to support higher ratings.',
+          },
+        }
+      : {}),
+  };
+}
+
+function inferUnderdevelopedSignalCount(critique: CritiqueResultDTO): number {
+  const text = normalizeWhitespace(
+    [
+      critique.summary,
+      critique.simpleFeedback?.intent ?? '',
+      critique.simpleFeedback?.mainIssue ?? '',
+      critique.simpleFeedback?.preserve ?? '',
+      ...(critique.simpleFeedback?.working ?? []),
+      ...critique.categories.flatMap((category) => [
+        category.feedback,
+        category.actionPlan,
+        ...(category.evidenceSignals ?? []),
+        category.preserve ?? '',
+      ]),
+    ].join(' ')
+  );
+
+  const patterns = [
+    /expression over precision|suggested rather than defined/i,
+    /lack of strong shadows|no single focal point|soft edges.*distributed focus/i,
+    /playful|whimsical|inviting and lively/i,
+    /loose brushwork|loosely drawn|simplification/i,
+    /straightforward perspective|easy to interpret|balanced composition/i,
+    /refine spatial relationships|improve clarity|enhance depth perception/i,
+    /supports the painting's playful nature|supports the whimsical style/i,
+    /vibrant colors enhance the mood|soft light effect|soft transitions/i,
+    /drawn loosely|expression over realism|emphasizing expression over precision/i,
+    /slight adjustments could enhance depth|could be refined to enhance/i,
+  ];
+
+  return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
+}
+
+function capInflatedRatingsForUnderdevelopedWork(
+  critique: CritiqueResultDTO
+): CritiqueResultDTO {
+  const intermediateOrBelowCount = critique.categories.filter(
+    (category) => category.level === 'Intermediate' || category.level === 'Beginner'
+  ).length;
+  const advancedOrAboveCount = critique.categories.filter(
+    (category) => category.level === 'Advanced' || category.level === 'Master'
+  ).length;
+  const underdevelopedSignals = inferUnderdevelopedSignalCount(critique);
+
+  if (intermediateOrBelowCount < 2 || advancedOrAboveCount < 4 || underdevelopedSignals < 2) {
+    return critique;
+  }
+
+  const text = normalizeWhitespace(
+    [
+      critique.summary,
+      critique.simpleFeedback?.intent ?? '',
+      critique.simpleFeedback?.mainIssue ?? '',
+      ...(critique.simpleFeedback?.working ?? []),
+      ...critique.categories.flatMap((category) => [
+        category.feedback,
+        ...(category.evidenceSignals ?? []),
+      ]),
+    ].join(' ')
+  );
+  const watercolorLikeWeakness = containsAny(text, [
+    /whimsical|playful|inviting and lively/i,
+    /soft transitions|soft light effect|vibrant colors enhance the mood/i,
+    /drawn loosely|suggested rather than defined|expression over precision/i,
+    /lack of strong shadows|no single focal point/i,
+    /bright color palette|loose brushwork typical of impressionism/i,
+    /captures a whimsical and colorful garden scene/i,
+    /focus on mood and atmosphere/i,
+    /arrangement of flowers and trees/i,
+    /distributed focus across the scene/i,
+    /watercolor medium is used effectively to create soft transitions/i,
+  ]);
+
+  const softenedCategories = critique.categories.map((category) => {
+    if (!watercolorLikeWeakness && category.criterion === 'Surface and medium handling') {
+      return {
+        ...category,
+        level: 'Intermediate' as const,
+      };
+    }
+
+    return {
+      ...category,
+      level: 'Beginner' as const,
+    };
+  });
+
+  const simple = critique.simpleFeedback;
+  return {
+    ...critique,
+    categories: softenedCategories,
+    overallConfidence: 'low',
+    ...(simple
+      ? {
+          simpleFeedback: {
+            ...simple,
+            mainIssue:
+              'The main issue is that the painting is still underdeveloped in the fundamentals: the image is readable, but drawing, space, value, and edge decisions remain too loose to support advanced ratings.',
           },
         }
       : {}),
@@ -286,7 +404,9 @@ function enforceSpecificNextSteps(
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const tonedDown = capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique));
+  const tonedDown = capInflatedRatingsForUnderdevelopedWork(
+    capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique))
+  );
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;
 
