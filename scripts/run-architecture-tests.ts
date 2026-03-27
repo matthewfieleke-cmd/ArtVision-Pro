@@ -447,6 +447,116 @@ function testCritiqueGuardrails(): void {
   }, {});
   assert.ok((sloppyLevels.Beginner ?? 0) >= 5);
   assert.ok((sloppyLevels.Beginner ?? 0) + (sloppyLevels.Intermediate ?? 0) === 8);
+
+  const actionPlanGuarded = applyCritiqueGuardrails({
+    summary: 'A landscape with one unresolved focal path and weak foreground grouping.',
+    simpleFeedback: {
+      intent: 'A calm landscape with one path leading into a distant tree line.',
+      working: ['The path sets up a readable direction.', 'The color families are broadly separated.'],
+      mainIssue: 'The foreground and background are not yet clearly separated.',
+      nextSteps: [
+        'Maintain the current mood.',
+        'Continue exploring the scene.',
+      ],
+      preserve: 'Preserve the calm atmosphere.',
+    },
+    categories: [
+      {
+        criterion: 'Composition and shape structure',
+        level: 'Intermediate',
+        feedback: 'The path leads inward, but nearby shapes compete too much.',
+        actionPlan: '1. Maintain the current balance. 2. Continue exploring the composition. 3. Ensure harmony.',
+        evidenceSignals: [
+          'The path leads inward from the foreground.',
+          'The tree line and sky meet softly in the background.',
+        ],
+      },
+      {
+        criterion: 'Value and light structure',
+        level: 'Intermediate',
+        feedback: 'The foreground values stay too close together.',
+        actionPlan: '1. Improve the value structure. 2. Increase clarity. 3. Keep going.',
+        evidenceSignals: [
+          'Foreground values are close together.',
+          'The distant background is lighter than the foreground.',
+        ],
+      },
+      {
+        criterion: 'Color relationships',
+        level: 'Intermediate',
+        feedback: 'Color stays broad but not yet very controlled.',
+        actionPlan: '1. Harmonize the colors.',
+        evidenceSignals: [
+          'Green and earth tones dominate the foreground.',
+          'Cooler blue-grey sits in the distance.',
+        ],
+      },
+      {
+        criterion: 'Drawing, proportion, and spatial form',
+        level: 'Intermediate',
+        feedback: 'The path and tree masses are readable but broad.',
+        actionPlan: '1. Refine the drawing.',
+        evidenceSignals: [
+          'The path narrows as it moves back.',
+          'The trees form one large mass on the horizon.',
+        ],
+      },
+      {
+        criterion: 'Edge and focus control',
+        level: 'Intermediate',
+        feedback: 'The focal path edge is not yet distinct enough.',
+        actionPlan: '1. Sharpen where needed.',
+        evidenceSignals: [
+          'Most edges are equally soft.',
+          'The path edge does not stand out from the neighboring grass.',
+        ],
+      },
+      {
+        criterion: 'Surface and medium handling',
+        level: 'Intermediate',
+        feedback: 'Handling is broad and still tentative.',
+        actionPlan: '1. Improve handling.',
+        evidenceSignals: [
+          'Foreground marks repeat with similar size and pressure.',
+          'The distant paint surface is quieter.',
+        ],
+      },
+      {
+        criterion: 'Intent and necessity',
+        level: 'Intermediate',
+        feedback: 'The calm mood is there, but some decisions stay broad.',
+        actionPlan: '1. Push the idea further.',
+        evidenceSignals: [
+          'The path sets the main direction of the scene.',
+          'The softer horizon keeps the mood calm.',
+        ],
+      },
+      {
+        criterion: 'Presence, point of view, and human force',
+        level: 'Intermediate',
+        feedback: 'The viewpoint is stable but not yet especially forceful.',
+        actionPlan: '1. Make it more memorable.',
+        evidenceSignals: [
+          'The view is eye-level and calm.',
+          'No single passage yet holds the eye strongly.',
+        ],
+      },
+    ],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  for (const category of actionPlanGuarded.categories) {
+    assert.match(
+      category.actionPlan,
+      /foreground|background|upper|lower|left|right|path|edge|shape|value|temperature|neighbor/i
+    );
+    assert.doesNotMatch(
+      category.actionPlan,
+      /continue exploring|maintain the current balance|ensure harmony|keep going/i
+    );
+  }
 }
 
 async function main(): Promise<void> {

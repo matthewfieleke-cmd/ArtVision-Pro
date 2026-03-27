@@ -459,6 +459,79 @@ function rewriteLowLeverageStep(step: string): string {
   return step;
 }
 
+function splitNumberedActionPlan(actionPlan: string): string[] {
+  return actionPlan
+    .split(/\s+(?=\d+\.)/)
+    .map((step) => step.trim())
+    .filter(Boolean);
+}
+
+function stripNumberPrefix(step: string): string {
+  return step.replace(/^\d+\.\s*/, '').trim();
+}
+
+function hasPaintingSpecificAnchor(text: string): boolean {
+  return /(foreground|background|middle ground|midground|upper|lower|left|right|center|central|edge|sky|tree|trees|figure|figures|face|hands|roof|house|path|water|shadow|light|horizon|canvas|building|window|door|boat|mountain|cloud)/i.test(
+    text
+  );
+}
+
+function rewriteGenericActionPlanStep(step: string): string {
+  const text = normalizeWhitespace(stripNumberPrefix(step));
+
+  if (/continue using/i.test(text)) {
+    return 'Keep the strongest passage, but restate one weaker neighboring shape so the difference in role is clearer.';
+  }
+
+  if (/maintain|preserve|ensure|continue to|experiment with|consider/i.test(text) && !hasPaintingSpecificAnchor(text)) {
+    return 'Adjust one visible area rather than the whole painting: simplify a busy passage, separate one shape from its neighbor, or restate one edge so the read becomes clearer.';
+  }
+
+  if (/enhance depth|improve clarity|increase contrast/i.test(text) && !hasPaintingSpecificAnchor(text)) {
+    return 'Create depth by changing one concrete relationship: soften one background edge, darken one shadow family, or separate one foreground shape from the passage behind it.';
+  }
+
+  return text;
+}
+
+function enforceSpecificCategoryActionPlans(
+  critique: CritiqueResultDTO
+): CritiqueResultDTO {
+  const categories = critique.categories.map((category) => {
+    const numberedSteps = splitNumberedActionPlan(category.actionPlan);
+    if (!numberedSteps.length) return category;
+
+    const rewrittenSteps = numberedSteps.map((step, index) => {
+      const cleaned = rewriteGenericActionPlanStep(step);
+      const anchored = hasPaintingSpecificAnchor(cleaned);
+
+      if (anchored) {
+        return `${index + 1}. ${cleaned}`;
+      }
+
+      if (index === 0) {
+        return `${index + 1}. Adjust one specific visible area in this painting first: simplify a busy passage or separate one main shape from the shape next to it with a clearer edge or value decision.`;
+      }
+
+      if (index === 1) {
+        return `${index + 1}. In one supporting area, quiet, soften, or group the marks more simply so the stronger passage can lead without competition.`;
+      }
+
+      return `${index + 1}. Finish by correcting one concrete edge, value grouping, or color-temperature relationship that is still undecided in the picture.`;
+    });
+
+    return {
+      ...category,
+      actionPlan: rewrittenSteps.join(' '),
+    };
+  });
+
+  return {
+    ...critique,
+    categories,
+  };
+}
+
 function hasConcreteAdjustment(step: string): boolean {
   return /soften|darken|lighten|group|separate|sharpen|lose|compress|cool|warm|straighten|widen|narrow|simplify|restate|quiet|reduce|push|shift|thicken|thin/i.test(
     step
@@ -489,9 +562,11 @@ function enforceSpecificNextSteps(
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const tonedDown = capInflatedRatingsWhenFundamentalsAreWeak(
-    capInflatedRatingsForUnderdevelopedWork(
-      capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique))
+  const tonedDown = enforceSpecificCategoryActionPlans(
+    capInflatedRatingsWhenFundamentalsAreWeak(
+      capInflatedRatingsForUnderdevelopedWork(
+        capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique))
+      )
     )
   );
   const tonedSimple = tonedDown.simpleFeedback;
