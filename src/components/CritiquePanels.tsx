@@ -7,7 +7,7 @@ import type { CritiqueCategory, CritiqueResult, WorkCompletionState } from '../t
 type CritiquePanelsProps = {
   critique: CritiqueResult;
   onLearnMore?: () => void;
-  /** Index of studio change used for Generate preview (Voice B). */
+  /** Index of studio change used for Perform single change (Voice B). */
   selectedStudioChangeIndex?: number | null;
   onSelectStudioChange?: (index: number) => void;
 };
@@ -272,7 +272,7 @@ export function CritiquePanels({
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Changes to make · Voice B</p>
               <p className="mt-1 text-[11px] font-medium text-slate-600">
-                Concrete studio moves for this painting. &quot;Preview this change&quot; selects which line Generate preview follows.
+                Concrete studio moves for this painting. &quot;Preview this change&quot; selects which line Perform single change follows.
               </p>
               <ol className="mt-3 space-y-3 text-sm leading-relaxed text-slate-800">
                 {critique.simple.studioChanges.map((ch, idx) => {

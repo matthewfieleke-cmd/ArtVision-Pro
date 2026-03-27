@@ -11,7 +11,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** Full-screen compare after “Generate preview” on the results screen. */
+/** Full-screen compare after “Perform single change” on the results screen. */
 export function PreviewCompareOverlay({ originalSrc, revisedSrc, target, onClose }: Props) {
   return (
     <div

@@ -196,6 +196,8 @@ export default function App() {
   const [classifyBusy, setClassifyBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  /** Which preview action is in flight (so only that button shows a spinner). */
+  const [previewLoadingMode, setPreviewLoadingMode] = useState<'single' | 'combined' | null>(null);
   /** During “Perform all suggested changes”, which sequential edit is running (1-based). */
   const [previewAllProgress, setPreviewAllProgress] = useState<{ current: number; total: number } | null>(
     null
@@ -206,7 +208,7 @@ export default function App() {
   const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
-  /** Which Voice B studio change (index) drives Generate preview. */
+  /** Which Voice B studio change (index) drives Perform single change. */
   const [previewStudioChangeIndex, setPreviewStudioChangeIndex] = useState(0);
   const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
 
@@ -862,6 +864,7 @@ export default function App() {
         return;
       }
       setPreviewError(null);
+      setPreviewLoadingMode(mode);
       setPreviewLoading(true);
       setPreviewAllProgress(null);
       try {
@@ -983,6 +986,7 @@ export default function App() {
       } finally {
         setPreviewAllProgress(null);
         setPreviewLoading(false);
+        setPreviewLoadingMode(null);
       }
     },
     [previewStudioChangeIndex]
@@ -1587,17 +1591,18 @@ export default function App() {
                       <button
                         type="button"
                         disabled={previewLoading}
+                        aria-busy={previewLoading && previewLoadingMode === 'combined'}
                         onClick={() => void runPreviewEdit('combined')}
                         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-violet-300 bg-white py-3 text-sm font-bold text-violet-800 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden>
-                          {previewLoading ? (
+                          {previewLoading && previewLoadingMode === 'combined' ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <Wand2 className="h-4 w-4" />
                           )}
                         </span>
-                        {previewLoading
+                        {previewLoading && previewLoadingMode === 'combined'
                           ? previewAllProgress
                             ? `Applying all changes (${previewAllProgress.current}/${previewAllProgress.total})…`
                             : 'Preparing chained edits…'
@@ -1607,6 +1612,7 @@ export default function App() {
                     <button
                       type="button"
                       disabled={previewLoading}
+                      aria-busy={previewLoading && previewLoadingMode === 'single'}
                       onClick={() => void runPreviewEdit('single')}
                       className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-400 disabled:text-white"
                       style={{
@@ -1619,20 +1625,18 @@ export default function App() {
                       }}
                     >
                       <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden>
-                        {previewLoading ? (
+                        {previewLoading && previewLoadingMode === 'single' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Wand2 className="h-4 w-4" />
                         )}
                       </span>
                       <span className="inline-flex min-w-0 items-center justify-center">
-                        {previewLoading
-                          ? previewAllProgress
-                            ? `Applying change ${previewAllProgress.current} of ${previewAllProgress.total}…`
-                            : 'Generating preview…'
+                        {previewLoading && previewLoadingMode === 'single'
+                          ? 'Applying change…'
                           : activePreviewImageDataUrl
-                            ? 'Regenerate preview'
-                            : 'Generate preview'}
+                            ? 'Perform single change again'
+                            : 'Perform single change'}
                       </span>
                     </button>
                     {flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 ? (

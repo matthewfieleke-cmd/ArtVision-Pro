@@ -77,7 +77,7 @@ export type StudioAnalysis = {
   whatCouldImprove: string;
 };
 
-/** One concrete studio change (Voice B); previewCriterion drives Generate preview. */
+/** One concrete studio change (Voice B); previewCriterion drives Perform single change. */
 export type StudioChange = {
   text: string;
   previewCriterion: Criterion;
