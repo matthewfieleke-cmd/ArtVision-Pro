@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.ts';
+import { studioReadMarkdownLines } from '../lib/critiqueEval.ts';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 
 type Fixture = {
@@ -46,26 +47,26 @@ function assessment(critique: Awaited<ReturnType<typeof runOpenAICritique>>): st
   const lines: string[] = [];
   const genericMainIssue = simple
     ? /(stronger focal|more contrast|more clarity|more depth|more cohesive|spatial definition)/i.test(
-        simple.mainIssue
+        simple.studioAnalysis.whatCouldImprove
       )
     : false;
   const genericNextSteps = simple
-    ? simple.nextSteps.some((step) =>
+    ? simple.studioChanges.some((ch) =>
         /(increase contrast|refine edges|stronger focal point|improve spatial clarity|more cohesive|more depth)/i.test(
-          step
+          ch.text
         )
       )
     : false;
 
   lines.push(
     genericMainIssue
-      ? 'Main issue still leans generic.'
-      : 'Main issue is less generic and more tied to this painting’s actual terms.'
+      ? '“What could improve” still leans generic.'
+      : '“What could improve” is less generic and more tied to this painting’s actual terms.'
   );
   lines.push(
     genericNextSteps
-      ? 'Next steps still include stock correction language.'
-      : 'Next steps avoid the most obvious stock correction patterns.'
+      ? 'Studio change lines still include stock correction language.'
+      : 'Studio change lines avoid the most obvious stock correction patterns.'
   );
   lines.push(
     'Question to judge: does this response now better preserve ambiguity, distributed attention, or atmospheric compression when those are part of the work?'
@@ -102,18 +103,7 @@ async function main() {
     sections.push(`- declared medium: ${fixture.medium}`);
     sections.push(`- classified style: ${classification.style}`);
     sections.push('');
-    sections.push('### Studio read');
-    sections.push('');
-    sections.push(`- intent: ${critique.simpleFeedback?.intent ?? 'n/a'}`);
-    sections.push(`- main issue: ${critique.simpleFeedback?.mainIssue ?? 'n/a'}`);
-    sections.push(`- preserve: ${critique.simpleFeedback?.preserve ?? 'n/a'}`);
-    sections.push('');
-    sections.push('### Next steps');
-    sections.push('');
-    for (const item of critique.simpleFeedback?.nextSteps ?? []) {
-      sections.push(`1. ${item}`);
-    }
-    sections.push('');
+    sections.push(...studioReadMarkdownLines(critique));
     sections.push('### Assessment');
     sections.push('');
     for (const line of assessment(critique)) {

@@ -21,7 +21,7 @@ function completionToneBlock(evidence: CritiqueEvidenceDTO): string {
     return `${base}
 
 - Treat this as closer to presentation-ready: focus on selective refinements, protecting what already works, and subtle calibration—not wholesale restructuring unless evidence demands it.
-- nextSteps should read as finishing passes: small targeted adjustments, varnish/photo/presentation awareness only when grounded in evidence.
+- studioChanges should read as finishing passes: small targeted adjustments, varnish/photo/presentation awareness only when grounded in evidence.
 - Avoid pushing the artist to "rebuild big shapes" unless criterion evidence clearly shows structural failure.`;
   }
   return `${base}
@@ -37,6 +37,10 @@ export function buildWritingPrompt(style: string, evidence: CritiqueEvidenceDTO)
 
 You are now writing the critique from already extracted evidence.
 
+Voices (composite, not literal impersonation):
+- Voice A (studioAnalysis): art-critical read — clear, specific, historically and formally literate; name what works and what could improve in THIS image; let declared style, medium, and completion read steer emphasis.
+- Voice B (studioChanges): master-painter teaching — imperative, concrete, medium-aware; each line is one executable change with where + how; previewCriterion routes an illustrative edit.
+
 ${completionToneBlock(evidence)}
 
 Rules:
@@ -50,12 +54,12 @@ Rules:
 - Do NOT overpraise. "Master" should be rare and should only be used when the evidence shows unusually strong, intentional, and sustained control in that criterion.
 - If the work is strong but still developing, prefer "Advanced" over "Master."
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
-- Top-level nextSteps (3–4 items): each must be a distinct studio move tied to **this painting’s evidence**—never stock templates. The following are only **illustrations of specificity**, not subjects you should expect: a portrait might name a feature and fabric; a landscape might name path and treeline; an abstract might name a diagonal color band and a scraped vertical field. Use **whatever** the evidence actually names (motifs, objects, architecture, geometry, marks, or color passages).
-- Every nextStep must anchor to **identifiable content from the evidence**: a named or clearly described motif; OR two named colors with a junction; OR a precise zone (e.g. upper-left quadrant, lower band, right third) **plus** what occupies it (sky, foliage, cadmium slab, gestural sweep, grid, etc.). For non-representational work, refer to form/color/mark units the evidence already used, not vague "shapes."
-- Bad (always): "In one area…", "the weakest passage", "two color families", "one important contour", "the neighbor", "supporting zone" without saying **which** visible thing in **this** image.
-- No two nextSteps should repeat the same move or the same named passage.
-- If a work is rated below Master in any criterion, every next step must be a true revision move the artist can do now on this image, not general practice advice.
-- For non-master work, do not let "preserve" language replace correction. Name the exact passage or relationship to adjust.
+- studioAnalysis (Voice A — composite art-critical voice): two paragraphs only — whatWorks (specific likes tied to visible passages) and whatCouldImprove (specific tensions). Ground both in evidence; reflect declared style, medium, and completion read (unfinished vs likely_finished). No bullet laundry lists inside these paragraphs unless the evidence demands it.
+- studioChanges (Voice B — composite master-painter teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).
+- Each studioChanges.text must anchor to **identifiable content from the evidence** (same rules as before: motif, two colors at a junction, or precise zone + what occupies it). Bad: "In one area…", "two color families", "one contour" without naming what is in the picture.
+- No two studioChanges should repeat the same move or the same named passage.
+- If a work is rated below Master in any criterion, every studioChange must be a true revision move on this image, not generic practice homework.
+- For non-master work, do not let "preserve-only" language replace correction in studioChanges.
 - Prefer verbs like soften, darken, simplify, group, separate, lose, sharpen, compress, cool, warm, straighten, widen, narrow, or restate when they are justified by the evidence.
 - Avoid empty advisory language such as "continue to explore," "consider adding," "experiment with," or "maintain" unless the sentence also names one visible area and one specific adjustment.
 - Respect medium limits:
@@ -63,7 +67,7 @@ Rules:
   - Watercolor: prefer wash control, edge timing, reserving lights, transparent layering, and bloom/backrun handling.
   - Pastel: prefer stroke pressure, tooth coverage, layering, edge softness, and control of powdery chroma.
   - Oil on Canvas: prefer paint thickness, scumble/glaze, temperature shifts, edge weight, and shape/value editing.
-- For strong finished paintings, at most one next step may be preservation-only; the rest must still name something concrete in the picture to refine or protect in place.
+- For strong finished paintings, at most one studioChange may be preservation-only; the rest must still name something concrete in the picture to refine or protect in place.
 - Per category, actionPlan must be exactly ONE sentence with no numbering: the single clearest adjustment for THAT criterion in THIS painting, tied to visible evidence (not a generic exercise).
 
 Benchmarks for what "Master" means in this style: ${benchmarks}

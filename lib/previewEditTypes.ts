@@ -5,6 +5,8 @@ export type PreviewEditTarget = {
   level: RatingLevelLabel;
   feedback: string;
   actionPlan: string;
+  /** When set, the image edit is driven primarily by this Voice B line from Studio read. */
+  studioChangeRecommendation?: string;
 };
 
 export type PreviewEditRequestBody = {

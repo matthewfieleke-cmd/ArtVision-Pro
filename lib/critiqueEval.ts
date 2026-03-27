@@ -13,9 +13,10 @@ function containsAny(text: string, patterns: RegExp[]): boolean {
 
 export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEvalResult {
   const simple = critique.simpleFeedback;
+  const improveText = simple?.studioAnalysis.whatCouldImprove ?? '';
   const genericMainIssue = Boolean(
     simple &&
-      containsAny(simple.mainIssue, [
+      containsAny(improveText, [
         /clearer focal/i,
         /stronger focal/i,
         /enhance depth/i,
@@ -29,8 +30,8 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
 
   const genericNextSteps = Boolean(
     simple &&
-      simple.nextSteps.some((step) =>
-        containsAny(step, [
+      simple.studioChanges.some((ch) =>
+        containsAny(ch.text, [
           /increase contrast/i,
           /enhance definition/i,
           /refine edges/i,
@@ -52,13 +53,13 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
   const notes: string[] = [];
   notes.push(
     genericMainIssue
-      ? 'The top-level main issue still leans on generic correction language, which several of the 11 experts would likely find too default and insufficiently tied to the work’s actual terms.'
-      : 'The top-level main issue is more grounded in the painting’s own terms than in earlier generic outputs.'
+      ? 'The “what could improve” paragraph still leans on generic correction language, which several of the 11 experts would likely find too default and insufficiently tied to the work’s actual terms.'
+      : 'The “what could improve” paragraph is more grounded in the painting’s own terms than in earlier generic outputs.'
   );
   notes.push(
     genericNextSteps
-      ? 'Some next steps still fall back on stock advice such as more contrast, stronger focal point, or sharper definition.'
-      : 'The next steps are more exact and less trapped in stock “clarify / contrast / focus” moves.'
+      ? 'Some studio change lines still fall back on stock advice such as more contrast, stronger focal point, or sharper definition.'
+      : 'The studio change lines are more exact and less trapped in stock “clarify / contrast / focus” moves.'
   );
   notes.push(
     weakEvidence
@@ -77,4 +78,37 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
     weakEvidence,
     notes,
   };
+}
+
+/** Markdown lines for QA / review scripts (studioAnalysis + studioChanges). */
+export function studioReadMarkdownLines(
+  critique: CritiqueResultDTO,
+  opts?: {
+    title?: string;
+    analysisSectionTitle?: string;
+    changesSectionTitle?: string;
+  }
+): string[] {
+  const s = critique.simpleFeedback;
+  const title = opts?.title ?? '### Studio read';
+  const analysisSectionTitle = opts?.analysisSectionTitle ?? '#### Analysis';
+  const changesSectionTitle = opts?.changesSectionTitle ?? '#### Changes to make';
+  const lines: string[] = [title, ''];
+  if (!s) {
+    lines.push('- _(no studio read)_', '');
+    return lines;
+  }
+  lines.push(analysisSectionTitle);
+  lines.push('');
+  lines.push(`- **What works:** ${s.studioAnalysis.whatWorks}`);
+  lines.push(`- **What could improve:** ${s.studioAnalysis.whatCouldImprove}`);
+  lines.push('');
+  lines.push(changesSectionTitle);
+  lines.push('');
+  for (let i = 0; i < s.studioChanges.length; i++) {
+    const ch = s.studioChanges[i]!;
+    lines.push(`${i + 1}. **${ch.previewCriterion}** — ${ch.text}`);
+  }
+  lines.push('');
+  return lines;
 }

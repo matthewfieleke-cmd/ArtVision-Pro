@@ -101,11 +101,8 @@ export const CRITIQUE_JSON_SCHEMA = {
     additionalProperties: false,
     required: [
       'summary',
-      'intent',
-      'working',
-      'mainIssue',
-      'nextSteps',
-      'preserveSummary',
+      'studioAnalysis',
+      'studioChanges',
       'categories',
       'comparisonNote',
       'overallConfidence',
@@ -113,21 +110,41 @@ export const CRITIQUE_JSON_SCHEMA = {
     ],
     properties: {
       summary: { type: 'string' },
-      intent: { type: 'string' },
-      working: {
+      studioAnalysis: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['whatWorks', 'whatCouldImprove'],
+        properties: {
+          whatWorks: {
+            type: 'string',
+            description:
+              'Voice A paragraph: specific strengths visible in THIS painting; informed by style, medium, completion read.',
+          },
+          whatCouldImprove: {
+            type: 'string',
+            description:
+              'Voice A paragraph: specific tensions or gaps visible in THIS painting; calibrate tone for unfinished vs finished.',
+          },
+        },
+      },
+      studioChanges: {
         type: 'array',
         minItems: 2,
-        maxItems: 3,
-        items: { type: 'string' },
+        maxItems: 5,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['text', 'previewCriterion'],
+          properties: {
+            text: {
+              type: 'string',
+              description:
+                'Voice B: one concrete change—where, what, how—for THIS painting only; no vague advice.',
+            },
+            previewCriterion: { type: 'string', enum: [...CRITERIA_ORDER] },
+          },
+        },
       },
-      mainIssue: { type: 'string' },
-      nextSteps: {
-        type: 'array',
-        minItems: 3,
-        maxItems: 4,
-        items: { type: 'string' },
-      },
-      preserveSummary: { type: 'string' },
       comparisonNote: { type: ['string', 'null'] },
       overallConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
       photoQuality: {
@@ -204,11 +221,8 @@ export const CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
-- intent
-- working
-- mainIssue
-- nextSteps
-- preserveSummary
+- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: two labeled paragraphs, specific to THIS painting; use declared style, medium, and completion read (unfinished → structure/pacing; likely_finished → selective refinement). Name visible passages, colors, edges, motifs.
+- studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: concrete studio instructions only; each text names where and how; previewCriterion is the single best-matching criterion from CRITERIA_ORDER for that change (used for preview image routing).
 - categories
 - comparisonNote
 - overallConfidence

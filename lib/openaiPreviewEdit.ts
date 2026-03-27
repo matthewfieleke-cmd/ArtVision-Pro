@@ -310,16 +310,19 @@ function buildEditPrompt(body: PreviewEditRequestBody): string {
     .slice(0, 4)
     .map((signal: string) => `- ${signal}`)
     .join('\n');
+  const changeBlock =
+    target.studioChangeRecommendation?.trim() ??
+    `${target.feedback}\n\n${target.actionPlan}`;
   return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
 Context: ${style}, medium ${medium}.
 
 Focus ONLY on: "${target.criterion}" (rated ${target.level}).
 
-What to address (from their mentor critique):
-${target.feedback}
+What to address — specific change to implement on this canvas (from the artist's critique):
+${changeBlock}
 
-Show this improvement via paint (not caption): ${target.actionPlan}
+Show this improvement via paint (not caption). If multiple sentences appear, treat them as one coordinated adjustment in the passages they name.
 
 Master-level signals to honor for this exact criterion in ${style}:
 ${masterSignals || '- Use the strongest available style-consistent master signals for this criterion.'}

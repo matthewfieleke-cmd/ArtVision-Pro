@@ -1,6 +1,8 @@
 import type {
+  CompletionRead,
   CritiqueCategory,
   CritiqueResult,
+  CritiqueSimpleFeedback,
   Criterion,
   CritiqueSubskill,
   Medium,
@@ -772,48 +774,81 @@ function describeFocalSide(metrics: ImageMetrics): string {
   return 'toward one side of the canvas';
 }
 
-function nextStepList(
-  mainIssue: CritiqueCategory,
-  secondWeakest: CritiqueCategory | undefined,
+function buildLocalStudioRead(
+  style: Style,
+  medium: Medium,
+  titlePrefix: string,
+  strongest: Criterion,
+  strongestLevel: RatingLevel,
+  mainIssue: Criterion,
+  mainIssueCategory: CritiqueCategory,
+  secondWeakestCategory: CritiqueCategory | undefined,
   metrics: ImageMetrics,
-  photoQuality: PhotoQualityAssessment
-): string[] {
-  const e0 = mainIssue.evidenceSignals?.[0]?.trim() ?? 'the weakest structural read in the photo';
-  const e1 = mainIssue.evidenceSignals?.[1]?.trim();
+  photoQuality: PhotoQualityAssessment,
+  completionRead: CompletionRead
+): CritiqueSimpleFeedback {
+  const whatWorks = [
+    `${titlePrefix}${intentRead(style, medium, strongest)}`,
+    ...workingBullets(strongest, strongestLevel, photoQuality),
+  ].join(' ');
+
+  const completionClause =
+    completionRead.state === 'unfinished'
+      ? 'Given this capture still reads in progress, prioritize resolving the main structural read before final polish. '
+      : completionRead.state === 'likely_finished'
+        ? 'Given this capture reads relatively resolved, favor selective refinements over wholesale restructuring. '
+        : '';
+
+  const whatCouldImprove = `${completionClause}${mainIssueText(mainIssue)}`;
+
+  const e0 = mainIssueCategory.evidenceSignals?.[0]?.trim() ?? 'the weakest structural read in the photo';
+  const e1 = mainIssueCategory.evidenceSignals?.[1]?.trim();
   const focal = describeFocalSide(metrics);
 
-  const steps: string[] = [
-    `Tackle ${e0} first: make one concrete change there so ${mainIssue.criterion.toLowerCase()} reads more clearly before you touch smaller details.`,
+  const studioChanges: CritiqueSimpleFeedback['studioChanges'] = [
+    {
+      text: `Tackle ${e0} first: make one concrete change there so ${mainIssueCategory.criterion.toLowerCase()} reads more clearly before you touch smaller details.`,
+      previewCriterion: mainIssueCategory.criterion,
+    },
   ];
 
   if (e1) {
-    steps.push(
-      `Build on that by adjusting ${e1}—keep the rest of the passage quieter so this relationship can land without competing accents.`
-    );
+    studioChanges.push({
+      text: `Build on that by adjusting ${e1}—keep the rest of the passage quieter so this relationship can land without competing accents.`,
+      previewCriterion: mainIssueCategory.criterion,
+    });
   } else {
-    steps.push(
-      `In one supporting area ${focal}, simplify marks or group values so the main fix does not fight equal-strength neighbors.`
-    );
+    studioChanges.push({
+      text: `In one supporting area ${focal}, simplify marks or group values so the main fix does not fight equal-strength neighbors.`,
+      previewCriterion: 'Composition and shape structure',
+    });
   }
 
-  if (secondWeakest) {
-    const s0 = secondWeakest.evidenceSignals?.[0]?.trim() ?? secondWeakest.criterion.toLowerCase();
-    steps.push(
-      `Then address ${s0} for ${secondWeakest.criterion.toLowerCase()} with a single pass so two big issues are not half-fixed at once.`
-    );
+  if (secondWeakestCategory) {
+    const s0 =
+      secondWeakestCategory.evidenceSignals?.[0]?.trim() ?? secondWeakestCategory.criterion.toLowerCase();
+    studioChanges.push({
+      text: `Then address ${s0} for ${secondWeakestCategory.criterion.toLowerCase()} with a single pass so two big issues are not half-fixed at once.`,
+      previewCriterion: secondWeakestCategory.criterion,
+    });
   } else {
-    steps.push(
-      `Finish by checking one edge or value transition ${focal} that still feels undecided and correct only that span.`
-    );
+    studioChanges.push({
+      text: `Finish by checking one edge or value transition ${focal} that still feels undecided and correct only that span.`,
+      previewCriterion: 'Edge and focus control',
+    });
   }
 
   if (photoQuality.level !== 'good') {
-    steps.push(
-      `Re-shoot under even, glare-free light so the next critique can see ${photoQuality.level === 'poor' ? 'true values and edges' : 'subtle shifts'} more reliably.`
-    );
+    studioChanges.push({
+      text: `Re-shoot under even, glare-free light so the next critique can see ${photoQuality.level === 'poor' ? 'true values and edges' : 'subtle shifts'} more reliably.`,
+      previewCriterion: 'Surface and medium handling',
+    });
   }
 
-  return steps.slice(0, 4);
+  return {
+    studioAnalysis: { whatWorks, whatCouldImprove },
+    studioChanges: studioChanges.slice(0, 5),
+  };
 }
 
 export async function analyzePainting(
@@ -886,16 +921,19 @@ export async function analyzePainting(
     categories,
     summary,
     comparisonNote,
-    simple: {
-      readOfWork: `${titlePrefix}${intentRead(style, medium, strongest)}`,
-      working: workingBullets(strongest, strongestCategoryCard.level, photoQuality),
-      mainIssue: mainIssueText(mainIssue),
-      nextSteps: nextStepList(mainIssueCategory, secondWeakestCategory, m, photoQuality),
-      preserve:
-        mainIssueCategory.preserve ??
-        strongestCategoryCard.preserve ??
-        'Protect the liveliest passage while you revise the weaker structure around it.',
-    },
+    simple: buildLocalStudioRead(
+      style,
+      medium,
+      titlePrefix,
+      strongest,
+      strongestCategoryCard.level,
+      mainIssue,
+      mainIssueCategory,
+      secondWeakestCategory,
+      m,
+      photoQuality,
+      completionRead
+    ),
     analysisSource: 'local',
     photoQuality,
     completionRead,

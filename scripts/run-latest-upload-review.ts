@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.ts';
-import { evaluateCritiqueQuality } from '../lib/critiqueEval.js';
+import { evaluateCritiqueQuality, studioReadMarkdownLines } from '../lib/critiqueEval.js';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 
 type Fixture = {
@@ -77,26 +77,7 @@ async function main() {
     sections.push(`- overall confidence: ${critique.overallConfidence ?? 'n/a'}`);
     sections.push('');
 
-    sections.push('### Studio read');
-    sections.push('');
-    sections.push(`- intent: ${critique.simpleFeedback?.intent ?? 'n/a'}`);
-    sections.push(`- main issue: ${critique.simpleFeedback?.mainIssue ?? 'n/a'}`);
-    sections.push(`- preserve: ${critique.simpleFeedback?.preserve ?? 'n/a'}`);
-    sections.push('');
-
-    sections.push('### What is working');
-    sections.push('');
-    for (const item of critique.simpleFeedback?.working ?? []) {
-      sections.push(`- ${item}`);
-    }
-    sections.push('');
-
-    sections.push('### Next steps');
-    sections.push('');
-    for (const item of critique.simpleFeedback?.nextSteps ?? []) {
-      sections.push(`1. ${item}`);
-    }
-    sections.push('');
+    sections.push(...studioReadMarkdownLines(critique));
 
     sections.push('### Full summary');
     sections.push('');

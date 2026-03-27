@@ -32,7 +32,9 @@ const overlayImgClass =
 type Props = {
   originalSrc: string;
   revisedSrc: string;
-  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'>;
+  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
+    studioChangeRecommendation?: string;
+  };
   /** Light background for Studio; dark for full-screen overlay */
   variant?: 'light' | 'dark';
   className?: string;
@@ -86,8 +88,14 @@ export function PreviewEditBlendCard({
           <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>{target.criterion}</strong> (current
           level: {target.level}). Illustrative only—not a substitute for repainting.
         </p>
-        <p className="mt-2 whitespace-pre-line">{target.feedback.trim()}</p>
-        <p className="mt-2 whitespace-pre-line">{target.actionPlan.trim()}</p>
+        {target.studioChangeRecommendation?.trim() ? (
+          <p className="mt-2 whitespace-pre-line font-medium">{target.studioChangeRecommendation.trim()}</p>
+        ) : (
+          <>
+            <p className="mt-2 whitespace-pre-line">{target.feedback.trim()}</p>
+            <p className="mt-2 whitespace-pre-line">{target.actionPlan.trim()}</p>
+          </>
+        )}
       </div>
 
       <div className="grid min-h-0 w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start sm:gap-4 lg:grid-cols-2 lg:gap-6">

@@ -1,6 +1,7 @@
 import {
   canonicalCriterionLabel,
   criterionLabelMatches,
+  CRITERIA_ORDER,
 } from '../shared/criteria';
 import type {
   CritiqueCategory,
@@ -83,39 +84,115 @@ export function deriveOverallConfidence(
   return confidence;
 }
 
-function fallbackSimpleRead(categories: CritiqueCategory[], summary: string): CritiqueSimpleFeedback {
+function fallbackSimpleRead(categories: CritiqueCategory[]): CritiqueSimpleFeedback {
   const sorted = [...categories].sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level));
   const mainIssue = sorted[0] ?? categories[0];
   const strongest = [...categories].sort((a, b) => LEVEL_ORDER.indexOf(b.level) - LEVEL_ORDER.indexOf(a.level));
   const keep = strongest[0] ?? categories[0];
-  const nextSteps = [mainIssue?.actionPlan, sorted[1]?.actionPlan]
-    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-    .slice(0, 2);
-  const working = strongest
+  const planPairs = sorted
+    .map((cat) => ({ cat, plan: cat.actionPlan?.trim() }))
+    .filter((x): x is { cat: CritiqueCategory; plan: string } => Boolean(x.plan && x.plan.length > 0))
+    .slice(0, 5);
+  const strengthCats = strongest
     .filter((cat) => LEVEL_ORDER.indexOf(cat.level) >= LEVEL_ORDER.indexOf('Advanced'))
-    .slice(0, 2)
-    .map((cat) => cat.preserve?.trim() || `${cat.criterion} is already giving the painting support.`)
-    .filter((line) => line.length > 0);
+    .slice(0, 2);
+  const whatWorksParts: string[] = [];
+  if (strengthCats.length) {
+    for (const cat of strengthCats) {
+      const p = cat.preserve?.trim();
+      if (p) whatWorksParts.push(`${cat.criterion}: ${p}`);
+    }
+  }
+  const whatWorks =
+    whatWorksParts.length > 0
+      ? whatWorksParts.join(' ')
+      : keep?.preserve?.trim() ||
+        'The capture already suggests at least one passage worth building around while you address weaker structure elsewhere.';
+
+  const whatCouldImprove =
+    mainIssue?.feedback?.trim() ||
+    'One structural area still lags the rest; use the detailed categories below to prioritize before smaller fixes.';
+
+  const studioChanges: CritiqueSimpleFeedback['studioChanges'] = planPairs.map(({ cat, plan }) => ({
+    text: plan,
+    previewCriterion: cat.criterion,
+  }));
+  while (studioChanges.length < 2) {
+    const cat = sorted[studioChanges.length] ?? mainIssue;
+    studioChanges.push({
+      text:
+        'Choose the weakest visible passage, simplify its value groups, then rebuild it against the strongest silhouette already working in the piece.',
+      previewCriterion: cat!.criterion,
+    });
+  }
 
   return {
-    readOfWork: summary,
-    working:
-      working.length > 0
-        ? working
-        : [
-            keep?.preserve?.trim() ||
-              'The painting already has one clear strength worth protecting while you revise the weaker passages.',
-          ],
-    mainIssue:
-      mainIssue?.feedback?.trim() ||
-      'One structural issue is holding the painting back more than the rest; focus there before chasing smaller fixes.',
-    nextSteps:
-      nextSteps.length > 0
-        ? nextSteps
-        : ['Choose the weakest passage, simplify it, and rebuild it with the strongest shapes and value groups first.'],
-    preserve:
-      keep?.preserve?.trim() ||
-      'Protect the clearest living quality already present in the piece while you revise.',
+    studioAnalysis: { whatWorks, whatCouldImprove },
+    studioChanges: studioChanges.slice(0, 5),
+  };
+}
+
+/** Migrate saved critiques that used readOfWork / nextSteps into studioAnalysis + studioChanges. */
+export function migrateCritiqueSimpleFeedback(
+  simple: CritiqueSimpleFeedback | (Record<string, unknown> & Partial<CritiqueSimpleFeedback>)
+): CritiqueSimpleFeedback | undefined {
+  if (!simple || typeof simple !== 'object') return undefined;
+  const s = simple as Record<string, unknown>;
+  if (
+    s.studioAnalysis &&
+    typeof s.studioAnalysis === 'object' &&
+    Array.isArray(s.studioChanges)
+  ) {
+    const sa = s.studioAnalysis as { whatWorks?: string; whatCouldImprove?: string };
+    const changes = (s.studioChanges as CritiqueSimpleFeedback['studioChanges']).map((ch) => ({
+      text: ch.text,
+      previewCriterion: canonicalCriterionLabel(ch.previewCriterion) ?? ch.previewCriterion,
+    }));
+    return {
+      studioAnalysis: {
+        whatWorks: typeof sa.whatWorks === 'string' ? sa.whatWorks : '',
+        whatCouldImprove: typeof sa.whatCouldImprove === 'string' ? sa.whatCouldImprove : '',
+      },
+      studioChanges: changes,
+    };
+  }
+  const readOfWork = typeof s.readOfWork === 'string' ? s.readOfWork : '';
+  const working = Array.isArray(s.working) ? (s.working as string[]).filter((x) => typeof x === 'string') : [];
+  const mainIssue = typeof s.mainIssue === 'string' ? s.mainIssue : '';
+  const nextSteps = Array.isArray(s.nextSteps) ? (s.nextSteps as string[]).filter((x) => typeof x === 'string') : [];
+  const preserve = typeof s.preserve === 'string' ? s.preserve : '';
+
+  const whatWorks =
+    working.length > 0
+      ? [readOfWork, ...working.map((w) => w.trim())].filter(Boolean).join(' ')
+      : readOfWork || 'Strengths are summarized in the detailed categories below.';
+
+  const whatCouldImprove =
+    mainIssue.trim() ||
+    'Areas to develop are detailed in the criterion breakdown below.';
+
+  const studioChanges: CritiqueSimpleFeedback['studioChanges'] = [];
+  for (let i = 0; i < nextSteps.length && studioChanges.length < 5; i++) {
+    const text = nextSteps[i]!.trim();
+    if (text.length < 4) continue;
+    studioChanges.push({
+      text,
+      previewCriterion: CRITERIA_ORDER[Math.min(i, CRITERIA_ORDER.length - 1)]!,
+    });
+  }
+  while (studioChanges.length < 2) {
+    studioChanges.push({
+      text:
+        preserve.trim().length > 0
+          ? `Protect the strongest passage while refining one adjacent area: ${preserve.slice(0, 100)}${preserve.length > 100 ? '…' : ''}`
+          : 'Choose one weak passage and restate it with simpler value groups before adding detail.',
+      previewCriterion: CRITERIA_ORDER[studioChanges.length % CRITERIA_ORDER.length]!,
+    });
+  }
+
+  return {
+    studioAnalysis: { whatWorks, whatCouldImprove },
+    studioChanges: studioChanges.slice(0, 5),
   };
 }
 
@@ -143,12 +220,13 @@ export function finalizeCritiqueResult(
   }));
   const analysisSource = options?.analysisSource ?? critique.analysisSource;
   const photoQuality = options?.photoQuality ?? critique.photoQuality;
+  const simple =
+    (critique.simple ? migrateCritiqueSimpleFeedback(critique.simple) : undefined) ??
+    fallbackSimpleRead(categories);
   return {
     ...critique,
     categories,
-    simple:
-      critique.simple ??
-      fallbackSimpleRead(categories, critique.summary),
+    simple,
     ...(analysisSource ? { analysisSource } : {}),
     ...(photoQuality ? { photoQuality } : {}),
     overallConfidence:

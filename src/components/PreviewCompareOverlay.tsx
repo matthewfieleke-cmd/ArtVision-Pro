@@ -4,7 +4,9 @@ import type { CritiqueCategory } from '../types';
 type Props = {
   originalSrc: string;
   revisedSrc: string;
-  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'>;
+  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
+    studioChangeRecommendation?: string;
+  };
   onClose: () => void;
 };
 

@@ -67,6 +67,11 @@ type PendingCrop = {
   action: CropAction;
 };
 
+type PreviewEditTargetPayload = Pick<
+  CritiqueCategory,
+  'criterion' | 'level' | 'feedback' | 'actionPlan'
+> & { studioChangeRecommendation?: string };
+
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -82,7 +87,8 @@ function mergePreviewIntoLastVersion(
   flowImageDataUrl: string,
   critiqueToStore: CritiqueResult,
   previewImageDataUrl: string,
-  previewCriterion: CritiqueCategory['criterion']
+  previewCriterion: CritiqueCategory['criterion'],
+  studioChangeRecommendation?: string
 ): { versions: PaintingVersion[]; merged: boolean } {
   const last = versions[versions.length - 1];
   if (!last || last.imageDataUrl !== flowImageDataUrl) {
@@ -95,6 +101,7 @@ function mergePreviewIntoLastVersion(
     previewEdit: {
       imageDataUrl: previewImageDataUrl,
       criterion: previewCriterion,
+      ...(studioChangeRecommendation ? { studioChangeRecommendation } : {}),
     },
   });
   return { versions: next, merged: true };
@@ -121,6 +128,8 @@ export default function App() {
   const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
+  /** Which Voice B studio change (index) drives Generate preview. */
+  const [previewStudioChangeIndex, setPreviewStudioChangeIndex] = useState(0);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -189,6 +198,7 @@ export default function App() {
     setPreviewImageDataUrl(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
+    setPreviewStudioChangeIndex(0);
   }, [stopCamera]);
 
   const goHome = useCallback(() => {
@@ -204,6 +214,7 @@ export default function App() {
     setPreviewImageDataUrl(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
+    setPreviewStudioChangeIndex(0);
     setTab('home');
   }, [stopCamera]);
 
@@ -215,6 +226,7 @@ export default function App() {
     setPreviewImageDataUrl(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
+    setPreviewStudioChangeIndex(0);
     setFlow(createNewFlow());
   }, []);
 
@@ -226,6 +238,7 @@ export default function App() {
     setPreviewImageDataUrl(null);
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
+    setPreviewStudioChangeIndex(0);
     stopCamera();
     setFlow(createResubmitFlow(p));
     setTab('studio');
@@ -295,6 +308,7 @@ export default function App() {
       setPreviewError(null);
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
+      setPreviewStudioChangeIndex(0);
       setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource }));
     } catch (e) {
       setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed');
@@ -415,7 +429,16 @@ export default function App() {
         ...resultFlow.critique,
         ...(savedTitle ? { paintingTitle: savedTitle } : {}),
       };
-      const priorityCat = priorityCritiqueCategory(resultFlow.critique.categories);
+      const catList = resultFlow.critique.categories;
+      const changes = critiqueToStore.simple?.studioChanges;
+      let previewCriterion = priorityCritiqueCategory(catList).criterion;
+      let studioRec: string | undefined;
+      if (changes && changes.length > 0) {
+        const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+        const ch = changes[idx]!;
+        previewCriterion = ch.previewCriterion;
+        studioRec = ch.text;
+      }
       const version = {
         id: newId(),
         imageDataUrl: resultFlow.imageDataUrl,
@@ -425,7 +448,8 @@ export default function App() {
           ? {
               previewEdit: {
                 imageDataUrl: previewImageDataUrl,
-                criterion: priorityCat.criterion,
+                criterion: previewCriterion,
+                ...(studioRec ? { studioChangeRecommendation: studioRec } : {}),
               },
             }
           : {}),
@@ -438,7 +462,8 @@ export default function App() {
               resultFlow.imageDataUrl,
               critiqueToStore,
               previewImageDataUrl,
-              priorityCat.criterion
+              previewCriterion,
+              studioRec
             )
           : { versions: resultFlow.targetPainting.versions, merged: false };
         const nextVersions = merged.merged
@@ -485,7 +510,8 @@ export default function App() {
             resultFlow.imageDataUrl,
             critiqueToStore,
             previewImageDataUrl,
-            priorityCat.criterion
+            previewCriterion,
+            studioRec
           );
           nextVersions = m.merged ? m.versions : [...existingPainting.versions, version];
         } else if (existingPainting) {
@@ -571,7 +597,7 @@ export default function App() {
         );
       }
     },
-    [flow, paintings, previewImageDataUrl]
+    [flow, paintings, previewImageDataUrl, previewStudioChangeIndex]
   );
 
   const persistResultRef = useRef(persistResult);
@@ -616,10 +642,31 @@ export default function App() {
         !classifyBusy
     );
 
-  const priorityCategory = useMemo(() => {
+  const previewTarget = useMemo((): PreviewEditTargetPayload | null => {
     if (!flow || flow.step !== 'results' || !flow.critique.categories.length) return null;
-    return priorityCritiqueCategory(flow.critique.categories);
-  }, [flow]);
+    const catList = flow.critique.categories;
+    const changes = flow.critique.simple?.studioChanges;
+    if (changes && changes.length > 0) {
+      const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+      const ch = changes[idx]!;
+      const cat =
+        catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+      return {
+        criterion: ch.previewCriterion,
+        level: cat.level,
+        feedback: cat.feedback,
+        actionPlan: cat.actionPlan,
+        studioChangeRecommendation: ch.text,
+      };
+    }
+    const p = priorityCritiqueCategory(catList);
+    return {
+      criterion: p.criterion,
+      level: p.level,
+      feedback: p.feedback,
+      actionPlan: p.actionPlan,
+    };
+  }, [flow, previewStudioChangeIndex]);
 
   const rememberCritiqueReturn = useCallback(() => {
     const current = flowRef.current;
@@ -637,11 +684,30 @@ export default function App() {
   const runPreviewEdit = useCallback(async () => {
     const currentFlow = flowRef.current;
     if (!currentFlow || currentFlow.step !== 'results') return;
-    const currentPriority =
-      currentFlow.critique.categories.length > 0
-        ? priorityCritiqueCategory(currentFlow.critique.categories)
-        : null;
-    if (!currentPriority) return;
+    const catList = currentFlow.critique.categories;
+    if (catList.length === 0) return;
+    const changes = currentFlow.critique.simple?.studioChanges;
+    let target: PreviewEditTargetPayload;
+    if (changes && changes.length > 0) {
+      const idx = Math.min(Math.max(0, previewStudioChangeIndex), changes.length - 1);
+      const ch = changes[idx]!;
+      const cat = catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+      target = {
+        criterion: ch.previewCriterion,
+        level: cat.level,
+        feedback: cat.feedback,
+        actionPlan: cat.actionPlan,
+        studioChangeRecommendation: ch.text,
+      };
+    } else {
+      const p = priorityCritiqueCategory(catList);
+      target = {
+        criterion: p.criterion,
+        level: p.level,
+        feedback: p.feedback,
+        actionPlan: p.actionPlan,
+      };
+    }
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
     if (!shouldTryApiFirst()) {
       setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
@@ -655,12 +721,7 @@ export default function App() {
         imageDataUrl: previewSource,
         style: currentFlow.style,
         medium: currentFlow.medium,
-        target: {
-          criterion: currentPriority.criterion,
-          level: currentPriority.level,
-          feedback: currentPriority.feedback,
-          actionPlan: currentPriority.actionPlan,
-        },
+        target,
       });
       setPreviewImageDataUrl(imageDataUrl);
       setPreviewCompareOpen(false);
@@ -674,7 +735,7 @@ export default function App() {
     } finally {
       setPreviewLoading(false);
     }
-  }, []);
+  }, [previewStudioChangeIndex]);
 
   const openPreviewCompare = useCallback(() => {
     setPreviewCompareOpen(true);
@@ -1231,7 +1292,7 @@ export default function App() {
                   ) : null}
                 </div>
                 <div className="min-h-0 space-y-4">
-                {priorityCategory ? (
+                {previewTarget ? (
                   <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -1239,12 +1300,12 @@ export default function App() {
                           Suggested change preview
                         </p>
                         <p className="mt-1 text-sm font-medium text-slate-800">
-                          Focus: {priorityCategory.criterion}{' '}
-                          <span className="font-normal text-slate-500">({priorityCategory.level})</span>
+                          Focus: {previewTarget.criterion}{' '}
+                          <span className="font-normal text-slate-500">({previewTarget.level})</span>
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                          One AI-edited example toward your next level in this area—interpretation only, not a
-                          substitute for painting.
+                          Illustrates the selected line under &quot;Changes to make&quot; when you tap Preview this
+                          change—interpretation only, not a substitute for painting.
                         </p>
                       </div>
                       <Palette className="h-8 w-8 shrink-0 text-violet-500" aria-hidden />
@@ -1281,7 +1342,7 @@ export default function App() {
                     {previewError ? (
                       <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
                     ) : null}
-                    {previewImageDataUrl && priorityCategory ? (
+                    {previewImageDataUrl && previewTarget ? (
                       isDesktop ? (
                         <div className="mt-4 min-h-0 border-t border-violet-200/60 pt-4">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1291,7 +1352,7 @@ export default function App() {
                             <PreviewEditBlendCard
                               originalSrc={flow.imageDataUrl}
                               revisedSrc={previewImageDataUrl}
-                              target={priorityCategory}
+                              target={previewTarget}
                             />
                           </div>
                           <button
@@ -1328,7 +1389,12 @@ export default function App() {
                     ) : null}
                   </section>
                 ) : null}
-                <CritiquePanels critique={flow.critique} onLearnMore={rememberCritiqueReturn} />
+                <CritiquePanels
+                  critique={flow.critique}
+                  onLearnMore={rememberCritiqueReturn}
+                  selectedStudioChangeIndex={previewStudioChangeIndex}
+                  onSelectStudioChange={setPreviewStudioChangeIndex}
+                />
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"
@@ -1355,11 +1421,11 @@ export default function App() {
         flow.step === 'results' &&
         flow.imageDataUrl &&
         previewImageDataUrl &&
-        priorityCategory ? (
+        previewTarget ? (
           <PreviewCompareOverlay
             originalSrc={flow.imageDataUrl}
             revisedSrc={previewImageDataUrl}
-            target={priorityCategory}
+            target={previewTarget}
             onClose={() => setPreviewCompareOpen(false)}
           />
         ) : null}

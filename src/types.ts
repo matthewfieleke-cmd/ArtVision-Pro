@@ -71,17 +71,22 @@ export type CritiqueCategory = {
   subskills?: CritiqueSubskill[];
 };
 
+/** Voice A: critical analysis (composite critic voice). */
+export type StudioAnalysis = {
+  whatWorks: string;
+  whatCouldImprove: string;
+};
+
+/** One concrete studio change (Voice B); previewCriterion drives Generate preview. */
+export type StudioChange = {
+  text: string;
+  previewCriterion: Criterion;
+};
+
 export type CritiqueSimpleFeedback = {
-  /** Plain-language read of the painting's main aim. */
-  readOfWork: string;
-  /** Short, visible strengths the painter should keep building on. */
-  working: string[];
-  /** Single biggest leverage point for the next revision. */
-  mainIssue: string;
-  /** Immediate studio moves, written simply. */
-  nextSteps: string[];
-  /** Overall quality that must survive revision. */
-  preserve: string;
+  studioAnalysis: StudioAnalysis;
+  /** Voice B: 2–5 specific changes for this painting only. */
+  studioChanges: StudioChange[];
 };
 
 export type CritiqueResult = {
@@ -105,6 +110,8 @@ export type CritiqueResult = {
 export type VersionPreviewEdit = {
   imageDataUrl: string;
   criterion: Criterion;
+  /** Voice B line the preview illustrated, when generated from Studio read. */
+  studioChangeRecommendation?: string;
 };
 
 export type PaintingVersion = {

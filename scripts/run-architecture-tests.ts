@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { applyCritiqueGuardrails } from '../lib/critiqueAudit.js';
+import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
 import {
   applyCorsHeaders,
   handleApiRequest,
@@ -208,7 +209,7 @@ async function testApiHelpers(): Promise<void> {
 function testCritiqueGuardrails(): void {
   const guarded = applyCritiqueGuardrails({
     summary: 'Strong painting.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'A quiet, atmospheric watercolor landscape with soft transitions and a calm mood.',
       working: ['The softness supports the atmosphere.', 'The composition already feels settled.'],
       mainIssue: 'The painting needs a stronger focal point and more cohesion.',
@@ -218,7 +219,7 @@ function testCritiqueGuardrails(): void {
         'Maintain the current balance while refining the edges.',
       ],
       preserve: 'Preserve the soft, tranquil atmosphere and the watercolor bloom in the sky.',
-    },
+    }),
     categories: [],
     overallConfidence: 'high',
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
@@ -226,18 +227,18 @@ function testCritiqueGuardrails(): void {
   });
 
   assert.match(
-    guarded.simpleFeedback?.mainIssue ?? '',
+    guarded.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '',
     /not simply that the painting needs more focus|not a lack of drama/i
   );
-  assert.match(guarded.simpleFeedback?.nextSteps?.[0] ?? '', /Keep the current value compression/i);
+  assert.match(guarded.simpleFeedback?.studioChanges[0]?.text ?? '', /Keep the current value compression/i);
   assert.match(
-    guarded.simpleFeedback?.nextSteps?.[2] ?? '',
+    guarded.simpleFeedback?.studioChanges[2]?.text ?? '',
     /keep the current balance while refining the edges/i
   );
 
   const drawingGuarded = applyCritiqueGuardrails({
     summary: 'Strong drawing.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'A graphite drawing focused on solitude and strong chiaroscuro.',
       working: ['The line work is expressive.', 'The contrast creates mood.'],
       mainIssue: 'The drawing could use more depth.',
@@ -246,19 +247,19 @@ function testCritiqueGuardrails(): void {
         'Maintain the dramatic effect.',
       ],
       preserve: 'Preserve the graphite line work and monochrome mood.',
-    },
+    }),
     categories: [],
     overallConfidence: 'high',
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
     analysisSource: 'api',
   });
 
-  assert.doesNotMatch(drawingGuarded.simpleFeedback?.nextSteps?.[0] ?? '', /color variations/i);
-  assert.match(drawingGuarded.simpleFeedback?.nextSteps?.[0] ?? '', /pressure|edge weight|value grouping/i);
+  assert.doesNotMatch(drawingGuarded.simpleFeedback?.studioChanges[0]?.text ?? '', /color variations/i);
+  assert.match(drawingGuarded.simpleFeedback?.studioChanges[0]?.text ?? '', /pressure|edge weight|value grouping/i);
 
   const weakActionGuarded = applyCritiqueGuardrails({
     summary: 'An advanced landscape study with one unresolved foreground/background relationship.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'An atmospheric oil landscape with a bright field against a softer mountain backdrop.',
       working: ['The church remains a clear anchor.', 'The atmosphere is convincing.'],
       mainIssue: 'The bright foreground may overpower the softer background.',
@@ -267,7 +268,7 @@ function testCritiqueGuardrails(): void {
         'Continue exploring the atmospheric effect in the distance.',
       ],
       preserve: 'Preserve the atmospheric softness in the mountains and the calm overall mood.',
-    },
+    }),
     categories: [],
     overallConfidence: 'high',
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
@@ -275,25 +276,25 @@ function testCritiqueGuardrails(): void {
   });
 
   assert.doesNotMatch(
-    weakActionGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    weakActionGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
     /maintain the current balance/i
   );
   assert.match(
-    weakActionGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    weakActionGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
     /on the next pass|temperature shift|foreground|background/i
   );
   assert.doesNotMatch(
-    weakActionGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
+    weakActionGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
     /continue exploring/i
   );
   assert.match(
-    weakActionGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
+    weakActionGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
     /softening one background edge|smaller temperature or value shift|deepen the distance/i
   );
 
   const belowMasterSpecificityGuarded = applyCritiqueGuardrails({
     summary: 'A student watercolor with several unresolved structural relationships.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'A simple watercolor scene with bright local color and childlike spacing.',
       working: ['The mood is cheerful.', 'The main shapes are easy to read.'],
       mainIssue: 'The work could be stronger overall.',
@@ -303,7 +304,7 @@ function testCritiqueGuardrails(): void {
         'Consider adding more variety.',
       ],
       preserve: 'Preserve the cheerful mood and the readable big shapes.',
-    },
+    }),
     categories: [
       {
         criterion: 'Intent and necessity',
@@ -360,22 +361,22 @@ function testCritiqueGuardrails(): void {
   });
 
   assert.doesNotMatch(
-    belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
     /maintain the cheerful feeling/i
   );
   assert.match(
-    belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
     /adjust|simplifying|separating|clearer value|edge decision/i
   );
   assert.match(
-    belowMasterSpecificityGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
+    belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
     /quiet|soften|group/i
   );
 
   const sloppyWorkGuarded = applyCritiqueGuardrails({
     summary:
       'A colorful but underdeveloped painting with loose brushwork, simplified forms, and a balanced but naïve scene.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'A playful, inviting scene with bright color and expression over precision.',
       working: ['Bright color catches the eye.', 'The subject is readable.'],
       mainIssue: 'The work could be stronger overall.',
@@ -385,7 +386,7 @@ function testCritiqueGuardrails(): void {
         'Preserve the expressive brushwork.',
       ],
       preserve: 'Preserve the playful mood and bright colors.',
-    },
+    }),
     categories: [
       {
         criterion: 'Intent and necessity',
@@ -450,7 +451,7 @@ function testCritiqueGuardrails(): void {
 
   const actionPlanGuarded = applyCritiqueGuardrails({
     summary: 'A landscape with one unresolved focal path and weak foreground grouping.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'A calm landscape with one path leading into a distant tree line.',
       working: ['The path sets up a readable direction.', 'The color families are broadly separated.'],
       mainIssue: 'The foreground and background are not yet clearly separated.',
@@ -459,7 +460,7 @@ function testCritiqueGuardrails(): void {
         'Continue exploring the scene.',
       ],
       preserve: 'Preserve the calm atmosphere.',
-    },
+    }),
     categories: [
       {
         criterion: 'Composition and shape structure',
@@ -560,7 +561,7 @@ function testCritiqueGuardrails(): void {
 
   const vagueNextStepsGuarded = applyCritiqueGuardrails({
     summary: 'Landscape study: a dirt path cuts past oak trees into a pale evening sky.',
-    simpleFeedback: {
+    simpleFeedback: migrateLegacySimpleFeedback({
       intent: 'Evening light on a path that bends past oak trunks toward a cool sky.',
       working: ['The path reads as a clear entry.', 'The oak mass anchors the right side.'],
       mainIssue: 'The path edge and grass still merge too much.',
@@ -570,7 +571,7 @@ function testCritiqueGuardrails(): void {
         'Where two color families meet in the painting, adjust temperature or chroma in a narrow band so the transition supports the space instead of flattening it.',
       ],
       preserve: 'Keep the path rhythm and the oak silhouette.',
-    },
+    }),
     categories: [
       {
         criterion: 'Intent and necessity',
@@ -634,7 +635,8 @@ function testCritiqueGuardrails(): void {
     analysisSource: 'api',
   });
 
-  const joinedNext = vagueNextStepsGuarded.simpleFeedback?.nextSteps?.join(' ') ?? '';
+  const joinedNext =
+    vagueNextStepsGuarded.simpleFeedback?.studioChanges.map((c) => c.text).join(' ') ?? '';
   assert.doesNotMatch(joinedNext, /weakest against your evidence|two color families|one important contour/i);
   assert.match(joinedNext, /path|oak|sky|grass|tree|evening|foreground|treetops/i);
 }

@@ -1,4 +1,5 @@
 import { canonicalCriterionLabel } from '../shared/criteria';
+import { migrateCritiqueSimpleFeedback } from './critiqueCoach';
 import type { CritiqueCategory, CritiqueResult, SavedPainting } from './types';
 
 const KEY = 'artvision-pro-paintings-v1';
@@ -9,9 +10,12 @@ function migrateCritiqueCategory(category: CritiqueCategory): CritiqueCategory {
 }
 
 function migrateCritiqueResult(critique: CritiqueResult): CritiqueResult {
+  const simple =
+    critique.simple !== undefined ? migrateCritiqueSimpleFeedback(critique.simple) : undefined;
   return {
     ...critique,
     categories: critique.categories.map(migrateCritiqueCategory),
+    ...(simple ? { simple } : {}),
   };
 }
 

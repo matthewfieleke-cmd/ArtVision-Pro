@@ -1,5 +1,9 @@
-import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
-import type { CritiqueResultDTO } from './critiqueTypes.js';
+import { canonicalCriterionLabel, CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
+import type {
+  CritiqueResultDTO,
+  CritiqueSimpleFeedbackDTO,
+  StudioChangeDTO,
+} from './critiqueTypes.js';
 
 export type CritiqueEvidenceDTO = {
   intentHypothesis: string;
@@ -30,11 +34,8 @@ export type CritiqueEvidenceDTO = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
-- intent
-- working
-- mainIssue
-- nextSteps
-- preserveSummary
+- studioAnalysis: { whatWorks, whatCouldImprove }
+- studioChanges: 2–5 of { text, previewCriterion }
 - categories
 - comparisonNote
 - overallConfidence
@@ -49,6 +50,64 @@ For each criterion:
 - practiceExercise
 - nextTarget
 - subskills`;
+}
+
+function normalizePreviewCriterion(raw: string): (typeof CRITERIA_ORDER)[number] {
+  const c = canonicalCriterionLabel(raw);
+  if (c) return c;
+  if (CRITERIA_ORDER.includes(raw as (typeof CRITERIA_ORDER)[number])) {
+    return raw as (typeof CRITERIA_ORDER)[number];
+  }
+  return 'Composition and shape structure';
+}
+
+export function migrateLegacySimpleFeedback(o: Record<string, unknown>): CritiqueSimpleFeedbackDTO {
+  const intent = typeof o.intent === 'string' ? o.intent : '';
+  const working = Array.isArray(o.working) ? (o.working as string[]).filter((x) => typeof x === 'string') : [];
+  const mainIssue = typeof o.mainIssue === 'string' ? o.mainIssue : '';
+  const nextSteps = Array.isArray(o.nextSteps) ? (o.nextSteps as string[]).filter((x) => typeof x === 'string') : [];
+  const preserve =
+    typeof o.preserveSummary === 'string'
+      ? o.preserveSummary
+      : typeof o.preserve === 'string'
+        ? o.preserve
+        : '';
+
+  const whatWorks =
+    working.length > 0
+      ? working.map((w) => `• ${w}`).join(' ')
+      : intent.trim().length > 0
+        ? intent
+        : 'The painting offers a readable surface to build on; see the detailed categories for specifics.';
+
+  const whatCouldImprove =
+    mainIssue.trim().length > 0
+      ? mainIssue
+      : 'Several relationships could still be sharpened; use the criterion breakdown below for the main leverage points.';
+
+  const studioChanges: StudioChangeDTO[] = [];
+  for (let i = 0; i < nextSteps.length && studioChanges.length < 5; i++) {
+    const text = nextSteps[i]!.trim();
+    if (text.length < 8) continue;
+    studioChanges.push({
+      text,
+      previewCriterion: CRITERIA_ORDER[Math.min(i, CRITERIA_ORDER.length - 1)]!,
+    });
+  }
+  while (studioChanges.length < 2) {
+    studioChanges.push({
+      text:
+        preserve.trim().length > 0
+          ? `Protect ${preserve.slice(0, 120)}${preserve.length > 120 ? '…' : ''} while you refine one adjacent passage with a clearer value or edge.`
+          : 'Choose the weakest visible passage and restate it with simpler value groups before adding detail elsewhere.',
+      previewCriterion: 'Composition and shape structure',
+    });
+  }
+
+  return {
+    studioAnalysis: { whatWorks, whatCouldImprove },
+    studioChanges: studioChanges.slice(0, 5),
+  };
 }
 
 function fallbackSubskills(
@@ -213,24 +272,43 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
   };
 }
 
+function parseSimpleFeedback(o: Record<string, unknown>): CritiqueSimpleFeedbackDTO {
+  const sa = o.studioAnalysis;
+  const sc = o.studioChanges;
+  if (sa && typeof sa === 'object' && Array.isArray(sc)) {
+    const a = sa as Record<string, unknown>;
+    if (typeof a.whatWorks !== 'string' || typeof a.whatCouldImprove !== 'string') {
+      throw new Error('Invalid critique: studioAnalysis fields');
+    }
+    if (sc.length < 2 || sc.length > 5) throw new Error('Invalid critique: studioChanges length');
+    const studioChanges: StudioChangeDTO[] = [];
+    for (const item of sc) {
+      if (!item || typeof item !== 'object') throw new Error('Invalid critique: studioChanges item');
+      const r = item as Record<string, unknown>;
+      if (typeof r.text !== 'string' || typeof r.previewCriterion !== 'string') {
+        throw new Error('Invalid critique: studioChanges item fields');
+      }
+      studioChanges.push({
+        text: r.text,
+        previewCriterion: normalizePreviewCriterion(r.previewCriterion),
+      });
+    }
+    return {
+      studioAnalysis: { whatWorks: a.whatWorks, whatCouldImprove: a.whatCouldImprove },
+      studioChanges,
+    };
+  }
+  if (typeof o.intent === 'string' && Array.isArray(o.working) && typeof o.mainIssue === 'string') {
+    return migrateLegacySimpleFeedback(o);
+  }
+  throw new Error('Invalid critique: studioRead (studioAnalysis + studioChanges or legacy simple fields)');
+}
+
 export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid API response');
   const o = raw as Record<string, unknown>;
   if (typeof o.summary !== 'string') throw new Error('Invalid critique: summary');
-  if (typeof o.intent !== 'string') throw new Error('Invalid critique: intent');
-  if (!Array.isArray(o.working) || o.working.length < 2 || o.working.length > 3 || o.working.some((v) => typeof v !== 'string')) {
-    throw new Error('Invalid critique: working');
-  }
-  if (typeof o.mainIssue !== 'string') throw new Error('Invalid critique: mainIssue');
-  if (
-    !Array.isArray(o.nextSteps) ||
-    o.nextSteps.length < 3 ||
-    o.nextSteps.length > 4 ||
-    o.nextSteps.some((v) => typeof v !== 'string')
-  ) {
-    throw new Error('Invalid critique: nextSteps');
-  }
-  if (typeof o.preserveSummary !== 'string') throw new Error('Invalid critique: preserveSummary');
+  const simpleFeedback = parseSimpleFeedback(o);
   if (
     typeof o.overallConfidence !== 'string' ||
     !(['low', 'medium', 'high'] as const).includes(o.overallConfidence as 'low' | 'medium' | 'high')
@@ -329,13 +407,7 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   }
   return {
     summary: o.summary,
-    simpleFeedback: {
-      intent: o.intent,
-      working: o.working as string[],
-      mainIssue: o.mainIssue,
-      nextSteps: o.nextSteps as string[],
-      preserve: o.preserveSummary,
-    },
+    simpleFeedback,
     categories,
     overallConfidence: o.overallConfidence as 'low' | 'medium' | 'high',
     photoQuality: {

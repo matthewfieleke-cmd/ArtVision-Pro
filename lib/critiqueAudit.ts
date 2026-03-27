@@ -1,4 +1,9 @@
-import type { CritiqueCategoryDTO, CritiqueResultDTO } from './critiqueTypes.js';
+import type {
+  CritiqueCategoryDTO,
+  CritiqueResultDTO,
+  CritiqueSimpleFeedbackDTO,
+} from './critiqueTypes.js';
+import { CRITERIA_ORDER } from '../shared/criteria.js';
 
 function containsAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
@@ -8,12 +13,19 @@ function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function rewriteGenericMainIssue(
-  mainIssue: string,
-  preserve: string,
-  working: string[]
-): string {
-  const text = normalizeWhitespace(mainIssue);
+function simpleStudioReadText(simple: CritiqueSimpleFeedbackDTO | undefined): string {
+  if (!simple) return '';
+  return normalizeWhitespace(
+    [
+      simple.studioAnalysis.whatWorks,
+      simple.studioAnalysis.whatCouldImprove,
+      ...simple.studioChanges.map((c) => c.text),
+    ].join(' ')
+  );
+}
+
+function rewriteGenericWhatCouldImprove(whatCouldImprove: string, whatWorks: string): string {
+  const text = normalizeWhitespace(whatCouldImprove);
   const genericPatterns = [
     /lack of a clear focal point/i,
     /stronger focal point/i,
@@ -22,25 +34,24 @@ function rewriteGenericMainIssue(
     /lacks cohesion/i,
     /lacks clear spatial definition/i,
   ];
-  if (!containsAny(text, genericPatterns)) return mainIssue;
+  if (!containsAny(text, genericPatterns)) return whatCouldImprove;
 
-  const preserveText = normalizeWhitespace(preserve);
-  const workingText = normalizeWhitespace(working.join(' '));
+  const positive = normalizeWhitespace(whatWorks);
 
-  if (/(atmosphere|soft|mist|harmony|tranquil|calm|serene|glow)/i.test(preserveText + ' ' + workingText)) {
-    return 'The main issue is not a lack of drama; it is that one or two relationships inside the existing calm are not yet fully decided, so the painting can read slightly diffuse instead of deliberate.';
+  if (/(atmosphere|soft|mist|harmony|tranquil|calm|serene|glow)/i.test(positive + ' ' + text)) {
+    return 'What could improve is not a lack of drama; it is that one or two relationships inside the existing calm are not yet fully decided, so the painting can read slightly diffuse instead of deliberate.';
   }
 
-  if (/(distributed|all-over|energy|movement|dynamic|vibrant)/i.test(preserveText + ' ' + workingText)) {
-    return 'The main issue is not that the work needs one dominant focal point; it is that a few competing accents are equally loud, so the eye does not quite know which relationship matters most.';
+  if (/(distributed|all-over|energy|movement|dynamic|vibrant)/i.test(positive + ' ' + text)) {
+    return 'What could improve is not that the work needs one dominant focal point; it is that a few competing accents are equally loud, so the eye does not quite know which relationship matters most.';
   }
 
-  return 'The main issue is not simply that the painting needs more focus; it is that the current structure does not yet fully separate what should lead from what should support.';
+  return 'What could improve is not simply that the painting needs more focus; it is that the current structure does not yet fully separate what should lead from what should support.';
 }
 
-function rewriteGenericStep(step: string, preserve: string, intent: string): string {
+function rewriteGenericStep(step: string, contextA: string, contextB: string): string {
   const text = normalizeWhitespace(step);
-  const context = `${preserve} ${intent}`;
+  const context = `${contextA} ${contextB}`;
 
   if (/continue exploring/i.test(text)) {
     if (/(atmosphere|distance|background|mountain|mist|soft)/i.test(text + ' ' + context)) {
@@ -75,9 +86,10 @@ function toneDownOverpraise(
   if (!allMaster) return critique;
 
   const simple = critique.simpleFeedback;
+  const studioText = simpleStudioReadText(simple);
   const hasNoIssueLanguage = Boolean(
     simple &&
-      containsAny(simple.mainIssue, [
+      containsAny(simple.studioAnalysis.whatCouldImprove + ' ' + studioText, [
         /no significant issues/i,
         /strong across all evaluated criteria/i,
         /successfully achieves/i,
@@ -99,20 +111,23 @@ function toneDownOverpraise(
     return category;
   });
 
-  const softenedMainIssue = simple
-    ? /no significant issues/i.test(simple.mainIssue)
-      ? 'The painting is strong overall; the most useful next step is to protect what is already working while identifying one relationship that could become more deliberate.'
-      : simple.mainIssue
+  const softenedImprove = simple
+    ? /no significant issues/i.test(simple.studioAnalysis.whatCouldImprove)
+      ? 'The painting is strong overall; the most useful next move is to protect what is already working while identifying one visible relationship that could become more deliberate.'
+      : simple.studioAnalysis.whatCouldImprove
     : undefined;
 
   return {
     ...critique,
     categories: softenedCategories,
-    ...(simple
+    ...(simple && softenedImprove
       ? {
           simpleFeedback: {
             ...simple,
-            mainIssue: softenedMainIssue ?? simple.mainIssue,
+            studioAnalysis: {
+              ...simple.studioAnalysis,
+              whatCouldImprove: softenedImprove,
+            },
           },
         }
       : {}),
@@ -123,10 +138,7 @@ function inferNoviceSignalCount(critique: CritiqueResultDTO): number {
   const text = normalizeWhitespace(
     [
       critique.summary,
-      critique.simpleFeedback?.intent ?? '',
-      critique.simpleFeedback?.mainIssue ?? '',
-      critique.simpleFeedback?.preserve ?? '',
-      ...(critique.simpleFeedback?.working ?? []),
+      simpleStudioReadText(critique.simpleFeedback),
       ...critique.categories.flatMap((category) => [
         category.feedback,
         category.actionPlan,
@@ -219,10 +231,13 @@ function capInflatedRatingsForNoviceLikeWork(
       ? {
           simpleFeedback: {
             ...simple,
-            mainIssue:
-              noviceSignals >= 4
-                ? 'The main issue is that the picture is working with simple, early-stage decisions: the subject is readable, but drawing, spatial logic, value grouping, and edge control are still at a beginner-to-intermediate stage rather than an advanced one.'
-                : 'The main issue is that the picture is still working at a simple, early-stage level: the big shapes read, but drawing, value grouping, and edge control are not yet developed enough to support higher ratings.',
+            studioAnalysis: {
+              ...simple.studioAnalysis,
+              whatCouldImprove:
+                noviceSignals >= 4
+                  ? 'What could improve is that the picture is still working with simple, early-stage decisions: the subject is readable, but drawing, spatial logic, value grouping, and edge control are still at a beginner-to-intermediate stage rather than an advanced one.'
+                  : 'What could improve is that the picture is still working at a simple, early-stage level: the big shapes read, but drawing, value grouping, and edge control are not yet developed enough to support higher ratings.',
+            },
           },
         }
       : {}),
@@ -233,10 +248,7 @@ function inferUnderdevelopedSignalCount(critique: CritiqueResultDTO): number {
   const text = normalizeWhitespace(
     [
       critique.summary,
-      critique.simpleFeedback?.intent ?? '',
-      critique.simpleFeedback?.mainIssue ?? '',
-      critique.simpleFeedback?.preserve ?? '',
-      ...(critique.simpleFeedback?.working ?? []),
+      simpleStudioReadText(critique.simpleFeedback),
       ...critique.categories.flatMap((category) => [
         category.feedback,
         category.actionPlan,
@@ -280,9 +292,7 @@ function capInflatedRatingsForUnderdevelopedWork(
   const text = normalizeWhitespace(
     [
       critique.summary,
-      critique.simpleFeedback?.intent ?? '',
-      critique.simpleFeedback?.mainIssue ?? '',
-      ...(critique.simpleFeedback?.working ?? []),
+      simpleStudioReadText(critique.simpleFeedback),
       ...critique.categories.flatMap((category) => [
         category.feedback,
         ...(category.evidenceSignals ?? []),
@@ -325,8 +335,11 @@ function capInflatedRatingsForUnderdevelopedWork(
       ? {
           simpleFeedback: {
             ...simple,
-            mainIssue:
-              'The main issue is that the painting is still underdeveloped in the fundamentals: the image is readable, but drawing, space, value, and edge decisions remain too loose to support advanced ratings.',
+            studioAnalysis: {
+              ...simple.studioAnalysis,
+              whatCouldImprove:
+                'What could improve is that the painting is still underdeveloped in the fundamentals: the image is readable, but drawing, space, value, and edge decisions remain too loose to support advanced ratings.',
+            },
           },
         }
       : {}),
@@ -410,8 +423,11 @@ function capInflatedRatingsWhenFundamentalsAreWeak(
       ? {
           simpleFeedback: {
             ...simple,
-            mainIssue:
-              'The fundamentals are not yet strong enough to justify high ratings across the board: composition, value, drawing, and edge control still need clearer decisions before the more expressive qualities can carry the work.',
+            studioAnalysis: {
+              ...simple.studioAnalysis,
+              whatCouldImprove:
+                'The fundamentals are not yet strong enough to justify high ratings across the board: composition, value, drawing, and edge control still need clearer decisions before the more expressive qualities can carry the work.',
+            },
           },
         }
       : {}),
@@ -420,7 +436,7 @@ function capInflatedRatingsWhenFundamentalsAreWeak(
 
 function rewriteMediumInsensitiveStep(step: string, critique: CritiqueResultDTO): string {
   const text = normalizeWhitespace(step);
-  const medium = critique.summary + ' ' + (critique.simpleFeedback?.intent ?? '');
+  const medium = critique.summary + ' ' + simpleStudioReadText(critique.simpleFeedback);
 
   if (/subtle color variations/i.test(text) && /drawing/i.test(medium)) {
     return 'Instead of adding color, use pressure, edge weight, and value grouping to deepen the mood without weakening the drawing medium.';
@@ -547,10 +563,8 @@ function collectContentAnchors(critique: CritiqueResultDTO): string[] {
   const raw: string[] = [];
   const s = critique.simpleFeedback;
   if (s) {
-    if (typeof s.intent === 'string') raw.push(s.intent);
-    for (const w of s.working ?? []) raw.push(w);
-    if (typeof s.mainIssue === 'string') raw.push(s.mainIssue);
-    if (typeof s.preserve === 'string') raw.push(s.preserve);
+    raw.push(s.studioAnalysis.whatWorks, s.studioAnalysis.whatCouldImprove);
+    /* Do not pull studioChanges into anchors — weak steps would be recycled into “evidence” fallbacks. */
   }
   if (typeof critique.summary === 'string') raw.push(critique.summary);
   for (const c of critique.categories) {
@@ -682,21 +696,26 @@ function hasConcreteAdjustment(step: string): boolean {
   );
 }
 
-function enforceSpecificNextSteps(
-  nextSteps: string[],
+function enforceSpecificStudioChanges(
+  changes: CritiqueSimpleFeedbackDTO['studioChanges'],
   critique: CritiqueResultDTO
-): string[] {
+): CritiqueSimpleFeedbackDTO['studioChanges'] {
   const hasBelowMasterCategory = critique.categories.some((category) => category.level !== 'Master');
-  if (!hasBelowMasterCategory) return nextSteps.slice(0, 4);
+  if (!hasBelowMasterCategory) return changes.slice(0, 5);
 
-  const trimmed = nextSteps.map((s) => normalizeWhitespace(s)).filter(Boolean);
-  const allSpecific = trimmed.length >= 3 && trimmed.every((step) => nextStepIsSpecificEnough(step));
-  if (allSpecific) return trimmed.slice(0, 4);
+  const texts = changes.map((c) => normalizeWhitespace(c.text)).filter(Boolean);
+  const allSpecific = texts.length >= 2 && texts.every((step) => nextStepIsSpecificEnough(step));
+  if (allSpecific) return changes.slice(0, 5);
 
   const anchored = buildEvidenceAnchoredNextSteps(critique);
-  if (anchored.length >= 3) return anchored.slice(0, 4);
+  if (anchored.length >= 2) {
+    return anchored.slice(0, 5).map((text, i) => ({
+      text,
+      previewCriterion: CRITERIA_ORDER[Math.min(i, CRITERIA_ORDER.length - 1)]!,
+    }));
+  }
 
-  return trimmed.slice(0, 4);
+  return changes.slice(0, 5);
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
@@ -710,15 +729,15 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;
 
-  const nextSteps = enforceSpecificNextSteps(
-    tonedSimple.nextSteps.map((step) =>
-      rewriteLowLeverageStep(
-        rewriteMediumInsensitiveStep(
-          rewriteGenericStep(step, tonedSimple.preserve, tonedSimple.intent),
-          tonedDown
-        )
-    )
-    ),
+  const ctxA = tonedSimple.studioAnalysis.whatWorks;
+  const ctxB = tonedSimple.studioAnalysis.whatCouldImprove;
+  const studioChanges = enforceSpecificStudioChanges(
+    tonedSimple.studioChanges.map((ch) => ({
+      ...ch,
+      text: rewriteLowLeverageStep(
+        rewriteMediumInsensitiveStep(rewriteGenericStep(ch.text, ctxA, ctxB), tonedDown)
+      ),
+    })),
     tonedDown
   );
 
@@ -726,12 +745,14 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
     ...tonedDown,
     simpleFeedback: {
       ...tonedSimple,
-      mainIssue: rewriteGenericMainIssue(
-        tonedSimple.mainIssue,
-        tonedSimple.preserve,
-        tonedSimple.working
-      ),
-      nextSteps,
+      studioAnalysis: {
+        ...tonedSimple.studioAnalysis,
+        whatCouldImprove: rewriteGenericWhatCouldImprove(
+          tonedSimple.studioAnalysis.whatCouldImprove,
+          tonedSimple.studioAnalysis.whatWorks
+        ),
+      },
+      studioChanges,
     },
   };
 }

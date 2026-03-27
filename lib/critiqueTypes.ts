@@ -38,12 +38,19 @@ export type CritiqueCategoryDTO = {
   }>;
 };
 
+export type StudioAnalysisDTO = {
+  whatWorks: string;
+  whatCouldImprove: string;
+};
+
+export type StudioChangeDTO = {
+  text: string;
+  previewCriterion: CriterionLabel;
+};
+
 export type CritiqueSimpleFeedbackDTO = {
-  intent: string;
-  working: string[];
-  mainIssue: string;
-  nextSteps: string[];
-  preserve: string;
+  studioAnalysis: StudioAnalysisDTO;
+  studioChanges: StudioChangeDTO[];
 };
 
 export type CritiqueResultDTO = {

@@ -1,6 +1,6 @@
 import type { CritiqueResult, Medium, Style } from './types';
 import { readApiJson } from './apiJson';
-import { finalizeCritiqueResult } from './critiqueCoach';
+import { finalizeCritiqueResult, migrateCritiqueSimpleFeedback } from './critiqueCoach';
 
 type CritiqueRequestBody = {
   style: Style;
@@ -39,25 +39,13 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
   }
   if ('error' in data && data.error) throw new Error(String(data.error));
   const critique = data as CritiqueResult & {
-    simpleFeedback?: {
-      intent: string;
-      working: string[];
-      mainIssue: string;
-      nextSteps: string[];
-      preserve: string;
-    };
+    simpleFeedback?: CritiqueResult['simple'];
   };
   const normalized: CritiqueResult = {
     ...critique,
     ...(critique.simpleFeedback
       ? {
-          simple: {
-            readOfWork: critique.simpleFeedback.intent,
-            working: critique.simpleFeedback.working,
-            mainIssue: critique.simpleFeedback.mainIssue,
-            nextSteps: critique.simpleFeedback.nextSteps,
-            preserve: critique.simpleFeedback.preserve,
-          },
+          simple: migrateCritiqueSimpleFeedback(critique.simpleFeedback) ?? critique.simpleFeedback,
         }
       : {}),
   };

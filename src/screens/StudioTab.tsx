@@ -140,7 +140,12 @@ export function StudioTab({
               <PreviewEditBlendCard
                 originalSrc={latest.imageDataUrl}
                 revisedSrc={latestPreview.imageDataUrl}
-                target={previewTargetForVersion(latest.critique, latestPreview.criterion)}
+                target={{
+                  ...previewTargetForVersion(latest.critique, latestPreview.criterion),
+                  ...(latestPreview.studioChangeRecommendation
+                    ? { studioChangeRecommendation: latestPreview.studioChangeRecommendation }
+                    : {}),
+                }}
               />
             </div>
           </section>
