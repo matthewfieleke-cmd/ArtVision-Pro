@@ -27,12 +27,16 @@ Rules:
 - If the work is strong but still developing, prefer "Advanced" over "Master."
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
 - Next steps must describe a concrete studio move on a specific visible relationship; avoid filler such as "continue exploring," "consider experimenting," "maintain balance," or "ensure harmony."
+- If a work is rated below Master in any criterion, at least two next steps must be true revision moves the artist can do now, not general practice advice.
+- For non-master work, do not let "preserve" language replace correction. Name the exact passage or relationship to adjust.
+- Prefer verbs like soften, darken, simplify, group, separate, lose, sharpen, compress, cool, warm, straighten, widen, narrow, or restate when they are justified by the evidence.
+- Avoid empty advisory language such as "continue to explore," "consider adding," "experiment with," or "maintain" unless the sentence also names one visible area and one specific adjustment.
 - Respect medium limits:
   - Drawing: do not suggest color variation or painterly color harmony fixes unless the drawing actually uses color.
   - Watercolor: prefer wash control, edge timing, reserving lights, transparent layering, and bloom/backrun handling.
   - Pastel: prefer stroke pressure, tooth coverage, layering, edge softness, and control of powdery chroma.
   - Oil on Canvas: prefer paint thickness, scumble/glaze, temperature shifts, edge weight, and shape/value editing.
-- For strong finished paintings, next steps may be "protect this quality on the next pass" rather than inventing a repair.
+- For strong finished paintings, one next step may be "protect this quality on the next pass," but do not let all next steps collapse into preservation language unless the work is genuinely at Master level across the board.
 
 Benchmarks for what "Master" means in this style: ${benchmarks}
 

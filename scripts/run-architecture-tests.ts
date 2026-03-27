@@ -230,9 +230,9 @@ function testCritiqueGuardrails(): void {
     /not simply that the painting needs more focus|not a lack of drama/i
   );
   assert.match(guarded.simpleFeedback?.nextSteps?.[0] ?? '', /Keep the current value compression/i);
-  assert.equal(
-    guarded.simpleFeedback?.nextSteps?.[2],
-    'Maintain the current balance while refining the edges.'
+  assert.match(
+    guarded.simpleFeedback?.nextSteps?.[2] ?? '',
+    /keep the current balance while refining the edges/i
   );
 
   const drawingGuarded = applyCritiqueGuardrails({
@@ -255,6 +255,41 @@ function testCritiqueGuardrails(): void {
 
   assert.doesNotMatch(drawingGuarded.simpleFeedback?.nextSteps?.[0] ?? '', /color variations/i);
   assert.match(drawingGuarded.simpleFeedback?.nextSteps?.[0] ?? '', /pressure|edge weight|value grouping/i);
+
+  const weakActionGuarded = applyCritiqueGuardrails({
+    summary: 'An advanced landscape study with one unresolved foreground/background relationship.',
+    simpleFeedback: {
+      intent: 'An atmospheric oil landscape with a bright field against a softer mountain backdrop.',
+      working: ['The church remains a clear anchor.', 'The atmosphere is convincing.'],
+      mainIssue: 'The bright foreground may overpower the softer background.',
+      nextSteps: [
+        'Maintain the current balance between the foreground and the background.',
+        'Continue exploring the atmospheric effect in the distance.',
+      ],
+      preserve: 'Preserve the atmospheric softness in the mountains and the calm overall mood.',
+    },
+    categories: [],
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    analysisSource: 'api',
+  });
+
+  assert.doesNotMatch(
+    weakActionGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    /maintain the current balance/i
+  );
+  assert.match(
+    weakActionGuarded.simpleFeedback?.nextSteps?.[0] ?? '',
+    /on the next pass|temperature shift|foreground|background/i
+  );
+  assert.doesNotMatch(
+    weakActionGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
+    /continue exploring/i
+  );
+  assert.match(
+    weakActionGuarded.simpleFeedback?.nextSteps?.[1] ?? '',
+    /softening one background edge|smaller temperature or value shift|deepen the distance/i
+  );
 }
 
 async function main(): Promise<void> {

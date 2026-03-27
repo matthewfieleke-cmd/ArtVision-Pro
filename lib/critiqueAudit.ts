@@ -42,6 +42,13 @@ function rewriteGenericStep(step: string, preserve: string, intent: string): str
   const text = normalizeWhitespace(step);
   const context = `${preserve} ${intent}`;
 
+  if (/continue exploring/i.test(text)) {
+    if (/(atmosphere|distance|background|mountain|mist|soft)/i.test(text + ' ' + context)) {
+      return 'On the next pass, deepen the distance by softening one background edge and separating one mountain or sky shape with a smaller temperature or value shift.';
+    }
+    return 'On the next pass, replace the most generic repeated move with one specific adjustment to shape, edge, or value in the passage that is still undecided.';
+  }
+
   if (/increase contrast/i.test(text) && /(atmosphere|mist|soft|calm|serene|glow|compression)/i.test(context)) {
     return 'Keep the current value compression, but separate just one important shape from its neighbor with a smaller value or temperature shift instead of a broad contrast increase.';
   }
@@ -131,15 +138,39 @@ function rewriteMediumInsensitiveStep(step: string, critique: CritiqueResultDTO)
   return step;
 }
 
+function rewriteLowLeverageStep(step: string): string {
+  const text = normalizeWhitespace(step);
+
+  if (/^continue to explore\b/i.test(text)) {
+    return text.replace(/^continue to explore\b/i, 'Push one visible relationship further by');
+  }
+
+  if (/^maintain the\b/i.test(text)) {
+    return text.replace(/^maintain the\b/i, 'On the next pass, keep the');
+  }
+
+  if (/^consider\b/i.test(text)) {
+    return text.replace(/^consider\b/i, 'On the next pass,');
+  }
+
+  if (/^experiment with\b/i.test(text)) {
+    return text.replace(/^experiment with\b/i, 'Test');
+  }
+
+  return step;
+}
+
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
   const tonedDown = toneDownOverpraise(critique);
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;
 
   const nextSteps = tonedSimple.nextSteps.map((step) =>
-    rewriteMediumInsensitiveStep(
-      rewriteGenericStep(step, tonedSimple.preserve, tonedSimple.intent),
-      tonedDown
+    rewriteLowLeverageStep(
+      rewriteMediumInsensitiveStep(
+        rewriteGenericStep(step, tonedSimple.preserve, tonedSimple.intent),
+        tonedDown
+      )
     )
   );
 
