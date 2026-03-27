@@ -4,6 +4,13 @@ import { CriterionLearnLink } from './CriterionLearnLink';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
 import type { CritiqueCategory, CritiqueResult } from '../types';
 
+const LEVEL_RANK = {
+  Beginner: 0,
+  Intermediate: 1,
+  Advanced: 2,
+  Master: 3,
+} as const;
+
 function confidenceBadgeClass(confidence?: CritiqueCategory['confidence']): string {
   switch (confidence) {
     case 'high':
@@ -26,8 +33,29 @@ function subskillBarWidth(score: number): string {
   return `${Math.max(10, Math.round(score * 100))}%`;
 }
 
+function normalizeLabel(text: string): string {
+  return text.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function hasUsableSubskills(category: CritiqueCategory): boolean {
+  if (!category.subskills?.length) return false;
+
+  const parentRank = LEVEL_RANK[category.level];
+  const evidenceLabels = new Set(
+    (category.evidenceSignals ?? []).map((signal) => normalizeLabel(signal))
+  );
+
+  return category.subskills.every((subskill) => {
+    const label = subskill.label.trim();
+    if (label.length === 0 || label.length > 36) return false;
+    if (label.includes('.') || label.split(/\s+/).length > 4) return false;
+    if (evidenceLabels.has(normalizeLabel(label))) return false;
+    return LEVEL_RANK[subskill.level] <= parentRank;
+  });
+}
+
 function hasDriverDetails(category: CritiqueCategory): boolean {
-  return Boolean(category.subskills?.length || category.evidenceSignals?.length);
+  return Boolean(category.evidenceSignals?.length || hasUsableSubskills(category));
 }
 
 function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
@@ -96,10 +124,10 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
                   ))}
                 </ul>
               ) : null}
-              {category.subskills?.length ? (
+              {hasUsableSubskills(category) ? (
                 <div className={`${category.evidenceSignals?.length ? 'mt-3 border-t border-slate-200 pt-3' : 'mt-2'} space-y-2`}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skill snapshot</p>
-                  {category.subskills.map((subskill) => (
+                  {category.subskills!.map((subskill) => (
                     <div key={subskill.label}>
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
