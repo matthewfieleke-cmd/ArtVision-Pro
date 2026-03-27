@@ -84,17 +84,22 @@ export function PreviewEditBlendCard({
       className={`flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-start lg:gap-6 xl:gap-8 ${className}`}
     >
       <div className={`min-w-0 ${box}`}>
-        <p>
-          Suggested change preview for{' '}
-          <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>{target.criterion}</strong> (current
-          level: {target.level}). Illustrative only—not a substitute for repainting.
-        </p>
+        {target.combinedVoiceBChanges?.trim() ? (
+          <p>
+            Suggested change preview for{' '}
+            <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>all suggested changes</strong> (combined
+            pass). Illustrative only—not a substitute for repainting.
+          </p>
+        ) : (
+          <p>
+            Suggested change preview for{' '}
+            <strong className={isDark ? 'text-violet-300' : 'text-violet-800'}>{target.criterion}</strong> (current
+            level: {target.level}). Illustrative only—not a substitute for repainting.
+          </p>
+        )}
         {target.combinedVoiceBChanges?.trim() ? (
           <div className="mt-2 space-y-2">
-            <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              All suggested changes (combined pass)
-            </p>
-            <p className="whitespace-pre-line font-medium">{target.combinedVoiceBChanges.trim()}</p>
+            <p className={`whitespace-pre-line font-medium`}>{target.combinedVoiceBChanges.trim()}</p>
           </div>
         ) : target.studioChangeRecommendation?.trim() ? (
           <p className="mt-2 whitespace-pre-line font-medium">{target.studioChangeRecommendation.trim()}</p>
