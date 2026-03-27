@@ -333,6 +333,91 @@ function capInflatedRatingsForUnderdevelopedWork(
   };
 }
 
+const LEVEL_RANK = {
+  Beginner: 0,
+  Intermediate: 1,
+  Advanced: 2,
+  Master: 3,
+} as const;
+
+const FUNDAMENTAL_CRITERIA = new Set([
+  'Composition and shape structure',
+  'Value and light structure',
+  'Drawing, proportion, and spatial form',
+  'Edge and focus control',
+]);
+
+function capInflatedRatingsWhenFundamentalsAreWeak(
+  critique: CritiqueResultDTO
+): CritiqueResultDTO {
+  const coreCategories = critique.categories.filter((category) =>
+    FUNDAMENTAL_CRITERIA.has(category.criterion)
+  );
+  const weakCoreCount = coreCategories.filter(
+    (category) => LEVEL_RANK[category.level] <= LEVEL_RANK.Intermediate
+  ).length;
+  const advancedOrAboveCount = critique.categories.filter(
+    (category) => LEVEL_RANK[category.level] >= LEVEL_RANK.Advanced
+  ).length;
+  const hasCoreBeginner = coreCategories.some(
+    (category) => category.level === 'Beginner'
+  );
+  const underdevelopedSignals = inferUnderdevelopedSignalCount(critique);
+  const noviceSignals = inferNoviceSignalCount(critique);
+  const poorPhoto = critique.photoQuality?.level === 'fair' || critique.photoQuality?.level === 'poor';
+
+  if (weakCoreCount < 3 || advancedOrAboveCount < 4) return critique;
+
+  const aggressive = poorPhoto || underdevelopedSignals >= 3 || noviceSignals >= 4;
+
+  const softenedCategories = critique.categories.map((category) => {
+    if (LEVEL_RANK[category.level] <= LEVEL_RANK.Intermediate) return category;
+
+    if (!aggressive) {
+      return {
+        ...category,
+        level: 'Intermediate' as const,
+      };
+    }
+
+    if (
+      category.criterion === 'Color relationships' ||
+      category.criterion === 'Surface and medium handling'
+    ) {
+      return {
+        ...category,
+        level: 'Intermediate' as const,
+      };
+    }
+
+    return {
+      ...category,
+      level:
+        hasCoreBeginner ||
+        category.criterion === 'Intent and necessity' ||
+        category.criterion === 'Presence, point of view, and human force'
+          ? ('Beginner' as const)
+          : ('Intermediate' as const),
+    };
+  });
+
+  const simple = critique.simpleFeedback;
+  return {
+    ...critique,
+    categories: softenedCategories,
+    overallConfidence: aggressive ? 'low' : critique.overallConfidence === 'high' ? 'medium' : critique.overallConfidence,
+    ...(simple
+      ? {
+          simpleFeedback: {
+            ...simple,
+            mainIssue:
+              'The fundamentals are not yet strong enough to justify high ratings across the board: composition, value, drawing, and edge control still need clearer decisions before the more expressive qualities can carry the work.',
+          },
+        }
+      : {}),
+  };
+}
+
 function rewriteMediumInsensitiveStep(step: string, critique: CritiqueResultDTO): string {
   const text = normalizeWhitespace(step);
   const medium = critique.summary + ' ' + (critique.simpleFeedback?.intent ?? '');
@@ -404,8 +489,10 @@ function enforceSpecificNextSteps(
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const tonedDown = capInflatedRatingsForUnderdevelopedWork(
-    capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique))
+  const tonedDown = capInflatedRatingsWhenFundamentalsAreWeak(
+    capInflatedRatingsForUnderdevelopedWork(
+      capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique))
+    )
   );
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;
