@@ -50,7 +50,7 @@ Rules:
 - If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
 - If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
 - completionRead: judge whether the work looks unfinished (open passages, raw canvas, uneven resolution, obvious block-in), likely_finished (consistent finish, resolved edges, presentation-ready read), or uncertain. Base this only on visible cues in the photo (substrate, staging, variation in resolution). Do not equate "unfinished" with "bad."
-- In visibleEvidence and tension language, name **recognizable subjects** when they are clearly present (figures, animals, objects, architecture, named colors, left/right/foreground/background of a named thing)—so later coaching can say "the cat and table" instead of "one shape."
+- In visibleEvidence and tension language, name **what is actually in this image**: for representational work, motifs and objects; for abstract or non-objective work, name **mark, color, and geometry units** the viewer can find (e.g. diagonal cadmium band, scraped vertical, lower ultramarine field, grid rhythm)—never only "a shape" or "an area" with no pointer.
 
 Context:
 - Declared style: ${args.style}

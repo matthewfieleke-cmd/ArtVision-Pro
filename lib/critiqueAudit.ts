@@ -484,11 +484,18 @@ function hasPaintingSpecificAnchor(text: string): boolean {
   );
 }
 
-/** Motifs, objects, or color words that tie advice to this picture—not just "background" or "one edge". */
+/** Motifs, objects, geometry, or color words that tie advice to this picture—not just "background" or "one edge". */
 function hasStrictContentAnchor(text: string): boolean {
   const t = text;
   if (
-    /\b(cat|cats|dog|dogs|horse|horses|bird|birds|figure|figures|portrait|face|faces|head|table|chair|vase|bowl|flower|flowers|hand|hands|sleeve|sleeves|window|windows|door|roof|sky|water|boat|boats|person|people|child|children|animal|animals|fabric|drape|hair|skin|eyes?|apple|fruit|book|books|cup|mug|bottle|landscape|building|buildings|tree|trees|mountain|mountains|church|churches|field|path|rock|grass|sand|snow|foreground|still life|figure study)\b/i.test(
+    /\b(cat|cats|dog|dogs|horse|horses|bird|birds|figure|figures|portrait|face|faces|head|table|chair|vase|bowl|flower|flowers|hand|hands|sleeve|sleeves|window|windows|door|roof|sky|water|boat|boats|person|people|child|children|animal|animals|fabric|drape|hair|skin|eyes?|apple|fruit|book|books|cup|mug|bottle|landscape|building|buildings|tree|trees|mountain|mountains|church|churches|field|path|rock|grass|sand|snow|still life|figure study)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(abstract|non-?objective|gestural|geometric|hard-?edge|color field|mark-?making|impasto|scumble|wash|glaze|drip|drips|stripe|stripes|slab|slabs|block|blocks|band|bands|grid|grids|diagonal|verticals?|horizontals?|rectangle|squares?|circle|circles|triangle|ellipse|canvas|panel|composition|motif|motifs|passage|passages)\b/i.test(
       t
     )
   ) {
@@ -496,6 +503,12 @@ function hasStrictContentAnchor(text: string): boolean {
   }
   if (/\b(upper|lower|top|bottom)\s*[- ]?(left|right)\b/i.test(t)) return true;
   if (/\b(left|right)\s+(side|edge|third)\b/i.test(t) && /\b(background|foreground|midground|figure|face|table|cloth|sky|cat|dog|object)\b/i.test(t)) {
+    return true;
+  }
+  if (
+    /\b(left|right|upper|lower)\s+(third|quadrant|corner|band|edge|field)\b/i.test(t) &&
+    /\b(background|foreground|midground|sky|ground|plane|field|band|passage|wash|slab|mark|marks|area)\b/i.test(t)
+  ) {
     return true;
   }
   if (/^(on|along|in)\s+the\s+(right|left)\b/i.test(t)) return true;

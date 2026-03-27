@@ -50,8 +50,9 @@ Rules:
 - Do NOT overpraise. "Master" should be rare and should only be used when the evidence shows unusually strong, intentional, and sustained control in that criterion.
 - If the work is strong but still developing, prefer "Advanced" over "Master."
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
-- Top-level nextSteps (3–4 items): each must be a distinct studio move that names **specific content from the evidence**—not generic zones. Good: "On the right, separate the cat from the table with a darker value in the table plane…" / "Where the reds meet the blues along the sleeve, glaze a thin neutral…" Bad: "In one area…", "the weakest passage", "two color families", "one important contour", "the neighbor", "supporting zone" without naming what is actually in the picture.
-- Every nextStep must include at least one **identifiable subject** from the evidence (figure, animal, object, named color, or two concrete locators such as "background, left edge" plus what it borders). If the evidence names a motif, repeat that motif in the step.
+- Top-level nextSteps (3–4 items): each must be a distinct studio move tied to **this painting’s evidence**—never stock templates. The following are only **illustrations of specificity**, not subjects you should expect: a portrait might name a feature and fabric; a landscape might name path and treeline; an abstract might name a diagonal color band and a scraped vertical field. Use **whatever** the evidence actually names (motifs, objects, architecture, geometry, marks, or color passages).
+- Every nextStep must anchor to **identifiable content from the evidence**: a named or clearly described motif; OR two named colors with a junction; OR a precise zone (e.g. upper-left quadrant, lower band, right third) **plus** what occupies it (sky, foliage, cadmium slab, gestural sweep, grid, etc.). For non-representational work, refer to form/color/mark units the evidence already used, not vague "shapes."
+- Bad (always): "In one area…", "the weakest passage", "two color families", "one important contour", "the neighbor", "supporting zone" without saying **which** visible thing in **this** image.
 - No two nextSteps should repeat the same move or the same named passage.
 - If a work is rated below Master in any criterion, every next step must be a true revision move the artist can do now on this image, not general practice advice.
 - For non-master work, do not let "preserve" language replace correction. Name the exact passage or relationship to adjust.
@@ -90,7 +91,7 @@ Anti-pattern examples:
 - Better: "In the foreground path, switch two or three repeated strokes to broader, flatter marks so the path reads as one plane before the eye reaches the trees."
 
 - Bad: "Where two color families meet in the painting, adjust temperature…"
-- Better: "Where the cadmium red scarf meets the cool blue-gray background, drag a scumbled violet-gray bridge so the edge reads as atmosphere instead of a sticker outline."
+- Better: "Where the cadmium passage meets the cool blue-gray field along the lower edge, drag a scumbled violet-gray bridge so the junction reads as depth instead of a sticker outline."
 
 - Bad: "Add subtle color variation" for a graphite or charcoal drawing.
 - Better: "Use line weight and value grouping, not added color, to separate the lit side of the form from the shadow-facing side."
