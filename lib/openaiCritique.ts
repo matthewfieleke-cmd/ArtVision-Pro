@@ -49,6 +49,7 @@ Rules:
 - If a painting is already strong in a criterion, say so plainly.
 - If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
 - If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
+- completionRead: judge whether the work looks unfinished (open passages, raw canvas, uneven resolution, obvious block-in), likely_finished (consistent finish, resolved edges, presentation-ready read), or uncertain. Base this only on visible cues in the photo (substrate, staging, variation in resolution). Do not equate "unfinished" with "bad."
 
 Context:
 - Declared style: ${args.style}
@@ -139,7 +140,17 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   const parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
 
-  const validated = applyCritiqueGuardrails(validateCritiqueResult(parsed));
+  const base = validateCritiqueResult(parsed);
+  const withCompletion = {
+    ...base,
+    completionRead: {
+      state: evidence.completionRead.state,
+      confidence: evidence.completionRead.confidence,
+      cues: evidence.completionRead.cues,
+      rationale: evidence.completionRead.rationale,
+    },
+  };
+  const validated = applyCritiqueGuardrails(withCompletion);
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   return trimmedTitle ? { ...validated, paintingTitle: trimmedTitle } : validated;

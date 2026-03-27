@@ -29,6 +29,16 @@ export type RatingLevel = (typeof RATING_LEVELS)[number];
 
 export type CritiqueConfidence = 'low' | 'medium' | 'high';
 
+/** Whether the work reads as still in progress vs presentation-ready. */
+export type WorkCompletionState = 'unfinished' | 'likely_finished' | 'uncertain';
+
+export type CompletionRead = {
+  state: WorkCompletionState;
+  confidence: CritiqueConfidence;
+  cues: string[];
+  rationale: string;
+};
+
 export type PhotoQualityAssessment = {
   level: 'poor' | 'fair' | 'good';
   summary: string;
@@ -87,6 +97,8 @@ export type CritiqueResult = {
   analysisSource?: 'api' | 'local';
   overallConfidence?: CritiqueConfidence;
   photoQuality?: PhotoQualityAssessment;
+  /** Read of whether the piece looks in progress vs finished; steers tone of feedback. */
+  completionRead?: CompletionRead;
 };
 
 /** AI illustrative edit for one criterion; pairs with the critique photo for blend compare. */

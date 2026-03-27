@@ -2,7 +2,40 @@ import { useId, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
-import type { CritiqueCategory, CritiqueResult } from '../types';
+import type { CritiqueCategory, CritiqueResult, WorkCompletionState } from '../types';
+
+function completionBadgeClasses(state: WorkCompletionState): string {
+  switch (state) {
+    case 'unfinished':
+      return 'bg-amber-100 text-amber-900 ring-amber-200/80';
+    case 'likely_finished':
+      return 'bg-emerald-100 text-emerald-900 ring-emerald-200/80';
+    default:
+      return 'bg-slate-100 text-slate-700 ring-slate-200/80';
+  }
+}
+
+function completionLabel(state: WorkCompletionState): string {
+  switch (state) {
+    case 'unfinished':
+      return 'Reads as in progress';
+    case 'likely_finished':
+      return 'Reads as largely finished';
+    default:
+      return 'Finish unclear from photo';
+  }
+}
+
+function completionConfidenceLabel(confidence: CritiqueCategory['confidence']): string {
+  switch (confidence) {
+    case 'high':
+      return 'High confidence in this finish read';
+    case 'medium':
+      return 'Moderate confidence in this finish read';
+    default:
+      return 'Low confidence in this finish read';
+  }
+}
 
 const LEVEL_RANK = {
   Beginner: 0,
@@ -181,6 +214,34 @@ export function CritiquePanels({ critique, onLearnMore }: Props) {
       {critique.simple ? (
         <section className="rounded-2xl border border-violet-200/80 bg-white p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Studio read</p>
+          {critique.completionRead ? (
+            <div className="mt-3 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${completionBadgeClasses(critique.completionRead.state)}`}
+                >
+                  {completionLabel(critique.completionRead.state)}
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${confidenceBadgeClass(critique.completionRead.confidence)}`}
+                  title="How sure the app is about in-progress vs finished, from the photo"
+                >
+                  {completionConfidenceLabel(critique.completionRead.confidence)}
+                </span>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-slate-700">{critique.completionRead.rationale}</p>
+              {critique.completionRead.cues.length ? (
+                <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
+                  {critique.completionRead.cues.map((cue) => (
+                    <li key={cue} className="flex gap-2">
+                      <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
+                      <span>{cue}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
           <div className="mt-3 space-y-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What this painting is trying to do</p>

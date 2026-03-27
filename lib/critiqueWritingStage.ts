@@ -7,13 +7,37 @@ function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
 }
 
-export function buildWritingPrompt(style: string): string {
+function completionToneBlock(evidence: CritiqueEvidenceDTO): string {
+  const { state, rationale } = evidence.completionRead;
+  const base = `Completion read from evidence (use this to calibrate tone, not to invent new facts): state=${state}. Rationale: ${rationale}`;
+  if (state === 'unfinished') {
+    return `${base}
+
+- Treat this as a work in progress: prioritize big-structure moves, resolving major passages, and clear next-session goals.
+- Avoid language that assumes the piece is ready to sign, frame, or submit; "final polish" should wait until structure reads resolved.
+- practiceExercise should be a short study or drill that supports the next pass on this piece, not a generic master copy unless evidence supports it.`;
+  }
+  if (state === 'likely_finished') {
+    return `${base}
+
+- Treat this as closer to presentation-ready: focus on selective refinements, protecting what already works, and subtle calibration—not wholesale restructuring unless evidence demands it.
+- nextSteps should read as finishing passes: small targeted adjustments, varnish/photo/presentation awareness only when grounded in evidence.
+- Avoid pushing the artist to "rebuild big shapes" unless criterion evidence clearly shows structural failure.`;
+  }
+  return `${base}
+
+- Finish state is ambiguous: balance structure-level and selective advice; name what would change your mind in one more session vs. what is already reading resolved.`;
+}
+
+export function buildWritingPrompt(style: string, evidence: CritiqueEvidenceDTO): string {
   const benchmarks = isStyleKey(style)
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
   return `You are stage 2 of a painting critique system.
 
 You are now writing the critique from already extracted evidence.
+
+${completionToneBlock(evidence)}
 
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
@@ -91,7 +115,7 @@ export async function runCritiqueWritingStage(
         json_schema: CRITIQUE_JSON_SCHEMA,
       },
       messages: [
-        { role: 'system', content: buildWritingPrompt(style) },
+        { role: 'system', content: buildWritingPrompt(style, evidence) },
         {
           role: 'user',
           content: `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildCritiqueSchemaInstruction()}`,

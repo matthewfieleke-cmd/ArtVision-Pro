@@ -13,6 +13,7 @@ export const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
       'criterionEvidence',
       'photoQualityRead',
       'comparisonObservations',
+      'completionRead',
     ],
     properties: {
       intentHypothesis: { type: 'string' },
@@ -48,6 +49,22 @@ export const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
         minItems: 0,
         maxItems: 4,
         items: { type: 'string' },
+      },
+      completionRead: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['state', 'confidence', 'cues', 'rationale'],
+        properties: {
+          state: { type: 'string', enum: ['unfinished', 'likely_finished', 'uncertain'] },
+          confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+          cues: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 4,
+            items: { type: 'string' },
+          },
+          rationale: { type: 'string' },
+        },
       },
       criterionEvidence: {
         type: 'array',

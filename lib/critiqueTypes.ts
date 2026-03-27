@@ -2,6 +2,18 @@ import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
 
 export type CritiqueConfidenceDTO = 'low' | 'medium' | 'high';
 
+/** Whether the work reads as still in progress vs presentation-ready (from vision evidence or local heuristics). */
+export type WorkCompletionStateDTO = 'unfinished' | 'likely_finished' | 'uncertain';
+
+export type CompletionReadDTO = {
+  state: WorkCompletionStateDTO;
+  confidence: CritiqueConfidenceDTO;
+  /** Short visible cues supporting the read (areas, substrate, finish variation). */
+  cues: string[];
+  /** One sentence: why it reads unfinished, finished, or uncertain. */
+  rationale: string;
+};
+
 export type PhotoQualityAssessmentDTO = {
   level: 'poor' | 'fair' | 'good';
   summary: string;
@@ -43,6 +55,7 @@ export type CritiqueResultDTO = {
   analysisSource?: 'api' | 'local';
   overallConfidence?: CritiqueConfidenceDTO;
   photoQuality?: PhotoQualityAssessmentDTO;
+  completionRead?: CompletionReadDTO;
 };
 
 export type CritiqueRequestBody = {

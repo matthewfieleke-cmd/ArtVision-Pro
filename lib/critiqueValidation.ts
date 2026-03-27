@@ -5,6 +5,12 @@ export type CritiqueEvidenceDTO = {
   intentHypothesis: string;
   strongestVisibleQualities: string[];
   mainTensions: string[];
+  completionRead: {
+    state: 'unfinished' | 'likely_finished' | 'uncertain';
+    confidence: 'low' | 'medium' | 'high';
+    cues: string[];
+    rationale: string;
+  };
   photoQualityRead: {
     level: 'poor' | 'fair' | 'good';
     summary: string;
@@ -109,6 +115,24 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
   ) {
     throw new Error('Invalid evidence: mainTensions');
   }
+  const cr = o.completionRead;
+  if (!cr || typeof cr !== 'object') throw new Error('Invalid evidence: completionRead');
+  const crObj = cr as Record<string, unknown>;
+  if (
+    typeof crObj.state !== 'string' ||
+    !(['unfinished', 'likely_finished', 'uncertain'] as const).includes(
+      crObj.state as 'unfinished' | 'likely_finished' | 'uncertain'
+    ) ||
+    typeof crObj.confidence !== 'string' ||
+    !(['low', 'medium', 'high'] as const).includes(crObj.confidence as 'low' | 'medium' | 'high') ||
+    typeof crObj.rationale !== 'string' ||
+    !Array.isArray(crObj.cues) ||
+    crObj.cues.length < 1 ||
+    crObj.cues.length > 4 ||
+    crObj.cues.some((v: unknown) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid evidence: completionRead fields');
+  }
   if (
     !o.photoQualityRead ||
     typeof o.photoQualityRead !== 'object' ||
@@ -173,6 +197,12 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
     intentHypothesis: o.intentHypothesis,
     strongestVisibleQualities: o.strongestVisibleQualities as string[],
     mainTensions: o.mainTensions as string[],
+    completionRead: {
+      state: crObj.state as 'unfinished' | 'likely_finished' | 'uncertain',
+      confidence: crObj.confidence as 'low' | 'medium' | 'high',
+      cues: crObj.cues as string[],
+      rationale: crObj.rationale,
+    },
     photoQualityRead: {
       level: p.level as 'poor' | 'fair' | 'good',
       summary: p.summary,

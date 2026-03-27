@@ -18,6 +18,7 @@ import {
 } from './critiqueCoach';
 import type { ImageMetrics } from './imageMetrics';
 import { clamp01, computeImageMetrics } from './imageMetrics';
+import { deriveLocalCompletionRead } from './paintingCompletion';
 
 function scoreToLevel(score: number): RatingLevel {
   if (score < 0.28) return 'Beginner';
@@ -846,16 +847,24 @@ export async function analyzePainting(
 
   const avg =
     Object.values(scores).reduce((a, b) => a + b.score, 0) / CRITERIA.length;
+  const completionRead = deriveLocalCompletionRead(m, avg, photoQuality);
+  const completionSummaryPrefix =
+    completionRead.state === 'unfinished'
+      ? 'This capture reads like work still in progress—prioritize big structure and major passages before worrying about final polish. '
+      : completionRead.state === 'likely_finished'
+        ? 'This capture reads relatively resolved—bias feedback toward selective refinements and protecting what already reads strong. '
+        : '';
   const titlePrefix =
     paintingTitle && paintingTitle.trim().length > 0 ? `For “${paintingTitle.trim()}”: ` : '';
   const summary =
-    avg < 0.35
+    completionSummaryPrefix +
+    (avg < 0.35
       ? `${titlePrefix}Strong foundation pass—prioritize big-shape composition and value readability next. Benchmark “Master” here means the technical and expressive bar set by ${benchmarks.slice(0, 2).join(' and ')}.`
       : avg < 0.55
         ? `${titlePrefix}You are in a solid intermediate zone: intention shows; tighten hierarchy and edge/color decisions. Use ${benchmarks[0]} and ${benchmarks[1]} as touchstones for the next push.`
         : avg < 0.75
           ? `${titlePrefix}Advanced territory—refine selective emphasis and poetic edges; protect the clear read you already have. Compare finishing choices to ${benchmarks[2]} and ${benchmarks[3]}.`
-          : `${titlePrefix}Master-adjacent read on this capture—keep editing with the same clarity of intent. The named masters (${benchmarks.join(', ')}) remain your north stars for depth and voice.`;
+          : `${titlePrefix}Master-adjacent read on this capture—keep editing with the same clarity of intent. The named masters (${benchmarks.join(', ')}) remain your north stars for depth and voice.`);
 
   let comparisonNote: string | undefined;
   if (previous) {
@@ -889,6 +898,7 @@ export async function analyzePainting(
     },
     analysisSource: 'local',
     photoQuality,
+    completionRead,
     ...(trimmed ? { paintingTitle: trimmed } : {}),
   });
 }
