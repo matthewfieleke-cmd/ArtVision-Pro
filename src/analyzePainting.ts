@@ -366,6 +366,91 @@ function categoryBreakdown(
   };
 }
 
+function buildPaintingSpecificAction(
+  criterion: Criterion,
+  level: RatingLevel,
+  medium: Medium,
+  metrics: ImageMetrics,
+  evidenceSignals: string[]
+): string {
+  const where = evidenceSignals[0]?.trim() || 'the busiest visible area of this painting';
+  const second = evidenceSignals[1]?.trim();
+
+  const mediumPhrase =
+    medium === 'Drawing'
+      ? 'line weight and value grouping'
+      : medium === 'Watercolor'
+        ? 'wash edges and reserved lights'
+        : medium === 'Pastel'
+          ? 'stroke pressure and layering on the tooth'
+          : 'edge weight and a small temperature or value shift';
+
+  switch (criterion) {
+    case 'Composition and shape structure': {
+      if (level === 'Master') {
+        return `Where ${where}${second ? ` and ${second}` : ''}, keep the current rhythm but nudge one supporting mass slightly so the loop of attention feels a touch more intentional.`;
+      }
+      if (metrics.focalOffset < 0.28) {
+        return `Because ${where}, shift the strongest focal pull slightly off dead-center and tie one secondary shape to it with a repeated direction or value echo so the path through the image is easier to follow.`;
+      }
+      return `Where ${where}, reduce competing accents in one peripheral zone—softer value or fewer small marks—so the main motif reads first without flattening the whole layout.`;
+    }
+    case 'Value and light structure': {
+      if (level === 'Master') {
+        return `Hold the big value pattern you already have; refine only one halftone transition ${second ? `near ${second}` : 'along a major turning form'} so the form reads more cleanly without breaking the squint read.`;
+      }
+      if (metrics.valueSpread < 0.2) {
+        return `Because ${where}, separate one key light shape from what sits behind it with a modest value step so the masses still read when you step back.`;
+      }
+      return `Where ${where}, group shadow families into fewer steps and let one carefully placed accent (highlight or deep note) clarify which plane leads.`;
+    }
+    case 'Color relationships': {
+      if (level === 'Master') {
+        return `Keep the palette world defined by ${where}; adjust chroma or temperature in one narrow band ${second ? `against ${second}` : 'at a major transition'} so vibration stays controlled.`;
+      }
+      if (metrics.colorHarmony < 0.55) {
+        return `Where ${where}, limit mixes and decide warm-versus-cool dominance for that passage so neighboring hues stop competing as separate ideas.`;
+      }
+      return `Along the boundary implied by ${where}${second ? ` and ${second}` : ''}, shift temperature slightly so the transition describes space instead of flattening into one hue.`;
+    }
+    case 'Drawing, proportion, and spatial form': {
+      if (level === 'Master') {
+        return `Deepen overlap or silhouette poetry ${second ? `around ${second}` : ''} while keeping the read you already trust in ${where}.`;
+      }
+      return `Rebuild the weakest big-shape relationship ${where} with plumb lines or halves before detail, then match angles to the strongest silhouette you already believe in${second ? ` and check it against ${second}` : ''}.`;
+    }
+    case 'Edge and focus control': {
+      if (level === 'Master') {
+        return `Keep selective sharpness; try one short lost edge ${where} so mystery increases without losing hierarchy.`;
+      }
+      if (metrics.edgeBalance > 0.28) {
+        return `Where ${where}, soften or lose edges in secondary areas and reserve your hardest edge for the one contour that should win the first read.`;
+      }
+      return `Along ${where}, sharpen one strategic contour and soften the competing neighbor so focus and depth stop asking for equal attention.`;
+    }
+    case 'Surface and medium handling': {
+      if (level === 'Master') {
+        return `Refine quieter passages so the boldest handling ${where} reads as choice, not noise.`;
+      }
+      return `In ${where}, use larger, committed marks for the big planes and repeat only 3–4 stroke types so ${medium.toLowerCase()} reads deliberate instead of scrubbed or hesitant.`;
+    }
+    case 'Intent and necessity': {
+      if (level === 'Master') {
+        return `Protect the necessity already visible ${where}; take one measured risk in a supporting passage so the whole still reads as one argument.`;
+      }
+      return `Using ${where} as your anchor, remove or quiet one passage that still feels decorative relative to the main aim, then rebuild the biggest shapes so every major decision serves the same idea.`;
+    }
+    case 'Presence, point of view, and human force': {
+      if (level === 'Master') {
+        return `Protect the mood carried by ${where}; deepen it with one pacing or silence choice instead of adding more descriptive detail.`;
+      }
+      return `Name the pressure you want from ${where}, then change one concrete thing there—${mediumPhrase}—so the feeling reads as authored, not accidental.`;
+    }
+    default:
+      return `In ${where}, make one focused adjustment using ${mediumPhrase} so this area supports the rest of the painting more clearly.`;
+  }
+}
+
 function buildCategory(
   criterion: Criterion,
   level: RatingLevel,
@@ -376,6 +461,7 @@ function buildCategory(
   subskills: CritiqueSubskill[]
 ): CritiqueCategory {
   const masterNames = benchmarks.join(', ');
+  const evidenceSignals = deriveLocalEvidenceSignals(criterion, metrics);
   const templates: Record<
     Criterion,
     Record<RatingLevel, { feedback: string; action: string }>
@@ -531,9 +617,9 @@ function buildCategory(
     criterion,
     level,
     feedback: t.feedback,
-    actionPlan: t.action,
+    actionPlan: buildPaintingSpecificAction(criterion, level, medium, metrics, evidenceSignals),
     confidence: deriveLocalCategoryConfidence(criterion, metrics),
-    evidenceSignals: deriveLocalEvidenceSignals(criterion, metrics),
+    evidenceSignals,
     preserve: deriveLocalPreserveText(criterion, level, metrics),
     practiceExercise: deriveLocalPracticeExercise(criterion, style, medium),
     subskills,
@@ -679,13 +765,54 @@ function mainIssueText(criterion: Criterion): string {
   return map[criterion];
 }
 
-function nextStepList(category: CritiqueCategory): string[] {
-  return category.actionPlan
-    .split(/\s+(?=\d+\.)/)
-    .map((step) => step.trim())
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((step) => step.replace(/^\d+\.\s*/, ''));
+function describeFocalSide(metrics: ImageMetrics): string {
+  if (metrics.focalOffset < 0.22) return 'around the center';
+  if (metrics.focalOffset < 0.42) return 'slightly off-center';
+  return 'toward one side of the canvas';
+}
+
+function nextStepList(
+  mainIssue: CritiqueCategory,
+  secondWeakest: CritiqueCategory | undefined,
+  metrics: ImageMetrics,
+  photoQuality: PhotoQualityAssessment
+): string[] {
+  const e0 = mainIssue.evidenceSignals?.[0]?.trim() ?? 'the weakest structural read in the photo';
+  const e1 = mainIssue.evidenceSignals?.[1]?.trim();
+  const focal = describeFocalSide(metrics);
+
+  const steps: string[] = [
+    `Tackle ${e0} first: make one concrete change there so ${mainIssue.criterion.toLowerCase()} reads more clearly before you touch smaller details.`,
+  ];
+
+  if (e1) {
+    steps.push(
+      `Build on that by adjusting ${e1}—keep the rest of the passage quieter so this relationship can land without competing accents.`
+    );
+  } else {
+    steps.push(
+      `In one supporting area ${focal}, simplify marks or group values so the main fix does not fight equal-strength neighbors.`
+    );
+  }
+
+  if (secondWeakest) {
+    const s0 = secondWeakest.evidenceSignals?.[0]?.trim() ?? secondWeakest.criterion.toLowerCase();
+    steps.push(
+      `Then address ${s0} for ${secondWeakest.criterion.toLowerCase()} with a single pass so two big issues are not half-fixed at once.`
+    );
+  } else {
+    steps.push(
+      `Finish by checking one edge or value transition ${focal} that still feels undecided and correct only that span.`
+    );
+  }
+
+  if (photoQuality.level !== 'good') {
+    steps.push(
+      `Re-shoot under even, glare-free light so the next critique can see ${photoQuality.level === 'poor' ? 'true values and edges' : 'subtle shifts'} more reliably.`
+    );
+  }
+
+  return steps.slice(0, 4);
 }
 
 export async function analyzePainting(
@@ -711,6 +838,11 @@ export async function analyzePainting(
   const strongest = strongestCategory(scores);
   const strongestCategoryCard = categories.find((c) => c.criterion === strongest) ?? categories[0]!;
   const mainIssueCategory = categories.find((c) => c.criterion === mainIssue) ?? categories[0]!;
+  const sortedByScore = [...CRITERIA].sort((a, b) => scores[a]!.score - scores[b]!.score);
+  const secondWeakestCriterion = sortedByScore.find((c) => c !== mainIssue);
+  const secondWeakestCategory = secondWeakestCriterion
+    ? categories.find((c) => c.criterion === secondWeakestCriterion)
+    : undefined;
 
   const avg =
     Object.values(scores).reduce((a, b) => a + b.score, 0) / CRITERIA.length;
@@ -749,7 +881,7 @@ export async function analyzePainting(
       readOfWork: `${titlePrefix}${intentRead(style, medium, strongest)}`,
       working: workingBullets(strongest, strongestCategoryCard.level, photoQuality),
       mainIssue: mainIssueText(mainIssue),
-      nextSteps: nextStepList(mainIssueCategory),
+      nextSteps: nextStepList(mainIssueCategory, secondWeakestCategory, m, photoQuality),
       preserve:
         mainIssueCategory.preserve ??
         strongestCategoryCard.preserve ??
