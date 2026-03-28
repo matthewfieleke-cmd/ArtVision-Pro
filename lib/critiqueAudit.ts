@@ -515,13 +515,9 @@ function rewriteGenericActionPlanStep(step: string): string {
     return 'Keep the strongest passage, but restate one weaker neighboring shape so the difference in role is clearer.';
   }
 
-  if (/maintain|preserve|ensure|continue to|experiment with|consider/i.test(text) && !hasPaintingSpecificAnchor(text)) {
-    return 'Adjust one visible area rather than the whole painting: simplify a busy passage, separate one shape from its neighbor, or restate one edge so the read becomes clearer.';
-  }
-
-  if (/enhance depth|improve clarity|increase contrast/i.test(text) && !hasPaintingSpecificAnchor(text)) {
-    return 'Create depth by changing one concrete relationship: soften one background edge, darken one shadow family, or separate one foreground shape from the passage behind it.';
-  }
+  /* Do not swap the model’s action plan for a single canned sentence (it repeated across criteria).
+     When the line is still too generic, enforceSpecificCategoryActionPlans uses fallbackCategoryImprovement
+     with that criterion’s evidence instead. */
 
   return text;
 }
