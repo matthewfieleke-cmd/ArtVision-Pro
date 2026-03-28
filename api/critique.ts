@@ -7,10 +7,13 @@ export default async function handler(
 ): Promise<void> {
   const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
   applyCorsHeaders((name, value) => res.setHeader(name, value), origin);
+  const auth =
+    typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined;
   const result = await handleApiRequest({
     route: 'critique',
     method: req.method,
     apiKey: process.env.OPENAI_API_KEY,
+    authorizationHeader: auth,
     body: req.body,
   });
   if (req.method === 'OPTIONS') {

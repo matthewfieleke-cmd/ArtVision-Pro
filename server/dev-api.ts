@@ -34,10 +34,13 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
+  const auth =
+    typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined;
   const result = await handleApiRequest({
     route: resolveApiRoute(req.url),
     method: req.method,
     apiKey: process.env.OPENAI_API_KEY,
+    authorizationHeader: auth,
     body: parsedBody,
   });
 
@@ -47,6 +50,6 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(
-    `API on http://127.0.0.1:${PORT} — /api/critique, /api/classify-style, /api/preview-edit`
+    `API on http://127.0.0.1:${PORT} — /api/critique, /api/classify-style, /api/preview-edit, /api/validate-api-key`
   );
 });

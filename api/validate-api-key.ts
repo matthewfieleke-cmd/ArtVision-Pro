@@ -5,17 +5,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
   applyCorsHeaders((name, value) => res.setHeader(name, value), origin);
 
-  const auth =
-    typeof req.headers.authorization === 'string' ? req.headers.authorization : undefined;
   const result = await handleApiRequest({
-    route: 'preview-edit',
+    route: 'validate-api-key',
     method: req.method,
     apiKey: process.env.OPENAI_API_KEY,
-    authorizationHeader: auth,
     body: req.body,
   });
 
-  if (result.status === 200 && req.method === 'OPTIONS') {
+  if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
   }
