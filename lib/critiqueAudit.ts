@@ -474,64 +474,9 @@ function rewriteLowLeverageStep(step: string): string {
   return step;
 }
 
-function splitNumberedActionPlan(actionPlan: string): string[] {
-  return actionPlan
-    .split(/\s+(?=\d+\.)/)
-    .map((step) => step.trim())
-    .filter(Boolean);
-}
-
-function stripNumberPrefix(step: string): string {
-  return step.replace(/^\d+\.\s*/, '').trim();
-}
-
-/** First sentence only; keeps decimals inside the sentence intact. */
-function firstSentence(text: string): string {
-  const t = normalizeWhitespace(text);
-  if (!t) return t;
-  const match = t.match(/^(.+?[.!?])(\s+|$)/);
-  return match ? match[1]!.trim() : t;
-}
-
-/**
- * Normalize category "How to improve it" to a single sentence without replacing the model’s wording.
- * (Replacing vague model text with other generic templates was misleading and repeated across criteria.)
- */
-function enforceSpecificCategoryActionPlans(
-  critique: CritiqueResultDTO
-): CritiqueResultDTO {
-  const categories = critique.categories.map((category) => {
-    const numberedSteps = splitNumberedActionPlan(category.actionPlan);
-    const primary =
-      numberedSteps.length > 0
-        ? normalizeWhitespace(stripNumberPrefix(numberedSteps[0]!))
-        : normalizeWhitespace(category.actionPlan);
-
-    let sentence = firstSentence(primary);
-
-    if (!/[.!?]$/.test(sentence)) {
-      sentence = `${sentence}.`;
-    }
-
-    return {
-      ...category,
-      actionPlan: sentence,
-    };
-  });
-
-  return {
-    ...critique,
-    categories,
-  };
-}
-
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const tonedDown = enforceSpecificCategoryActionPlans(
-    capInflatedRatingsWhenFundamentalsAreWeak(
-      capInflatedRatingsForUnderdevelopedWork(
-        capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique))
-      )
-    )
+  const tonedDown = capInflatedRatingsWhenFundamentalsAreWeak(
+    capInflatedRatingsForUnderdevelopedWork(capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique)))
   );
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;

@@ -68,7 +68,7 @@ Rules:
   - Pastel: prefer stroke pressure, tooth coverage, layering, edge softness, and control of powdery chroma.
   - Oil on Canvas: prefer paint thickness, scumble/glaze, temperature shifts, edge weight, and shape/value editing.
 - For strong finished paintings, at most one studioChange may be preservation-only; the rest must still name something concrete in the picture to refine or protect in place.
-- Per category, actionPlan must be exactly ONE sentence with no numbering: the single clearest adjustment for THAT criterion in THIS painting, tied to visible evidence (not a generic exercise).
+- Per category, actionPlan is the full "how to improve it" for THAT criterion in THIS painting: prefer 2–5 numbered steps (1. … 2. …), each naming a visible passage from the evidence; or 2–4 short paragraphs if steps do not fit. Be specific enough that the move is unmistakable for this image—not one vague sentence.
 
 Benchmarks for what "Master" means in this style: ${benchmarks}
 

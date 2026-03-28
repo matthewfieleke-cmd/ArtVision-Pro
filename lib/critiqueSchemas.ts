@@ -184,7 +184,7 @@ export const CRITIQUE_JSON_SCHEMA = {
             actionPlan: {
               type: 'string',
               description:
-                'Exactly one concrete sentence: one adjustment for THIS criterion in THIS painting, naming a visible area or element from the evidence.',
+                'Concrete how-to-improve guidance for THIS criterion in THIS painting only: 2–5 short numbered steps (1. … 2. …) or 2–4 tight paragraphs. Every step names visible passages from the evidence—no generic studio homework.',
             },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
             evidenceSignals: {
@@ -230,7 +230,7 @@ export function buildCritiqueSchemaInstruction(): string {
 
 For each criterion:
 - feedback: 3+ sentences grounded in visible evidence
-- actionPlan: exactly ONE sentence (no numbering, no list): the single most important adjustment for this criterion in this painting, naming a specific visible area, shape, edge, or color passage from the evidence—not generic practice advice
+- actionPlan: 2–5 numbered steps OR 2–4 short paragraphs—all specific to THIS painting (name areas, edges, colors, shapes from evidence). No generic advice; enough detail that the artist knows what to do where
 - confidence
 - evidenceSignals
 - preserve

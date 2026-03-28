@@ -31,27 +31,6 @@ export type CritiqueEvidenceDTO = {
   }>;
 };
 
-export function buildCritiqueSchemaInstruction(): string {
-  return `Return JSON with:
-- summary
-- studioAnalysis: { whatWorks, whatCouldImprove }
-- studioChanges: 2–5 of { text, previewCriterion }
-- categories
-- comparisonNote
-- overallConfidence
-- photoQuality
-
-For each criterion:
-- feedback: 3+ sentences grounded in visible evidence
-- actionPlan: exactly ONE sentence (no list): one concrete adjustment for this criterion in this painting, naming a visible area or element from the evidence
-- confidence
-- evidenceSignals
-- preserve
-- practiceExercise
-- nextTarget
-- subskills`;
-}
-
 function normalizePreviewCriterion(raw: string): (typeof CRITERIA_ORDER)[number] {
   const c = canonicalCriterionLabel(raw);
   if (c) return c;

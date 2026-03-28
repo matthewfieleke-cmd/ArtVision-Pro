@@ -202,7 +202,7 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
           ) : null}
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-700">{category.actionPlan}</p>
+            <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">{category.actionPlan}</p>
           </div>
           {category.practiceExercise ? (
             <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3">
