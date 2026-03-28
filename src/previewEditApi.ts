@@ -1,4 +1,5 @@
 import type { CritiqueCategory, Medium, Style } from './types';
+import { getApiAuthorizationHeader } from './analysisRuntime';
 import { readApiJson } from './apiJson';
 
 export type PreviewEditPayload = {
@@ -24,9 +25,13 @@ function previewEditPath(): string {
 }
 
 export async function fetchPreviewEdit(payload: PreviewEditPayload): Promise<{ imageDataUrl: string; criterion: string }> {
+  const auth = getApiAuthorizationHeader();
   const res = await fetch(previewEditPath(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(auth ? { Authorization: auth } : {}),
+    },
     body: JSON.stringify(payload),
   });
   const data = await readApiJson<{ error?: string; imageDataUrl?: string; criterion?: string }>(res);

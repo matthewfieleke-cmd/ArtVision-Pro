@@ -27,7 +27,16 @@ import {
   type WakeLockHandle,
 } from './analysisKeepAlive';
 import { analyzePainting } from './analyzePainting';
-import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
+import {
+  loadStoredProductMode,
+  loadStoredUserApiKey,
+  persistProductMode,
+  persistUserApiKey,
+  shouldTryApiFirst,
+  syncAnalysisRuntime,
+  type ProductMode,
+} from './analysisRuntime';
+import { fetchCritiqueFromApi } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
@@ -209,6 +218,15 @@ export default function App() {
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
   const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
+
+  const [productMode, setProductMode] = useState<ProductMode>(() => loadStoredProductMode());
+  const [userApiKey, setUserApiKey] = useState(() => loadStoredUserApiKey());
+
+  syncAnalysisRuntime(productMode, userApiKey);
+
+  useEffect(() => {
+    persistProductMode(productMode);
+  }, [productMode]);
 
   const analysisAbortRef = useRef<AbortController | null>(null);
   const analysisHiddenAtRef = useRef<number | null>(null);
@@ -861,7 +879,9 @@ export default function App() {
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
     if (mode === 'combined' && !changes?.length) return;
     if (!shouldTryApiFirst()) {
-      setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
+      setPreviewError(
+        'ArtVision Pro with a saved API key is required to generate AI preview edits. Switch to ArtVision Pro on Home and add your key.'
+      );
       return;
     }
     const singleIdx =
@@ -1040,7 +1060,7 @@ export default function App() {
     >
       {isDesktop ? (
         <div className="flex min-h-0 flex-1">
-          <DesktopSidebar active={tab} onChange={handleDesktopSidebarChange} />
+          <DesktopSidebar active={tab} onChange={handleDesktopSidebarChange} productMode={productMode} />
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 lg:px-10 lg:py-5">
               {!flow && tab === 'home' && (
@@ -1049,6 +1069,13 @@ export default function App() {
                   onNewCritique={startNewCritique}
                   onOpenPainting={openPaintingFromHome}
                   isDesktop
+                  productMode={productMode}
+                  onProductModeChange={setProductMode}
+                  userApiKey={userApiKey}
+                  onUserApiKeyChange={(key) => {
+                    setUserApiKey(key);
+                    persistUserApiKey(key);
+                  }}
                 />
               )}
               {!flow && tab === 'studio' && (
@@ -1078,7 +1105,10 @@ export default function App() {
                 aria-label="Go to home"
               >
                 <p className="font-display text-xl font-normal tracking-tight text-slate-900">
-                  ArtVision <span className="text-violet-600">Pro</span>
+                  ArtVision
+                  {productMode === 'artvision-pro' ? (
+                    <span className="text-violet-600"> Pro</span>
+                  ) : null}
                 </p>
                 <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">Painting mentor</p>
               </button>
@@ -1111,6 +1141,13 @@ export default function App() {
                 onNewCritique={startNewCritique}
                 onOpenPainting={openPaintingFromHome}
                 isDesktop={false}
+                productMode={productMode}
+                onProductModeChange={setProductMode}
+                userApiKey={userApiKey}
+                onUserApiKeyChange={(key) => {
+                  setUserApiKey(key);
+                  persistUserApiKey(key);
+                }}
               />
             )}
             {!flow && tab === 'studio' && (
@@ -1558,10 +1595,9 @@ export default function App() {
                   </div>
                   {flow.critiqueSource === 'local' ? (
                     <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
-                      Offline / fallback critique (heuristic). Set{' '}
-                      <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">OPENAI_API_KEY</code> and run{' '}
-                      <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev</code> (API + UI) for
-                      full vision feedback.
+                      {shouldTryApiFirst()
+                        ? 'Cloud analysis was unavailable, so this critique uses the on-device heuristic instead. You can retry from Studio with a stable connection.'
+                        : 'On-device critique (ArtVision). Switch to ArtVision Pro on Home and add your API key for intelligent cloud-based analysis.'}
                     </p>
                   ) : null}
                 </div>

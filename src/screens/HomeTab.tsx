@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Camera, ChevronRight, ExternalLink, Upload } from 'lucide-react';
+import { Camera, ChevronRight, Cloud, ExternalLink, KeyRound, Sparkles, Upload, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  type ProductMode,
+  validateUserApiKeyWithBackend,
+} from '../analysisRuntime';
 import { getMasterSlug } from '../data/masterCatalog';
 import { DAILY_MASTERPIECES } from '../data/dailyMasterpieces';
 import { getDailyMasterpieceIndex } from '../dailyMasterpieceCycle';
@@ -12,15 +16,74 @@ type Props = {
   onNewCritique: () => void;
   onOpenPainting: (id: string) => void;
   isDesktop?: boolean;
+  productMode: ProductMode;
+  onProductModeChange: (mode: ProductMode) => void;
+  userApiKey: string;
+  onUserApiKeyChange: (key: string) => void;
 };
 
-export function HomeTab({ paintings, onNewCritique, onOpenPainting, isDesktop = false }: Props) {
+export function HomeTab({
+  paintings,
+  onNewCritique,
+  onOpenPainting,
+  isDesktop = false,
+  productMode,
+  onProductModeChange,
+  userApiKey,
+  onUserApiKeyChange,
+}: Props) {
   const daily = DAILY_MASTERPIECES[getDailyMasterpieceIndex()];
   const masterSlug = getMasterSlug(daily.style, daily.artist);
   const [masterpieceImgFailed, setMasterpieceImgFailed] = useState(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [apiKeySubmitting, setApiKeySubmitting] = useState(false);
+
   useEffect(() => {
     setMasterpieceImgFailed(false);
   }, [daily.imageUrl, daily.artist, daily.work]);
+
+  const cloudEnabled = productMode === 'artvision-pro' && userApiKey.trim().length > 0;
+
+  const openApiKeyModal = () => {
+    setApiKeyDraft(userApiKey);
+    setApiKeyError(null);
+    setApiKeyModalOpen(true);
+  };
+
+  const closeApiKeyModal = () => {
+    setApiKeyModalOpen(false);
+    setApiKeyError(null);
+    setApiKeySubmitting(false);
+  };
+
+  const handleSelectProductMode = (mode: ProductMode) => {
+    if (mode === 'artvision') {
+      onProductModeChange('artvision');
+      closeApiKeyModal();
+      return;
+    }
+    onProductModeChange('artvision-pro');
+    if (!userApiKey.trim()) {
+      setApiKeyDraft('');
+      setApiKeyError(null);
+      setApiKeyModalOpen(true);
+    }
+  };
+
+  const submitApiKey = async () => {
+    setApiKeyError(null);
+    setApiKeySubmitting(true);
+    const result = await validateUserApiKeyWithBackend(apiKeyDraft);
+    setApiKeySubmitting(false);
+    if (!result.ok) {
+      setApiKeyError(result.message);
+      return;
+    }
+    onUserApiKeyChange(apiKeyDraft.trim());
+    closeApiKeyModal();
+  };
   const wip = [...paintings].sort(
     (a, b) =>
       new Date(b.versions[b.versions.length - 1]?.createdAt ?? 0).getTime() -
@@ -100,8 +163,185 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting, isDesktop = 
     </section>
   );
 
+  const productSwitcher = (
+    <section
+      className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-card lg:p-5"
+      aria-label="Product edition"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Edition</p>
+          <p className="mt-1 font-display text-lg text-slate-900">
+            {productMode === 'artvision-pro' ? (
+              <>
+                ArtVision <span className="text-violet-600">Pro</span>
+              </>
+            ) : (
+              'ArtVision'
+            )}
+          </p>
+        </div>
+        {cloudEnabled ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200/80">
+            <Cloud className="h-3.5 w-3.5" aria-hidden />
+            Cloud on
+          </span>
+        ) : productMode === 'artvision-pro' ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200/80">
+            <KeyRound className="h-3.5 w-3.5" aria-hidden />
+            Key needed
+          </span>
+        ) : null}
+      </div>
+
+      <div
+        className="mt-4 flex rounded-xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60"
+        role="group"
+        aria-label="Choose ArtVision or ArtVision Pro"
+      >
+        <button
+          type="button"
+          onClick={() => handleSelectProductMode('artvision')}
+          className={`relative flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+            productMode === 'artvision'
+              ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center justify-center gap-2">
+            <Sparkles className="h-4 w-4 opacity-80" aria-hidden />
+            ArtVision
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSelectProductMode('artvision-pro')}
+          className={`relative flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+            productMode === 'artvision-pro'
+              ? 'bg-white text-violet-900 shadow-sm ring-1 ring-violet-200/90'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center justify-center gap-2">
+            <Cloud className="h-4 w-4 text-violet-600 opacity-90" aria-hidden />
+            ArtVision Pro
+          </span>
+        </button>
+      </div>
+
+      <p className="mt-3 text-xs leading-relaxed text-slate-500">
+        {productMode === 'artvision' ? (
+          <>
+            <span className="font-medium text-slate-600">Excellent on-device analysis</span> — fast, private
+            heuristics tuned for structured critique. No API key required.
+          </>
+        ) : cloudEnabled ? (
+          <>
+            <span className="font-medium text-violet-800">Intelligent cloud-based analysis for deeper insights</span>{' '}
+            is enabled. Critiques and style detection can use your configured API.
+          </>
+        ) : (
+          <>
+            <span className="font-medium text-violet-800">ArtVision Pro</span> adds intelligent cloud-based analysis
+            for deeper insights. Enter a valid API key once on this device to unlock it.
+          </>
+        )}
+      </p>
+
+      {productMode === 'artvision-pro' ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={openApiKeyModal}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 transition hover:bg-violet-100"
+          >
+            <KeyRound className="h-3.5 w-3.5" aria-hidden />
+            {userApiKey.trim() ? 'Update API key' : 'Enter API key'}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+
+  const apiKeyModal =
+    apiKeyModalOpen ? (
+      <div
+        className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="api-key-modal-title"
+      >
+        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 id="api-key-modal-title" className="font-display text-xl text-slate-900">
+                ArtVision <span className="text-violet-600">Pro</span>
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">Connect your API key to enable cloud analysis on this device.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                closeApiKeyModal();
+                if (!userApiKey.trim()) onProductModeChange('artvision');
+              }}
+              className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="space-y-4 px-5 py-4">
+            <label htmlFor="home-api-key" className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+              API key
+            </label>
+            <input
+              id="home-api-key"
+              type="password"
+              autoComplete="off"
+              value={apiKeyDraft}
+              onChange={(e) => setApiKeyDraft(e.target.value)}
+              placeholder="sk-…"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            />
+            {apiKeyError ? (
+              <p className="text-sm font-medium text-red-600" role="alert">
+                {apiKeyError}
+              </p>
+            ) : null}
+            <p className="text-xs leading-relaxed text-slate-500">
+              Your key is stored only in this browser&apos;s local storage and sent securely to your analysis API. It is
+              not uploaded to ArtVision servers.
+            </p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={apiKeySubmitting}
+                onClick={() => {
+                  closeApiKeyModal();
+                  if (!userApiKey.trim()) onProductModeChange('artvision');
+                }}
+                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={apiKeySubmitting || !apiKeyDraft.trim()}
+                onClick={() => void submitApiKey()}
+                className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-500 disabled:opacity-40"
+              >
+                {apiKeySubmitting ? 'Verifying…' : 'Save & enable'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : null;
+
   const ctaBlock = (
     <>
+      {productSwitcher}
       <header className={isDesktop ? 'text-left' : 'text-center'}>
         <h2 className="font-display text-2xl font-normal tracking-tight text-slate-900 lg:text-3xl">
           Ready for a critique?
@@ -202,6 +442,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting, isDesktop = 
   if (isDesktop) {
     return (
       <div className="animate-fade-in flex min-h-0 flex-1 flex-col gap-0">
+        {apiKeyModal}
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-stretch lg:gap-6">
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">{masterpieceSection}</div>
           <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
@@ -214,10 +455,13 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting, isDesktop = 
   }
 
   return (
-    <div className="animate-fade-in space-y-8 px-4 pb-28 pt-4 md:pb-8">
-      {masterpieceSection}
-      {ctaBlock}
-      {wipSection}
-    </div>
+    <>
+      {apiKeyModal}
+      <div className="animate-fade-in space-y-8 px-4 pb-28 pt-4 md:pb-8">
+        {masterpieceSection}
+        {ctaBlock}
+        {wipSection}
+      </div>
+    </>
   );
 }

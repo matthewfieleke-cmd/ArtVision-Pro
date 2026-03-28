@@ -1,4 +1,5 @@
 import type { Style } from './types';
+import { getApiAuthorizationHeader } from './analysisRuntime';
 import { readApiJson } from './apiJson';
 
 export type ClassifyStyleResponse = {
@@ -15,9 +16,13 @@ function classifyUrl(): string {
 }
 
 export async function fetchClassifyStyleFromApi(imageDataUrl: string): Promise<ClassifyStyleResponse> {
+  const auth = getApiAuthorizationHeader();
   const res = await fetch(classifyUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(auth ? { Authorization: auth } : {}),
+    },
     body: JSON.stringify({ imageDataUrl }),
   });
   const data = await readApiJson<{ error?: string; style?: Style; rationale?: string }>(res);

@@ -1,4 +1,5 @@
 import type { CritiqueResult, Medium, Style } from './types';
+import { getApiAuthorizationHeader } from './analysisRuntime';
 import { readApiJson } from './apiJson';
 import { finalizeCritiqueResult, migrateCritiqueSimpleFeedback } from './critiqueCoach';
 
@@ -30,9 +31,13 @@ function critiqueUrl(): string {
  */
 export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<CritiqueResult> {
   const { signal, ...jsonBody } = body;
+  const auth = getApiAuthorizationHeader();
   const res = await fetch(critiqueUrl(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(auth ? { Authorization: auth } : {}),
+    },
     body: JSON.stringify(jsonBody),
     signal,
   });
@@ -56,9 +61,4 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
     analysisSource: normalized.analysisSource ?? 'api',
     photoQuality: normalized.photoQuality,
   });
-}
-
-export function shouldTryApiFirst(): boolean {
-  if (import.meta.env.VITE_USE_LOCAL_CRITIQUE === 'true') return false;
-  return true;
 }

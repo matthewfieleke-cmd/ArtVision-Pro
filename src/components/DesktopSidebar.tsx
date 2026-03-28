@@ -1,4 +1,5 @@
 import { Home, ImageIcon, BookOpen, User, Sparkles } from 'lucide-react';
+import type { ProductMode } from '../analysisRuntime';
 import type { TabId } from '../types';
 
 const tabs: { id: TabId; label: string; icon: typeof Home; iconOnly?: boolean }[] = [
@@ -11,16 +12,18 @@ const tabs: { id: TabId; label: string; icon: typeof Home; iconOnly?: boolean }[
 type Props = {
   active: TabId;
   onChange: (t: TabId) => void;
+  productMode: ProductMode;
 };
 
-export function DesktopSidebar({ active, onChange }: Props) {
+export function DesktopSidebar({ active, onChange, productMode }: Props) {
   return (
     <aside className="relative z-50 flex h-full w-60 shrink-0 flex-col border-r border-slate-200/80 bg-white">
       <div className="flex items-center gap-2 px-5 py-5">
         <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
         <div>
           <p className="font-display text-lg font-normal tracking-tight text-slate-900">
-            ArtVision <span className="text-violet-600">Pro</span>
+            ArtVision
+            {productMode === 'artvision-pro' ? <span className="text-violet-600"> Pro</span> : null}
           </p>
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400">
             Painting mentor
@@ -58,7 +61,8 @@ export function DesktopSidebar({ active, onChange }: Props) {
 
       <div className="border-t border-slate-100 px-4 py-4">
         <p className="text-[10px] text-slate-400">
-          &copy; {new Date().getFullYear()} ArtVision Pro
+          &copy; {new Date().getFullYear()}{' '}
+          {productMode === 'artvision-pro' ? 'ArtVision Pro' : 'ArtVision'}
         </p>
       </div>
     </aside>
