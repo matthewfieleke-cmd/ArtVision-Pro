@@ -19,6 +19,62 @@ function simpleStudioReadText(simple: CritiqueSimpleFeedbackDTO | undefined): st
   );
 }
 
+/** True when the model rated every criterion Intermediate (a common “polite floor” that skips other guardrails). */
+function isUniformIntermediateBand(critique: CritiqueResultDTO): boolean {
+  const { categories } = critique;
+  return (
+    categories.length > 0 &&
+    categories.every((c) => c.level === 'Intermediate')
+  );
+}
+
+/**
+ * When every category is Intermediate but the written evidence still describes novice or underdeveloped work,
+ * treat Intermediate as inflated and pull ratings down. Otherwise “all Intermediate” bypasses capInflatedRatingsForNoviceLikeWork
+ * (which only downgrades Advanced/Master).
+ */
+function capUniformIntermediateWhenTextSaysWeakWork(
+  critique: CritiqueResultDTO
+): CritiqueResultDTO {
+  if (!isUniformIntermediateBand(critique)) return critique;
+
+  const noviceSignals = inferNoviceSignalCount(critique);
+  const underdevelopedSignals = inferUnderdevelopedSignalCount(critique);
+  const weakEnough =
+    noviceSignals >= 3 ||
+    underdevelopedSignals >= 2 ||
+    (noviceSignals >= 2 && underdevelopedSignals >= 1);
+
+  if (!weakEnough) return critique;
+
+  const simple = critique.simpleFeedback;
+  return {
+    ...critique,
+    categories: critique.categories.map((category) => ({
+      ...category,
+      level: 'Beginner' as const,
+    })),
+    overallConfidence:
+      critique.overallConfidence === 'high'
+        ? 'low'
+        : critique.overallConfidence === 'medium'
+          ? 'low'
+          : critique.overallConfidence,
+    ...(simple
+      ? {
+          simpleFeedback: {
+            ...simple,
+            studioAnalysis: {
+              ...simple.studioAnalysis,
+              whatCouldImprove:
+                'What could improve is that the fundamentals still read early-stage overall: the image may be readable, but composition, value, drawing, edges, and handling are not yet strong enough to sit at a developing-to-strong band in every category at once.',
+            },
+          },
+        }
+      : {}),
+  };
+}
+
 function rewriteGenericWhatCouldImprove(whatCouldImprove: string, whatWorks: string): string {
   const text = normalizeWhitespace(whatCouldImprove);
   const genericPatterns = [
@@ -471,8 +527,10 @@ function rewriteLowLeverageStep(step: string): string {
 }
 
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
-  const tonedDown = capInflatedRatingsWhenFundamentalsAreWeak(
-    capInflatedRatingsForUnderdevelopedWork(capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique)))
+  const tonedDown = capUniformIntermediateWhenTextSaysWeakWork(
+    capInflatedRatingsWhenFundamentalsAreWeak(
+      capInflatedRatingsForUnderdevelopedWork(capInflatedRatingsForNoviceLikeWork(toneDownOverpraise(critique)))
+    )
   );
   const tonedSimple = tonedDown.simpleFeedback;
   if (!tonedSimple) return tonedDown;

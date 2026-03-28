@@ -183,7 +183,7 @@ export const CRITIQUE_JSON_SCHEMA = {
               type: 'string',
               enum: [...RATING_LEVELS],
               description:
-                'Beginner = weak in this criterion. Intermediate = strong but still developing. Advanced = strong with only minor refinement left. Master = very rare, exceptional sustained control in this criterion.',
+                'Beginner = weak or naive in this criterion. Intermediate = clear intentional competence here—not a default for weak work. Advanced = strong with only minor refinement left. Master = very rare, exceptional sustained control. Avoid assigning the same level to all eight unless evidence truly supports it.',
             },
             feedback: { type: 'string' },
             actionPlan: {
