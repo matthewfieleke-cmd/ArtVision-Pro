@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
@@ -14,6 +14,8 @@ type CritiquePanelsProps = {
   /** Only the matching button shows a spinner. */
   previewLoadingTarget?: null | { kind: 'combined' } | { kind: 'single'; changeIndex: number };
   previewAllProgress?: { current: number; total: number } | null;
+  /** Rendered directly under Voice B (e.g. AI edits session), before photo quality / categories. */
+  voiceBFooter?: ReactNode;
 };
 
 function completionBadgeClasses(state: WorkCompletionState): string {
@@ -224,6 +226,7 @@ export function CritiquePanels({
   previewLoading = false,
   previewLoadingTarget = null,
   previewAllProgress = null,
+  voiceBFooter,
 }: CritiquePanelsProps) {
   return (
     <div className="space-y-3">
@@ -290,24 +293,24 @@ export function CritiquePanels({
                     previewLoadingTarget?.kind === 'single' &&
                     previewLoadingTarget.changeIndex === idx;
                   return (
-                    <li key={`${idx}-${ch.previewCriterion}`} className="flex flex-col gap-2 rounded-lg border border-violet-200/60 bg-white/90 p-3">
-                      <div className="flex flex-wrap items-end justify-between gap-2">
-                        <div className="flex min-w-0 flex-1 gap-2">
-                          <span className="min-w-[1.25rem] font-semibold text-violet-700">{idx + 1}.</span>
-                          <div className="min-w-0 flex-1">
-                            <p>{ch.text}</p>
-                            <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                              Relates to: {ch.previewCriterion}
-                            </p>
-                          </div>
+                    <li key={`${idx}-${ch.previewCriterion}`} className="flex flex-col gap-2.5 rounded-lg border border-violet-200/60 bg-white/90 p-3">
+                      <div className="flex min-w-0 gap-2">
+                        <span className="min-w-[1.25rem] shrink-0 font-semibold text-violet-700">{idx + 1}.</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="leading-relaxed">{ch.text}</p>
+                          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                            Relates to: {ch.previewCriterion}
+                          </p>
                         </div>
-                        {canGenerateAiEdits && onGenerateAiEditForChange ? (
+                      </div>
+                      {canGenerateAiEdits && onGenerateAiEditForChange ? (
+                        <div className="flex min-w-0 border-t border-violet-100/80 pt-2.5">
                           <button
                             type="button"
                             disabled={previewLoading}
                             aria-busy={thisLoading}
                             onClick={() => onGenerateAiEditForChange(idx)}
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:justify-start"
                           >
                             {thisLoading ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -316,8 +319,8 @@ export function CritiquePanels({
                             )}
                             {thisLoading ? 'Generating…' : 'Generate AI edit'}
                           </button>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -343,6 +346,7 @@ export function CritiquePanels({
                 </button>
               ) : null}
             </div>
+            {voiceBFooter ? <div className="mt-4 min-w-0">{voiceBFooter}</div> : null}
           </div>
         </section>
       ) : null}

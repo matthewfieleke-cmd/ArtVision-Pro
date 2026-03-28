@@ -1574,89 +1574,95 @@ export default function App() {
                   previewLoading={previewLoading}
                   previewLoadingTarget={previewLoadingTarget}
                   previewAllProgress={previewAllProgress}
-                />
-                {flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 && previewTarget ? (
-                  <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">AI edits this session</p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                      Illustrative only—not a substitute for painting. Saved with the work when you save to Studio;
-                      discarded if you leave without saving.
-                    </p>
-                    <div className="mt-3 rounded-xl border border-violet-200/60 bg-white/80 p-2">
-                      <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Select preview ({flow.sessionPreviewEdits.length})
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {flow.sessionPreviewEdits.map((e) => (
-                          <button
-                            key={e.id}
-                            type="button"
-                            onClick={() => setActivePreviewEditId(e.id)}
-                            className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
-                              activePreviewEditId === e.id
-                                ? 'border-violet-500 bg-violet-100 text-violet-900'
-                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
-                            }`}
-                          >
-                            {e.mode === 'combined' ? 'All changes' : 'Single change'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {previewError ? (
-                      <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
-                    ) : null}
-                    {activePreviewImageDataUrl ? (
-                      isDesktop ? (
-                        <div className="mt-4 min-h-0 border-t border-violet-200/60 pt-4">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            Compare
+                  voiceBFooter={
+                    flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 && previewTarget ? (
+                      <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+                          AI edits this session
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                          Illustrative only—not a substitute for painting. Saved with the work when you save to Studio;
+                          discarded if you leave without saving.
+                        </p>
+                        <div className="mt-3 rounded-xl border border-violet-200/60 bg-white/80 p-2">
+                          <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Select preview ({flow.sessionPreviewEdits.length})
                           </p>
-                          <div className="mt-3">
-                            <PreviewEditBlendCard
-                              originalSrc={flow.imageDataUrl}
-                              revisedSrc={activePreviewImageDataUrl}
-                              target={previewTarget}
-                            />
+                          <div className="flex flex-wrap gap-2">
+                            {flow.sessionPreviewEdits.map((e) => (
+                              <button
+                                key={e.id}
+                                type="button"
+                                onClick={() => setActivePreviewEditId(e.id)}
+                                className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
+                                  activePreviewEditId === e.id
+                                    ? 'border-violet-500 bg-violet-100 text-violet-900'
+                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
+                                }`}
+                              >
+                                {e.mode === 'combined' ? 'All changes' : 'Single change'}
+                              </button>
+                            ))}
                           </div>
-                          <button
-                            type="button"
-                            onClick={openPreviewCompare}
-                            className="mt-4 w-full rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800 shadow-sm transition hover:bg-violet-50"
-                          >
-                            Open full-screen compare
-                          </button>
                         </div>
-                      ) : (
-                        <div className="mt-4 space-y-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                            Compare
-                          </p>
-                          <button
-                            type="button"
-                            onClick={openPreviewCompare}
-                            className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
-                          >
-                            <span className="text-sm font-bold text-violet-800">
-                              {previewCompareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
-                            </span>
-                            {!previewCompareSeen ? (
-                              <span className="text-xs font-medium leading-snug text-slate-500">
-                                Your image, the AI preview, and notes on what changed.
-                              </span>
-                            ) : (
-                              <span className="text-xs text-slate-500">Your photo and the AI preview, with notes.</span>
-                            )}
-                          </button>
-                        </div>
-                      )
-                    ) : null}
-                  </section>
-                ) : previewError ? (
-                  <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-center text-xs text-red-700">
-                    {previewError}
-                  </p>
-                ) : null}
+                        {previewError ? (
+                          <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
+                        ) : null}
+                        {activePreviewImageDataUrl ? (
+                          isDesktop ? (
+                            <div className="mt-4 min-h-0 border-t border-violet-200/60 pt-4">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                Compare
+                              </p>
+                              <div className="mt-3">
+                                <PreviewEditBlendCard
+                                  originalSrc={flow.imageDataUrl}
+                                  revisedSrc={activePreviewImageDataUrl}
+                                  target={previewTarget}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={openPreviewCompare}
+                                className="mt-4 w-full rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800 shadow-sm transition hover:bg-violet-50"
+                              >
+                                Open full-screen compare
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-4 space-y-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                Compare
+                              </p>
+                              <button
+                                type="button"
+                                onClick={openPreviewCompare}
+                                className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
+                              >
+                                <span className="text-sm font-bold text-violet-800">
+                                  {previewCompareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
+                                </span>
+                                {!previewCompareSeen ? (
+                                  <span className="text-xs font-medium leading-snug text-slate-500">
+                                    Your image, the AI preview, and notes on what changed.
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-slate-500">
+                                    Your photo and the AI preview, with notes.
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+                          )
+                        ) : null}
+                      </section>
+                    ) : previewError ? (
+                      <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-center text-xs text-red-700">
+                        {previewError}
+                      </p>
+                    ) : null
+                  }
+                />
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"
