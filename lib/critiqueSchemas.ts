@@ -118,12 +118,12 @@ export const CRITIQUE_JSON_SCHEMA = {
           whatWorks: {
             type: 'string',
             description:
-              'Voice A paragraph: specific strengths visible in THIS painting; informed by style, medium, completion read.',
+              'Voice A paragraph: specific strengths in THIS painting. Part of Voice A’s critical judgment; must align with the eight per-criterion levels (no blanket praise that contradicts weak criteria).',
           },
           whatCouldImprove: {
             type: 'string',
             description:
-              'Voice A paragraph: specific tensions or gaps visible in THIS painting; calibrate tone for unfinished vs finished.',
+              'Voice A paragraph: specific tensions or gaps in THIS painting; calibrate for unfinished vs finished. Must align with the eight per-criterion levels.',
           },
         },
       },
@@ -183,9 +183,13 @@ export const CRITIQUE_JSON_SCHEMA = {
               type: 'string',
               enum: [...RATING_LEVELS],
               description:
-                'Beginner = weak or naive in this criterion. Intermediate = clear intentional competence here—not a default for weak work. Advanced = strong with only minor refinement left. Master = very rare, exceptional sustained control. Avoid assigning the same level to all eight unless evidence truly supports it.',
+                'Voice A’s quality ranking for THIS criterion only (one of eight independent axes). Beginner = weak/naive here. Intermediate = clear intentional competence in this area. Advanced = strong, minor refinement left. Master = very rare, exceptional here. Derive from Voice A’s judgment of that criterion from the evidence; do not copy one overall grade into all eight.',
             },
-            feedback: { type: 'string' },
+            feedback: {
+              type: 'string',
+              description:
+                'Voice A: 3+ sentences—this criterion’s critical assessment for THIS painting, same stance as level; evidence-grounded.',
+            },
             actionPlan: {
               type: 'string',
               description:
@@ -226,7 +230,7 @@ export const CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
-- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: two labeled paragraphs, specific to THIS painting; use declared style, medium, and completion read (unfinished → structure/pacing; likely_finished → selective refinement). Name visible passages, colors, edges, motifs.
+- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: two labeled paragraphs, specific to THIS painting; use declared style, medium, and completion read (unfinished → structure/pacing; likely_finished → selective refinement). Name visible passages, colors, edges, motifs. Must align with the eight category levels.
 - studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: concrete studio instructions only; each text names where and how; previewCriterion is the single best-matching criterion from CRITERIA_ORDER for that change (used for preview image routing).
 - categories
 - comparisonNote
@@ -234,8 +238,8 @@ export function buildCritiqueSchemaInstruction(): string {
 - photoQuality
 
 For each criterion:
-- level: Beginner (weak), Intermediate (strong but still developing), Advanced (strong, little development needed), Master (very rare, exceptional)
-- feedback: 3+ sentences grounded in visible evidence
+- level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent judgments from the evidence, not one grade repeated eight times.
+- feedback: Voice A for this criterion—3+ sentences grounded in visible evidence, consistent with that criterion’s level
 - actionPlan: 2–5 numbered steps OR 2–4 short paragraphs—all specific to THIS painting (name areas, edges, colors, shapes from evidence). No generic advice; enough detail that the artist knows what to do where
 - confidence
 - evidenceSignals

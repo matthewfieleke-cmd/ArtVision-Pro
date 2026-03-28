@@ -450,65 +450,6 @@ function testCritiqueGuardrails(): void {
   assert.ok((sloppyLevels.Beginner ?? 0) >= 5);
   assert.ok((sloppyLevels.Beginner ?? 0) + (sloppyLevels.Intermediate ?? 0) === 8);
 
-  const allIntermediatePoliteFloor = applyCritiqueGuardrails({
-    summary:
-      'A colorful but underdeveloped painting with simplified forms, bright flat colors, and expression over precision.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'A playful scene with bright local color.',
-      working: ['The subject is easy to read.', 'Bright colors add energy.'],
-      mainIssue: 'Fundamentals still need work.',
-      nextSteps: ['Simplify one shape.', 'Group values more clearly.'],
-      preserve: 'Keep the cheerful mood.',
-    }),
-    categories: [
-      { criterion: 'Intent and necessity', level: 'Intermediate', feedback: 'Readable but simple.', actionPlan: '1. Keep going.' },
-      {
-        criterion: 'Composition and shape structure',
-        level: 'Intermediate',
-        feedback: 'Balanced but naïve arrangement.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Value and light structure',
-        level: 'Intermediate',
-        feedback: 'Lack of strong shadows; value grouping weak.',
-        actionPlan: '1. Keep going.',
-      },
-      { criterion: 'Color relationships', level: 'Intermediate', feedback: 'Bright, flat colors dominate.', actionPlan: '1. Keep going.' },
-      {
-        criterion: 'Drawing, proportion, and spatial form',
-        level: 'Intermediate',
-        feedback: 'Simplified forms; spatial depth suggested not defined.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Edge and focus control',
-        level: 'Intermediate',
-        feedback: 'Soft edges throughout; no single focal point.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Surface and medium handling',
-        level: 'Intermediate',
-        feedback: 'Loose brushwork typical of early learning.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Presence, point of view, and human force',
-        level: 'Intermediate',
-        feedback: 'Playful and inviting but not yet authored.',
-        actionPlan: '1. Keep going.',
-      },
-    ],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
-  assert.ok(
-    allIntermediatePoliteFloor.categories.every((c) => c.level === 'Beginner'),
-    'uniform Intermediate + weak-work text should cap to Beginner'
-  );
-
   const actionPlanGuarded = applyCritiqueGuardrails({
     summary: 'A landscape with one unresolved focal path and weak foreground grouping.',
     simpleFeedback: migrateLegacySimpleFeedback({

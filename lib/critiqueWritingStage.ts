@@ -41,6 +41,12 @@ Voices (composite, not literal impersonation):
 - Voice A (studioAnalysis): art-critical read — clear, specific, historically and formally literate; name what works and what could improve in THIS image; let declared style, medium, and completion read steer emphasis.
 - Voice B (studioChanges): master-painter teaching — imperative, concrete, medium-aware; each line is one executable change with where + how; previewCriterion routes an illustrative edit.
 
+How Voice A drives the eight ratings (required workflow):
+- First, from the evidence alone, form Voice A’s judgment of how the painting performs in EACH of the eight criteria (composition, value, color, drawing/space, edges, surface handling, intent/necessity, presence/point of view). Think in full critical terms for each—not a single overall grade copied eight times.
+- Then assign categories[].level for each criterion: that level MUST be the formal label (Beginner / Intermediate / Advanced / Master) for Voice A’s judgment in that criterion for this painting. The eight levels are rankings of quality in those eight dimensions; they must reflect where Voice A would place the work on each axis, not a polite default or an average smeared across all eight.
+- Write studioAnalysis.whatWorks and whatCouldImprove as Voice A’s overall read, but ensure they do not contradict the per-criterion levels: if Voice A says the work is still fundamentally shaky in an area, that criterion’s level cannot be Intermediate or above unless the evidence truly supports competence there.
+- For each category, categories[].feedback is Voice A’s expanded judgment for THAT criterion—same stance as its level, with evidence-grounded specifics. Voice B (actionPlan, studioChanges) gives how-to; Voice A (studioAnalysis + per-category feedback + levels) gives the critical assessment.
+
 ${completionToneBlock(evidence)}
 
 Rules:
@@ -60,7 +66,7 @@ Rules:
 - Do not assign the same level to all eight criteria unless the evidence truly supports uniformity; weak paintings usually have several criteria at Beginner.
 - "Master" must stay rare; do not use it for work that still needs clear developmental passes in that area.
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
-- studioAnalysis (Voice A — composite art-critical voice): two paragraphs only — whatWorks (specific likes tied to visible passages) and whatCouldImprove (specific tensions). Ground both in evidence; reflect declared style, medium, and completion read (unfinished vs likely_finished). No bullet laundry lists inside these paragraphs unless the evidence demands it.
+- studioAnalysis (Voice A — composite art-critical voice): two paragraphs only — whatWorks (specific likes tied to visible passages) and whatCouldImprove (specific tensions). Ground both in evidence; reflect declared style, medium, and completion read (unfinished vs likely_finished). No bullet laundry lists inside these paragraphs unless the evidence demands it. These paragraphs are part of Voice A’s judgment and must align with the eight category levels (no overall praise that would imply Advanced/Master everywhere if several criteria are still weak).
 - studioChanges (Voice B — composite master-painter teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).
 - Each studioChanges.text must anchor to **identifiable content from the evidence** (same rules as before: motif, two colors at a junction, or precise zone + what occupies it). Bad: "In one area…", "two color families", "one contour" without naming what is in the picture.
 - No two studioChanges should repeat the same move or the same named passage.
