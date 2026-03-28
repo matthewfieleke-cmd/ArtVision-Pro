@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
-import { criterionLabelMatches } from '../../shared/criteria';
+import { criterionLabelMatches, previewEditChipText, previewEditChipTitle } from '../../shared/criteria';
 import { CritiquePanels } from '../components/CritiquePanels';
 import { PreviewEditBlendCard } from '../components/PreviewEditBlendCard';
 import type { CritiqueResult, SavedPainting, SavedPreviewEdit } from '../types';
@@ -185,6 +185,7 @@ export function StudioTab({
                   <button
                     key={e.id}
                     type="button"
+                    title={previewEditChipTitle(e.mode, e.criterion)}
                     onClick={() => setStudioPreviewPickId(e.id)}
                     className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
                       studioPreviewPickId === e.id
@@ -192,7 +193,7 @@ export function StudioTab({
                         : 'border-slate-200 bg-slate-50 text-slate-700'
                     }`}
                   >
-                    {e.mode === 'combined' ? 'All changes' : 'Single'}
+                    {previewEditChipText(e.mode, e.criterion)}
                   </button>
                 ))}
               </div>

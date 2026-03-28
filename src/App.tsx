@@ -13,6 +13,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
+import { previewEditChipText, previewEditChipTitle } from '../shared/criteria';
 import { BottomNav } from './components/BottomNav';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { CritiquePanels } from './components/CritiquePanels';
@@ -1593,6 +1594,7 @@ export default function App() {
                               <button
                                 key={e.id}
                                 type="button"
+                                title={previewEditChipTitle(e.mode, e.criterion)}
                                 onClick={() => setActivePreviewEditId(e.id)}
                                 className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
                                   activePreviewEditId === e.id
@@ -1600,7 +1602,7 @@ export default function App() {
                                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
                                 }`}
                               >
-                                {e.mode === 'combined' ? 'All changes' : 'Single change'}
+                                {previewEditChipText(e.mode, e.criterion)}
                               </button>
                             ))}
                           </div>

@@ -64,6 +64,31 @@ export function criterionLabelMatches(candidate: string, criterion: CriterionLab
   return candidate === criterion || legacyCriterionLabel(criterion) === candidate;
 }
 
+/** One short keyword per criterion for AI preview picker chips (Studio + Critique). */
+const CRITERION_PREVIEW_CHIP_LABEL: Record<CriterionLabel, string> = {
+  'Intent and necessity': 'Intent',
+  'Composition and shape structure': 'Comp',
+  'Value and light structure': 'Value',
+  'Color relationships': 'Color',
+  'Drawing, proportion, and spatial form': 'Drawing',
+  'Edge and focus control': 'Edge',
+  'Surface and medium handling': 'Surface',
+  'Presence, point of view, and human force': 'Presence',
+};
+
+/** Visible chip text for a saved/session AI preview. */
+export function previewEditChipText(mode: 'single' | 'combined', criterion: string): string {
+  if (mode === 'combined') return 'All changes';
+  const c = canonicalCriterionLabel(criterion);
+  return c ? CRITERION_PREVIEW_CHIP_LABEL[c] : 'Edit';
+}
+
+/** Full description for `title` / accessibility on preview chips. */
+export function previewEditChipTitle(mode: 'single' | 'combined', criterion: string): string {
+  if (mode === 'combined') return 'All suggested changes (combined pass)';
+  return canonicalCriterionLabel(criterion) ?? criterion;
+}
+
 export const RATING_LEVELS = [
   'Beginner',
   'Intermediate',
