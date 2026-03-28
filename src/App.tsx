@@ -1091,7 +1091,7 @@ export default function App() {
                 >
                   <X className="h-5 w-5" />
                 </button>
-              ) : (
+              ) : tab !== 'home' ? (
                 <button
                   type="button"
                   onClick={goHome}
@@ -1100,7 +1100,7 @@ export default function App() {
                 >
                   <Home className="h-6 w-6" />
                 </button>
-              )}
+              ) : null}
             </div>
           </header>
 

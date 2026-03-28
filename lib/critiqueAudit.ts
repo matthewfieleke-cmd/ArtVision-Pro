@@ -1,8 +1,4 @@
-import type {
-  CritiqueCategoryDTO,
-  CritiqueResultDTO,
-  CritiqueSimpleFeedbackDTO,
-} from './critiqueTypes.js';
+import type { CritiqueResultDTO, CritiqueSimpleFeedbackDTO } from './critiqueTypes.js';
 
 function containsAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
