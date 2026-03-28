@@ -102,20 +102,6 @@ export function MasterArticlePage() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 lg:mt-3 lg:p-3 lg:text-xs xl:text-sm">
-          <p className="font-semibold text-amber-900">Scholarly use & images</p>
-          <p className="mt-1 leading-relaxed lg:leading-snug">
-            These pages synthesize widely accepted art-historical scholarship and close looking at specific works.
-            Illustrations are drawn from{' '}
-            <a className="font-medium underline" href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">
-              Wikimedia Commons
-            </a>{' '}
-            and museum open-access programs where files are marked public domain or CC; works still under copyright
-            (e.g. Rothko, Pollock) link to institutional pages instead of reproducing protected photographs. Always
-            verify terms for your own publication or commercial use.
-          </p>
-        </div>
-
         <div className="mt-6 space-y-8 lg:mt-4 lg:grid lg:grid-cols-3 lg:gap-6 lg:space-y-0 xl:gap-8">
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Overview</h2>
@@ -229,6 +215,20 @@ export function MasterArticlePage() {
             ))}
           </ul>
         </section>
+
+        <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 lg:mt-6 lg:p-4 lg:text-xs xl:text-sm">
+          <p className="font-semibold text-amber-900">Scholarly use & images</p>
+          <p className="mt-1 leading-relaxed lg:leading-snug">
+            These pages synthesize widely accepted art-historical scholarship and close looking at specific works.
+            Illustrations are drawn from{' '}
+            <a className="font-medium underline" href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">
+              Wikimedia Commons
+            </a>{' '}
+            and museum open-access programs where files are marked public domain or CC; works still under copyright
+            (e.g. Rothko, Pollock) link to institutional pages instead of reproducing protected photographs. Always
+            verify terms for your own publication or commercial use.
+          </p>
+        </div>
       </article>
     </div>
   );
