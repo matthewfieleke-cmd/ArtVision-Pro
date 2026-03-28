@@ -103,17 +103,6 @@ export function CriterionLearnPage() {
             {entry.intro}
           </p>
 
-          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 lg:mt-2 lg:p-3 lg:text-xs xl:text-sm">
-            <p className="font-semibold text-amber-900">Images & rights</p>
-            <p className="mt-1 leading-relaxed lg:leading-snug">
-              Illustrations are from{' '}
-              <a className="font-medium underline" href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">
-                Wikimedia Commons
-              </a>{' '}
-              and similar open programs where marked public domain or CC. Verify terms before commercial reuse.
-            </p>
-          </div>
-
           <h2 className="mt-8 font-display text-xl text-slate-900 lg:mt-3 lg:text-lg xl:text-xl">
             Two paintings that excel here
           </h2>
@@ -159,6 +148,17 @@ export function CriterionLearnPage() {
               </div>
             </section>
           ))}
+        </div>
+
+        <div className="mt-10 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950 lg:col-span-12 lg:mt-8 lg:p-4 lg:text-xs xl:text-sm">
+          <p className="font-semibold text-amber-900">Images & rights</p>
+          <p className="mt-1 leading-relaxed lg:leading-snug">
+            Illustrations are from{' '}
+            <a className="font-medium underline" href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">
+              Wikimedia Commons
+            </a>{' '}
+            and similar open programs where marked public domain or CC. Verify terms before commercial reuse.
+          </p>
         </div>
       </article>
     </div>
