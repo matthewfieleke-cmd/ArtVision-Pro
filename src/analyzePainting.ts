@@ -29,6 +29,42 @@ function scoreToLevel(score: number): RatingLevel {
   return 'Master';
 }
 
+function normalizeCritiqueSpaces(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+/** Match API shape: 2+ numbered steps grounded in this capture (template + metric-tied move). */
+function combineLocalActionPlan(templateAction: string, specificStep: string): string {
+  const a = normalizeCritiqueSpaces(templateAction);
+  const b = normalizeCritiqueSpaces(specificStep);
+  if (!a) return `1. ${b}`;
+  if (!b) return `1. ${a}`;
+  return `1. ${a}\n2. ${b}`;
+}
+
+/** 3+ sentences: evidence-style cues from metrics, level read, then benchmark (mirrors API feedback depth). */
+function buildLocalCategoryFeedback(
+  criterion: Criterion,
+  templateFeedback: string,
+  evidenceSignals: string[],
+  benchmarks: readonly string[],
+  style: Style
+): string {
+  const label = criterion.toLowerCase();
+  const parts = evidenceSignals.map((s) => s.trim()).filter((s) => s.length > 0).slice(0, 2);
+  const p1 =
+    parts.length >= 2
+      ? `On this capture, signals that feed the ${label} read include: ${parts[0]!} ${parts[1]!.endsWith('.') ? parts[1]! : `${parts[1]!}.`}`
+      : parts.length === 1
+        ? `On this capture, one signal behind the ${label} read is: ${parts[0]!.endsWith('.') ? parts[0]! : `${parts[0]!}.`}`
+        : `This offline read infers ${label} from measurable structure in the photo (contrast, edges, color, texture—not subject recognition).`;
+  const p2 = templateFeedback.trim();
+  const m0 = benchmarks[0] ?? 'the named masters for this style';
+  const m1 = benchmarks[1] ?? m0;
+  const p3 = `Compare your next choices to ${m0} and ${m1} as ${style} reference points for how far to push ${label}.`;
+  return normalizeCritiqueSpaces(`${p1} ${p2} ${p3}`);
+}
+
 type LocalCategoryScore = {
   score: number;
   level: RatingLevel;
@@ -616,11 +652,12 @@ function buildCategory(
   };
 
   const t = templates[criterion][level];
+  const specificStep = buildPaintingSpecificAction(criterion, level, medium, metrics, evidenceSignals);
   return {
     criterion,
     level,
-    feedback: t.feedback,
-    actionPlan: buildPaintingSpecificAction(criterion, level, medium, metrics, evidenceSignals),
+    feedback: buildLocalCategoryFeedback(criterion, t.feedback, evidenceSignals, benchmarks, style),
+    actionPlan: combineLocalActionPlan(t.action, specificStep),
     confidence: deriveLocalCategoryConfidence(criterion, metrics),
     evidenceSignals,
     preserve: deriveLocalPreserveText(criterion, level, metrics),
@@ -768,10 +805,10 @@ function mainIssueText(criterion: Criterion): string {
   return map[criterion];
 }
 
-function describeFocalSide(metrics: ImageMetrics): string {
-  if (metrics.focalOffset < 0.22) return 'around the center';
-  if (metrics.focalOffset < 0.42) return 'slightly off-center';
-  return 'toward one side of the canvas';
+function firstNumberedStepFromActionPlan(actionPlan: string): string {
+  const lines = actionPlan.split('\n').map((l) => l.trim()).filter(Boolean);
+  const first = lines[0] ?? actionPlan.trim();
+  return first.replace(/^\d+\.\s*/, '').trim();
 }
 
 function buildLocalStudioRead(
@@ -782,65 +819,69 @@ function buildLocalStudioRead(
   strongestLevel: RatingLevel,
   mainIssue: Criterion,
   mainIssueCategory: CritiqueCategory,
-  secondWeakestCategory: CritiqueCategory | undefined,
   metrics: ImageMetrics,
   photoQuality: PhotoQualityAssessment,
-  completionRead: CompletionRead
+  completionRead: CompletionRead,
+  categories: CritiqueCategory[],
+  scores: Record<Criterion, LocalCategoryScore>
 ): CritiqueSimpleFeedback {
-  const whatWorks = [
-    `${titlePrefix}${intentRead(style, medium, strongest)}`,
-    ...workingBullets(strongest, strongestLevel, photoQuality),
-  ].join(' ');
+  const pWhatWorksA = `${titlePrefix}${intentRead(style, medium, strongest)}`;
+  const pWhatWorksB = workingBullets(strongest, strongestLevel, photoQuality).join(' ');
+  const whatWorks = `${pWhatWorksA}\n\n${pWhatWorksB}`;
 
-  const completionClause =
+  const completionLead =
     completionRead.state === 'unfinished'
-      ? 'Given this capture still reads in progress, prioritize resolving the main structural read before final polish. '
+      ? 'From the finish read on this photo, the work still looks in progress—bias your next moves toward resolving big structure before polish.'
       : completionRead.state === 'likely_finished'
-        ? 'Given this capture reads relatively resolved, favor selective refinements over wholesale restructuring. '
+        ? 'From the finish read on this photo, the piece looks relatively resolved—bias toward selective refinements rather than rebuilding everything.'
+        : 'The finish read on this photo is mixed—treat both structural and refinement moves as fair game, but test each change against the squint read.';
+
+  const mainSig0 = mainIssueCategory.evidenceSignals?.[0]?.trim();
+  const mainSig1 = mainIssueCategory.evidenceSignals?.[1]?.trim();
+  const mainEvidenceBit =
+    mainSig0 && mainSig1
+      ? ` Observable cues here include ${mainSig0.endsWith('.') ? mainSig0.slice(0, -1) : mainSig0}; ${mainSig1.charAt(0).toLowerCase()}${mainSig1.slice(1)}`
+      : mainSig0
+        ? ` A visible tension in the capture is ${mainSig0.charAt(0).toLowerCase()}${mainSig0.slice(1)}`
         : '';
+  const whatCouldImprove = `${completionLead} ${mainIssueText(mainIssue)}${mainEvidenceBit}`;
 
-  const whatCouldImprove = `${completionClause}${mainIssueText(mainIssue)}`;
+  const LEVEL_RANK: Record<RatingLevel, number> = {
+    Beginner: 0,
+    Intermediate: 1,
+    Advanced: 2,
+    Master: 3,
+  };
+  const sortedByWeakness = [...categories].sort((a, b) => {
+    const lr = LEVEL_RANK[a.level] - LEVEL_RANK[b.level];
+    if (lr !== 0) return lr;
+    const sr = scores[a.criterion].score - scores[b.criterion].score;
+    if (sr !== 0) return sr;
+    return a.criterion.localeCompare(b.criterion);
+  });
 
-  const e0 = mainIssueCategory.evidenceSignals?.[0]?.trim() ?? 'the weakest structural read in the photo';
-  const e1 = mainIssueCategory.evidenceSignals?.[1]?.trim();
-  const focal = describeFocalSide(metrics);
+  const studioChanges: CritiqueSimpleFeedback['studioChanges'] = [];
+  const used = new Set<string>();
 
-  const studioChanges: CritiqueSimpleFeedback['studioChanges'] = [
-    {
-      text: `Tackle ${e0} first: make one concrete change there so ${mainIssueCategory.criterion.toLowerCase()} reads more clearly before you touch smaller details.`,
-      previewCriterion: mainIssueCategory.criterion,
-    },
-  ];
-
-  if (e1) {
-    studioChanges.push({
-      text: `Build on that by adjusting ${e1}—keep the rest of the passage quieter so this relationship can land without competing accents.`,
-      previewCriterion: mainIssueCategory.criterion,
-    });
-  } else {
-    studioChanges.push({
-      text: `In one supporting area ${focal}, simplify marks or group values so the main fix does not fight equal-strength neighbors.`,
-      previewCriterion: 'Composition and shape structure',
-    });
+  for (const cat of sortedByWeakness) {
+    if (studioChanges.length >= 4) break;
+    const sigs = cat.evidenceSignals ?? [];
+    const step = buildPaintingSpecificAction(cat.criterion, cat.level, medium, metrics, sigs);
+    const key = `${cat.criterion}:${step}`;
+    if (used.has(key)) continue;
+    used.add(key);
+    studioChanges.push({ text: step, previewCriterion: cat.criterion });
   }
 
-  if (secondWeakestCategory) {
-    const s0 =
-      secondWeakestCategory.evidenceSignals?.[0]?.trim() ?? secondWeakestCategory.criterion.toLowerCase();
-    studioChanges.push({
-      text: `Then address ${s0} for ${secondWeakestCategory.criterion.toLowerCase()} with a single pass so two big issues are not half-fixed at once.`,
-      previewCriterion: secondWeakestCategory.criterion,
-    });
-  } else {
-    studioChanges.push({
-      text: `Finish by checking one edge or value transition ${focal} that still feels undecided and correct only that span.`,
-      previewCriterion: 'Edge and focus control',
-    });
+  while (studioChanges.length < 2) {
+    const cat = sortedByWeakness[studioChanges.length] ?? sortedByWeakness[0]!;
+    const step = firstNumberedStepFromActionPlan(cat.actionPlan);
+    studioChanges.push({ text: step, previewCriterion: cat.criterion });
   }
 
   if (photoQuality.level !== 'good') {
     studioChanges.push({
-      text: `Re-shoot under even, glare-free light so the next critique can see ${photoQuality.level === 'poor' ? 'true values and edges' : 'subtle shifts'} more reliably.`,
+      text: `Re-shoot under even, glare-free light so the next pass can judge ${photoQuality.level === 'poor' ? 'values and edges' : 'subtle shifts'} the way the API critique would.`,
       previewCriterion: 'Surface and medium handling',
     });
   }
@@ -874,12 +915,6 @@ export async function analyzePainting(
   const strongest = strongestCategory(scores);
   const strongestCategoryCard = categories.find((c) => c.criterion === strongest) ?? categories[0]!;
   const mainIssueCategory = categories.find((c) => c.criterion === mainIssue) ?? categories[0]!;
-  const sortedByScore = [...CRITERIA].sort((a, b) => scores[a]!.score - scores[b]!.score);
-  const secondWeakestCriterion = sortedByScore.find((c) => c !== mainIssue);
-  const secondWeakestCategory = secondWeakestCriterion
-    ? categories.find((c) => c.criterion === secondWeakestCriterion)
-    : undefined;
-
   const avg =
     Object.values(scores).reduce((a, b) => a + b.score, 0) / CRITERIA.length;
   const completionRead = deriveLocalCompletionRead(m, avg, photoQuality);
@@ -929,10 +964,11 @@ export async function analyzePainting(
       strongestCategoryCard.level,
       mainIssue,
       mainIssueCategory,
-      secondWeakestCategory,
       m,
       photoQuality,
-      completionRead
+      completionRead,
+      categories,
+      scores
     ),
     analysisSource: 'local',
     photoQuality,

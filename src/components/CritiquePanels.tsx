@@ -270,11 +270,13 @@ export function CritiquePanels({
               <div className="mt-3 space-y-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What works</p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-700">{critique.simple.studioAnalysis.whatWorks}</p>
+                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                    {critique.simple.studioAnalysis.whatWorks}
+                  </p>
                 </div>
                 <div className="border-t border-slate-100 pt-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What could improve</p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
                     {critique.simple.studioAnalysis.whatCouldImprove}
                   </p>
                 </div>
