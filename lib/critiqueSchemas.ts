@@ -179,7 +179,12 @@ export const CRITIQUE_JSON_SCHEMA = {
           ],
           properties: {
             criterion: { type: 'string', enum: [...CRITERIA_ORDER] },
-            level: { type: 'string', enum: [...RATING_LEVELS] },
+            level: {
+              type: 'string',
+              enum: [...RATING_LEVELS],
+              description:
+                'Beginner = weak in this criterion. Intermediate = strong but still developing. Advanced = strong with only minor refinement left. Master = very rare, exceptional sustained control in this criterion.',
+            },
             feedback: { type: 'string' },
             actionPlan: {
               type: 'string',
@@ -229,6 +234,7 @@ export function buildCritiqueSchemaInstruction(): string {
 - photoQuality
 
 For each criterion:
+- level: Beginner (weak), Intermediate (strong but still developing), Advanced (strong, little development needed), Master (very rare, exceptional)
 - feedback: 3+ sentences grounded in visible evidence
 - actionPlan: 2–5 numbered steps OR 2–4 short paragraphs—all specific to THIS painting (name areas, edges, colors, shapes from evidence). No generic advice; enough detail that the artist knows what to do where
 - confidence

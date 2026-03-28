@@ -51,8 +51,13 @@ Rules:
 - If the evidence suggests a strong work, let the critique say the issue is modest.
 - If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
 - Your usefulness comes from precision, not from forced criticism.
-- Do NOT overpraise. "Master" should be rare and should only be used when the evidence shows unusually strong, intentional, and sustained control in that criterion.
-- If the work is strong but still developing, prefer "Advanced" over "Master."
+- Rating calibration (per criterion, from visible evidence only):
+  - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
+  - Intermediate: the painting is strong overall but still clearly developing in this criterion—meaningful structure or intent shows, yet important growth or resolution is still ahead.
+  - Advanced: strong in this criterion with only modest, selective refinement left—little substantive development still required; issues are small and localized.
+  - Master: very rare but real when deserved—museum-grade sustained control and intention in this criterion for this painting; reserve for evidence of exceptional, unified mastery (not "pretty good").
+- Do not inflate: if the work is strong but still developing, that criterion is Intermediate, not Advanced.
+- "Master" must stay rare; do not use it for work that still needs clear developmental passes in that area.
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
 - studioAnalysis (Voice A — composite art-critical voice): two paragraphs only — whatWorks (specific likes tied to visible passages) and whatCouldImprove (specific tensions). Ground both in evidence; reflect declared style, medium, and completion read (unfinished vs likely_finished). No bullet laundry lists inside these paragraphs unless the evidence demands it.
 - studioChanges (Voice B — composite master-painter teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).
