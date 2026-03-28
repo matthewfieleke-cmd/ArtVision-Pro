@@ -549,14 +549,13 @@ function testCritiqueGuardrails(): void {
     analysisSource: 'api',
   });
 
+  assert.match(actionPlanGuarded.categories[0]!.actionPlan, /^Maintain the current balance\.$/);
+  assert.match(actionPlanGuarded.categories[1]!.actionPlan, /^Improve the value structure\.$/);
   for (const category of actionPlanGuarded.categories) {
-    assert.match(
-      category.actionPlan,
-      /foreground|background|upper|lower|left|right|path|edge|shape|value|temperature|neighbor/i
-    );
+    assert.doesNotMatch(category.actionPlan, /\b2\.\s/);
     assert.doesNotMatch(
       category.actionPlan,
-      /continue exploring|maintain the current balance|ensure harmony|keep going/i
+      /continue exploring|ensure harmony|keep going/i
     );
   }
 

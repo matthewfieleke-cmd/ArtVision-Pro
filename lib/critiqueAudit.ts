@@ -493,46 +493,9 @@ function firstSentence(text: string): string {
   return match ? match[1]!.trim() : t;
 }
 
-function hasPaintingSpecificAnchor(text: string): boolean {
-  return /(foreground|background|middle ground|midground|upper|lower|left|right|center|central|corner|edge|sky|tree|trees|foliage|figure|figures|face|hands|roof|house|path|water|shadow|highlight|light|horizon|canvas|building|window|door|boat|mountain|cloud|vase|table|cloth|ground|floor|wall|street|hair|skin|flowers|object|shape|mass|passage|area|plane|motif)/i.test(
-    text
-  );
-}
-
-function evidenceAnchorSnippet(category: CritiqueCategoryDTO): string {
-  const signals = category.evidenceSignals ?? [];
-  const pick = signals.find((s: string) => typeof s === 'string' && s.trim().length >= 8);
-  if (!pick) return '';
-  const t = normalizeWhitespace(pick);
-  if (t.length <= 100) return t;
-  return `${t.slice(0, 97)}…`;
-}
-
-function rewriteGenericActionPlanStep(step: string): string {
-  const text = normalizeWhitespace(stripNumberPrefix(step));
-
-  if (/continue using/i.test(text)) {
-    return 'Keep the strongest passage, but restate one weaker neighboring shape so the difference in role is clearer.';
-  }
-
-  /* Do not swap the model’s action plan for a single canned sentence (it repeated across criteria).
-     When the line is still too generic, enforceSpecificCategoryActionPlans uses fallbackCategoryImprovement
-     with that criterion’s evidence instead. */
-
-  return text;
-}
-
-function fallbackCategoryImprovement(category: CritiqueCategoryDTO): string {
-  const anchor = evidenceAnchorSnippet(category);
-  const crit = category.criterion;
-  if (anchor) {
-    return `In the passage described by your evidence (${anchor}), make one focused change for ${crit}: separate the main shape from what sits beside it with a smaller value shift or a cleaner edge so this area reads more decisively.`;
-  }
-  return `For ${crit} in this painting, pick the busiest visible area and simplify it with one grouping move—fewer competing accents—so the stronger passage can lead without everything calling for equal attention.`;
-}
-
 /**
- * One painting-specific sentence per category for the "How to improve it" UI.
+ * Normalize category "How to improve it" to a single sentence without replacing the model’s wording.
+ * (Replacing vague model text with other generic templates was misleading and repeated across criteria.)
  */
 function enforceSpecificCategoryActionPlans(
   critique: CritiqueResultDTO
@@ -545,14 +508,6 @@ function enforceSpecificCategoryActionPlans(
         : normalizeWhitespace(category.actionPlan);
 
     let sentence = firstSentence(primary);
-    sentence = rewriteGenericActionPlanStep(`1. ${sentence}`).replace(/^\d+\.\s*/, '').trim();
-    sentence = firstSentence(sentence);
-
-    const anchored = hasPaintingSpecificAnchor(sentence);
-    const tooThin = sentence.length < 36;
-    if (!anchored || tooThin) {
-      sentence = fallbackCategoryImprovement(category);
-    }
 
     if (!/[.!?]$/.test(sentence)) {
       sentence = `${sentence}.`;
