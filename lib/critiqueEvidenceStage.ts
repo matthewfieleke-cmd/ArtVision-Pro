@@ -1,5 +1,5 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
-import { EVIDENCE_STAGE_CLOSE_READING } from '../shared/critiqueVoiceA.js';
+import { EVIDENCE_STAGE_CLOSE_READING, EVIDENCE_STAGE_CRAFT_BAR } from '../shared/critiqueVoiceA.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 
 function isStyleKey(s: string): s is StyleKey {
@@ -48,6 +48,8 @@ function buildEvidencePrompt(style: string, medium: string): string {
 Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
 
 ${EVIDENCE_STAGE_CLOSE_READING}
+
+${EVIDENCE_STAGE_CRAFT_BAR}
 
 Rules:
 - Stay at the level of evidence, tensions, and what should be preserved.

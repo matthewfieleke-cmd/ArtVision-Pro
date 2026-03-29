@@ -70,6 +70,7 @@ Rules:
   - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains. Do not use Intermediate as a polite default for weak or naive work; if fundamentals in this criterion are still shaky, that criterion is Beginner.
   - Advanced: strong in this criterion with only modest, selective refinement left—little substantive development still required; issues are small and localized.
   - Master: very rare but real when deserved—museum-grade sustained control and intention in this criterion for this painting; reserve for evidence of exceptional, unified mastery (not "pretty good").
+- **Naive / poster-flat / symbolically simplified work:** if the evidence (especially visibleEvidence and tensionRead) describes flat color, uniform outlines, little modeling, and minimal spatial or edge development, Voice A should assign **Beginner** to **most criteria**—typically **six to eight** at Beginner for such a work. **Do not** assign **Advanced** unless that **specific** criterion’s evidence documents developed craft there; graphic boldness is not Advanced.
 - Do not inflate: if the work is strong but still developing, that criterion is Intermediate, not Advanced.
 - Do not assign the same level to all eight criteria unless the evidence truly supports uniformity; weak paintings usually have several criteria at Beginner.
 - "Master" must stay rare; do not use it for work that still needs clear developmental passes in that area.
