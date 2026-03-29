@@ -184,7 +184,7 @@ export const CRITIQUE_JSON_SCHEMA = {
               type: 'string',
               enum: [...RATING_LEVELS],
               description:
-                `Voice A’s quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER} Beginner = weak in this axis on the evidence. Intermediate/Advanced = supported by documented craft there. Master = very rare. Do not copy one overall grade into all eight.`,
+                `Voice A’s quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER} Beginner = weak on this axis per evidence. Intermediate/Advanced/Master = only when integrated evidence for that axis supports it. Do not copy one overall grade into all eight.`,
             },
             feedback: {
               type: 'string',
@@ -239,7 +239,7 @@ export function buildCritiqueSchemaInstruction(): string {
 - photoQuality
 
 For each criterion:
-- level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent judgments from the evidence, not one grade repeated eight times.
+- level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
 - feedback: Voice A for this criterion—3+ sentences; name THIS image (zones, colors, edges, motifs from evidence); consistent with level
 - actionPlan: Voice B for this criterion. If Master: praise only (evidence-grounded). Else: numbered steps to move up one level—Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2—all naming visible passages from evidence on THIS painting
 - confidence

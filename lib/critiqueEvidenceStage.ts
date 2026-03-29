@@ -1,5 +1,8 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
-import { EVIDENCE_STAGE_CLOSE_READING, EVIDENCE_STAGE_CRAFT_BAR } from '../shared/critiqueVoiceA.js';
+import {
+  EVIDENCE_STAGE_CLOSE_READING,
+  EVIDENCE_STAGE_ASSESSMENT_PROTOCOL,
+} from '../shared/critiqueVoiceA.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 
 function isStyleKey(s: string): s is StyleKey {
@@ -49,7 +52,7 @@ Your job is NOT to critique yet. Your job is only to extract visible evidence an
 
 ${EVIDENCE_STAGE_CLOSE_READING}
 
-${EVIDENCE_STAGE_CRAFT_BAR}
+${EVIDENCE_STAGE_ASSESSMENT_PROTOCOL}
 
 Rules:
 - Stay at the level of evidence, tensions, and what should be preserved.

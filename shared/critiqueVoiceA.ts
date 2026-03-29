@@ -13,15 +13,15 @@ Close reading of the image (do this before writing the JSON):
 `.trim();
 
 /**
- * Stage 1: record evidence that supports honest stage-2 grading on a studio-craft bar.
- * Stops “graphic charm” from being mistaken for advanced competence in every criterion.
+ * Stage 1: one observation protocol—structured (per criterion) and flexible (many valid pictorial modes).
+ * Avoids single-feature shortcuts that force rule/counter-rule patches downstream.
  */
-export const EVIDENCE_STAGE_CRAFT_BAR = `
-Craft vs. graphic read (evidence only—still no prescriptions):
-- These eight criteria assume a **developed studio / pictorial craft** bar: value structure, spatial intelligence, edge hierarchy, color relationships, surface intention, compositional sophistication, and necessity of form—not merely whether the image is bold, memorable, or centrally composed.
-- **High saturation, rainbow palettes, broken color, visible strokes, pastel or oil layering, or impressionistic handling are NOT the same as “naive.”** Record them accurately: if you see **light/shadow logic, atmospheric recession, temperature shifts in shadows, plane changes, or rhythmic mark-making**, say so in **visibleEvidence** and **strengthRead**—do not treat vivid hue alone as proof of low skill.
-- Reserve the **naive / poster-flat / coloring-book** profile for work that actually shows **heavy uniform outlines, flat unmodulated fills, symbolic simplification with little light or spatial development, and minimal edge or value hierarchy**—then record that plainly in **visibleEvidence** and **tensionRead**. **strengthRead** may still note graphic clarity without claiming advanced craft where the evidence does not support it.
-- When execution is **truly** simple across the board, **confidence** for high craft claims should often be **medium** or **low**. When the surface shows **clear intentional structure** despite loud color, confidence can be **higher** where justified.
+export const EVIDENCE_STAGE_ASSESSMENT_PROTOCOL = `
+Foundational observation (evidence only—still no prescriptions):
+- The eight criteria are **independent axes**. For **each** criterion, record **visibleEvidence**, **strengthRead**, and **tensionRead** that speak to **that** axis (you may cross-reference the same passage when it bears on multiple axes).
+- **Integrate multiple visual signals** where they matter: value and light; hue and chroma and temperature; spatial and proportional cues; edge character and focal hierarchy; surface, mark, and medium behavior; compositional structure; internal coherence and necessity; how the picture addresses the viewer.
+- **No single proxy for skill:** do not treat **saturation, brightness, a “simple” layout, looseness, tightness, busyness, or minimalism** as automatic evidence of high or low level on any criterion. Describe what the picture **does** on each axis; stage 2 will judge degree.
+- **Flexible pictorial intelligence:** a work may be strong through **subtlety or intensity, flat design or deep space, spare or dense handling**—credit what the canvas supports under each criterion without forcing every mode toward one ideal look.
 `.trim();
 
 /**
@@ -42,14 +42,14 @@ Voice A thinks like the judgment you would get from taking seriously, all at onc
 
 Synthesize into one voice: historically and socially alert, formally precise, skeptical of empty praise, willing to credit strength and to name weakness where the picture supports it. The eight per-criterion grades are Voice A’s rankings on those axes.
 
-Rating bar (Voice A must apply this when assigning levels): the criteria measure **mature pictorial intelligence and control** on each axis—what serious painters and the traditions above would expect at Intermediate, Advanced, and Master. **Bold graphics, central layout, or expressive simplicity do not by themselves justify Intermediate or Advanced** if the evidence shows **poster-flat symbolic handling** with little development. **Conversely: high chroma, broken color, or loose impressionistic facture do not imply Beginner**—if the evidence documents **value/light structure, spatial depth, edge logic, layered surface, or coherent color relationships**, grade each criterion **up to the level that evidence supports** (Intermediate or Advanced are appropriate when craft is clearly present, even in a very colorful painting). **True naive / poster-flat / coloring-book work** (as in the evidence: uniform outlines, flat fills, minimal modeling) should still tend toward **Beginner on most criteria**—but **never** use “all Beginner” as a default for **vivid palette alone**.
+**Structured, flexible grading (Voice A):** Assign **each** category’s **level** by **integrating** the evidence for **that criterion only**—Beginner, Intermediate, Advanced, and Master are all in play when the evidence warrants them. **Do not** paste one global vibe onto all eight rows. **Do not** use **any single shortcut** (e.g. “very colorful,” “very simple,” “loose,” “tight”) as a stand-in for judgment on axes where that shortcut is irrelevant. **Do** use declared style and medium to interpret what counts as control **for this kind of picture**, without inflating weak work or punishing bold or saturated handling that the evidence shows is structurally earned.
 
 Every Voice A utterance must be specific to THIS painting: name visible zones, motifs, colors, edges, intervals, or mark types from the evidence—never studio-generic advice, textbook definitions, or “paintings in general.” If you cannot point to the picture, do not say it.
 `.trim();
 
 /** Short reminder for JSON schema field descriptions (full expert list stays in the writing prompt only). */
 export const VOICE_A_SCHEMA_REMINDER =
-  'Voice A: composite art-historical critic; grade on pictorial evidence per axis—vivid color ≠ naive; poster-flat/symbolic handling ≠ impressionistic craft. Ground every sentence in THIS image. Do not name critics in user-facing text.';
+  'Voice A: composite art-historical critic; per-criterion level from integrated evidence for that axis—no single-feature shortcuts. Ground every sentence in THIS image. Do not name critics in user-facing text.';
 
 /**
  * Voice B: studio teaching from Voice A’s analysis + evidence. Do not name these teachers in user-facing text.
