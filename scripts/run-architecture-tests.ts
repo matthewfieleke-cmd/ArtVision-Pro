@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { applyCritiqueGuardrails } from '../lib/critiqueAudit.js';
+import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from '../lib/critiqueAudit.js';
 import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
 import {
   applyCorsHeaders,
@@ -208,431 +208,284 @@ async function testApiHelpers(): Promise<void> {
 }
 
 function testCritiqueGuardrails(): void {
-  const guarded = applyCritiqueGuardrails({
+  const base = applyCritiqueGuardrails({
     summary: 'Strong painting.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'A quiet, atmospheric watercolor landscape with soft transitions and a calm mood.',
-      working: ['The softness supports the atmosphere.', 'The composition already feels settled.'],
-      mainIssue: 'The painting needs a stronger focal point and more cohesion.',
-      nextSteps: [
-        'Increase contrast to create more depth.',
-        'Experiment with different textures to see how they interact with the existing composition.',
-        'Maintain the current balance while refining the edges.',
+    simpleFeedback: {
+      studioAnalysis: {
+        whatWorks:
+          'The bright left window strip and the seated figure already establish a clear interior structure.',
+        whatCouldImprove:
+          'The foreground chair back still competes too strongly with the face for first attention.',
+      },
+      studioChanges: [
+        {
+          text: 'Soften the interior bars of the foreground chair back so the seated face keeps priority.',
+          previewCriterion: 'Edge and focus control',
+        },
+        {
+          text: 'Keep the left window strip intact so the room preserves its current light scaffold.',
+          previewCriterion: 'Value and light structure',
+        },
       ],
-      preserve: 'Preserve the soft, tranquil atmosphere and the watercolor bloom in the sky.',
-    }),
-    categories: [],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
-
-  assert.match(
-    guarded.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '',
-    /not simply that the painting needs more focus|not a lack of drama/i
-  );
-  assert.match(guarded.simpleFeedback?.studioChanges[0]?.text ?? '', /Keep the current value compression/i);
-  assert.match(
-    guarded.simpleFeedback?.studioChanges[2]?.text ?? '',
-    /keep the current balance while refining the edges/i
-  );
-
-  const drawingGuarded = applyCritiqueGuardrails({
-    summary: 'Strong drawing.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'A graphite drawing focused on solitude and strong chiaroscuro.',
-      working: ['The line work is expressive.', 'The contrast creates mood.'],
-      mainIssue: 'The drawing could use more depth.',
-      nextSteps: [
-        'Experiment with subtle color variations in the background to enhance depth.',
-        'Maintain the dramatic effect.',
-      ],
-      preserve: 'Preserve the graphite line work and monochrome mood.',
-    }),
-    categories: [],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
-
-  assert.doesNotMatch(drawingGuarded.simpleFeedback?.studioChanges[0]?.text ?? '', /color variations/i);
-  assert.match(drawingGuarded.simpleFeedback?.studioChanges[0]?.text ?? '', /pressure|edge weight|value grouping/i);
-
-  const weakActionGuarded = applyCritiqueGuardrails({
-    summary: 'An advanced landscape study with one unresolved foreground/background relationship.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'An atmospheric oil landscape with a bright field against a softer mountain backdrop.',
-      working: ['The church remains a clear anchor.', 'The atmosphere is convincing.'],
-      mainIssue: 'The bright foreground may overpower the softer background.',
-      nextSteps: [
-        'Maintain the current balance between the foreground and the background.',
-        'Continue exploring the atmospheric effect in the distance.',
-      ],
-      preserve: 'Preserve the atmospheric softness in the mountains and the calm overall mood.',
-    }),
-    categories: [],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
-
-  assert.doesNotMatch(
-    weakActionGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
-    /maintain the current balance/i
-  );
-  assert.match(
-    weakActionGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
-    /on the next pass|temperature shift|foreground|background/i
-  );
-  assert.doesNotMatch(
-    weakActionGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
-    /continue exploring/i
-  );
-  assert.match(
-    weakActionGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
-    /softening one background edge|smaller temperature or value shift|deepen the distance/i
-  );
-
-  const belowMasterSpecificityGuarded = applyCritiqueGuardrails({
-    summary: 'A student watercolor with several unresolved structural relationships.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'A simple watercolor scene with bright local color and childlike spacing.',
-      working: ['The mood is cheerful.', 'The main shapes are easy to read.'],
-      mainIssue: 'The work could be stronger overall.',
-      nextSteps: [
-        'Maintain the cheerful feeling.',
-        'Continue exploring the composition.',
-        'Consider adding more variety.',
-      ],
-      preserve: 'Preserve the cheerful mood and the readable big shapes.',
-    }),
-    categories: [
-      {
-        criterion: 'Intent and necessity',
-        level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Composition and shape structure',
-        level: 'Intermediate',
-        feedback: 'Needs work.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Value and light structure',
-        level: 'Intermediate',
-        feedback: 'Needs work.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Color relationships',
-        level: 'Intermediate',
-        feedback: 'Needs work.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Drawing, proportion, and spatial form',
-        level: 'Intermediate',
-        feedback: 'Needs work.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Edge and focus control',
-        level: 'Intermediate',
-        feedback: 'Needs work.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Surface and medium handling',
-        level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Presence, point of view, and human force',
-        level: 'Intermediate',
-        feedback: 'Needs work.',
-        actionPlan: '1. Keep going.',
-      },
-    ],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
-
-  assert.doesNotMatch(
-    belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
-    /^maintain the cheerful feeling/i
-  );
-  assert.match(
-    belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[0]?.text ?? '',
-    /cheerful feeling|on the next pass, keep/i
-  );
-  assert.match(
-    belowMasterSpecificityGuarded.simpleFeedback?.studioChanges[1]?.text ?? '',
-    /shape, edge, or value|undecided|replace the most generic/i
-  );
-
-  const sloppyWorkGuarded = applyCritiqueGuardrails({
-    summary:
-      'A colorful but underdeveloped painting with loose brushwork, simplified forms, and a balanced but naïve scene.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'A playful, inviting scene with bright color and expression over precision.',
-      working: ['Bright color catches the eye.', 'The subject is readable.'],
-      mainIssue: 'The work could be stronger overall.',
-      nextSteps: [
-        'Maintain the vibrant palette.',
-        'Continue exploring the playful composition.',
-        'Preserve the expressive brushwork.',
-      ],
-      preserve: 'Preserve the playful mood and bright colors.',
-    }),
-    categories: [
-      {
-        criterion: 'Intent and necessity',
-        level: 'Advanced',
-        feedback: 'The playful arrangement is readable but still simple.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Composition and shape structure',
-        level: 'Advanced',
-        feedback: 'Balanced composition, but simple.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Value and light structure',
-        level: 'Intermediate',
-        feedback: 'Light is suggested without clear value grouping.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Color relationships',
-        level: 'Advanced',
-        feedback: 'Bright color is lively but not disciplined.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Drawing, proportion, and spatial form',
-        level: 'Intermediate',
-        feedback: 'Forms are simplified and space is uncertain.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Edge and focus control',
-        level: 'Intermediate',
-        feedback: 'Edges stay loose and distributed.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Surface and medium handling',
-        level: 'Advanced',
-        feedback: 'Loose brushwork is visible throughout.',
-        actionPlan: '1. Keep going.',
-      },
-      {
-        criterion: 'Presence, point of view, and human force',
-        level: 'Advanced',
-        feedback: 'The scene feels playful and inviting.',
-        actionPlan: '1. Keep going.',
-      },
-    ],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
-
-  const sloppyLevels = sloppyWorkGuarded.categories.reduce<Record<string, number>>((acc, category) => {
-    acc[category.level] = (acc[category.level] ?? 0) + 1;
-    return acc;
-  }, {});
-  assert.ok((sloppyLevels.Beginner ?? 0) >= 5);
-  assert.ok((sloppyLevels.Beginner ?? 0) + (sloppyLevels.Intermediate ?? 0) === 8);
-
-  const actionPlanGuarded = applyCritiqueGuardrails({
-    summary: 'A landscape with one unresolved focal path and weak foreground grouping.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'A calm landscape with one path leading into a distant tree line.',
-      working: ['The path sets up a readable direction.', 'The color families are broadly separated.'],
-      mainIssue: 'The foreground and background are not yet clearly separated.',
-      nextSteps: [
-        'Maintain the current mood.',
-        'Continue exploring the scene.',
-      ],
-      preserve: 'Preserve the calm atmosphere.',
-    }),
+    },
     categories: [
       {
         criterion: 'Composition and shape structure',
-        level: 'Intermediate',
-        feedback: 'The path leads inward, but nearby shapes compete too much.',
-        actionPlan: '1. Maintain the current balance. 2. Continue exploring the composition. 3. Ensure harmony.',
-        evidenceSignals: [
-          'The path leads inward from the foreground.',
-          'The tree line and sky meet softly in the background.',
+        level: 'Advanced',
+        feedback:
+          'In the foreground chair back, the dark vertical bars interrupt the route to the seated figure. The window strip at left and the bright shirt already create a strong scaffold. The issue is not the whole arrangement but that this one passage pulls too loudly.',
+        actionPlan:
+          '1. In the foreground chair back, soften the interior bars while keeping the outer silhouette intact. 2. Leave the bright window strip alone so the room keeps its current lateral pull.',
+        confidence: 'high',
+        evidenceSignals: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
+        preserve: 'Keep the window strip and the shirt-to-wall contrast.',
+        practiceExercise: 'Do two thumbnail studies of the chair against the figure.',
+        nextTarget: 'Push composition and shape structure toward Master.',
+        anchor: {
+          areaSummary: 'the foreground chair back',
+          evidencePointer: 'its dark vertical bars compete with the seated figure for first attention',
+          region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
+        },
+        editPlan: {
+          targetArea: 'the foreground chair back',
+          preserveArea: 'the bright window strip and the shirt-to-wall contrast',
+          issue: 'its dark interior bars pull as strongly as the face',
+          intendedChange: 'soften the interior chair bars while preserving the outer silhouette',
+          expectedOutcome: 'the figure regains priority without changing the room structure',
+          editability: 'yes',
+        },
+        subskills: [
+          { label: 'Focal hierarchy', score: 0.72, level: 'Advanced' },
+          { label: 'Eye path control', score: 0.69, level: 'Advanced' },
         ],
       },
       {
         criterion: 'Value and light structure',
-        level: 'Intermediate',
-        feedback: 'The foreground values stay too close together.',
-        actionPlan: '1. Improve the value structure. 2. Increase clarity. 3. Keep going.',
-        evidenceSignals: [
-          'Foreground values are close together.',
-          'The distant background is lighter than the foreground.',
+        level: 'Advanced',
+        feedback:
+          'The left window strip and the shirt already establish a clear light pattern. Around the seated head, the surrounding dark wall compresses value effectively. This axis is reading strongly overall.',
+        actionPlan:
+          '1. Keep the current window-to-shirt value pattern; it is already doing the structural work.',
+        confidence: 'medium',
+        evidenceSignals: ['The window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
+        preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
+        practiceExercise: 'Squint studies of the room in 3 values.',
+        nextTarget: 'Push value and light structure toward Master.',
+        anchor: {
+          areaSummary: 'the left window strip',
+          evidencePointer: 'it establishes the painting\'s clearest light mass',
+          region: { x: 0.0, y: 0.0, width: 0.16, height: 0.78 },
+        },
+        editPlan: {
+          targetArea: 'the left window strip',
+          preserveArea: 'the shirt-to-wall relationship around the figure',
+          issue: 'the main light scaffold already reads clearly',
+          intendedChange: 'preserve the existing light mass and avoid unnecessary revision',
+          expectedOutcome: 'the value structure stays intact',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Light-dark grouping', score: 0.74, level: 'Advanced' },
+          { label: 'Range control', score: 0.7, level: 'Advanced' },
         ],
       },
       {
         criterion: 'Color relationships',
-        level: 'Intermediate',
-        feedback: 'Color stays broad but not yet very controlled.',
-        actionPlan: '1. Harmonize the colors.',
-        evidenceSignals: [
-          'Green and earth tones dominate the foreground.',
-          'Cooler blue-grey sits in the distance.',
+        level: 'Advanced',
+        feedback: 'Muted drawing values remain disciplined in one family. The slight warmth of the floor against the cooler wall is enough to separate zones without forcing color. That restraint is working.',
+        actionPlan: '1. Keep the current value-led palette discipline in the floor and wall.',
+        confidence: 'medium',
+        evidenceSignals: ['The floor reads slightly warmer than the wall.', 'Most passages stay within a muted drawing palette.'],
+        preserve: 'Keep the restrained palette world.',
+        practiceExercise: 'Do a graphite temperature map using only value notation.',
+        nextTarget: 'Push color relationships toward Master.',
+        anchor: {
+          areaSummary: 'the floor-to-wall transition at lower left',
+          evidencePointer: 'the slight warmth shift separates the room planes without breaking the drawing medium',
+          region: { x: 0.0, y: 0.55, width: 0.35, height: 0.33 },
+        },
+        editPlan: {
+          targetArea: 'the floor-to-wall transition at lower left',
+          preserveArea: 'the muted palette world across the room',
+          issue: 'the current value-led separation is already convincing',
+          intendedChange: 'preserve the present warmth shift rather than adding color',
+          expectedOutcome: 'the room planes stay distinct without forcing hue',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Palette harmony', score: 0.68, level: 'Advanced' },
+          { label: 'Temperature control', score: 0.66, level: 'Advanced' },
         ],
       },
       {
         criterion: 'Drawing, proportion, and spatial form',
-        level: 'Intermediate',
-        feedback: 'The path and tree masses are readable but broad.',
-        actionPlan: '1. Refine the drawing.',
-        evidenceSignals: [
-          'The path narrows as it moves back.',
-          'The trees form one large mass on the horizon.',
+        level: 'Advanced',
+        feedback: 'The seated figure\'s tilt and the table legs hold together believably. The chair bars crossing the body are intentionally awkward but still spatially coherent. This criterion is strong.',
+        actionPlan: '1. Keep the current spatial drawing in the seated figure and table legs.',
+        confidence: 'medium',
+        evidenceSignals: ['The seated figure tilts back convincingly.', 'The table legs sit on the floor plane with readable angle shifts.'],
+        preserve: 'Preserve the figure tilt and the table-leg spacing.',
+        practiceExercise: 'Quick line studies of figure plus foreground obstruction.',
+        nextTarget: 'Push drawing, proportion, and spatial form toward Master.',
+        anchor: {
+          areaSummary: 'the seated figure and side table',
+          evidencePointer: 'their tilt and spacing establish a believable room structure',
+          region: { x: 0.36, y: 0.16, width: 0.47, height: 0.55 },
+        },
+        editPlan: {
+          targetArea: 'the seated figure and side table',
+          preserveArea: 'the current figure tilt and table-leg spacing',
+          issue: 'the spatial drawing already reads convincingly',
+          intendedChange: 'preserve the present drawing relationships',
+          expectedOutcome: 'the room structure remains coherent',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Shape placement', score: 0.73, level: 'Advanced' },
+          { label: 'Spatial construction', score: 0.71, level: 'Advanced' },
         ],
       },
       {
         criterion: 'Edge and focus control',
         level: 'Intermediate',
-        feedback: 'The focal path edge is not yet distinct enough.',
-        actionPlan: '1. Sharpen where needed.',
-        evidenceSignals: [
-          'Most edges are equally soft.',
-          'The path edge does not stand out from the neighboring grass.',
+        feedback:
+          'In the foreground chair back, the interior verticals stay almost as insistent as the face. The seated head and shirt should win the first read, but the chair interrupts that hierarchy. The problem is specific and local rather than global.',
+        actionPlan:
+          '1. In the foreground chair back, soften the interior verticals so they stop competing with the face. 2. Keep the outer chair silhouette crisp enough to retain the obstruction. 3. Leave the head-and-shirt edge contrast intact so the figure keeps priority.',
+        confidence: 'high',
+        evidenceSignals: ['The chair bars cross in front of the figure.', 'The head and shirt are the intended focal passage.'],
+        preserve: 'Preserve the outer chair silhouette and the head-to-shirt contrast.',
+        practiceExercise: 'Do a hard/soft edge chart from the chair against the figure.',
+        nextTarget: 'Push edge and focus control toward Advanced.',
+        anchor: {
+          areaSummary: 'the foreground chair back',
+          evidencePointer: 'its interior verticals compete with the face instead of supporting it',
+          region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
+        },
+        editPlan: {
+          targetArea: 'the foreground chair back',
+          preserveArea: 'the outer chair silhouette and the head-to-shirt contrast',
+          issue: 'the interior chair bars pull too strongly relative to the face',
+          intendedChange: 'soften the interior chair bars while preserving the silhouette',
+          expectedOutcome: 'the face regains the first read',
+          editability: 'yes',
+        },
+        subskills: [
+          { label: 'Edge hierarchy', score: 0.51, level: 'Intermediate' },
+          { label: 'Focus placement', score: 0.55, level: 'Intermediate' },
         ],
       },
       {
         criterion: 'Surface and medium handling',
-        level: 'Intermediate',
-        feedback: 'Handling is broad and still tentative.',
-        actionPlan: '1. Improve handling.',
-        evidenceSignals: [
-          'Foreground marks repeat with similar size and pressure.',
-          'The distant paint surface is quieter.',
+        level: 'Advanced',
+        feedback: 'The drawing strokes stay economical and directional. The chair, wall, and floor all use distinct mark families without fuss. The surface handling is already disciplined.',
+        actionPlan: '1. Keep the current mark economy in the wall, floor, and chair.',
+        confidence: 'medium',
+        evidenceSignals: ['The wall is built with broad, even hatching.', 'The floor uses directional strokes distinct from the wall.'],
+        preserve: 'Preserve the distinct mark families between wall and floor.',
+        practiceExercise: 'One-page mark-family study from the room.',
+        nextTarget: 'Push surface and medium handling toward Master.',
+        anchor: {
+          areaSummary: 'the wall and floor hatching',
+          evidencePointer: 'their distinct mark families keep the room organized without overworking the drawing',
+          region: { x: 0.0, y: 0.0, width: 1.0, height: 1.0 },
+        },
+        editPlan: {
+          targetArea: 'the wall and floor hatching',
+          preserveArea: 'the directional differences between wall and floor marks',
+          issue: 'the surface handling already supports the room clearly',
+          intendedChange: 'preserve the current mark economy',
+          expectedOutcome: 'the drawing keeps its controlled surface rhythm',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Mark economy', score: 0.72, level: 'Advanced' },
+          { label: 'Surface character', score: 0.69, level: 'Advanced' },
         ],
       },
       {
         criterion: 'Intent and necessity',
-        level: 'Intermediate',
-        feedback: 'The calm mood is there, but some decisions stay broad.',
-        actionPlan: '1. Push the idea further.',
-        evidenceSignals: [
-          'The path sets the main direction of the scene.',
-          'The softer horizon keeps the mood calm.',
+        level: 'Advanced',
+        feedback: 'The figure, chair obstruction, and side table all belong to one observed interior problem. The awkwardness feels chosen rather than accidental. Most decisions answer to the same quiet, compressed world.',
+        actionPlan: '1. Keep the present tension between the chair obstruction and the seated figure; it belongs to the painting\'s logic.',
+        confidence: 'medium',
+        evidenceSignals: ['The chair obstruction and figure belong to the same pictorial problem.', 'The room stays quiet and compressed throughout.'],
+        preserve: 'Preserve the quiet compression of the room and the obstructed figure setup.',
+        practiceExercise: 'Thumbnail studies of obstruction as intent.',
+        nextTarget: 'Push intent and necessity toward Master.',
+        anchor: {
+          areaSummary: 'the blocked view of the seated figure through the chair',
+          evidencePointer: 'the obstruction feels intentional and belongs to the picture\'s quiet interior logic',
+          region: { x: 0.18, y: 0.2, width: 0.5, height: 0.5 },
+        },
+        editPlan: {
+          targetArea: 'the blocked view of the seated figure through the chair',
+          preserveArea: 'the quiet compression of the room',
+          issue: 'the obstruction already feels necessary to the image logic',
+          intendedChange: 'preserve the current obstruction logic',
+          expectedOutcome: 'the picture keeps its necessary internal tension',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Coherence of aim', score: 0.72, level: 'Advanced' },
+          { label: 'Support from formal choices', score: 0.7, level: 'Advanced' },
         ],
       },
       {
         criterion: 'Presence, point of view, and human force',
-        level: 'Intermediate',
-        feedback: 'The viewpoint is stable but not yet especially forceful.',
-        actionPlan: '1. Make it more memorable.',
-        evidenceSignals: [
-          'The view is eye-level and calm.',
-          'No single passage yet holds the eye strongly.',
+        level: 'Advanced',
+        feedback: 'The seated figure has a quiet inwardness, and the room feels inhabited rather than staged. The specific viewpoint from behind the chair contributes to that pressure. The painting has real presence.',
+        actionPlan: '1. Keep the current inward pressure around the seated figure and the obstructed viewpoint.',
+        confidence: 'medium',
+        evidenceSignals: ['The seated figure reads as inward and absorbed.', 'The viewpoint from behind the chair feels deliberate.'],
+        preserve: 'Preserve the figure\'s inwardness and the obstructed viewpoint.',
+        practiceExercise: 'Short studies of viewpoint and mood through obstruction.',
+        nextTarget: 'Push presence, point of view, and human force toward Master.',
+        anchor: {
+          areaSummary: 'the seated figure\'s head and upper torso',
+          evidencePointer: 'their inward tilt carries the painting\'s quiet human pressure',
+          region: { x: 0.46, y: 0.12, width: 0.22, height: 0.3 },
+        },
+        editPlan: {
+          targetArea: 'the seated figure\'s head and upper torso',
+          preserveArea: 'the inward tilt and obstructed viewpoint',
+          issue: 'the human pressure is already convincing',
+          intendedChange: 'preserve the current inward pressure',
+          expectedOutcome: 'the picture keeps its authored presence',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Atmospheric force', score: 0.71, level: 'Advanced' },
+          { label: 'Point of view', score: 0.73, level: 'Advanced' },
         ],
       },
     ],
+    overallSummary: {
+      analysis: 'Using the Drawing lens, the seated figure, foreground chair back, and bright left window already form a persuasive interior structure. The main remaining issue is local: the interior chair bars compete with the face more than they should.',
+      topPriorities: ['Soften the interior bars of the foreground chair back so the face keeps priority.'],
+    },
     overallConfidence: 'high',
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
     analysisSource: 'api',
   });
 
-  assert.ok(actionPlanGuarded.categories[0]!.actionPlan.includes('Maintain the current balance'));
-  assert.ok(actionPlanGuarded.categories[0]!.actionPlan.includes('Continue exploring'));
-  assert.ok(actionPlanGuarded.categories[1]!.actionPlan.includes('Improve the value structure'));
+  assert.equal(critiqueNeedsFreshEvidenceRead(base), false);
+  assert.equal(applyCritiqueGuardrails(base), base);
 
-  const vagueNextStepsGuarded = applyCritiqueGuardrails({
-    summary: 'Landscape study: a dirt path cuts past oak trees into a pale evening sky.',
-    simpleFeedback: migrateLegacySimpleFeedback({
-      intent: 'Evening light on a path that bends past oak trunks toward a cool sky.',
-      working: ['The path reads as a clear entry.', 'The oak mass anchors the right side.'],
-      mainIssue: 'The path edge and grass still merge too much.',
-      nextSteps: [
-        'In the area that reads weakest against your evidence, simplify one busy passage and separate its main shape from the neighbor with a clearer value or edge decision.',
-        'Along one important contour you already rely on, sharpen or lose a short span of edge so depth and focus read more deliberately.',
-        'Where two color families meet in the painting, adjust temperature or chroma in a narrow band so the transition supports the space instead of flattening it.',
-      ],
-      preserve: 'Keep the path rhythm and the oak silhouette.',
-    }),
-    categories: [
-      {
-        criterion: 'Intent and necessity',
-        level: 'Intermediate',
-        feedback: 'The path story is clear but some passages still compete.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['The path leads the eye inward.', 'Sky and trees share similar value bands.'],
-      },
-      {
-        criterion: 'Composition and shape structure',
-        level: 'Intermediate',
-        feedback: 'The path works but peripheral shapes compete.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['The path narrows convincingly into depth.', 'Grass texture repeats at the path edge.'],
-      },
-      {
-        criterion: 'Value and light structure',
-        level: 'Intermediate',
-        feedback: 'Evening compression is nice but edges need separation.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['Evening light flattens some foreground planes.', 'Oak trunks read darker than the path.'],
-      },
-      {
-        criterion: 'Color relationships',
-        level: 'Intermediate',
-        feedback: 'Warm path vs cool sky is promising.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['Warm ochres sit in the path.', 'Cool violets appear in the distant sky.'],
-      },
-      {
-        criterion: 'Drawing, proportion, and spatial form',
-        level: 'Intermediate',
-        feedback: 'Big shapes read; small overlaps wobble.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['Tree trunks tilt consistently.', 'Path width varies believably.'],
-      },
-      {
-        criterion: 'Edge and focus control',
-        level: 'Intermediate',
-        feedback: 'Path edge needs hierarchy.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['Grass strokes match the path edge sharpness.', 'Sky meets treetops softly.'],
-      },
-      {
-        criterion: 'Surface and medium handling',
-        level: 'Intermediate',
-        feedback: 'Marks are lively but repetitive near the path.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['Scumbled grass repeats similar length strokes.', 'Sky wash is smoother than foreground.'],
-      },
-      {
-        criterion: 'Presence, point of view, and human force',
-        level: 'Intermediate',
-        feedback: 'Calm evening mood comes through.',
-        actionPlan: '1. Keep going.',
-        evidenceSignals: ['Low light mood is consistent.', 'No single human focal point.'],
-      },
-    ],
-    overallConfidence: 'high',
-    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    analysisSource: 'api',
-  });
+  const vague = {
+    ...base,
+    categories: base.categories.map((category) =>
+      category.criterion === 'Edge and focus control'
+        ? {
+            ...category,
+            feedback: 'The focus could be stronger in places.',
+            actionPlan: '1. Improve the focus where needed.',
+          }
+        : category
+    ),
+  };
 
-  const joinedNext =
-    vagueNextStepsGuarded.simpleFeedback?.studioChanges.map((c) => c.text).join(' ') ?? '';
-  assert.doesNotMatch(joinedNext, /starting from what is already visible \(|\bin the passage your notes describe\b/i);
-  assert.match(joinedNext, /path|oak|sky|grass|tree|evening|foreground|treetops|weakest against your evidence|two color families|one important contour/i);
+  assert.equal(critiqueNeedsFreshEvidenceRead(vague), true);
 }
 
 async function main(): Promise<void> {

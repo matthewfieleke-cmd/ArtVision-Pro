@@ -853,7 +853,9 @@ function buildLocalStudioRead(
     Master: 3,
   };
   const sortedByWeakness = [...categories].sort((a, b) => {
-    const lr = LEVEL_RANK[a.level] - LEVEL_RANK[b.level];
+    const aLevel = a.level ?? 'Beginner';
+    const bLevel = b.level ?? 'Beginner';
+    const lr = LEVEL_RANK[aLevel] - LEVEL_RANK[bLevel];
     if (lr !== 0) return lr;
     const sr = scores[a.criterion].score - scores[b.criterion].score;
     if (sr !== 0) return sr;
@@ -866,7 +868,7 @@ function buildLocalStudioRead(
   for (const cat of sortedByWeakness) {
     if (studioChanges.length >= 4) break;
     const sigs = cat.evidenceSignals ?? [];
-    const step = buildPaintingSpecificAction(cat.criterion, cat.level, medium, metrics, sigs);
+    const step = buildPaintingSpecificAction(cat.criterion, cat.level ?? 'Beginner', medium, metrics, sigs);
     const key = `${cat.criterion}:${step}`;
     if (used.has(key)) continue;
     used.add(key);
@@ -961,7 +963,7 @@ export async function analyzePainting(
       medium,
       titlePrefix,
       strongest,
-      strongestCategoryCard.level,
+      strongestCategoryCard.level ?? 'Beginner',
       mainIssue,
       mainIssueCategory,
       m,

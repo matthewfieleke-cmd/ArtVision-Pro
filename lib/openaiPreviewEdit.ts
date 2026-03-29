@@ -310,58 +310,36 @@ function buildEditPrompt(body: PreviewEditRequestBody): string {
     .slice(0, 4)
     .map((signal: string) => `- ${signal}`)
     .join('\n');
-  const combined = target.combinedVoiceBChanges?.trim();
-  if (combined) {
-    return `You are a master painter doing ONE coordinated revision pass on the artist's OWN work for teaching purposes.
-
-Context: ${style}, medium ${medium}.
-
-The mentor listed ALL of the following studio changes for this single painting. Implement every item below in this one image pass—integrate them so they work together (not as unrelated patches). Prioritize the relationships each line names; if two lines touch the same area, merge the adjustment.
-
-All suggested changes (Voice B):
-${combined}
-
-Master-level signals to honor in ${style} (use as overall quality bar; ${target.criterion} is the routing focus):
-${masterSignals || '- Use the strongest available style-consistent master signals.'}
-
-Rules — quality and fidelity:
-- Preserve identity: same subject, pose, composition, crop, and viewing angle. Do not invent new objects, figures, or a new scene.
-- Preserve the hand of the artist: match existing brush scale, stroke direction, and surface texture (${medium}).
-- Edge-to-edge: fill the full frame; no inset, no frame-within-frame, no added borders or captions.
-- Lighting: keep the same light direction and color of light unless a listed change explicitly requires otherwise.
-- Photo artifacts: reduce mild glare or color cast only if needed so the revision reads clearly.
-
-Output: one photorealistic image after applying ALL listed changes together—museum documentation quality, faithful geometry, revised passages integrated with untouched paint.`;
-  }
-
+  const anchorBlock = target.anchor
+    ? `Anchored passage to revise:
+- Area: ${target.anchor.areaSummary}
+- Why it matters here: ${target.anchor.evidencePointer}
+- Region (normalized image coords): x=${target.anchor.region.x}, y=${target.anchor.region.y}, width=${target.anchor.region.width}, height=${target.anchor.region.height}`
+    : 'Anchored passage to revise: infer from the critique text only.';
+  const planBlock = target.editPlan
+    ? `Machine-readable edit plan:
+- targetArea: ${target.editPlan.targetArea}
+- preserveArea: ${target.editPlan.preserveArea}
+- issue: ${target.editPlan.issue}
+- intendedChange: ${target.editPlan.intendedChange}
+- expectedOutcome: ${target.editPlan.expectedOutcome}`
+    : 'Machine-readable edit plan: infer the exact edit from the critique text only.';
   const changeBlock =
-    target.studioChangeRecommendation?.trim() ??
-    `${target.feedback}\n\n${target.actionPlan}`;
-  const chainIdx = target.chainPassIndex;
-  const chainTotal = target.chainPassTotal;
-  const completed = target.completedChainInstructions?.trim();
-  const chainContext =
-    chainIdx != null &&
-    chainTotal != null &&
-    chainTotal > 1 &&
-    chainIdx >= 1 &&
-    chainIdx <= chainTotal
-      ? `\n\nSequential studio pass: this is step ${chainIdx} of ${chainTotal} in a chained “apply all Voice B changes” run. The input image already reflects earlier steps—preserve those improvements; do not undo them. Only add the new change below (and minor integration tweaks in the same passages if needed).\n${
-          completed
-            ? `Already applied in earlier steps (leave as-is unless this step explicitly revises the same area):\n${completed}\n`
-            : ''
-        }`
-      : '';
+    target.studioChangeRecommendation?.trim() ?? `${target.feedback}\n\n${target.actionPlan}`;
   return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
 Context: ${style}, medium ${medium}.
-${chainContext}
-Focus ONLY on: "${target.criterion}" (rated ${target.level}).
+
+Focus ONLY on: "${target.criterion}"${target.level ? ` (rated ${target.level})` : ''}.
 
 What to address — specific change to implement on this canvas (from the artist's critique):
 ${changeBlock}
 
-Show this improvement via paint (not caption). If multiple sentences appear, treat them as one coordinated adjustment in the passages they name.
+${anchorBlock}
+
+${planBlock}
+
+Show this improvement via paint (not caption). Treat the anchor and edit plan as the authoritative target; use the prose only to clarify nuance.
 
 Master-level signals to honor for this exact criterion in ${style}:
 ${masterSignals || '- Use the strongest available style-consistent master signals for this criterion.'}
@@ -370,7 +348,8 @@ Rules — quality and fidelity:
 - Preserve identity: same subject, pose, composition, crop, and viewing angle. Do not invent new objects, figures, or a new scene.
 - Preserve the hand of the artist: match existing brush scale, stroke direction, and surface texture (${medium}); edits should look like the same person repainted that passage with more skill, not a different artist or a digital repaint.
 - Improvement should feel like a master critique pass inside the artist's existing voice, not a style transfer into another painter's finished work.
-- Apply the change mainly where the critique implies (edges, values, color temperature, drawing, etc.)—subtle elsewhere.
+- Apply the change mainly inside the anchored passage. Outside it, only make minimal integration adjustments.
+- Preserve the nearby success named in preserveArea.
 - Edge-to-edge: fill the full frame; no inset, no frame-within-frame, no added borders or captions.
 - Lighting: keep the same light direction and color of light unless the critique explicitly calls for adjusting light logic for "${target.criterion}".
 - Photo artifacts: reduce mild glare or color cast only if needed so the revision reads clearly; do not turn the image into a different photograph.
@@ -389,6 +368,9 @@ export async function runOpenAIPreviewEdit(
   apiKey: string,
   body: PreviewEditRequestBody
 ): Promise<PreviewEditResponseBody> {
+  if (body.target.editPlan?.editability === 'no') {
+    throw new Error('This criterion is not available for AI edit on this painting.');
+  }
   const model = process.env.OPENAI_IMAGE_EDIT_MODEL ?? 'gpt-image-1';
   const { mime: inputMime, buffer: inputBuffer } = parseDataUrl(body.imageDataUrl.trim());
   const { width: origW, height: origH } = await getImageDimensions(inputBuffer);

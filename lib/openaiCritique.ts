@@ -1,4 +1,4 @@
-import { applyCritiqueGuardrails } from './critiqueAudit.js';
+import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
 import { CRITIQUE_EVIDENCE_JSON_SCHEMA } from './critiqueSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
@@ -115,17 +115,16 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  const evidence = await runCritiqueEvidenceStage(apiKey, {
+  let evidence = await runCritiqueEvidenceStage(apiKey, {
     model,
     style: body.style,
     medium: body.medium,
     userContent,
   });
 
-  const parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
-
-  const base = validateCritiqueResult(parsed);
-  const withCompletion = {
+  let parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
+  let base = validateCritiqueResult(parsed);
+  let withCompletion = {
     ...base,
     completionRead: {
       state: evidence.completionRead.state,
@@ -134,6 +133,27 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       rationale: evidence.completionRead.rationale,
     },
   };
+
+  if (critiqueNeedsFreshEvidenceRead(withCompletion)) {
+    evidence = await runCritiqueEvidenceStage(apiKey, {
+      model,
+      style: body.style,
+      medium: body.medium,
+      userContent,
+    });
+    parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
+    base = validateCritiqueResult(parsed);
+    withCompletion = {
+      ...base,
+      completionRead: {
+        state: evidence.completionRead.state,
+        confidence: evidence.completionRead.confidence,
+        cues: evidence.completionRead.cues,
+        rationale: evidence.completionRead.rationale,
+      },
+    };
+  }
+
   const validated = applyCritiqueGuardrails(withCompletion);
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';

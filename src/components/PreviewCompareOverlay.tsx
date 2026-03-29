@@ -5,8 +5,9 @@ type Props = {
   originalSrc: string;
   revisedSrc: string;
   target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
+    anchor?: CritiqueCategory['anchor'];
+    editPlan?: CritiqueCategory['editPlan'];
     studioChangeRecommendation?: string;
-    combinedVoiceBChanges?: string;
   };
   onClose: () => void;
 };

@@ -83,15 +83,9 @@ type PendingCrop = {
 
 type PreviewEditTargetPayload = Pick<
   CritiqueCategory,
-  'criterion' | 'level' | 'feedback' | 'actionPlan'
+  'criterion' | 'level' | 'feedback' | 'actionPlan' | 'anchor' | 'editPlan'
 > & {
   studioChangeRecommendation?: string;
-  combinedVoiceBChanges?: string;
-  /** Sequential “perform all” pass (1-based), for API prompt context. */
-  chainPassIndex?: number;
-  chainPassTotal?: number;
-  /** Voice B lines already applied in earlier chain steps (plain text). */
-  completedChainInstructions?: string;
 };
 
 function newId(): string {
@@ -100,7 +94,9 @@ function newId(): string {
 
 function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
   const rank = (l: (typeof RATING_LEVELS)[number]) => RATING_LEVELS.indexOf(l);
-  return categories.reduce((a, b) => (rank(a.level) <= rank(b.level) ? a : b));
+  const safeRank = (category: CritiqueCategory) =>
+    category.level ? rank(category.level) : Number.POSITIVE_INFINITY;
+  return categories.reduce((a, b) => (safeRank(a) <= safeRank(b) ? a : b));
 }
 
 /** When saving after preview, merge into the last version instead of appending a duplicate. */
@@ -139,20 +135,13 @@ function previewDisplayTarget(
   if (active) {
     const cat =
       catList.find((c) => c.criterion === active.criterion) ?? priorityCritiqueCategory(catList);
-    if (active.mode === 'combined') {
-      return {
-        criterion: active.criterion,
-        level: cat.level,
-        feedback: cat.feedback,
-        actionPlan: cat.actionPlan,
-        combinedVoiceBChanges: active.studioChangeRecommendation,
-      };
-    }
     return {
       criterion: active.criterion,
       level: cat.level,
       feedback: cat.feedback,
       actionPlan: cat.actionPlan,
+      anchor: cat.anchor,
+      editPlan: cat.editPlan,
       studioChangeRecommendation: active.studioChangeRecommendation,
     };
   }
@@ -166,6 +155,8 @@ function previewDisplayTarget(
       level: cat.level,
       feedback: cat.feedback,
       actionPlan: cat.actionPlan,
+      anchor: cat.anchor,
+      editPlan: cat.editPlan,
       studioChangeRecommendation: ch.text,
     };
   }
@@ -175,6 +166,8 @@ function previewDisplayTarget(
     level: p.level,
     feedback: p.feedback,
     actionPlan: p.actionPlan,
+    anchor: p.anchor,
+    editPlan: p.editPlan,
   };
 }
 
@@ -195,11 +188,7 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   /** Which generate action is in flight so only that button shows a spinner. */
-  const [previewLoadingTarget, setPreviewLoadingTarget] = useState<
-    null | { kind: 'combined' } | { kind: 'single'; changeIndex: number }
-  >(null);
-  /** During “Perform all suggested changes”, which sequential edit is running (1-based). */
-  const [previewAllProgress, setPreviewAllProgress] = useState<{ current: number; total: number } | null>(
+  const [previewLoadingTarget, setPreviewLoadingTarget] = useState<null | { kind: 'single'; changeIndex: number }>(
     null
   );
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -299,7 +288,6 @@ export default function App() {
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewLoadingTarget(null);
-    setPreviewAllProgress(null);
   }, [stopCamera, cancelAnalysisKeepAlive]);
 
   const goHome = useCallback(() => {
@@ -317,7 +305,6 @@ export default function App() {
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewLoadingTarget(null);
-    setPreviewAllProgress(null);
     setTab('home');
   }, [stopCamera, cancelAnalysisKeepAlive]);
 
@@ -331,7 +318,6 @@ export default function App() {
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewLoadingTarget(null);
-    setPreviewAllProgress(null);
     setFlow(createNewFlow());
   }, [cancelAnalysisKeepAlive]);
 
@@ -345,7 +331,6 @@ export default function App() {
     setPreviewCompareOpen(false);
     setPreviewCompareSeen(false);
     setPreviewLoadingTarget(null);
-    setPreviewAllProgress(null);
     stopCamera();
     setFlow(createResubmitFlow(p));
     setTab('studio');
@@ -852,128 +837,75 @@ export default function App() {
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
 
-  const runPreviewEdit = useCallback(async (mode: 'single' | 'combined', singleChangeIndex?: number) => {
+  const runPreviewEdit = useCallback(async (singleChangeIndex?: number) => {
     const currentFlow = flowRef.current;
     if (!currentFlow || currentFlow.step !== 'results') return;
     const catList = currentFlow.critique.categories;
     if (catList.length === 0) return;
     const changes = currentFlow.critique.simple?.studioChanges;
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
-    if (mode === 'combined' && !changes?.length) return;
     if (!shouldTryApiFirst()) {
       setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
       return;
     }
-    const singleIdx =
-      mode === 'single' && changes?.length
-        ? Math.min(Math.max(0, singleChangeIndex ?? 0), changes.length - 1)
-        : 0;
+    const singleIdx = changes?.length
+      ? Math.min(Math.max(0, singleChangeIndex ?? 0), changes.length - 1)
+      : 0;
     setPreviewError(null);
-    setPreviewLoadingTarget(
-      mode === 'combined' ? { kind: 'combined' } : { kind: 'single', changeIndex: singleIdx }
-    );
+    setPreviewLoadingTarget({ kind: 'single', changeIndex: singleIdx });
     setPreviewLoading(true);
-    setPreviewAllProgress(null);
     try {
-      let entry: SavedPreviewEdit;
-
-      if (mode === 'combined') {
-        const studioChanges = changes!;
-        const p = priorityCritiqueCategory(catList);
-        const numbered = studioChanges
-          .map((ch, i) => `${i + 1}. [${ch.previewCriterion}] ${ch.text}`)
-          .join('\n');
-        let working = previewSource;
-        for (let i = 0; i < studioChanges.length; i++) {
-          setPreviewAllProgress({ current: i + 1, total: studioChanges.length });
-          const ch = studioChanges[i]!;
-          const cat =
-            catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-          const completedChainInstructions =
-            i > 0
-              ? studioChanges
-                  .slice(0, i)
-                  .map((prev, j) => `${j + 1}. [${prev.previewCriterion}] ${prev.text}`)
-                  .join('\n')
-              : undefined;
-          const stepTarget: PreviewEditTargetPayload = {
-            criterion: ch.previewCriterion,
-            level: cat.level,
-            feedback: cat.feedback,
-            actionPlan: cat.actionPlan,
-            studioChangeRecommendation: ch.text,
-            chainPassIndex: i + 1,
-            chainPassTotal: studioChanges.length,
-            ...(completedChainInstructions ? { completedChainInstructions } : {}),
-          };
-          const { imageDataUrl: nextUrl } = await fetchPreviewEdit({
-            imageDataUrl: working,
-            style: currentFlow.style,
-            medium: currentFlow.medium,
-            target: stepTarget,
-            requestId: `${newId()}-chain-${i + 1}-of-${studioChanges.length}`,
-          });
-          working = nextUrl;
-        }
-        entry = {
-          id: newId(),
-          imageDataUrl: working,
-          criterion: p.criterion,
-          mode: 'combined',
-          studioChangeRecommendation: numbered,
+      let target: PreviewEditTargetPayload;
+      if (changes && changes.length > 0) {
+        const idx = singleIdx;
+        const ch = changes[idx]!;
+        const cat =
+          catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
+        target = {
+          criterion: ch.previewCriterion,
+          level: cat.level,
+          feedback: cat.feedback,
+          actionPlan: cat.actionPlan,
+          anchor: cat.anchor,
+          editPlan: cat.editPlan,
+          studioChangeRecommendation: ch.text,
         };
       } else {
-        let target: PreviewEditTargetPayload;
-        if (changes && changes.length > 0) {
-          const idx = singleIdx;
-          const ch = changes[idx]!;
-          const cat =
-            catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-          target = {
-            criterion: ch.previewCriterion,
-            level: cat.level,
-            feedback: cat.feedback,
-            actionPlan: cat.actionPlan,
-            studioChangeRecommendation: ch.text,
-          };
-        } else {
-          const p = priorityCritiqueCategory(catList);
-          target = {
-            criterion: p.criterion,
-            level: p.level,
-            feedback: p.feedback,
-            actionPlan: p.actionPlan,
-          };
-        }
-        const { imageDataUrl } = await fetchPreviewEdit({
-          imageDataUrl: previewSource,
-          style: currentFlow.style,
-          medium: currentFlow.medium,
-          target,
-        });
-        entry = {
-          id: newId(),
-          imageDataUrl,
-          criterion: target.criterion,
-          mode: 'single',
-          ...(target.studioChangeRecommendation
-            ? { studioChangeRecommendation: target.studioChangeRecommendation }
-            : {}),
+        const p = priorityCritiqueCategory(catList);
+        target = {
+          criterion: p.criterion,
+          level: p.level,
+          feedback: p.feedback,
+          actionPlan: p.actionPlan,
+          anchor: p.anchor,
+          editPlan: p.editPlan,
         };
       }
+      const { imageDataUrl } = await fetchPreviewEdit({
+        imageDataUrl: previewSource,
+        style: currentFlow.style,
+        medium: currentFlow.medium,
+        target,
+      });
+      const entry: SavedPreviewEdit = {
+        id: newId(),
+        imageDataUrl,
+        criterion: target.criterion,
+        mode: 'single',
+        ...(target.studioChangeRecommendation
+          ? { studioChangeRecommendation: target.studioChangeRecommendation }
+          : {}),
+      };
       setFlow((cur) => {
         if (!cur || cur.step !== 'results') return cur;
         const prev = cur.sessionPreviewEdits ?? [];
-        const withoutDup =
-          mode === 'combined'
-            ? prev.filter((e) => e.mode !== 'combined')
-            : prev.filter(
-                (e) =>
-                  !(
-                    e.mode === 'single' &&
-                    e.studioChangeRecommendation === entry.studioChangeRecommendation
-                  )
-              );
+        const withoutDup = prev.filter(
+          (e) =>
+            !(
+              e.mode === 'single' &&
+              e.studioChangeRecommendation === entry.studioChangeRecommendation
+            )
+        );
         const next = { ...cur, sessionPreviewEdits: [...withoutDup, entry] };
         queueMicrotask(() => {
           if (isCritiqueFlow(next)) setReturnViewIntent({ kind: 'critique', flow: next });
@@ -988,7 +920,6 @@ export default function App() {
         e instanceof Error ? e.message : 'Preview failed. Please retry from the critique screen.'
       );
     } finally {
-      setPreviewAllProgress(null);
       setPreviewLoading(false);
       setPreviewLoadingTarget(null);
     }
@@ -1568,13 +1499,12 @@ export default function App() {
                 <div className="min-h-0 space-y-4">
                 <CritiquePanels
                   critique={flow.critique}
+                  paintingImageSrc={flow.imageDataUrl}
                   onLearnMore={rememberCritiqueReturn}
                   canGenerateAiEdits={shouldTryApiFirst()}
-                  onGenerateAiEditForChange={(idx) => void runPreviewEdit('single', idx)}
-                  onGenerateAiEditAll={() => void runPreviewEdit('combined')}
+                  onGenerateAiEditForChange={(idx) => void runPreviewEdit(idx)}
                   previewLoading={previewLoading}
                   previewLoadingTarget={previewLoadingTarget}
-                  previewAllProgress={previewAllProgress}
                   voiceBFooter={
                     flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 && previewTarget ? (
                       <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">

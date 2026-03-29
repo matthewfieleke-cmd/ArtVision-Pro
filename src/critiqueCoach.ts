@@ -85,16 +85,18 @@ export function deriveOverallConfidence(
 }
 
 function fallbackSimpleRead(categories: CritiqueCategory[]): CritiqueSimpleFeedback {
-  const sorted = [...categories].sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level));
+  const levelRank = (level?: RatingLevel): number =>
+    level ? LEVEL_ORDER.indexOf(level) : LEVEL_ORDER.indexOf('Intermediate');
+  const sorted = [...categories].sort((a, b) => levelRank(a.level) - levelRank(b.level));
   const mainIssue = sorted[0] ?? categories[0];
-  const strongest = [...categories].sort((a, b) => LEVEL_ORDER.indexOf(b.level) - LEVEL_ORDER.indexOf(a.level));
+  const strongest = [...categories].sort((a, b) => levelRank(b.level) - levelRank(a.level));
   const keep = strongest[0] ?? categories[0];
   const planPairs = sorted
     .map((cat) => ({ cat, plan: cat.actionPlan?.trim() }))
     .filter((x): x is { cat: CritiqueCategory; plan: string } => Boolean(x.plan && x.plan.length > 0))
     .slice(0, 5);
   const strengthCats = strongest
-    .filter((cat) => LEVEL_ORDER.indexOf(cat.level) >= LEVEL_ORDER.indexOf('Advanced'))
+    .filter((cat) => levelRank(cat.level) >= LEVEL_ORDER.indexOf('Advanced'))
     .slice(0, 2);
   const whatWorksParts: string[] = [];
   if (strengthCats.length) {
@@ -203,6 +205,7 @@ export function finalizeCritiqueResult(
     photoQuality?: PhotoQualityAssessment;
   }
 ): CritiqueResult {
+  const analysisSource = options?.analysisSource ?? critique.analysisSource;
   const categories = critique.categories.map((cat) => ({
     ...cat,
     criterion:
@@ -211,14 +214,21 @@ export function finalizeCritiqueResult(
         : cat.criterion,
     nextTarget:
       cat.nextTarget ??
-      defaultNextTarget(
-        typeof cat.criterion === 'string'
-          ? canonicalCriterionLabel(cat.criterion) ?? (cat.criterion as Criterion)
-          : cat.criterion,
-        cat.level
-      ),
+      (cat.level
+        ? defaultNextTarget(
+            typeof cat.criterion === 'string'
+              ? canonicalCriterionLabel(cat.criterion) ?? (cat.criterion as Criterion)
+              : cat.criterion,
+            cat.level
+          )
+        : undefined),
+    ...(analysisSource === 'local'
+      ? {
+          level: undefined,
+          subskills: undefined,
+        }
+      : {}),
   }));
-  const analysisSource = options?.analysisSource ?? critique.analysisSource;
   const photoQuality = options?.photoQuality ?? critique.photoQuality;
   const simple =
     (critique.simple ? migrateCritiqueSimpleFeedback(critique.simple) : undefined) ??

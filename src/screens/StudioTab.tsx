@@ -30,15 +30,8 @@ function blendTargetForSavedEdit(
   edit: SavedPreviewEdit
 ): ReturnType<typeof previewTargetForVersion> & {
   studioChangeRecommendation?: string;
-  combinedVoiceBChanges?: string;
 } {
   const base = previewTargetForVersion(critique, edit.criterion);
-  if (edit.mode === 'combined') {
-    return {
-      ...base,
-      combinedVoiceBChanges: edit.studioChangeRecommendation,
-    };
-  }
   return {
     ...base,
     studioChangeRecommendation: edit.studioChangeRecommendation,
@@ -229,7 +222,10 @@ export function StudioTab({
           </button>
         </div>
 
-        <CritiquePanels critique={versions[versions.length - 1]!.critique} />
+        <CritiquePanels
+          critique={versions[versions.length - 1]!.critique}
+          paintingImageSrc={versions[versions.length - 1]!.imageDataUrl}
+        />
         </div>
       </div>
     );

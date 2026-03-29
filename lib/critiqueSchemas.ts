@@ -102,6 +102,7 @@ export const CRITIQUE_JSON_SCHEMA = {
     additionalProperties: false,
     required: [
       'summary',
+      'overallSummary',
       'studioAnalysis',
       'studioChanges',
       'categories',
@@ -111,6 +112,28 @@ export const CRITIQUE_JSON_SCHEMA = {
     ],
     properties: {
       summary: { type: 'string' },
+      overallSummary: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['analysis', 'topPriorities'],
+        properties: {
+          analysis: {
+            type: 'string',
+            description:
+              `Voice A overall summary for THIS painting only. Mention style and medium lens explicitly. Ground it in visible passages from the painting, not generic praise.`,
+          },
+          topPriorities: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 2,
+            items: {
+              type: 'string',
+              description:
+                `Voice B top priority only for THIS painting. Start with one primary action and keep it tied to the same anchored visible passage used in the detailed categories.`,
+            },
+          },
+        },
+      },
       studioAnalysis: {
         type: 'object',
         additionalProperties: false,
@@ -176,6 +199,8 @@ export const CRITIQUE_JSON_SCHEMA = {
             'preserve',
             'practiceExercise',
             'nextTarget',
+            'anchor',
+            'editPlan',
             'subskills',
           ],
           properties: {
@@ -206,6 +231,75 @@ export const CRITIQUE_JSON_SCHEMA = {
             preserve: { type: 'string' },
             practiceExercise: { type: 'string' },
             nextTarget: { type: 'string' },
+            anchor: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['areaSummary', 'evidencePointer', 'region'],
+              properties: {
+                areaSummary: {
+                  type: 'string',
+                  description:
+                    'Short phrase naming the exact passage in THIS painting that Voice A and Voice B are both discussing. Reuse this same passage in feedback and actionPlan.',
+                },
+                evidencePointer: {
+                  type: 'string',
+                  description:
+                    'What about that area drives this criterion read in THIS painting. Must align with feedback, actionPlan, overlay, and edit plan.',
+                },
+                region: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['x', 'y', 'width', 'height'],
+                  properties: {
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                  },
+                },
+              },
+            },
+            editPlan: {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'targetArea',
+                'preserveArea',
+                'issue',
+                'intendedChange',
+                'expectedOutcome',
+                'editability',
+              ],
+              properties: {
+                targetArea: {
+                  type: 'string',
+                  description: 'Same passage as anchor.areaSummary.',
+                },
+                preserveArea: {
+                  type: 'string',
+                  description: 'What nearby success must remain untouched while editing.',
+                },
+                issue: {
+                  type: 'string',
+                  description: 'The specific problem or strength in that anchored passage.',
+                },
+                intendedChange: {
+                  type: 'string',
+                  description:
+                    'Exact change for the AI preview to make in that passage only. If level is Master, describe preservation rather than revision.',
+                },
+                expectedOutcome: {
+                  type: 'string',
+                  description: 'What the painting should read like after that change.',
+                },
+                editability: {
+                  type: 'string',
+                  enum: ['yes', 'no'],
+                  description:
+                    'Whether the edit model should attempt this criterion change. Master rows may still be no when there is nothing to change.',
+                },
+              },
+            },
             subskills: {
               type: 'array',
               minItems: 2,
@@ -231,6 +325,7 @@ export const CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
+- overallSummary: { analysis, topPriorities } — analysis is Voice A only; topPriorities = 1–2 Voice B priorities
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt); do not name critics. Two paragraphs; every claim anchored in THIS painting (named passages from evidence). Must align with the eight category levels.
 - studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: composite studio teacher (see system prompt); responds to Voice A + evidence; do not name teachers. Each text names where and how on THIS canvas; previewCriterion from CRITERIA_ORDER.
 - categories
@@ -247,5 +342,7 @@ For each criterion:
 - preserve
 - practiceExercise
 - nextTarget
+- anchor: { areaSummary, evidencePointer, region } — same exact passage used by feedback, actionPlan, overlay, and edit plan
+- editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability } — machine-readable and aligned to anchor
 - subskills`;
 }
