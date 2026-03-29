@@ -1,5 +1,5 @@
 import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
-import { VOICE_A_SCHEMA_REMINDER } from '../shared/critiqueVoiceA.js';
+import { VOICE_A_SCHEMA_REMINDER, VOICE_B_SCHEMA_REMINDER } from '../shared/critiqueVoiceA.js';
 
 export const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
   name: 'painting_critique_evidence',
@@ -140,7 +140,7 @@ export const CRITIQUE_JSON_SCHEMA = {
             text: {
               type: 'string',
               description:
-                'Voice B: one concrete change—where, what, how—for THIS painting only; no vague advice.',
+                `Voice B: one concrete change—where, what, how—for THIS painting only. ${VOICE_B_SCHEMA_REMINDER}`,
             },
             previewCriterion: { type: 'string', enum: [...CRITERIA_ORDER] },
           },
@@ -189,12 +189,12 @@ export const CRITIQUE_JSON_SCHEMA = {
             feedback: {
               type: 'string',
               description:
-                `Voice A: 3+ sentences—this criterion’s critical assessment for THIS painting, same stance as level; evidence-grounded. ${VOICE_A_SCHEMA_REMINDER}`,
+                `Voice A: 3+ sentences—this criterion’s critical assessment for THIS painting only; name visible zones, colors, edges, or motifs from evidence in at least two sentences. Same stance as level. ${VOICE_A_SCHEMA_REMINDER}`,
             },
             actionPlan: {
               type: 'string',
               description:
-                'Concrete how-to-improve guidance for THIS criterion in THIS painting only: 2–5 short numbered steps (1. … 2. …) or 2–4 tight paragraphs. Every step names visible passages from the evidence—no generic studio homework.',
+                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} If level is Master: praise what is exemplary (evidence-grounded), no faux homework. Else: numbered steps to move up one band (Beginner→Intermediate at least 3 steps; Intermediate→Advanced at least 3; Advanced→Master at least 2), each naming visible passages from evidence.`,
             },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
             evidenceSignals: {
@@ -231,8 +231,8 @@ export const CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
-- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt for expert blend); do not name critics in text. Two paragraphs, specific to THIS painting; use style, medium, completion read. Must align with the eight category levels.
-- studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: concrete studio instructions only; each text names where and how; previewCriterion is the single best-matching criterion from CRITERIA_ORDER for that change (used for preview image routing).
+- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt); do not name critics. Two paragraphs; every claim anchored in THIS painting (named passages from evidence). Must align with the eight category levels.
+- studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: composite studio teacher (see system prompt); responds to Voice A + evidence; do not name teachers. Each text names where and how on THIS canvas; previewCriterion from CRITERIA_ORDER.
 - categories
 - comparisonNote
 - overallConfidence
@@ -240,8 +240,8 @@ export function buildCritiqueSchemaInstruction(): string {
 
 For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent judgments from the evidence, not one grade repeated eight times.
-- feedback: Voice A for this criterion—3+ sentences grounded in visible evidence, consistent with that criterion’s level
-- actionPlan: 2–5 numbered steps OR 2–4 short paragraphs—all specific to THIS painting (name areas, edges, colors, shapes from evidence). No generic advice; enough detail that the artist knows what to do where
+- feedback: Voice A for this criterion—3+ sentences; name THIS image (zones, colors, edges, motifs from evidence); consistent with level
+- actionPlan: Voice B for this criterion. If Master: praise only (evidence-grounded). Else: numbered steps to move up one level—Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2—all naming visible passages from evidence on THIS painting
 - confidence
 - evidenceSignals
 - preserve
