@@ -1,4 +1,5 @@
 import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
+import { VOICE_A_SCHEMA_REMINDER } from '../shared/critiqueVoiceA.js';
 
 export const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
   name: 'painting_critique_evidence',
@@ -118,12 +119,12 @@ export const CRITIQUE_JSON_SCHEMA = {
           whatWorks: {
             type: 'string',
             description:
-              'Voice A paragraph: specific strengths in THIS painting. Part of Voice A’s critical judgment; must align with the eight per-criterion levels (no blanket praise that contradicts weak criteria).',
+              `Voice A paragraph: specific strengths in THIS painting. ${VOICE_A_SCHEMA_REMINDER} Must align with the eight per-criterion levels.`,
           },
           whatCouldImprove: {
             type: 'string',
             description:
-              'Voice A paragraph: specific tensions or gaps in THIS painting; calibrate for unfinished vs finished. Must align with the eight per-criterion levels.',
+              `Voice A paragraph: tensions or gaps in THIS painting; calibrate for unfinished vs finished. ${VOICE_A_SCHEMA_REMINDER} Must align with the eight per-criterion levels.`,
           },
         },
       },
@@ -183,12 +184,12 @@ export const CRITIQUE_JSON_SCHEMA = {
               type: 'string',
               enum: [...RATING_LEVELS],
               description:
-                'Voice A’s quality ranking for THIS criterion only (one of eight independent axes). Beginner = weak/naive here. Intermediate = clear intentional competence in this area. Advanced = strong, minor refinement left. Master = very rare, exceptional here. Derive from Voice A’s judgment of that criterion from the evidence; do not copy one overall grade into all eight.',
+                `Voice A’s quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER} Beginner = weak/naive here. Intermediate = clear intentional competence in this area. Advanced = strong, minor refinement left. Master = very rare, exceptional here. Do not copy one overall grade into all eight.`,
             },
             feedback: {
               type: 'string',
               description:
-                'Voice A: 3+ sentences—this criterion’s critical assessment for THIS painting, same stance as level; evidence-grounded.',
+                `Voice A: 3+ sentences—this criterion’s critical assessment for THIS painting, same stance as level; evidence-grounded. ${VOICE_A_SCHEMA_REMINDER}`,
             },
             actionPlan: {
               type: 'string',
@@ -230,7 +231,7 @@ export const CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
-- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: two labeled paragraphs, specific to THIS painting; use declared style, medium, and completion read (unfinished → structure/pacing; likely_finished → selective refinement). Name visible passages, colors, edges, motifs. Must align with the eight category levels.
+- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt for expert blend); do not name critics in text. Two paragraphs, specific to THIS painting; use style, medium, completion read. Must align with the eight category levels.
 - studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: concrete studio instructions only; each text names where and how; previewCriterion is the single best-matching criterion from CRITERIA_ORDER for that change (used for preview image routing).
 - categories
 - comparisonNote

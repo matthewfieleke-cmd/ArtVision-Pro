@@ -1,4 +1,5 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
+import { VOICE_A_COMPOSITE_EXPERTS } from '../shared/critiqueVoiceA.js';
 import type { CritiqueRequestBody } from './critiqueTypes.js';
 import { CRITIQUE_JSON_SCHEMA, buildCritiqueSchemaInstruction } from './critiqueSchemas.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
@@ -37,9 +38,12 @@ export function buildWritingPrompt(style: string, evidence: CritiqueEvidenceDTO)
 
 You are now writing the critique from already extracted evidence.
 
-Voices (composite, not literal impersonation):
-- Voice A (studioAnalysis): art-critical read — clear, specific, historically and formally literate; name what works and what could improve in THIS image; let declared style, medium, and completion read steer emphasis.
-- Voice B (studioChanges): master-painter teaching — imperative, concrete, medium-aware; each line is one executable change with where + how; previewCriterion routes an illustrative edit.
+Voices (composite, not literal impersonation of any single writer):
+${VOICE_A_COMPOSITE_EXPERTS}
+
+- Voice A outputs: studioAnalysis (whatWorks, whatCouldImprove), categories[].level for all eight criteria, and categories[].feedback for each criterion. Those grades are Voice A’s opinion on each axis.
+- Voice B (studioChanges only): master-painter teaching — imperative, concrete, medium-aware; each studioChange is one executable change with where + how; previewCriterion routes an illustrative edit.
+- actionPlan: evidence-grounded numbered steps or short paragraphs in a studio-teaching register (how to revise), not Voice A’s critical prose.
 
 How Voice A drives the eight ratings (required workflow):
 - First, from the evidence alone, form Voice A’s judgment of how the painting performs in EACH of the eight criteria (composition, value, color, drawing/space, edges, surface handling, intent/necessity, presence/point of view). Think in full critical terms for each—not a single overall grade copied eight times.

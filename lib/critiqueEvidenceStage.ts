@@ -1,4 +1,5 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
+import { EVIDENCE_STAGE_CLOSE_READING } from '../shared/critiqueVoiceA.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 
 function isStyleKey(s: string): s is StyleKey {
@@ -46,6 +47,8 @@ function buildEvidencePrompt(style: string, medium: string): string {
 
 Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
 
+${EVIDENCE_STAGE_CLOSE_READING}
+
 Rules:
 - Stay at the level of evidence, tensions, and what should be preserved.
 - Do not prescribe fixes.
@@ -53,6 +56,7 @@ Rules:
 - If a painting is already strong in a criterion, say so plainly.
 - If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
 - If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
+- completionRead: judge whether the work looks unfinished (open passages, raw substrate, uneven resolution, obvious block-in), likely_finished (consistent finish, resolved edges, presentation-ready read), or uncertain. Base this only on visible cues in the photo. Do not equate "unfinished" with "bad."
 - Be conservative with praise from a single photo: balanced composition, pleasant color, or competent finish alone are not proof of exceptional control.
 - If something reads strong but not exceptional, say it reads strong.
 - If the work is convincing overall, still look for the one or two relationships that remain least resolved instead of defaulting to perfection.

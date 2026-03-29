@@ -1,4 +1,5 @@
 import { applyCritiqueGuardrails } from './critiqueAudit.js';
+import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
 import { CRITIQUE_EVIDENCE_JSON_SCHEMA } from './critiqueSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 import { validateCritiqueResult, validateEvidenceResult } from './critiqueValidation.js';
@@ -38,25 +39,7 @@ async function runCritiqueEvidenceStage(
       messages: [
         {
           role: 'system',
-          content: `You are stage 1 of a painting critique system.
-
-Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
-
-Rules:
-- Stay at the level of evidence, tensions, and what should be preserved.
-- Do not prescribe fixes.
-- Do not invent weaknesses just because the painting could be different.
-- If a painting is already strong in a criterion, say so plainly.
-- If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
-- If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
-- completionRead: judge whether the work looks unfinished (open passages, raw canvas, uneven resolution, obvious block-in), likely_finished (consistent finish, resolved edges, presentation-ready read), or uncertain. Base this only on visible cues in the photo (substrate, staging, variation in resolution). Do not equate "unfinished" with "bad."
-- In visibleEvidence and tension language, name **what is actually in this image**: for representational work, motifs and objects; for abstract or non-objective work, name **mark, color, and geometry units** the viewer can find (e.g. diagonal cadmium band, scraped vertical, lower ultramarine field, grid rhythm)—never only "a shape" or "an area" with no pointer.
-
-Context:
-- Declared style: ${args.style}
-- Declared medium: ${args.medium}
-
-Return JSON only.`,
+          content: buildEvidenceStagePrompt(args.style, args.medium),
         },
         {
           role: 'user',
