@@ -184,7 +184,7 @@ export const CRITIQUE_JSON_SCHEMA = {
               type: 'string',
               enum: [...RATING_LEVELS],
               description:
-                `Voice A’s quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER} Naive/flat execution: mostly Beginner across criteria. Beginner = weak/naive here. Intermediate = clear craft in this area. Advanced = strong, minor refinement left. Master = very rare. Do not copy one overall grade into all eight.`,
+                `Voice A’s quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER} Beginner = weak in this axis on the evidence. Intermediate/Advanced = supported by documented craft there. Master = very rare. Do not copy one overall grade into all eight.`,
             },
             feedback: {
               type: 'string',

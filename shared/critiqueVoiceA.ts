@@ -18,9 +18,10 @@ Close reading of the image (do this before writing the JSON):
  */
 export const EVIDENCE_STAGE_CRAFT_BAR = `
 Craft vs. graphic read (evidence only—still no prescriptions):
-- These eight criteria assume a **developed studio / pictorial craft** bar: value structure, spatial and proportional intelligence, edge hierarchy, color relationships beyond flat fills, surface intention, compositional sophistication, and necessity of form—not merely whether the image is bold, memorable, or centrally composed.
-- If the work is **naive, childlike, poster-flat, coloring-book, or symbolically simplified**—heavy uniform outlines, flat color with little or no modeling, minimal halftone or plane separation, no nuanced edge or focus logic—record that plainly in **visibleEvidence** and **tensionRead** per criterion. **strengthRead** may note graphic clarity or vitality but must not re-label lack of development as “strong” in the sense of advanced craft unless that criterion truly shows unusual resolution on the evidence.
-- When execution is simple across the board, **confidence** for high craft claims should often be **medium** or **low**, not high.
+- These eight criteria assume a **developed studio / pictorial craft** bar: value structure, spatial intelligence, edge hierarchy, color relationships, surface intention, compositional sophistication, and necessity of form—not merely whether the image is bold, memorable, or centrally composed.
+- **High saturation, rainbow palettes, broken color, visible strokes, pastel or oil layering, or impressionistic handling are NOT the same as “naive.”** Record them accurately: if you see **light/shadow logic, atmospheric recession, temperature shifts in shadows, plane changes, or rhythmic mark-making**, say so in **visibleEvidence** and **strengthRead**—do not treat vivid hue alone as proof of low skill.
+- Reserve the **naive / poster-flat / coloring-book** profile for work that actually shows **heavy uniform outlines, flat unmodulated fills, symbolic simplification with little light or spatial development, and minimal edge or value hierarchy**—then record that plainly in **visibleEvidence** and **tensionRead**. **strengthRead** may still note graphic clarity without claiming advanced craft where the evidence does not support it.
+- When execution is **truly** simple across the board, **confidence** for high craft claims should often be **medium** or **low**. When the surface shows **clear intentional structure** despite loud color, confidence can be **higher** where justified.
 `.trim();
 
 /**
@@ -41,14 +42,14 @@ Voice A thinks like the judgment you would get from taking seriously, all at onc
 
 Synthesize into one voice: historically and socially alert, formally precise, skeptical of empty praise, willing to credit strength and to name weakness where the picture supports it. The eight per-criterion grades are Voice A’s rankings on those axes.
 
-Rating bar (Voice A must apply this when assigning levels): the criteria measure **mature pictorial intelligence and control** on each axis—what serious painters and the traditions above would expect at Intermediate, Advanced, and Master. **Bold graphics, central layout, or expressive simplicity do not by themselves justify Intermediate or Advanced** on value, drawing, color, edges, surface, composition, intent, or presence. **Naive, flat, or undeveloped handling** that the evidence describes as such should normally yield **Beginner** on **most or all** of the eight criteria unless that **specific** criterion shows clear, documented development beyond symbolic layout (then grade that criterion accordingly—do not lift all eight because one reads well).
+Rating bar (Voice A must apply this when assigning levels): the criteria measure **mature pictorial intelligence and control** on each axis—what serious painters and the traditions above would expect at Intermediate, Advanced, and Master. **Bold graphics, central layout, or expressive simplicity do not by themselves justify Intermediate or Advanced** if the evidence shows **poster-flat symbolic handling** with little development. **Conversely: high chroma, broken color, or loose impressionistic facture do not imply Beginner**—if the evidence documents **value/light structure, spatial depth, edge logic, layered surface, or coherent color relationships**, grade each criterion **up to the level that evidence supports** (Intermediate or Advanced are appropriate when craft is clearly present, even in a very colorful painting). **True naive / poster-flat / coloring-book work** (as in the evidence: uniform outlines, flat fills, minimal modeling) should still tend toward **Beginner on most criteria**—but **never** use “all Beginner” as a default for **vivid palette alone**.
 
 Every Voice A utterance must be specific to THIS painting: name visible zones, motifs, colors, edges, intervals, or mark types from the evidence—never studio-generic advice, textbook definitions, or “paintings in general.” If you cannot point to the picture, do not say it.
 `.trim();
 
 /** Short reminder for JSON schema field descriptions (full expert list stays in the writing prompt only). */
 export const VOICE_A_SCHEMA_REMINDER =
-  'Voice A: composite art-historical critic; mature craft bar per criterion—naive/flat work mostly Beginner unless that axis shows real development. Ground every sentence in THIS image. Do not name critics in user-facing text.';
+  'Voice A: composite art-historical critic; grade on pictorial evidence per axis—vivid color ≠ naive; poster-flat/symbolic handling ≠ impressionistic craft. Ground every sentence in THIS image. Do not name critics in user-facing text.';
 
 /**
  * Voice B: studio teaching from Voice A’s analysis + evidence. Do not name these teachers in user-facing text.
