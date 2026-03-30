@@ -236,8 +236,8 @@ export function finalizeCritiqueResult(
         : undefined),
     ...(analysisSource === 'local'
       ? {
+          /** Hide Beginner–Master in UI for heuristic pass; keep sub-skills for snapshot. */
           level: undefined,
-          subskills: undefined,
         }
       : {}),
   }));

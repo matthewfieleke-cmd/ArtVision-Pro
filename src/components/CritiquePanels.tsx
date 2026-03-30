@@ -122,9 +122,7 @@ function normalizeLabel(text: string): string {
 
 function hasUsableSubskills(category: CritiqueCategory): boolean {
   if (!category.subskills?.length) return false;
-  if (!category.level) return false;
 
-  const parentRank = LEVEL_RANK[category.level];
   const evidenceLabels = new Set(
     (category.evidenceSignals ?? []).map((signal) => normalizeLabel(signal))
   );
@@ -134,7 +132,11 @@ function hasUsableSubskills(category: CritiqueCategory): boolean {
     if (label.length === 0 || label.length > 36) return false;
     if (label.includes('.') || label.split(/\s+/).length > 4) return false;
     if (evidenceLabels.has(normalizeLabel(label))) return false;
-    return LEVEL_RANK[subskill.level] <= parentRank;
+    if (category.level) {
+      const parentRank = LEVEL_RANK[category.level];
+      if (LEVEL_RANK[subskill.level] > parentRank) return false;
+    }
+    return true;
   });
 }
 
@@ -420,6 +422,12 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
               </ol>
             </div>
           ) : null}
+          {critique.comparisonNote ? (
+            <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500">
+              <span className="font-semibold text-slate-600">Vs. previous: </span>
+              {critique.comparisonNote}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </article>
@@ -549,12 +557,6 @@ export function CritiquePanels({
       {voiceBFooter ? (
         <div id="critique-session-ai-edits" className="min-w-0 scroll-mt-4">
           {voiceBFooter}
-        </div>
-      ) : null}
-      {critique.comparisonNote ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
-          <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
         </div>
       ) : null}
       {critique.suggestedPaintingTitles && critique.suggestedPaintingTitles.length >= 3 ? (
