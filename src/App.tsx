@@ -1179,96 +1179,96 @@ export default function App() {
                   </div>
                   <p className="mt-2 text-xs leading-snug text-slate-500">
                     “Categorize for me” infers <span className="font-medium text-slate-600">both</span> style and medium from
-                    your upload. You can adjust either below after it runs.
+                    your upload. The lists below update automatically; change any pick if it doesn’t match your work.
                   </p>
                 </div>
 
+                {flow.styleMode === 'auto' ? (
+                  <div className="space-y-3">
+                    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-8 transition hover:border-violet-300 hover:bg-violet-50">
+                      {classifyBusy ? (
+                        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                      ) : (
+                        <Wand2 className="h-8 w-8 text-violet-500" />
+                      )}
+                      <span className="text-center text-sm font-semibold text-slate-800">
+                        {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style & medium'}
+                      </span>
+                      <span className="text-center text-xs text-slate-500">
+                        Style (Realism, Impressionism, Expressionism, Abstract) and medium are inferred together from this
+                        image.
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={classifyBusy}
+                        onChange={(e) => void onPickFileForClassify(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                    {flow.style && flow.styleClassifyMeta ? (
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
+                        {flow.classifySourceImageDataUrl ? (
+                          <div className="mb-3 overflow-hidden rounded-xl border border-slate-100 bg-slate-100">
+                            <img
+                              src={flow.classifySourceImageDataUrl}
+                              alt=""
+                              className="max-h-40 w-full object-contain object-center"
+                            />
+                          </div>
+                        ) : null}
+                        <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Detection notes</p>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">{flow.styleClassifyMeta.rationale}</p>
+                        {flow.styleClassifyMeta.source === 'local' ? (
+                          <p className="mt-2 text-xs text-amber-700">
+                            Quick estimate from color and brushwork signals. Connect the API for a vision-based match.
+                          </p>
+                        ) : null}
+                        {flow.mediumClassifyMeta ? (
+                          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                              Detected medium
+                            </p>
+                            <p className="mt-1 text-sm font-medium text-slate-800">{flow.mediumClassifyMeta.medium}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                              {flow.mediumClassifyMeta.rationale}
+                            </p>
+                          </div>
+                        ) : null}
+                        {flow.mediumClassifyMeta && flow.medium !== flow.mediumClassifyMeta.medium ? (
+                          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                            The image reads more like {flow.mediumClassifyMeta.medium}, but the critique will still use your
+                            selected medium ({flow.medium}). Ratings may be less reliable if you keep this lens.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Style</p>
-
-                  {flow.styleMode === 'manual' ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      {STYLES.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setFlow((f) => (f?.step === 'setup' ? chooseStyle(f, s) : f))}
-                          className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
-                            flow.style === s
-                              ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
-                              : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300'
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-3 space-y-3">
-                      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-8 transition hover:border-violet-300 hover:bg-violet-50">
-                        {classifyBusy ? (
-                          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
-                        ) : (
-                          <Wand2 className="h-8 w-8 text-violet-500" />
-                        )}
-                        <span className="text-center text-sm font-semibold text-slate-800">
-                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style & medium'}
-                        </span>
-                        <span className="text-center text-xs text-slate-500">
-                          Style (Realism, Impressionism, Expressionism, Abstract) and medium are inferred together; change
-                          either in the lists below if needed.
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={classifyBusy}
-                          onChange={(e) => void onPickFileForClassify(e.target.files?.[0] ?? null)}
-                        />
-                      </label>
-                      {flow.style && flow.styleClassifyMeta ? (
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
-                          {flow.classifySourceImageDataUrl ? (
-                            <div className="mb-3 overflow-hidden rounded-xl border border-slate-100 bg-slate-100">
-                              <img
-                                src={flow.classifySourceImageDataUrl}
-                                alt=""
-                                className="max-h-40 w-full object-contain object-center"
-                              />
-                            </div>
-                          ) : null}
-                          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
-                            Suggested style
-                          </p>
-                          <p className="mt-1 font-display text-xl text-slate-900">{flow.style}</p>
-                          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                            {flow.styleClassifyMeta.rationale}
-                          </p>
-                          {flow.styleClassifyMeta.source === 'local' ? (
-                            <p className="mt-2 text-xs text-amber-700">
-                              Quick estimate from color and brushwork signals. Connect the API for a vision-based match.
-                            </p>
-                          ) : null}
-                          {flow.mediumClassifyMeta ? (
-                            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                Detected medium
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-800">{flow.mediumClassifyMeta.medium}</p>
-                              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                                {flow.mediumClassifyMeta.rationale}
-                              </p>
-                            </div>
-                          ) : null}
-                          {flow.mediumClassifyMeta && flow.medium !== flow.mediumClassifyMeta.medium ? (
-                            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-                              The image reads more like {flow.mediumClassifyMeta.medium}, but the critique will still use your selected medium ({flow.medium}). Ratings may be less reliable if you keep this lens.
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {STYLES.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setFlow((f) => (f?.step === 'setup' ? chooseStyle(f, s) : f))}
+                        className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
+                          flow.style === s
+                            ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
+                            : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  {flow.styleMode === 'auto' && flow.style && flow.styleClassifyMeta ? (
+                    <p className="mt-2 text-xs leading-snug text-slate-500">
+                      Suggested style is selected above—tap another if you prefer.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>
