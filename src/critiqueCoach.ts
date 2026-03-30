@@ -10,6 +10,7 @@ import type {
   CritiqueSimpleFeedback,
   Criterion,
   Medium,
+  OverallSummaryCard,
   PhotoQualityAssessment,
   RatingLevel,
   Style,
@@ -198,6 +199,17 @@ export function migrateCritiqueSimpleFeedback(
   };
 }
 
+function deriveOverallSummaryFromSimple(simple: CritiqueSimpleFeedback): OverallSummaryCard {
+  const analysis = [simple.studioAnalysis.whatWorks, simple.studioAnalysis.whatCouldImprove]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join('\n\n');
+  return {
+    analysis: analysis.length > 0 ? analysis : 'See the criterion cards below for detailed feedback.',
+    topPriorities: simple.studioChanges.map((ch) => ch.text.trim()).filter(Boolean),
+  };
+}
+
 export function finalizeCritiqueResult(
   critique: CritiqueResult,
   options?: {
@@ -233,10 +245,13 @@ export function finalizeCritiqueResult(
   const simple =
     (critique.simple ? migrateCritiqueSimpleFeedback(critique.simple) : undefined) ??
     fallbackSimpleRead(categories);
+  const overallSummary =
+    critique.overallSummary ?? deriveOverallSummaryFromSimple(simple);
   return {
     ...critique,
     categories,
     simple,
+    overallSummary,
     ...(analysisSource ? { analysisSource } : {}),
     ...(photoQuality ? { photoQuality } : {}),
     overallConfidence:

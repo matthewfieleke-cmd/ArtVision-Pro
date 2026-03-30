@@ -3,7 +3,13 @@ import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { PaintingOverlay } from './PaintingOverlay';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
-import type { CritiqueCategory, CritiqueResult, WorkCompletionState } from '../types';
+import type {
+  CompletionRead,
+  CritiqueCategory,
+  CritiqueResult,
+  PhotoQualityAssessment,
+  WorkCompletionState,
+} from '../types';
 
 type CritiquePanelsProps = {
   critique: CritiqueResult;
@@ -281,6 +287,147 @@ function CategoryCard({
   );
 }
 
+function photoQualityBriefCopy(level: PhotoQualityAssessment['level']): string {
+  switch (level) {
+    case 'good':
+      return 'Photo quality looks solid for judging the work.';
+    case 'fair':
+      return 'Photo quality is usable but has some limits—take the critique with a bit of caution.';
+    default:
+      return 'Photo quality is limiting—critique confidence is lower until you can re-shoot more evenly.';
+  }
+}
+
+function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
+  const [open, setOpen] = useState(false);
+  const headingId = useId();
+  const panelId = useId();
+  const os = critique.overallSummary;
+  if (!os) return null;
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-violet-200/80 bg-white shadow-sm">
+      <button
+        type="button"
+        id={headingId}
+        className="flex w-full items-start gap-2 px-4 py-3 text-left transition hover:bg-slate-50/90"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={`${open ? 'Collapse' : 'Expand'} overall summary`}
+      >
+        <ChevronDown
+          className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-900">Overall summary</span>
+        </span>
+      </button>
+      {open ? (
+        <div
+          id={panelId}
+          role="region"
+          aria-labelledby={headingId}
+          className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
+        >
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Photo quality</p>
+            {critique.photoQuality ? (
+              <>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{photoQualityBriefCopy(critique.photoQuality.level)}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">{critique.photoQuality.summary}</p>
+                {critique.photoQuality.issues.length ? (
+                  <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
+                    {critique.photoQuality.issues.slice(0, 4).map((issue) => (
+                      <li key={issue} className="flex gap-2">
+                        <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
+                        <span>{issue}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {critique.photoQuality.tips.length ? (
+                  <div className="mt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Re-shoot tips</p>
+                    <ul className="mt-1 space-y-1 text-[11px] leading-relaxed text-slate-600">
+                      {critique.photoQuality.tips.slice(0, 3).map((tip) => (
+                        <li key={tip} className="flex gap-2">
+                          <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
+                          <span>{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                No separate photo-quality read is attached to this critique.
+              </p>
+            )}
+          </div>
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Finished vs in progress</p>
+            {critique.completionRead ? (
+              <CompletionReadBrief read={critique.completionRead} />
+            ) : (
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                No finish-state read is attached to this critique.
+              </p>
+            )}
+          </div>
+          <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{os.analysis}</p>
+          {os.topPriorities.length ? (
+            <div className="rounded-xl border border-violet-200/70 bg-violet-50/60 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Top priorities · Voice B</p>
+              <ol className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
+                {os.topPriorities.map((priority) => (
+                  <li key={priority} className="flex gap-2">
+                    <span className="mt-[0.25rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
+                    <span>{priority}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function CompletionReadBrief({ read }: { read: CompletionRead }) {
+  return (
+    <>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${completionBadgeClasses(read.state)}`}
+        >
+          {completionLabel(read.state)}
+        </span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${confidenceBadgeClass(read.confidence)}`}
+          title="How sure the app is about in-progress vs finished, from the photo"
+        >
+          {completionConfidenceLabel(read.confidence)}
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-slate-700">{read.rationale}</p>
+      {read.cues.length ? (
+        <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
+          {read.cues.map((cue) => (
+            <li key={cue} className="flex gap-2">
+              <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
+              <span>{cue}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  );
+}
+
 export function CritiquePanels({
   critique,
   paintingImageSrc,
@@ -293,158 +440,8 @@ export function CritiquePanels({
 }: CritiquePanelsProps) {
   return (
     <div className="space-y-3">
-      {critique.overallSummary ? (
-        <section className="rounded-2xl border border-violet-200/80 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Overall summary</p>
-          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-            {critique.overallSummary.analysis}
-          </p>
-          {critique.overallSummary.topPriorities.length ? (
-            <div className="mt-3 rounded-xl border border-violet-200/70 bg-violet-50/60 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Top priorities · Voice B</p>
-              <ol className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
-                {critique.overallSummary.topPriorities.map((priority) => (
-                  <li key={priority} className="flex gap-2">
-                    <span className="mt-[0.25rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
-                    <span>{priority}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-      {critique.simple ? (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting read</p>
-          {critique.completionRead ? (
-            <div className="mt-3 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${completionBadgeClasses(critique.completionRead.state)}`}
-                >
-                  {completionLabel(critique.completionRead.state)}
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${confidenceBadgeClass(critique.completionRead.confidence)}`}
-                  title="How sure the app is about in-progress vs finished, from the photo"
-                >
-                  {completionConfidenceLabel(critique.completionRead.confidence)}
-                </span>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-slate-700">{critique.completionRead.rationale}</p>
-              {critique.completionRead.cues.length ? (
-                <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
-                  {critique.completionRead.cues.map((cue) => (
-                    <li key={cue} className="flex gap-2">
-                      <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
-                      <span>{cue}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="mt-3 space-y-4">
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Analysis · Voice A</p>
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                Critical read — style, medium, and finish level inform tone and emphasis.
-              </p>
-              <div className="mt-3 space-y-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What works</p>
-                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                    {critique.simple.studioAnalysis.whatWorks}
-                  </p>
-                </div>
-                <div className="border-t border-slate-100 pt-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What could improve</p>
-                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                    {critique.simple.studioAnalysis.whatCouldImprove}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Changes to make · Voice B</p>
-              <p className="mt-1 text-[11px] font-medium text-slate-600">
-                Concrete studio moves for this painting. Generate an AI edit from the matching criterion card to see an
-                illustrative pass for that specific change.
-              </p>
-              <ol className="mt-3 space-y-3 text-sm leading-relaxed text-slate-800">
-                {critique.simple.studioChanges.map((ch, idx) => {
-                  return (
-                    <li key={`${idx}-${ch.previewCriterion}`} className="flex flex-col gap-2.5 rounded-lg border border-violet-200/60 bg-white/90 p-3">
-                      <div className="flex min-w-0 gap-2">
-                        <span className="min-w-[1.25rem] shrink-0 font-semibold text-violet-700">{idx + 1}.</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="leading-relaxed">{ch.text}</p>
-                          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                            Relates to: {ch.previewCriterion}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-            {voiceBFooter ? <div className="mt-4 min-w-0">{voiceBFooter}</div> : null}
-          </div>
-        </section>
-      ) : null}
-      {critique.photoQuality ? (
-        <section
-          className={`rounded-2xl border p-4 text-sm ${
-            critique.photoQuality.level === 'good'
-              ? 'border-emerald-200 bg-emerald-50/80 text-emerald-950'
-              : critique.photoQuality.level === 'fair'
-                ? 'border-amber-200 bg-amber-50/90 text-amber-950'
-                : 'border-red-200 bg-red-50/90 text-red-950'
-          }`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide">
-                Photo quality {critique.photoQuality.level === 'good' ? 'looks solid' : 'needs caution'}
-              </p>
-              <p className="mt-1 leading-relaxed">{critique.photoQuality.summary}</p>
-            </div>
-            {critique.overallConfidence ? (
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${confidenceBadgeClass(critique.overallConfidence)}`}>
-                {confidenceLabel(critique.overallConfidence)}
-              </span>
-            ) : null}
-          </div>
-          {critique.photoQuality.issues.length ? (
-            <div className="mt-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Limits in this photo</p>
-              <ul className="mt-1 space-y-1 text-xs leading-relaxed">
-                {critique.photoQuality.issues.map((issue) => (
-                  <li key={issue} className="flex gap-2">
-                    <span className="mt-[0.35rem] h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" aria-hidden />
-                    <span>{issue}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {critique.photoQuality.tips.length ? (
-            <div className="mt-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">For a better re-shoot</p>
-              <ul className="mt-1 space-y-1 text-xs leading-relaxed">
-                {critique.photoQuality.tips.map((tip) => (
-                  <li key={tip} className="flex gap-2">
-                    <span className="mt-[0.35rem] h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" aria-hidden />
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      <OverallSummaryCardView critique={critique} />
+      {voiceBFooter ? <div className="min-w-0">{voiceBFooter}</div> : null}
       {critique.comparisonNote ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
