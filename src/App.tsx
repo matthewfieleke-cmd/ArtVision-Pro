@@ -30,6 +30,7 @@ import { analyzePainting } from './analyzePainting';
 import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
+import { fetchClassifyMediumFromApi } from './classifyMediumApi';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
 import {
   applyDetectedStyle,
@@ -65,6 +66,7 @@ import { StudioTab } from './screens/StudioTab';
 import type {
   CritiqueCategory,
   CritiqueResult,
+  Medium,
   PaintingVersion,
   SavedPainting,
   SavedPreviewEdit,
@@ -508,32 +510,63 @@ export default function App() {
     try {
       const compressed = await compressDataUrl(rawDataUrl);
       let style: Style;
-      let rationale: string;
-      let source: 'api' | 'local';
+      let styleRationale: string;
+      let styleSource: 'api' | 'local';
+      let detectedMedium: Medium | undefined;
+      let mediumRationale: string | undefined;
+      let mediumSource: 'api' | 'local' | undefined;
 
       if (shouldTryApiFirst()) {
         try {
-          const r = await fetchClassifyStyleFromApi(compressed);
-          style = r.style;
-          rationale = r.rationale;
-          source = 'api';
+          const [styleRead, mediumRead] = await Promise.all([
+            fetchClassifyStyleFromApi(compressed),
+            fetchClassifyMediumFromApi(compressed).catch(() => null),
+          ]);
+          style = styleRead.style;
+          styleRationale = styleRead.rationale;
+          styleSource = 'api';
+          if (mediumRead) {
+            detectedMedium = mediumRead.medium;
+            mediumRationale = mediumRead.rationale;
+            mediumSource = 'api';
+          }
         } catch (err) {
           console.warn('Classify API unavailable, using heuristic:', err);
           const metrics = await computeImageMetrics(compressed);
           const h = classifyStyleFromMetrics(metrics);
           style = h.style;
-          rationale = h.rationale;
-          source = 'local';
+          styleRationale = h.rationale;
+          styleSource = 'local';
         }
       } else {
         const metrics = await computeImageMetrics(compressed);
         const h = classifyStyleFromMetrics(metrics);
         style = h.style;
-        rationale = h.rationale;
-        source = 'local';
+        styleRationale = h.rationale;
+        styleSource = 'local';
       }
 
-      setFlow((cur) => (cur?.step === 'setup' ? applyDetectedStyle(cur, { style, rationale, source, imageDataUrl: compressed }) : cur));
+      setFlow((cur) => {
+        if (cur?.step !== 'setup') return cur;
+        const next = applyDetectedStyle(cur, {
+          style,
+          rationale: styleRationale,
+          source: styleSource,
+          imageDataUrl: compressed,
+        });
+        return {
+          ...next,
+          ...(detectedMedium && mediumRationale && mediumSource
+            ? {
+                mediumClassifyMeta: {
+                  medium: detectedMedium,
+                  rationale: mediumRationale,
+                  source: mediumSource,
+                },
+              }
+            : {}),
+        };
+      });
     } catch (e) {
       setAnalyzeError(e instanceof Error ? e.message : 'Could not detect style');
     } finally {
@@ -1196,6 +1229,22 @@ export default function App() {
                           {flow.styleClassifyMeta.source === 'local' ? (
                             <p className="mt-2 text-xs text-amber-700">
                               Quick estimate from color and brushwork signals. Connect the API for a vision-based match.
+                            </p>
+                          ) : null}
+                          {flow.mediumClassifyMeta ? (
+                            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Detected medium
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-slate-800">{flow.mediumClassifyMeta.medium}</p>
+                              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                                {flow.mediumClassifyMeta.rationale}
+                              </p>
+                            </div>
+                          ) : null}
+                          {flow.mediumClassifyMeta && flow.medium !== flow.mediumClassifyMeta.medium ? (
+                            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                              The image reads more like {flow.mediumClassifyMeta.medium}, but the critique will still use your selected medium ({flow.medium}). Ratings may be less reliable if you keep this lens.
                             </p>
                           ) : null}
                         </div>

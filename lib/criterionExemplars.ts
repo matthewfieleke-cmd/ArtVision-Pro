@@ -171,6 +171,12 @@ const EXEMPLARS: Record<StyleKey, Partial<Record<CriterionLabel, Exemplar[]>>> =
       {
         artist: 'Edgar Degas',
         workTitle: 'The Ballet Class',
+        medium: 'Pastel / drawing practice benchmark',
+        why: 'Degas is a strong internal benchmark for draftsmanship inside a softer, graphic medium logic.',
+      },
+      {
+        artist: 'Edgar Degas',
+        workTitle: 'The Ballet Class',
         medium: 'Oil on canvas',
         why: 'Foreshortening, gesture, and group spacing stay accountable inside a loose touch.',
       },
@@ -182,6 +188,12 @@ const EXEMPLARS: Record<StyleKey, Partial<Record<CriterionLabel, Exemplar[]>>> =
       },
     ],
     'Edge and focus control': [
+      {
+        artist: 'Berthe Morisot',
+        workTitle: 'The Cradle',
+        medium: 'Pastel / watercolor-adjacent softness benchmark',
+        why: 'A useful benchmark when softness must still direct attention without deadening the image.',
+      },
       {
         artist: 'Winslow Homer',
         workTitle: 'The Gulf Stream',
@@ -196,6 +208,12 @@ const EXEMPLARS: Record<StyleKey, Partial<Record<CriterionLabel, Exemplar[]>>> =
       },
     ],
     'Surface and medium handling': [
+      {
+        artist: 'Claude Monet',
+        workTitle: 'Impression, Sunrise',
+        medium: 'Watercolor-adjacent wash and atmosphere benchmark',
+        why: 'A useful benchmark for fluid, light-led surface handling where atmosphere should stay breathable.',
+      },
       {
         artist: 'Camille Pissarro',
         workTitle: 'Boulevard Montmartre, Spring',
@@ -285,6 +303,12 @@ const EXEMPLARS: Record<StyleKey, Partial<Record<CriterionLabel, Exemplar[]>>> =
       {
         artist: 'Egon Schiele',
         workTitle: 'Seated Woman with Bent Knee',
+        medium: 'Drawing benchmark',
+        why: 'A strong benchmark for intentional distortion, line authority, and structural drawing in dry media logic.',
+      },
+      {
+        artist: 'Egon Schiele',
+        workTitle: 'Seated Woman with Bent Knee',
         medium: 'Oil on canvas',
         why: 'Deliberate distortion still feels anatomically authored, not inept.',
       },
@@ -310,6 +334,12 @@ const EXEMPLARS: Record<StyleKey, Partial<Record<CriterionLabel, Exemplar[]>>> =
       },
     ],
     'Surface and medium handling': [
+      {
+        artist: 'Edvard Munch',
+        workTitle: 'The Scream',
+        medium: 'Pastel and crayon benchmark',
+        why: 'A useful benchmark when powdery or graphic media must stay emotionally charged without losing structure.',
+      },
       {
         artist: 'Vincent van Gogh',
         workTitle: 'Starry Night Over the Rhône',
