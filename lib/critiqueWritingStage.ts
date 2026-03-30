@@ -79,6 +79,9 @@ Rules:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
   - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
   - If the work is strong, keep the advice modest and local; do not turn a small issue into a full repaint.
+- Calibration warning:
+  - Do not mistake childlike, rudimentary, or clearly underdeveloped work for successful Expressionism or Abstract Art just because it is simplified, distorted, bold, or high-contrast.
+  - Successful stylization still requires visible control, structural intent, and consistency within the chosen criterion. If those are missing, the criterion must stay low even when the work is vivid or unusual.
 - Rating calibration (per criterion, from visible evidence only):
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
   - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains. Do not use Intermediate as a polite default for weak or naive work; if fundamentals in this criterion are still shaky, that criterion is Beginner.

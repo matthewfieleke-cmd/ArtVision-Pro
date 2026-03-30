@@ -59,6 +59,8 @@ Rules:
 - Do not prescribe fixes.
 - Do not invent weaknesses just because the painting could be different.
 - If a painting is already strong in a criterion, say so plainly.
+- Do not confuse childlike, novice, or underdeveloped work with successful stylization just because the image is bold, simplified, distorted, or high-contrast.
+- If simplification, distortion, or symbolic mark-making seem present, distinguish clearly between (a) deliberate, controlled stylization and (b) rudimentary or inconsistent execution.
 - If attention is distributed, atmospheric, or intentionally open, describe that as a condition of the work instead of forcing a single focal demand.
 - If value compression, softness, or ambiguity seem intentional and useful, record that instead of treating it automatically as a flaw.
 - completionRead: judge whether the work looks unfinished (open passages, raw substrate, uneven resolution, obvious block-in), likely_finished (consistent finish, resolved edges, presentation-ready read), or uncertain. Base this only on visible cues in the photo. Do not equate "unfinished" with "bad."

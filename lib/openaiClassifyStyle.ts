@@ -36,6 +36,12 @@ Abstract Art — Away from direct representation; emphasis on shape, color, line
 
 Pick the single best fit. If multiple apply, choose the dominant intent visible in the work.`;
 
+const NOVICE_GUARDRAIL = `Important calibration rule:
+- Do not confuse childlike, novice, or underdeveloped work with successful Expressionism or Abstract Art merely because it is simplified, distorted, high-contrast, or bold.
+- Successful stylization still shows deliberate control, internal coherence, and repeatable visual logic.
+- Rudimentary anatomy, arbitrary placement, elementary symbol-making, or very limited value/edge control are evidence of beginner execution, not proof of expressive mastery.
+- If the image looks like an early-stage or childlike drawing, say so plainly in the rationale instead of dressing it up as expert stylization.`;
+
 function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
   if (!m) throw new Error('Invalid image data URL');
@@ -64,6 +70,8 @@ export async function runOpenAIClassifyStyle(
         {
           role: 'system',
           content: `You are an art historian. ${STYLE_GUIDE}
+
+${NOVICE_GUARDRAIL}
 
 Respond with JSON only matching the schema. rationale: 3–4 sentences. Name where on the canvas the evidence appears (e.g. upper area, focal figure, foreground); cite brushwork, edges, color temperature, space, or subject treatment—not vague style labels alone.`,
         },

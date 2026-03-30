@@ -4,6 +4,7 @@ export type CritiqueEvalResult = {
   genericMainIssue: boolean;
   genericNextSteps: boolean;
   weakEvidence: boolean;
+  suspiciousOverpraise: boolean;
   notes: string[];
 };
 
@@ -65,6 +66,17 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
       category.evidenceSignals.some((signal) => signal.trim().length < 12)
   );
 
+  const suspiciousOverpraise = Boolean(
+    simple &&
+      containsAny(`${worksText} ${improveText} ${critique.summary}`, [
+        /childlike.*expert/i,
+        /scribble.*master/i,
+        /naive.*advanced/i,
+        /simplified forms?.*advanced/i,
+        /kindergarten/i,
+      ])
+  );
+
   const notes: string[] = [];
   notes.push(
     genericMainIssue
@@ -87,6 +99,11 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
       : 'The evidence layer gives a visible basis for judgment, which makes the critique more trustworthy.'
   );
   notes.push(
+    suspiciousOverpraise
+      ? 'The response appears to over-credit childlike or underdeveloped handling as if it were mature stylization; this should be treated as a calibration failure.'
+      : 'There is no obvious sign that the response is mistaking novice handling for successful stylization.'
+  );
+  notes.push(
     simple
       ? 'Overall, this response would probably help the artist improve, but the key question remains whether it respects the work’s own terms or still pushes generic correction.'
       : 'Without a clear simple feedback layer, the response would be less immediately usable for the painter.'
@@ -96,6 +113,7 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
     genericMainIssue,
     genericNextSteps,
     weakEvidence,
+    suspiciousOverpraise,
     notes,
   };
 }
