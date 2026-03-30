@@ -19,6 +19,18 @@ function firstEvidencePhrase(cat: CritiqueCategory | undefined, maxLen: number):
   return truncate(titleCaseFragment(noNum.replace(/\.$/, '')), maxLen);
 }
 
+function anchorSnippet(cat: CritiqueCategory | undefined, maxLen: number): string {
+  const s = cat?.anchor?.areaSummary?.trim() ?? '';
+  if (!s) return '';
+  return truncate(titleCaseFragment(s.replace(/\.$/, '')), maxLen);
+}
+
+function preserveSnippet(cat: CritiqueCategory | undefined, maxLen: number): string {
+  const s = cat?.preserve?.trim() ?? '';
+  if (!s) return '';
+  return truncate(titleCaseFragment(s.replace(/\.$/, '')), maxLen);
+}
+
 function findCat(categories: CritiqueCategory[], needle: string): CritiqueCategory | undefined {
   return categories.find((c) => c.criterion.includes(needle));
 }
@@ -37,19 +49,39 @@ export function buildLocalSuggestedPaintingTitles(
   const value = findCat(categories, 'Value and light');
   const color = findCat(categories, 'Color');
   const surface = findCat(categories, 'Surface');
+  const drawing = findCat(categories, 'Drawing');
+  const presence = findCat(categories, 'Presence');
 
-  const p1 = firstEvidencePhrase(comp, 52) || firstEvidencePhrase(value, 52) || 'spatial and planar structure';
-  const p2 = firstEvidencePhrase(value, 48) || firstEvidencePhrase(color, 48) || 'light and hue relationships';
-  const p3 =
-    firstEvidencePhrase(surface, 44) ||
-    firstEvidencePhrase(color, 44) ||
-    firstEvidencePhrase(findCat(categories, 'Edge'), 44) ||
-    'mark and surface incident';
+  const motif =
+    anchorSnippet(comp, 40) ||
+    anchorSnippet(value, 40) ||
+    anchorSnippet(drawing, 40) ||
+    anchorSnippet(presence, 40) ||
+    firstEvidencePhrase(comp, 40) ||
+    firstEvidencePhrase(value, 40) ||
+    'the principal motif';
+
+  const lightBit =
+    firstEvidencePhrase(value, 36) ||
+    anchorSnippet(value, 36) ||
+    firstEvidencePhrase(color, 36) ||
+    'light and color';
+
+  const surfaceBit =
+    firstEvidencePhrase(surface, 36) ||
+    anchorSnippet(surface, 36) ||
+    preserveSnippet(surface, 36) ||
+    firstEvidencePhrase(findCat(categories, 'Edge'), 36) ||
+    'surface and edge';
 
   const bench0 = benchmarks[0]?.trim() ?? '';
   const benchParts = bench0.split(/\s+/).filter(Boolean);
   const masterSurname =
     benchParts.length >= 2 ? benchParts[benchParts.length - 1]! : benchParts[0] ?? 'period';
+  const bench1 = benchmarks[1]?.trim() ?? '';
+  const bench1Parts = bench1.split(/\s+/).filter(Boolean);
+  const secondSurname =
+    bench1Parts.length >= 2 ? bench1Parts[bench1Parts.length - 1]! : bench1Parts[0] ?? masterSurname;
 
   const finishWord =
     completionRead.state === 'likely_finished'
@@ -58,9 +90,9 @@ export function buildLocalSuggestedPaintingTitles(
         ? 'in-progress'
         : 'open';
 
-  const t1 = `${truncate(style, 24)} ${medium}: ${p1}`;
-  const t2 = `Study in ${truncate(p2, 56)} (${style}; ${finishWord} state)`;
-  const t3 = `${truncate(p3, 48)} — ${medium}, after the ${masterSurname} line`;
+  const t1 = `${motif}, ${truncate(medium, 28)}`;
+  const t2 = `${truncate(lightBit, 44)} (${truncate(style, 20)}; ${finishWord})`;
+  const t3 = `${truncate(surfaceBit, 40)} — in dialogue with ${masterSurname} and ${secondSurname}`;
 
   const out = [t1, t2, t3].map((x) => truncate(x.replace(/\s+/g, ' ').trim(), 100));
   return out;

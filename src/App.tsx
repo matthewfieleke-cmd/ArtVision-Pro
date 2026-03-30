@@ -867,6 +867,34 @@ export default function App() {
     return flow.sessionPreviewEdits?.find((e) => e.id === activePreviewEditId)?.imageDataUrl ?? null;
   }, [flow, activePreviewEditId]);
 
+  const previewEditIdByCriterion = useMemo(() => {
+    if (!flow || flow.step !== 'results') return undefined;
+    const list = flow.sessionPreviewEdits ?? [];
+    if (!list.length) return undefined;
+    const map: Partial<Record<CritiqueCategory['criterion'], string>> = {};
+    for (const e of list) {
+      if (e.mode === 'single') {
+        map[e.criterion] = e.id;
+      }
+    }
+    return Object.keys(map).length ? map : undefined;
+  }, [flow]);
+
+  const focusSessionPreviewForCriterion = useCallback((criterion: CritiqueCategory['criterion']) => {
+    const id = previewEditIdByCriterion?.[criterion];
+    if (!id) return;
+    setActivePreviewEditId(id);
+    requestAnimationFrame(() => {
+      document.getElementById('critique-session-ai-edits')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [previewEditIdByCriterion]);
+
+  const applySuggestedPaintingTitle = useCallback((title: string) => {
+    const t = title.trim();
+    if (!t) return;
+    setFlow((f) => (f ? updateWorkingTitle(f, t) : f));
+  }, []);
+
   const rememberCritiqueReturn = useCallback(() => {
     const current = flowRef.current;
     if (current?.step === 'results' && current.critique && current.imageDataUrl) {
@@ -1553,8 +1581,12 @@ export default function App() {
                   onGenerateAiEditForCriterion={(criterion: CritiqueCategory['criterion']) =>
                     void runPreviewEdit(criterion)
                   }
+                  previewEditIdByCriterion={previewEditIdByCriterion}
+                  onFocusSessionPreviewForCriterion={focusSessionPreviewForCriterion}
                   previewLoading={previewLoading}
                   previewLoadingTarget={previewLoadingTarget}
+                  workingTitle={flow.workingTitle}
+                  onSelectSuggestedTitle={applySuggestedPaintingTitle}
                   voiceBFooter={
                     flow.sessionPreviewEdits && flow.sessionPreviewEdits.length > 0 && previewTarget ? (
                       <section className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm">

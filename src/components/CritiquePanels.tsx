@@ -18,11 +18,17 @@ type CritiquePanelsProps = {
   onLearnMore?: () => void;
   canGenerateAiEdits?: boolean;
   onGenerateAiEditForCriterion?: (criterion: CritiqueCategory['criterion']) => void;
+  /** Latest session preview id per criterion (for “View AI edit” after generation). */
+  previewEditIdByCriterion?: Partial<Record<CritiqueCategory['criterion'], string>>;
+  onFocusSessionPreviewForCriterion?: (criterion: CritiqueCategory['criterion']) => void;
   previewLoading?: boolean;
   /** Only the matching button shows a spinner. */
   previewLoadingTarget?: null | { kind: 'single'; criterion: CritiqueCategory['criterion'] };
   /** Rendered directly under Voice B (e.g. AI edits session), before photo quality / categories. */
   voiceBFooter?: ReactNode;
+  /** Current title field (highlights which suggestion is active). */
+  workingTitle?: string;
+  onSelectSuggestedTitle?: (title: string) => void;
 };
 
 function completionBadgeClasses(state: WorkCompletionState): string {
@@ -84,6 +90,8 @@ type CategoryCardProps = {
   canGenerateAiEdits?: boolean;
   generateButtonVisible?: boolean;
   onGenerateAiEdit?: () => void;
+  previewEditIdForCriterion?: string;
+  onViewAiEdit?: () => void;
   previewLoading?: boolean;
   onLearnMore?: () => void;
 };
@@ -136,6 +144,8 @@ function CategoryCard({
   canGenerateAiEdits = false,
   generateButtonVisible = false,
   onGenerateAiEdit,
+  previewEditIdForCriterion,
+  onViewAiEdit,
   previewLoading = false,
   onLearnMore,
 }: CategoryCardProps) {
@@ -144,12 +154,16 @@ function CategoryCard({
   const headingId = useId();
   const panelId = useId();
   const hasRating = Boolean(category.level);
+  const thisCriterionLoading = previewLoading;
+  const hasSessionPreview = Boolean(previewEditIdForCriterion && onViewAiEdit);
   const buttonLabel =
     category.editPlan?.editability === 'no'
       ? 'This criterion is not available for AI edit on this painting.'
-      : previewLoading
+      : thisCriterionLoading
         ? 'Generating…'
-        : 'Generate AI edit';
+        : hasSessionPreview
+          ? 'View AI edit'
+          : 'Generate AI edit';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -266,16 +280,27 @@ function CategoryCard({
               <p className="mt-1 text-xs leading-relaxed text-violet-950/90">{category.practiceExercise}</p>
             </div>
           ) : null}
-          {generateButtonVisible && canGenerateAiEdits && onGenerateAiEdit ? (
+          {generateButtonVisible && canGenerateAiEdits && (onGenerateAiEdit || (hasSessionPreview && onViewAiEdit)) ? (
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3">
               <button
                 type="button"
-                disabled={previewLoading || category.editPlan?.editability === 'no'}
-                aria-busy={previewLoading}
-                onClick={onGenerateAiEdit}
+                disabled={
+                  category.editPlan?.editability === 'no' ||
+                  thisCriterionLoading ||
+                  (!hasSessionPreview && !onGenerateAiEdit)
+                }
+                aria-busy={thisCriterionLoading}
+                onClick={() => {
+                  if (thisCriterionLoading) return;
+                  if (hasSessionPreview && onViewAiEdit) {
+                    onViewAiEdit();
+                  } else if (onGenerateAiEdit) {
+                    onGenerateAiEdit();
+                  }
+                }}
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
-                {previewLoading ? (
+                {thisCriterionLoading ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 ) : (
                   <Wand2 className="h-3.5 w-3.5" aria-hidden />
@@ -401,7 +426,15 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
   );
 }
 
-function SuggestedTitlesCard({ titles }: { titles: string[] }) {
+function SuggestedTitlesCard({
+  titles,
+  workingTitle,
+  onSelectSuggestedTitle,
+}: {
+  titles: string[];
+  workingTitle?: string;
+  onSelectSuggestedTitle?: (title: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const headingId = useId();
   const panelId = useId();
@@ -425,7 +458,8 @@ function SuggestedTitlesCard({ titles }: { titles: string[] }) {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-slate-900">Suggested titles</span>
           <span className="mt-0.5 block text-xs text-slate-500">
-            Three catalogue-style names grounded in this image—use or adapt any you like.
+            Tap a title to use it for this work (also fills the title field above). Names are grounded in what we see in
+            the image.
           </span>
         </span>
       </button>
@@ -437,11 +471,26 @@ function SuggestedTitlesCard({ titles }: { titles: string[] }) {
           className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
         >
           <ol className="list-decimal space-y-2 pl-4 text-sm leading-relaxed text-slate-700">
-            {titles.map((t) => (
-              <li key={t} className="pl-1">
-                {t}
-              </li>
-            ))}
+            {titles.map((t) => {
+              const selected = workingTitle?.trim() === t.trim();
+              return (
+                <li key={t} className="pl-1">
+                  {onSelectSuggestedTitle ? (
+                    <button
+                      type="button"
+                      onClick={() => onSelectSuggestedTitle(t)}
+                      className={`text-left underline decoration-violet-300 decoration-1 underline-offset-2 transition hover:decoration-violet-500 ${
+                        selected ? 'font-semibold text-violet-900' : 'text-slate-800'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ) : (
+                    t
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
       ) : null}
@@ -486,14 +535,22 @@ export function CritiquePanels({
   onLearnMore,
   canGenerateAiEdits = false,
   onGenerateAiEditForCriterion,
+  previewEditIdByCriterion,
+  onFocusSessionPreviewForCriterion,
   previewLoading = false,
   previewLoadingTarget = null,
   voiceBFooter,
+  workingTitle,
+  onSelectSuggestedTitle,
 }: CritiquePanelsProps) {
   return (
     <div className="space-y-3">
       <OverallSummaryCardView critique={critique} />
-      {voiceBFooter ? <div className="min-w-0">{voiceBFooter}</div> : null}
+      {voiceBFooter ? (
+        <div id="critique-session-ai-edits" className="min-w-0 scroll-mt-4">
+          {voiceBFooter}
+        </div>
+      ) : null}
       {critique.comparisonNote ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
@@ -501,7 +558,11 @@ export function CritiquePanels({
         </div>
       ) : null}
       {critique.suggestedPaintingTitles && critique.suggestedPaintingTitles.length >= 3 ? (
-        <SuggestedTitlesCard titles={critique.suggestedPaintingTitles.slice(0, 3)} />
+        <SuggestedTitlesCard
+          titles={critique.suggestedPaintingTitles.slice(0, 3)}
+          workingTitle={workingTitle}
+          onSelectSuggestedTitle={onSelectSuggestedTitle}
+        />
       ) : null}
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Criterion cards</p>
       {critique.categories.map((category) => {
@@ -513,6 +574,7 @@ export function CritiquePanels({
           previewLoading &&
           previewLoadingTarget?.kind === 'single' &&
           previewLoadingTarget.criterion === category.criterion;
+        const previewId = previewEditIdByCriterion?.[category.criterion];
         return (
           <CategoryCard
             key={category.criterion}
@@ -522,6 +584,12 @@ export function CritiquePanels({
             generateButtonVisible={generateButtonVisible}
             onGenerateAiEdit={
               onGenerateAiEditForCriterion ? () => onGenerateAiEditForCriterion(category.criterion) : undefined
+            }
+            previewEditIdForCriterion={previewId}
+            onViewAiEdit={
+              previewId && onFocusSessionPreviewForCriterion
+                ? () => onFocusSessionPreviewForCriterion(category.criterion)
+                : undefined
             }
             previewLoading={thisLoading}
             onLearnMore={onLearnMore}
