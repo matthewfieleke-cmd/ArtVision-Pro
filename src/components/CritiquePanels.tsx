@@ -7,6 +7,7 @@ import type {
   CompletionRead,
   CritiqueCategory,
   CritiqueResult,
+  CritiqueSubskill,
   PhotoQualityAssessment,
   WorkCompletionState,
 } from '../types';
@@ -87,8 +88,24 @@ type CategoryCardProps = {
   onLearnMore?: () => void;
 };
 
-function subskillBarWidth(score: number): string {
-  return `${Math.max(10, Math.round(score * 100))}%`;
+/** 1 = worst, 10 = best; sub-skill snapshot only (criterion cards still use rating levels elsewhere). */
+function subskillGradeOnTen(subskill: CritiqueSubskill): number {
+  if (Number.isFinite(subskill.score)) {
+    const g = Math.round(subskill.score * 9) + 1;
+    return Math.min(10, Math.max(1, g));
+  }
+  const fromLevel: Record<string, number> = {
+    Beginner: 2,
+    Intermediate: 5,
+    Advanced: 8,
+    Master: 10,
+  };
+  return fromLevel[subskill.level] ?? 5;
+}
+
+function subskillBarWidthFromGrade(grade: number): string {
+  const pct = Math.max(8, Math.round(((grade - 1) / 9) * 100));
+  return `${pct}%`;
 }
 
 function normalizeLabel(text: string): string {
@@ -111,10 +128,6 @@ function hasUsableSubskills(category: CritiqueCategory): boolean {
     if (evidenceLabels.has(normalizeLabel(label))) return false;
     return LEVEL_RANK[subskill.level] <= parentRank;
   });
-}
-
-function hasDriverDetails(category: CritiqueCategory): boolean {
-  return Boolean(category.evidenceSignals?.length || hasUsableSubskills(category));
 }
 
 function CategoryCard({
@@ -210,40 +223,31 @@ function CategoryCard({
             </div>
           ) : null}
           <p className="text-sm leading-relaxed text-slate-600">{category.feedback}</p>
-          {hasDriverDetails(category) ? (
+          {hasUsableSubskills(category) ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">What is driving this read</p>
-              {category.evidenceSignals?.length ? (
-                <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-700">
-                  {category.evidenceSignals.map((signal) => (
-                    <li key={signal} className="flex gap-2">
-                      <span className="mt-[0.35rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
-                      <span>{signal}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {hasUsableSubskills(category) ? (
-                <div className={`${category.evidenceSignals?.length ? 'mt-3 border-t border-slate-200 pt-3' : 'mt-2'} space-y-2`}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skill snapshot</p>
-                  {category.subskills!.map((subskill) => (
-                    <div key={subskill.label}>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                          {subskill.level}
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
-                        <div
-                          className="h-full rounded-full bg-violet-400 transition-all duration-700"
-                          style={{ width: subskillBarWidth(subskill.score) }}
-                        />
-                      </div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skill snapshot</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">1–10 scale (10 is strongest) within this criterion.</p>
+              <div className="mt-2 space-y-3">
+              {category.subskills!.map((subskill) => {
+                const grade = subskillGradeOnTen(subskill);
+                return (
+                  <div key={subskill.label}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
+                      <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700" title="Sub-skill strength on a 1–10 scale">
+                        {grade}/10
+                      </span>
                     </div>
-                  ))}
-                </div>
-              ) : null}
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
+                      <div
+                        className="h-full rounded-full bg-violet-400 transition-all duration-700"
+                        style={{ width: subskillBarWidthFromGrade(grade) }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
             </div>
           ) : null}
           {category.preserve ? (
