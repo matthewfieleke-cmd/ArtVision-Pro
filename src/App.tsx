@@ -201,6 +201,8 @@ export default function App() {
   /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
   const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
   const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
+  const [titleAppliedToast, setTitleAppliedToast] = useState(false);
+  const titleToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const analysisAbortRef = useRef<AbortController | null>(null);
   const analysisHiddenAtRef = useRef<number | null>(null);
@@ -893,6 +895,18 @@ export default function App() {
     const t = title.trim();
     if (!t) return;
     setFlow((f) => (f ? updateWorkingTitle(f, t) : f));
+    setTitleAppliedToast(true);
+    if (titleToastTimerRef.current) clearTimeout(titleToastTimerRef.current);
+    titleToastTimerRef.current = setTimeout(() => {
+      setTitleAppliedToast(false);
+      titleToastTimerRef.current = null;
+    }, 2600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (titleToastTimerRef.current) clearTimeout(titleToastTimerRef.current);
+    };
   }, []);
 
   const rememberCritiqueReturn = useCallback(() => {
@@ -913,6 +927,10 @@ export default function App() {
     if (!currentFlow || currentFlow.step !== 'results') return;
     const catList = currentFlow.critique.categories;
     if (catList.length === 0) return;
+    const alreadyForCriterion = (currentFlow.sessionPreviewEdits ?? []).some(
+      (e) => e.mode === 'single' && e.criterion === criterion
+    );
+    if (alreadyForCriterion) return;
     const changes = currentFlow.critique.simple?.studioChanges;
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
     if (!shouldTryApiFirst()) {
@@ -953,14 +971,10 @@ export default function App() {
       setFlow((cur) => {
         if (!cur || cur.step !== 'results') return cur;
         const prev = cur.sessionPreviewEdits ?? [];
-        const withoutDup = prev.filter(
-          (e) =>
-            !(
-              e.mode === 'single' &&
-              e.studioChangeRecommendation === entry.studioChangeRecommendation
-            )
+        const withoutSameCriterion = prev.filter(
+          (e) => !(e.mode === 'single' && e.criterion === entry.criterion)
         );
-        const next = { ...cur, sessionPreviewEdits: [...withoutDup, entry] };
+        const next = { ...cur, sessionPreviewEdits: [...withoutSameCriterion, entry] };
         queueMicrotask(() => {
           if (isCritiqueFlow(next)) setReturnViewIntent({ kind: 'critique', flow: next });
         });
@@ -1717,6 +1731,17 @@ export default function App() {
             onCancel={onCropCancel}
             onConfirm={onCropConfirm}
           />
+        ) : null}
+        {titleAppliedToast ? (
+          <div
+            className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[60] -translate-x-1/2 px-4"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="animate-fade-in rounded-full border border-violet-200 bg-slate-900 px-4 py-2.5 text-center text-sm font-medium text-white shadow-lg shadow-slate-900/20">
+              Applied to title
+            </div>
+          </div>
         ) : null}
         </>
       )}
