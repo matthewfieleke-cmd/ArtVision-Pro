@@ -188,7 +188,7 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   /** Which generate action is in flight so only that button shows a spinner. */
-  const [previewLoadingTarget, setPreviewLoadingTarget] = useState<null | { kind: 'single'; changeIndex: number }>(
+  const [previewLoadingTarget, setPreviewLoadingTarget] = useState<null | { kind: 'single'; criterion: CritiqueCategory['criterion'] }>(
     null
   );
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -837,7 +837,7 @@ export default function App() {
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
 
-  const runPreviewEdit = useCallback(async (singleChangeIndex?: number) => {
+  const runPreviewEdit = useCallback(async (criterion: CritiqueCategory['criterion']) => {
     const currentFlow = flowRef.current;
     if (!currentFlow || currentFlow.step !== 'results') return;
     const catList = currentFlow.critique.categories;
@@ -848,39 +848,22 @@ export default function App() {
       setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
       return;
     }
-    const singleIdx = changes?.length
-      ? Math.min(Math.max(0, singleChangeIndex ?? 0), changes.length - 1)
-      : 0;
+    const matchingChange = changes?.find((change) => change.previewCriterion === criterion);
+    const category =
+      catList.find((entry) => entry.criterion === criterion) ?? priorityCritiqueCategory(catList);
     setPreviewError(null);
-    setPreviewLoadingTarget({ kind: 'single', changeIndex: singleIdx });
+    setPreviewLoadingTarget({ kind: 'single', criterion });
     setPreviewLoading(true);
     try {
-      let target: PreviewEditTargetPayload;
-      if (changes && changes.length > 0) {
-        const idx = singleIdx;
-        const ch = changes[idx]!;
-        const cat =
-          catList.find((c) => c.criterion === ch.previewCriterion) ?? priorityCritiqueCategory(catList);
-        target = {
-          criterion: ch.previewCriterion,
-          level: cat.level,
-          feedback: cat.feedback,
-          actionPlan: cat.actionPlan,
-          anchor: cat.anchor,
-          editPlan: cat.editPlan,
-          studioChangeRecommendation: ch.text,
-        };
-      } else {
-        const p = priorityCritiqueCategory(catList);
-        target = {
-          criterion: p.criterion,
-          level: p.level,
-          feedback: p.feedback,
-          actionPlan: p.actionPlan,
-          anchor: p.anchor,
-          editPlan: p.editPlan,
-        };
-      }
+      const target: PreviewEditTargetPayload = {
+        criterion: category.criterion,
+        level: category.level,
+        feedback: category.feedback,
+        actionPlan: category.actionPlan,
+        anchor: category.anchor,
+        editPlan: category.editPlan,
+        ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),
+      };
       const { imageDataUrl } = await fetchPreviewEdit({
         imageDataUrl: previewSource,
         style: currentFlow.style,
@@ -1502,7 +1485,9 @@ export default function App() {
                   paintingImageSrc={flow.imageDataUrl}
                   onLearnMore={rememberCritiqueReturn}
                   canGenerateAiEdits={shouldTryApiFirst()}
-                  onGenerateAiEditForChange={(idx) => void runPreviewEdit(idx)}
+                  onGenerateAiEditForCriterion={(criterion: CritiqueCategory['criterion']) =>
+                    void runPreviewEdit(criterion)
+                  }
                   previewLoading={previewLoading}
                   previewLoadingTarget={previewLoadingTarget}
                   voiceBFooter={

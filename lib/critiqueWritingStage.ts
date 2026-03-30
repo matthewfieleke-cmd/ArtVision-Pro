@@ -34,11 +34,11 @@ function completionToneBlock(evidence: CritiqueEvidenceDTO): string {
 - Finish state is ambiguous: balance structure-level and selective advice; name what would change your mind in one more session vs. what is already reading resolved.`;
 }
 
-export function buildWritingPrompt(style: string, evidence: CritiqueEvidenceDTO): string {
+export function buildWritingPrompt(style: string, medium: string, evidence: CritiqueEvidenceDTO): string {
   const benchmarks = isStyleKey(style)
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
-  const exemplarBlock = isStyleKey(style) ? getCriterionExemplarBlock(style) : '';
+  const exemplarBlock = isStyleKey(style) ? getCriterionExemplarBlock(style, medium) : '';
   return `You are stage 2 of a painting critique system.
 
 You are now writing the critique from already extracted evidence.
@@ -176,7 +176,7 @@ export async function runCritiqueWritingStage(
         json_schema: CRITIQUE_JSON_SCHEMA,
       },
       messages: [
-        { role: 'system', content: buildWritingPrompt(style, evidence) },
+        { role: 'system', content: buildWritingPrompt(style, body.medium, evidence) },
         {
           role: 'user',
           content: `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildCritiqueSchemaInstruction()}`,

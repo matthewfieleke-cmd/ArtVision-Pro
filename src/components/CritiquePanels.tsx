@@ -10,10 +10,10 @@ type CritiquePanelsProps = {
   paintingImageSrc?: string;
   onLearnMore?: () => void;
   canGenerateAiEdits?: boolean;
-  onGenerateAiEditForChange?: (changeIndex: number) => void;
+  onGenerateAiEditForCriterion?: (criterion: CritiqueCategory['criterion']) => void;
   previewLoading?: boolean;
   /** Only the matching button shows a spinner. */
-  previewLoadingTarget?: null | { kind: 'single'; changeIndex: number };
+  previewLoadingTarget?: null | { kind: 'single'; criterion: CritiqueCategory['criterion'] };
   /** Rendered directly under Voice B (e.g. AI edits session), before photo quality / categories. */
   voiceBFooter?: ReactNode;
 };
@@ -286,7 +286,7 @@ export function CritiquePanels({
   paintingImageSrc,
   onLearnMore,
   canGenerateAiEdits = false,
-  onGenerateAiEditForChange,
+  onGenerateAiEditForCriterion,
   previewLoading = false,
   previewLoadingTarget = null,
   voiceBFooter,
@@ -315,8 +315,8 @@ export function CritiquePanels({
         </section>
       ) : null}
       {critique.simple ? (
-        <section className="rounded-2xl border border-violet-200/80 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Studio read</p>
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting read</p>
           {critique.completionRead ? (
             <div className="mt-3 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -346,7 +346,7 @@ export function CritiquePanels({
             </div>
           ) : null}
           <div className="mt-3 space-y-4">
-            <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm">
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Analysis · Voice A</p>
               <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 Critical read — style, medium, and finish level inform tone and emphasis.
@@ -451,12 +451,8 @@ export function CritiquePanels({
           <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
         </div>
       ) : null}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Full critique summary</p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">{critique.summary}</p>
-      </div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Detailed criterion breakdown</p>
-      {critique.categories.map((category, idx) => {
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Criterion cards</p>
+      {critique.categories.map((category) => {
         const generateButtonVisible =
           category.level !== 'Master' &&
           category.editPlan?.editability === 'yes' &&
@@ -464,7 +460,7 @@ export function CritiquePanels({
         const thisLoading =
           previewLoading &&
           previewLoadingTarget?.kind === 'single' &&
-          previewLoadingTarget.changeIndex === idx;
+          previewLoadingTarget.criterion === category.criterion;
         return (
           <CategoryCard
             key={category.criterion}
@@ -472,7 +468,9 @@ export function CritiquePanels({
             paintingImageSrc={paintingImageSrc}
             canGenerateAiEdits={canGenerateAiEdits}
             generateButtonVisible={generateButtonVisible}
-            onGenerateAiEdit={onGenerateAiEditForChange ? () => onGenerateAiEditForChange(idx) : undefined}
+            onGenerateAiEdit={
+              onGenerateAiEditForCriterion ? () => onGenerateAiEditForCriterion(category.criterion) : undefined
+            }
             previewLoading={thisLoading}
             onLearnMore={onLearnMore}
           />

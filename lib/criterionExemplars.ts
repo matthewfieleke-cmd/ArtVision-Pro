@@ -478,11 +478,33 @@ function formatExemplar(exemplar: Exemplar): string {
   return `${exemplar.artist}, ${exemplar.workTitle}${exemplar.medium ? ` (${exemplar.medium})` : ''} — ${exemplar.why}`;
 }
 
-export function getCriterionExemplarBlock(style: StyleKey): string {
+function normalizeMedium(medium: string | undefined): string {
+  return (medium ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function mediumLooksCompatible(exemplarMedium: string | undefined, requestedMedium: string | undefined): boolean {
+  const exemplar = normalizeMedium(exemplarMedium);
+  const requested = normalizeMedium(requestedMedium);
+  if (!requested || !exemplar) return false;
+  if (requested === exemplar) return true;
+  if (requested === 'oil on canvas' && exemplar.includes('oil')) return true;
+  if (requested === 'watercolor' && exemplar.includes('watercolor')) return true;
+  if (requested === 'drawing' && (exemplar.includes('drawing') || exemplar.includes('graphite') || exemplar.includes('charcoal') || exemplar.includes('crayon') || exemplar.includes('pastel'))) return true;
+  if (requested === 'pastel' && exemplar.includes('pastel')) return true;
+  if (requested === 'acrylic' && exemplar.includes('acrylic')) return true;
+  return false;
+}
+
+export function getCriterionExemplarBlock(style: StyleKey, medium?: string): string {
   const rows = CRITERIA_ORDER.map((criterion) => {
-    const items = (EXEMPLARS[style][criterion] ?? []).filter((item) =>
+    const allItems = (EXEMPLARS[style][criterion] ?? []).filter((item) =>
       hasReliableImage(style, item.artist, item.workTitle)
     );
+    const mediumMatched = allItems.filter((item) => mediumLooksCompatible(item.medium, medium));
+    const items = mediumMatched.length > 0 ? mediumMatched : allItems;
     if (!items.length) return null;
     const formatted = items.map((item) => `  - ${formatExemplar(item)}`).join('\n');
     return `${criterion}:\n${formatted}`;
