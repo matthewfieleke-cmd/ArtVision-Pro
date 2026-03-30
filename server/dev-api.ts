@@ -47,6 +47,6 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(
-    `API on http://127.0.0.1:${PORT} — /api/critique, /api/classify-style, /api/preview-edit`
+    `API on http://127.0.0.1:${PORT} — /api/critique, /api/classify-style, /api/classify-medium, /api/preview-edit`
   );
 });
