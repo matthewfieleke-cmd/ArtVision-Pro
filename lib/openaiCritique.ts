@@ -122,7 +122,14 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     medium: body.medium,
     userContent,
   });
-  let calibration = await runCritiqueCalibrationStage(apiKey, model, body.style, body.medium, evidence);
+  let calibration = await runCritiqueCalibrationStage(
+    apiKey,
+    model,
+    body.style,
+    body.medium,
+    evidence,
+    userContent
+  );
 
   let parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
   let base = validateCritiqueResult(parsed);
@@ -143,7 +150,14 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       medium: body.medium,
       userContent,
     });
-    calibration = await runCritiqueCalibrationStage(apiKey, model, body.style, body.medium, evidence);
+    calibration = await runCritiqueCalibrationStage(
+      apiKey,
+      model,
+      body.style,
+      body.medium,
+      evidence,
+      userContent
+    );
     parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
     base = validateCritiqueResult(parsed);
     withCompletion = {
