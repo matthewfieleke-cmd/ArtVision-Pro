@@ -1,5 +1,5 @@
-import { artImage } from '../artPublicUrl';
-import type { Style } from '../types';
+import { artImage } from '../artPublicUrl.js';
+import type { Style } from '../types.js';
 
 export type MasterFigure = {
   workTitle: string;
