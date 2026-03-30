@@ -109,9 +109,20 @@ export const CRITIQUE_JSON_SCHEMA = {
       'comparisonNote',
       'overallConfidence',
       'photoQuality',
+      'suggestedPaintingTitles',
     ],
     properties: {
       summary: { type: 'string' },
+      suggestedPaintingTitles: {
+        type: 'array',
+        minItems: 3,
+        maxItems: 3,
+        items: {
+          type: 'string',
+          description:
+            'Exhibition-style painting title: Title Case, no quotes. Ground in visible motifs, light, space, or handling from THIS image. Avoid generic praise. Vary structure across the three (e.g. descriptive, study-style, subtitle with medium).',
+        },
+      },
       overallSummary: {
         type: 'object',
         additionalProperties: false,
@@ -325,6 +336,7 @@ export const CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary
+- suggestedPaintingTitles: exactly 3 strings — scholarly, catalogue-ready titles for THIS painting only, grounded in visible passages from the evidence (motifs, light, space, color behavior, mark-making). Standard conventions: Title Case; no quotation marks; no artist self-reference; not generic ("Beautiful Landscape"). Each title should feel like a plausible museum label variant and should differ in phrasing from the other two.
 - overallSummary: { analysis, topPriorities } — analysis is Voice A only; topPriorities = 1–2 Voice B priorities
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt); do not name critics. Two paragraphs; every claim anchored in THIS painting (named passages from evidence). Must align with the eight category levels.
 - studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: composite studio teacher (see system prompt); responds to Voice A + evidence; do not name teachers. Each text names where and how on THIS canvas; previewCriterion from CRITERIA_ORDER.

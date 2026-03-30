@@ -68,6 +68,8 @@ export type CritiqueResultDTO = {
   simpleFeedback?: CritiqueSimpleFeedbackDTO;
   comparisonNote?: string;
   paintingTitle?: string;
+  /** Three exhibition-style title suggestions grounded in visible content. */
+  suggestedPaintingTitles?: string[];
   analysisSource?: 'api' | 'local';
   overallConfidence?: CritiqueConfidenceDTO;
   photoQuality?: PhotoQualityAssessmentDTO;

@@ -79,9 +79,16 @@ export async function runOpenAICritique(
     'gpt-4o';
   const { mime, base64 } = parseDataUrl(body.imageDataUrl);
 
+  const trimmedUserTitle =
+    typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const titleLine =
-    typeof body.paintingTitle === 'string' && body.paintingTitle.trim().length > 0
-      ? ` The artist titled this work: "${body.paintingTitle.trim()}". Use that title when referring to the piece in summary and feedback where natural.`
+    trimmedUserTitle.length > 0
+      ? ` The artist titled this work: "${trimmedUserTitle}". Use that title when referring to the piece in summary and feedback where natural.`
+      : '';
+
+  const titleSuggestionLine =
+    trimmedUserTitle.length === 0
+      ? ` The artist has not supplied a title. You must still output suggestedPaintingTitles: exactly three distinct, catalogue-quality titles grounded in visible evidence (motifs, light, space, color, handling)—scholarly tone, Title Case, no quotes.`
       : '';
 
   const userContent: Array<
@@ -90,7 +97,7 @@ export async function runOpenAICritique(
   > = [
     {
       type: 'text',
-      text: `Analyze this painting for studio use. Style: ${body.style}. Medium: ${body.medium}.${titleLine}
+      text: `Analyze this painting for studio use. Style: ${body.style}. Medium: ${body.medium}.${titleLine}${titleSuggestionLine}
 
 Ground every criterion in what is visible in the photo. Prefer "in the ___ area of the painting" over abstract wording.${
         body.previousCritique && body.previousImageDataUrl

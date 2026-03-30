@@ -401,6 +401,54 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
   );
 }
 
+function SuggestedTitlesCard({ titles }: { titles: string[] }) {
+  const [open, setOpen] = useState(false);
+  const headingId = useId();
+  const panelId = useId();
+  if (titles.length === 0) return null;
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        id={headingId}
+        className="flex w-full items-start gap-2 px-4 py-3 text-left transition hover:bg-slate-50/90"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={`${open ? 'Collapse' : 'Expand'} suggested painting titles`}
+      >
+        <ChevronDown
+          className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-900">Suggested titles</span>
+          <span className="mt-0.5 block text-xs text-slate-500">
+            Three catalogue-style names grounded in this image—use or adapt any you like.
+          </span>
+        </span>
+      </button>
+      {open ? (
+        <div
+          id={panelId}
+          role="region"
+          aria-labelledby={headingId}
+          className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
+        >
+          <ol className="list-decimal space-y-2 pl-4 text-sm leading-relaxed text-slate-700">
+            {titles.map((t) => (
+              <li key={t} className="pl-1">
+                {t}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function CompletionReadBrief({ read }: { read: CompletionRead }) {
   return (
     <>
@@ -451,6 +499,9 @@ export function CritiquePanels({
           <span className="text-xs font-bold uppercase tracking-wide text-amber-800">vs. previous</span>
           <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
         </div>
+      ) : null}
+      {critique.suggestedPaintingTitles && critique.suggestedPaintingTitles.length >= 3 ? (
+        <SuggestedTitlesCard titles={critique.suggestedPaintingTitles.slice(0, 3)} />
       ) : null}
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Criterion cards</p>
       {critique.categories.map((category) => {

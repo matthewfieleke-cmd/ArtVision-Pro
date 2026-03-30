@@ -1264,11 +1264,6 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  {flow.styleMode === 'auto' && flow.style && flow.styleClassifyMeta ? (
-                    <p className="mt-2 text-xs leading-snug text-slate-500">
-                      Suggested style is selected above—tap another if you prefer.
-                    </p>
-                  ) : null}
                 </div>
 
                 <div>
@@ -1306,7 +1301,7 @@ export default function App() {
                     autoComplete="off"
                   />
                   <p className="mt-1.5 text-[11px] text-slate-500">
-                    Shown on your critique and saved with the painting. Leave blank for an auto title.
+                    Shown on your critique and saved with the painting. Leave blank and ArtVision Pro will suggest three possible names for your painting.
                   </p>
                 </div>
 
@@ -1365,6 +1360,9 @@ export default function App() {
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                     autoComplete="off"
                   />
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    Leave blank and ArtVision Pro will suggest three possible names for your painting.
+                  </p>
                 </div>
 
                 {isDesktop ? (

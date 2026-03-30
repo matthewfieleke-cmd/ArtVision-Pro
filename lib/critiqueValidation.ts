@@ -469,6 +469,14 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   ) {
     throw new Error('Invalid photoQuality fields');
   }
+  const titlesRaw = o.suggestedPaintingTitles;
+  if (!Array.isArray(titlesRaw) || titlesRaw.length !== 3 || titlesRaw.some((v) => typeof v !== 'string')) {
+    throw new Error('Invalid critique: suggestedPaintingTitles');
+  }
+  const suggestedPaintingTitles = titlesRaw.map((t) => t.trim()).filter((t) => t.length > 0);
+  if (suggestedPaintingTitles.length !== 3) {
+    throw new Error('Invalid critique: suggestedPaintingTitles empty');
+  }
   return {
     summary: o.summary,
     overallSummary: {
@@ -485,6 +493,7 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
       tips: pq.tips as string[],
     },
     analysisSource: 'api',
+    suggestedPaintingTitles,
     ...(typeof cn === 'string' && cn.length > 0 ? { comparisonNote: cn } : {}),
   };
 }

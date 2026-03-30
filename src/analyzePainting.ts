@@ -21,6 +21,7 @@ import {
 import type { ImageMetrics } from './imageMetrics';
 import { clamp01, computeImageMetrics } from './imageMetrics';
 import { deriveLocalCompletionRead } from './paintingCompletion';
+import { buildLocalSuggestedPaintingTitles } from './suggestedPaintingTitles';
 
 function scoreToLevel(score: number): RatingLevel {
   if (score < 0.28) return 'Beginner';
@@ -954,10 +955,18 @@ export async function analyzePainting(
   }
 
   const trimmed = paintingTitle?.trim();
+  const suggestedPaintingTitles = buildLocalSuggestedPaintingTitles(
+    style,
+    medium,
+    categories,
+    completionRead,
+    benchmarks
+  );
   return finalizeCritiqueResult({
     categories,
     summary,
     comparisonNote,
+    suggestedPaintingTitles,
     simple: buildLocalStudioRead(
       style,
       medium,

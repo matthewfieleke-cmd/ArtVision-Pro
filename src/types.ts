@@ -109,6 +109,8 @@ export type CritiqueResult = {
   comparisonNote?: string;
   /** Optional title the artist gave this work for this critique */
   paintingTitle?: string;
+  /** Catalogue-style name ideas when the artist has not titled the work (API or local). */
+  suggestedPaintingTitles?: string[];
   /** Whether this critique came from the API vision model or local heuristics. */
   analysisSource?: 'api' | 'local';
   overallConfidence?: CritiqueConfidence;

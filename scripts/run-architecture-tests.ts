@@ -467,6 +467,11 @@ function testCritiqueGuardrails(): void {
     overallConfidence: 'high',
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
     analysisSource: 'api',
+    suggestedPaintingTitles: [
+      'Interior with Seated Figure and Foreground Chair',
+      'Study in Window Light and Compressed Wall Tone',
+      'Chair Back and Face: Drawing After Vermeer',
+    ],
   });
 
   assert.equal(critiqueNeedsFreshEvidenceRead(base), false);
