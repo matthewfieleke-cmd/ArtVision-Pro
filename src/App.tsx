@@ -13,7 +13,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
-import { previewEditChipText, previewEditChipTitle } from '../shared/criteria';
+import { canonicalCriterionLabel, previewEditChipText, previewEditChipTitle } from '../shared/criteria';
 import { BottomNav } from './components/BottomNav';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { CritiquePanels } from './components/CritiquePanels';
@@ -876,7 +876,8 @@ export default function App() {
     const map: Partial<Record<CritiqueCategory['criterion'], string>> = {};
     for (const e of list) {
       if (e.mode === 'single') {
-        map[e.criterion] = e.id;
+        const key = canonicalCriterionLabel(e.criterion) ?? e.criterion;
+        map[key as CritiqueCategory['criterion']] = e.id;
       }
     }
     return Object.keys(map).length ? map : undefined;
@@ -927,9 +928,12 @@ export default function App() {
     if (!currentFlow || currentFlow.step !== 'results') return;
     const catList = currentFlow.critique.categories;
     if (catList.length === 0) return;
-    const alreadyForCriterion = (currentFlow.sessionPreviewEdits ?? []).some(
-      (e) => e.mode === 'single' && e.criterion === criterion
-    );
+    const canonCriterion = canonicalCriterionLabel(criterion) ?? criterion;
+    const alreadyForCriterion = (currentFlow.sessionPreviewEdits ?? []).some((e) => {
+      if (e.mode !== 'single') return false;
+      const k = canonicalCriterionLabel(e.criterion) ?? e.criterion;
+      return k === canonCriterion;
+    });
     if (alreadyForCriterion) return;
     const changes = currentFlow.critique.simple?.studioChanges;
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
@@ -953,16 +957,20 @@ export default function App() {
         editPlan: category.editPlan,
         ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),
       };
-      const { imageDataUrl } = await fetchPreviewEdit({
+      const { imageDataUrl, criterion: returnedCriterion } = await fetchPreviewEdit({
         imageDataUrl: previewSource,
         style: currentFlow.style,
         medium: currentFlow.medium,
         target,
       });
+      const storedCriterion =
+        canonicalCriterionLabel(returnedCriterion) ??
+        canonicalCriterionLabel(target.criterion) ??
+        target.criterion;
       const entry: SavedPreviewEdit = {
         id: newId(),
         imageDataUrl,
-        criterion: target.criterion,
+        criterion: storedCriterion,
         mode: 'single',
         ...(target.studioChangeRecommendation
           ? { studioChangeRecommendation: target.studioChangeRecommendation }
@@ -971,9 +979,12 @@ export default function App() {
       setFlow((cur) => {
         if (!cur || cur.step !== 'results') return cur;
         const prev = cur.sessionPreviewEdits ?? [];
-        const withoutSameCriterion = prev.filter(
-          (e) => !(e.mode === 'single' && e.criterion === entry.criterion)
-        );
+        const withoutSameCriterion = prev.filter((e) => {
+          if (e.mode !== 'single') return true;
+          const prevK = canonicalCriterionLabel(e.criterion) ?? e.criterion;
+          const nextK = canonicalCriterionLabel(entry.criterion) ?? entry.criterion;
+          return prevK !== nextK;
+        });
         const next = { ...cur, sessionPreviewEdits: [...withoutSameCriterion, entry] };
         queueMicrotask(() => {
           if (isCritiqueFlow(next)) setReturnViewIntent({ kind: 'critique', flow: next });
