@@ -1,4 +1,5 @@
 import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
+import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 
 export type CritiqueConfidenceDTO = 'low' | 'medium' | 'high';
 
@@ -23,7 +24,7 @@ export type PhotoQualityAssessmentDTO = {
 
 export type CritiqueCategoryDTO = {
   criterion: CriterionLabel;
-  level: RatingLevelLabel;
+  level?: RatingLevelLabel;
   feedback: string;
   actionPlan: string;
   confidence?: CritiqueConfidenceDTO;
@@ -31,6 +32,8 @@ export type CritiqueCategoryDTO = {
   preserve?: string;
   practiceExercise?: string;
   nextTarget?: string;
+  anchor?: CriterionAnchor;
+  editPlan?: CriterionEditPlan;
   subskills?: Array<{
     label: string;
     score: number;
@@ -53,9 +56,15 @@ export type CritiqueSimpleFeedbackDTO = {
   studioChanges: StudioChangeDTO[];
 };
 
+export type OverallSummaryCardDTO = {
+  analysis: string;
+  topPriorities: string[];
+};
+
 export type CritiqueResultDTO = {
   categories: CritiqueCategoryDTO[];
   summary: string;
+  overallSummary?: OverallSummaryCardDTO;
   simpleFeedback?: CritiqueSimpleFeedbackDTO;
   comparisonNote?: string;
   paintingTitle?: string;

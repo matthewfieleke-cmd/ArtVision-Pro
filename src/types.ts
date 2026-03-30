@@ -1,5 +1,6 @@
 import { ARTISTS_BY_STYLE } from '../shared/artists';
 import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria';
+import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors';
 
 export const STYLES = [
   'Realism',
@@ -55,7 +56,7 @@ export type CritiqueSubskill = {
 
 export type CritiqueCategory = {
   criterion: Criterion;
-  level: RatingLevel;
+  level?: RatingLevel;
   feedback: string;
   actionPlan: string;
   confidence?: CritiqueConfidence;
@@ -69,6 +70,10 @@ export type CritiqueCategory = {
   nextTarget?: string;
   /** Optional sub-skill breakdown; especially useful for local heuristic grading. */
   subskills?: CritiqueSubskill[];
+  /** Shared anchor used by Voice A / Voice B / overlay / AI edit. */
+  anchor?: CriterionAnchor;
+  /** Exact machine-readable edit instructions for the preview system. */
+  editPlan?: CriterionEditPlan;
 };
 
 /** Voice A: critical analysis (composite critic voice). */
@@ -89,9 +94,15 @@ export type CritiqueSimpleFeedback = {
   studioChanges: StudioChange[];
 };
 
+export type OverallSummaryCard = {
+  analysis: string;
+  topPriorities: string[];
+};
+
 export type CritiqueResult = {
   categories: CritiqueCategory[];
   summary: string;
+  overallSummary?: OverallSummaryCard;
   /** Simple top-level studio feedback shown before the detailed criterion breakdown. */
   simple?: CritiqueSimpleFeedback;
   /** When comparing to a prior version */

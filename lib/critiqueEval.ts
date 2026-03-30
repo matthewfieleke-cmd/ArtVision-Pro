@@ -14,6 +14,7 @@ function containsAny(text: string, patterns: RegExp[]): boolean {
 export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEvalResult {
   const simple = critique.simpleFeedback;
   const improveText = simple?.studioAnalysis.whatCouldImprove ?? '';
+  const worksText = simple?.studioAnalysis.whatWorks ?? '';
   const genericMainIssue = Boolean(
     simple &&
       containsAny(improveText, [
@@ -28,6 +29,17 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
       ])
   );
 
+  const genericVoiceA = Boolean(
+    simple &&
+      containsAny(`${worksText} ${improveText}`, [
+        /\bcaptures?\b/i,
+        /\beffectively uses?\b/i,
+        /\bcreates a sense of\b/i,
+        /\bstrong sense of\b/i,
+        /\baims to\b/i,
+      ])
+  );
+
   const genericNextSteps = Boolean(
     simple &&
       simple.studioChanges.some((ch) =>
@@ -39,6 +51,9 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
           /improve spatial clarity/i,
           /more cohesive/i,
           /enhance focus/i,
+          /\brefine the edges\b/i,
+          /\badjust the lighting\b/i,
+          /\badd subtle variations\b/i,
         ])
       )
   );
@@ -60,6 +75,11 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
     genericNextSteps
       ? 'Some studio change lines still fall back on stock advice such as more contrast, stronger focal point, or sharper definition.'
       : 'The studio change lines are more exact and less trapped in stock “clarify / contrast / focus” moves.'
+  );
+  notes.push(
+    genericVoiceA
+      ? 'Voice A still sounds somewhat like product-summary praise (“captures,” “effectively uses,” “creates a sense of”) instead of close, expert-specific judgment.'
+      : 'Voice A sounds closer to a serious critic-teacher than to a generic art-app summary.'
   );
   notes.push(
     weakEvidence

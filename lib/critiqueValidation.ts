@@ -1,4 +1,5 @@
 import { canonicalCriterionLabel, CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
+import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 import type {
   CritiqueResultDTO,
   CritiqueSimpleFeedbackDTO,
@@ -30,6 +31,73 @@ export type CritiqueEvidenceDTO = {
     confidence: 'low' | 'medium' | 'high';
   }>;
 };
+
+function isNormalizedNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+function validateAnchor(raw: unknown, criterion: (typeof CRITERIA_ORDER)[number]): CriterionAnchor {
+  if (!raw || typeof raw !== 'object') throw new Error(`Invalid anchor for ${criterion}`);
+  const o = raw as Record<string, unknown>;
+  const region = o.region;
+  if (
+    typeof o.areaSummary !== 'string' ||
+    o.areaSummary.trim().length < 4 ||
+    typeof o.evidencePointer !== 'string' ||
+    o.evidencePointer.trim().length < 4 ||
+    !region ||
+    typeof region !== 'object'
+  ) {
+    throw new Error(`Invalid anchor fields for ${criterion}`);
+  }
+  const r = region as Record<string, unknown>;
+  if (
+    !isNormalizedNumber(r.x) ||
+    !isNormalizedNumber(r.y) ||
+    !isNormalizedNumber(r.width) ||
+    !isNormalizedNumber(r.height) ||
+    r.width <= 0 ||
+    r.height <= 0 ||
+    (r.x as number) + (r.width as number) > 1 ||
+    (r.y as number) + (r.height as number) > 1
+  ) {
+    throw new Error(`Invalid anchor region for ${criterion}`);
+  }
+  return {
+    areaSummary: o.areaSummary.trim(),
+    evidencePointer: o.evidencePointer.trim(),
+    region: {
+      x: r.x as number,
+      y: r.y as number,
+      width: r.width as number,
+      height: r.height as number,
+    },
+  };
+}
+
+function validateEditPlan(raw: unknown, criterion: (typeof CRITERIA_ORDER)[number]): CriterionEditPlan {
+  if (!raw || typeof raw !== 'object') throw new Error(`Invalid edit plan for ${criterion}`);
+  const o = raw as Record<string, unknown>;
+  if (
+    typeof o.targetArea !== 'string' ||
+    typeof o.preserveArea !== 'string' ||
+    typeof o.issue !== 'string' ||
+    typeof o.intendedChange !== 'string' ||
+    typeof o.expectedOutcome !== 'string' ||
+    typeof o.editability !== 'string' ||
+    !(['yes', 'no'] as const).includes(o.editability as 'yes' | 'no')
+  ) {
+    throw new Error(`Invalid edit plan fields for ${criterion}`);
+  }
+  return {
+    targetArea: o.targetArea.trim(),
+    preserveArea: o.preserveArea.trim(),
+    issue: o.issue.trim(),
+    intendedChange: o.intendedChange.trim(),
+    expectedOutcome: o.expectedOutcome.trim(),
+    editability: o.editability as 'yes' | 'no',
+  };
+}
 
 function normalizePreviewCriterion(raw: string): (typeof CRITERIA_ORDER)[number] {
   const c = canonicalCriterionLabel(raw);
@@ -287,6 +355,19 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid API response');
   const o = raw as Record<string, unknown>;
   if (typeof o.summary !== 'string') throw new Error('Invalid critique: summary');
+  const overallSummaryRaw = o.overallSummary;
+  if (!overallSummaryRaw || typeof overallSummaryRaw !== 'object') {
+    throw new Error('Invalid critique: overallSummary');
+  }
+  const overallSummaryObj = overallSummaryRaw as Record<string, unknown>;
+  const topPrioritiesRaw = overallSummaryObj.topPriorities;
+  if (
+    typeof overallSummaryObj.analysis !== 'string' ||
+    !Array.isArray(topPrioritiesRaw) ||
+    topPrioritiesRaw.some((v: unknown) => typeof v !== 'string')
+  ) {
+    throw new Error('Invalid critique: overallSummary');
+  }
   const simpleFeedback = parseSimpleFeedback(o);
   if (
     typeof o.overallConfidence !== 'string' ||
@@ -327,6 +408,8 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     ) {
       throw new Error(`Invalid coaching metadata for ${expected}`);
     }
+    const anchor = validateAnchor(r.anchor, expected);
+    const editPlan = validateEditPlan(r.editPlan, expected);
     const subskills =
       Array.isArray(r.subskills) &&
       r.subskills.length >= 2 &&
@@ -363,6 +446,8 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
       preserve: r.preserve,
       practiceExercise: r.practiceExercise,
       nextTarget: r.nextTarget,
+      anchor,
+      editPlan,
       subskills,
     };
   });
@@ -386,6 +471,10 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   }
   return {
     summary: o.summary,
+    overallSummary: {
+      analysis: overallSummaryObj.analysis as string,
+      topPriorities: overallSummaryObj.topPriorities as string[],
+    },
     simpleFeedback,
     categories,
     overallConfidence: o.overallConfidence as 'low' | 'medium' | 'high',

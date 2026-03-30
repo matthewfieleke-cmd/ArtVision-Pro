@@ -1,19 +1,19 @@
 import { useId, useState, type ReactNode } from 'react';
 import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
+import { PaintingOverlay } from './PaintingOverlay';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
 import type { CritiqueCategory, CritiqueResult, WorkCompletionState } from '../types';
 
 type CritiquePanelsProps = {
   critique: CritiqueResult;
+  paintingImageSrc?: string;
   onLearnMore?: () => void;
   canGenerateAiEdits?: boolean;
-  onGenerateAiEditForChange?: (changeIndex: number) => void;
-  onGenerateAiEditAll?: () => void;
+  onGenerateAiEditForCriterion?: (criterion: CritiqueCategory['criterion']) => void;
   previewLoading?: boolean;
   /** Only the matching button shows a spinner. */
-  previewLoadingTarget?: null | { kind: 'combined' } | { kind: 'single'; changeIndex: number };
-  previewAllProgress?: { current: number; total: number } | null;
+  previewLoadingTarget?: null | { kind: 'single'; criterion: CritiqueCategory['criterion'] };
   /** Rendered directly under Voice B (e.g. AI edits session), before photo quality / categories. */
   voiceBFooter?: ReactNode;
 };
@@ -73,6 +73,11 @@ function confidenceBadgeClass(confidence?: CritiqueCategory['confidence']): stri
 
 type CategoryCardProps = {
   category: CritiqueCategory;
+  paintingImageSrc?: string;
+  canGenerateAiEdits?: boolean;
+  generateButtonVisible?: boolean;
+  onGenerateAiEdit?: () => void;
+  previewLoading?: boolean;
   onLearnMore?: () => void;
 };
 
@@ -86,6 +91,7 @@ function normalizeLabel(text: string): string {
 
 function hasUsableSubskills(category: CritiqueCategory): boolean {
   if (!category.subskills?.length) return false;
+  if (!category.level) return false;
 
   const parentRank = LEVEL_RANK[category.level];
   const evidenceLabels = new Set(
@@ -105,10 +111,26 @@ function hasDriverDetails(category: CritiqueCategory): boolean {
   return Boolean(category.evidenceSignals?.length || hasUsableSubskills(category));
 }
 
-function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
+function CategoryCard({
+  category,
+  paintingImageSrc,
+  canGenerateAiEdits = false,
+  generateButtonVisible = false,
+  onGenerateAiEdit,
+  previewLoading = false,
+  onLearnMore,
+}: CategoryCardProps) {
   const [open, setOpen] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
   const headingId = useId();
   const panelId = useId();
+  const hasRating = Boolean(category.level);
+  const buttonLabel =
+    category.editPlan?.editability === 'no'
+      ? 'This criterion is not available for AI edit on this painting.'
+      : previewLoading
+        ? 'Generating…'
+        : 'Generate AI edit';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -127,16 +149,20 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
         />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-slate-900">{category.criterion}</span>
-          <span className="mt-2 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-            <span
-              className="block h-full rounded-full bg-violet-500 transition-all duration-700"
-              style={{ width: levelWidth(category.level) }}
-            />
+          {hasRating ? (
+            <span className="mt-2 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <span
+                className="block h-full rounded-full bg-violet-500 transition-all duration-700"
+                style={{ width: levelWidth(category.level!) }}
+              />
+            </span>
+          ) : null}
+        </span>
+        {hasRating ? (
+          <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
+            {category.level}
           </span>
-        </span>
-        <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
-          {category.level}
-        </span>
+        ) : null}
       </button>
       {open ? (
         <div
@@ -151,12 +177,32 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
                 {confidenceLabel(category.confidence)}
               </span>
             ) : null}
-            {category.nextTarget ? (
+            {hasRating && category.nextTarget ? (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                 {category.nextTarget}
               </span>
             ) : null}
           </div>
+          {paintingImageSrc && category.anchor ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Referenced area</p>
+                <button
+                  type="button"
+                  onClick={() => setShowOverlay((v) => !v)}
+                  className="rounded-full border border-violet-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 transition hover:bg-violet-50"
+                >
+                  {showOverlay ? 'Hide overlay' : 'Show overlay'}
+                </button>
+              </div>
+              <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div className="relative">
+                  <img src={paintingImageSrc} alt="" className="w-full object-contain bg-slate-100" />
+                  {showOverlay ? <PaintingOverlay anchor={category.anchor} /> : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
           <p className="text-sm leading-relaxed text-slate-600">{category.feedback}</p>
           {hasDriverDetails(category) ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -204,10 +250,28 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
             <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">{category.actionPlan}</p>
           </div>
-          {category.practiceExercise ? (
+          {hasRating && category.practiceExercise ? (
             <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Practice this skill</p>
               <p className="mt-1 text-xs leading-relaxed text-violet-950/90">{category.practiceExercise}</p>
+            </div>
+          ) : null}
+          {generateButtonVisible && canGenerateAiEdits && onGenerateAiEdit ? (
+            <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3">
+              <button
+                type="button"
+                disabled={previewLoading || category.editPlan?.editability === 'no'}
+                aria-busy={previewLoading}
+                onClick={onGenerateAiEdit}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {previewLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Wand2 className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {buttonLabel}
+              </button>
             </div>
           ) : null}
           <CriterionLearnLink criterion={category.criterion} onClick={onLearnMore} />
@@ -219,20 +283,40 @@ function CategoryCard({ category, onLearnMore }: CategoryCardProps) {
 
 export function CritiquePanels({
   critique,
+  paintingImageSrc,
   onLearnMore,
   canGenerateAiEdits = false,
-  onGenerateAiEditForChange,
-  onGenerateAiEditAll,
+  onGenerateAiEditForCriterion,
   previewLoading = false,
   previewLoadingTarget = null,
-  previewAllProgress = null,
   voiceBFooter,
 }: CritiquePanelsProps) {
   return (
     <div className="space-y-3">
-      {critique.simple ? (
+      {critique.overallSummary ? (
         <section className="rounded-2xl border border-violet-200/80 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Studio read</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Overall summary</p>
+          <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+            {critique.overallSummary.analysis}
+          </p>
+          {critique.overallSummary.topPriorities.length ? (
+            <div className="mt-3 rounded-xl border border-violet-200/70 bg-violet-50/60 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Top priorities · Voice B</p>
+              <ol className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
+                {critique.overallSummary.topPriorities.map((priority) => (
+                  <li key={priority} className="flex gap-2">
+                    <span className="mt-[0.25rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
+                    <span>{priority}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+      {critique.simple ? (
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting read</p>
           {critique.completionRead ? (
             <div className="mt-3 rounded-xl border border-slate-200/90 bg-slate-50/90 p-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -262,7 +346,7 @@ export function CritiquePanels({
             </div>
           ) : null}
           <div className="mt-3 space-y-4">
-            <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm">
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Analysis · Voice A</p>
               <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 Critical read — style, medium, and finish level inform tone and emphasis.
@@ -285,15 +369,11 @@ export function CritiquePanels({
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Changes to make · Voice B</p>
               <p className="mt-1 text-[11px] font-medium text-slate-600">
-                Concrete studio moves for this painting. Generate an AI edit to see an illustrative pass for one line or
-                for all lines together (saved with the work when you save to Studio).
+                Concrete studio moves for this painting. Generate an AI edit from the matching criterion card to see an
+                illustrative pass for that specific change.
               </p>
               <ol className="mt-3 space-y-3 text-sm leading-relaxed text-slate-800">
                 {critique.simple.studioChanges.map((ch, idx) => {
-                  const thisLoading =
-                    previewLoading &&
-                    previewLoadingTarget?.kind === 'single' &&
-                    previewLoadingTarget.changeIndex === idx;
                   return (
                     <li key={`${idx}-${ch.previewCriterion}`} className="flex flex-col gap-2.5 rounded-lg border border-violet-200/60 bg-white/90 p-3">
                       <div className="flex min-w-0 gap-2">
@@ -305,48 +385,10 @@ export function CritiquePanels({
                           </p>
                         </div>
                       </div>
-                      {canGenerateAiEdits && onGenerateAiEditForChange ? (
-                        <div className="flex min-w-0 border-t border-violet-100/80 pt-2.5">
-                          <button
-                            type="button"
-                            disabled={previewLoading}
-                            aria-busy={thisLoading}
-                            onClick={() => onGenerateAiEditForChange(idx)}
-                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:justify-start"
-                          >
-                            {thisLoading ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                            ) : (
-                              <Wand2 className="h-3.5 w-3.5" aria-hidden />
-                            )}
-                            {thisLoading ? 'Generating…' : 'Generate AI edit'}
-                          </button>
-                        </div>
-                      ) : null}
                     </li>
                   );
                 })}
               </ol>
-              {canGenerateAiEdits && onGenerateAiEditAll ? (
-                <button
-                  type="button"
-                  disabled={previewLoading}
-                  aria-busy={previewLoading && previewLoadingTarget?.kind === 'combined'}
-                  onClick={() => onGenerateAiEditAll()}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-400 disabled:text-white"
-                >
-                  {previewLoading && previewLoadingTarget?.kind === 'combined' ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Wand2 className="h-4 w-4" aria-hidden />
-                  )}
-                  {previewLoading && previewLoadingTarget?.kind === 'combined'
-                    ? previewAllProgress
-                      ? `Generating all (${previewAllProgress.current}/${previewAllProgress.total})…`
-                      : 'Preparing…'
-                    : 'Generate AI image with all suggested changes'}
-                </button>
-              ) : null}
             </div>
             {voiceBFooter ? <div className="mt-4 min-w-0">{voiceBFooter}</div> : null}
           </div>
@@ -409,14 +451,31 @@ export function CritiquePanels({
           <p className="mt-1 leading-relaxed text-amber-950/95">{critique.comparisonNote}</p>
         </div>
       ) : null}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Full critique summary</p>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">{critique.summary}</p>
-      </div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Detailed criterion breakdown</p>
-      {critique.categories.map((category) => (
-        <CategoryCard key={category.criterion} category={category} onLearnMore={onLearnMore} />
-      ))}
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Criterion cards</p>
+      {critique.categories.map((category) => {
+        const generateButtonVisible =
+          category.level !== 'Master' &&
+          category.editPlan?.editability === 'yes' &&
+          Boolean(category.editPlan);
+        const thisLoading =
+          previewLoading &&
+          previewLoadingTarget?.kind === 'single' &&
+          previewLoadingTarget.criterion === category.criterion;
+        return (
+          <CategoryCard
+            key={category.criterion}
+            category={category}
+            paintingImageSrc={paintingImageSrc}
+            canGenerateAiEdits={canGenerateAiEdits}
+            generateButtonVisible={generateButtonVisible}
+            onGenerateAiEdit={
+              onGenerateAiEditForCriterion ? () => onGenerateAiEditForCriterion(category.criterion) : undefined
+            }
+            previewLoading={thisLoading}
+            onLearnMore={onLearnMore}
+          />
+        );
+      })}
     </div>
   );
 }

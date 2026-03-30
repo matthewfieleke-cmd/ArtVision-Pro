@@ -1,5 +1,6 @@
 import type { CritiqueRequestBody } from './critiqueTypes.js';
 import type { PreviewEditRequestBody } from './previewEditTypes.js';
+import { runOpenAIClassifyMedium } from './openaiClassifyMedium.js';
 import { runOpenAIClassifyStyle } from './openaiClassifyStyle.js';
 import { runOpenAICritique } from './openaiCritique.js';
 import { runOpenAIPreviewEdit } from './openaiPreviewEdit.js';
@@ -24,12 +25,16 @@ export function applyCorsHeaders(
   setHeader('Access-Control-Max-Age', '86400');
 }
 
-export function resolveApiRoute(url: string | undefined): 'critique' | 'classify-style' | 'preview-edit' | null {
+export function resolveApiRoute(
+  url: string | undefined
+): 'critique' | 'classify-style' | 'classify-medium' | 'preview-edit' | null {
   switch (url) {
     case '/api/critique':
       return 'critique';
     case '/api/classify-style':
       return 'classify-style';
+    case '/api/classify-medium':
+      return 'classify-medium';
     case '/api/preview-edit':
       return 'preview-edit';
     default:
@@ -38,7 +43,7 @@ export function resolveApiRoute(url: string | undefined): 'critique' | 'classify
 }
 
 export async function handleApiRequest(args: {
-  route: 'critique' | 'classify-style' | 'preview-edit' | null;
+  route: 'critique' | 'classify-style' | 'classify-medium' | 'preview-edit' | null;
   method: string | undefined;
   apiKey: string | undefined;
   body: unknown;
@@ -91,6 +96,9 @@ export async function handleApiRequest(args: {
     if (!parsed?.imageDataUrl || typeof parsed.imageDataUrl !== 'string') {
       return { status: 400, body: { error: 'imageDataUrl required' } };
     }
+    if (route === 'classify-medium') {
+      return { status: 200, body: await runOpenAIClassifyMedium(apiKey, parsed.imageDataUrl) };
+    }
     return { status: 200, body: await runOpenAIClassifyStyle(apiKey, parsed.imageDataUrl) };
   } catch (error) {
     const defaultMessage =
@@ -98,6 +106,8 @@ export async function handleApiRequest(args: {
         ? 'Critique failed'
         : route === 'preview-edit'
           ? 'Preview edit failed'
+          : route === 'classify-medium'
+            ? 'Medium classification failed'
           : 'Classification failed';
     return {
       status: 500,

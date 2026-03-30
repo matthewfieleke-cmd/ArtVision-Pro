@@ -1,19 +1,15 @@
 import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
+import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 
 export type PreviewEditTarget = {
   criterion: CriterionLabel;
-  level: RatingLevelLabel;
+  level?: RatingLevelLabel;
   feedback: string;
   actionPlan: string;
+  anchor?: CriterionAnchor;
+  editPlan?: CriterionEditPlan;
   /** When set, the image edit is driven primarily by this Voice B line from Studio read. */
   studioChangeRecommendation?: string;
-  /** Numbered Voice B lines to apply in one pass (all suggested changes). */
-  combinedVoiceBChanges?: string;
-  /** When applying Voice B lines sequentially, which pass this request is (1-based). */
-  chainPassIndex?: number;
-  chainPassTotal?: number;
-  /** Plain-text list of Voice B lines already applied in earlier chain passes. */
-  completedChainInstructions?: string;
 };
 
 export type PreviewEditRequestBody = {

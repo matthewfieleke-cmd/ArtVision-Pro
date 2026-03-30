@@ -8,6 +8,7 @@ type FlowShared = {
   workingTitle: string;
   originalImageDataUrl?: string;
   styleClassifyMeta?: { rationale: string; source: CritiqueSource };
+  mediumClassifyMeta?: { medium: Medium; rationale: string; source: CritiqueSource };
   classifySourceImageDataUrl?: string;
   savedPaintingId?: string;
 };
@@ -70,6 +71,7 @@ function sharedFields(flow: CritiqueFlow): FlowShared {
     workingTitle: flow.workingTitle,
     ...(flow.originalImageDataUrl ? { originalImageDataUrl: flow.originalImageDataUrl } : {}),
     ...(flow.styleClassifyMeta ? { styleClassifyMeta: flow.styleClassifyMeta } : {}),
+    ...(flow.mediumClassifyMeta ? { mediumClassifyMeta: flow.mediumClassifyMeta } : {}),
     ...(flow.classifySourceImageDataUrl ? { classifySourceImageDataUrl: flow.classifySourceImageDataUrl } : {}),
     ...(flow.savedPaintingId ? { savedPaintingId: flow.savedPaintingId } : {}),
   };
@@ -124,6 +126,7 @@ export function switchToManualStyle(flow: SetupFlow): SetupFlow {
     ...flow,
     styleMode: 'manual',
     styleClassifyMeta: undefined,
+    mediumClassifyMeta: undefined,
     classifySourceImageDataUrl: undefined,
   };
 }
@@ -134,6 +137,7 @@ export function switchToAutoStyle(flow: SetupFlow): SetupFlow {
       ...flow,
       styleMode: 'auto',
       styleClassifyMeta: undefined,
+      mediumClassifyMeta: undefined,
       classifySourceImageDataUrl: undefined,
     };
   }
@@ -142,18 +146,35 @@ export function switchToAutoStyle(flow: SetupFlow): SetupFlow {
     styleMode: 'auto',
     style: null,
     styleClassifyMeta: undefined,
+    mediumClassifyMeta: undefined,
     classifySourceImageDataUrl: undefined,
   };
 }
 
 export function applyDetectedStyle(
   flow: SetupFlow,
-  result: { style: Style; rationale: string; source: CritiqueSource; imageDataUrl: string }
+  result: {
+    style: Style;
+    rationale: string;
+    source: CritiqueSource;
+    imageDataUrl: string;
+    detectedMedium?: Medium;
+    mediumRationale?: string;
+  }
 ): SetupFlow {
   return {
     ...flow,
     style: result.style,
     styleClassifyMeta: { rationale: result.rationale, source: result.source },
+    ...(result.detectedMedium && result.mediumRationale
+      ? {
+          mediumClassifyMeta: {
+            medium: result.detectedMedium,
+            rationale: result.mediumRationale,
+            source: result.source,
+          },
+        }
+      : {}),
     classifySourceImageDataUrl: result.imageDataUrl,
   };
 }
@@ -161,6 +182,7 @@ export function applyDetectedStyle(
 export function clearClassifySource(flow: SetupFlow): SetupFlow {
   return {
     ...flow,
+    mediumClassifyMeta: undefined,
     classifySourceImageDataUrl: undefined,
   };
 }
