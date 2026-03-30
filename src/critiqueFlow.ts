@@ -160,18 +160,27 @@ export function applyDetectedStyle(
     imageDataUrl: string;
     detectedMedium?: Medium;
     mediumRationale?: string;
+    /** When medium comes from a different pipeline than style (e.g. API style + local medium). */
+    mediumSource?: CritiqueSource;
   }
 ): SetupFlow {
+  const hasMediumRead =
+    result.detectedMedium != null &&
+    typeof result.mediumRationale === 'string' &&
+    result.mediumRationale.trim().length > 0;
+  const mediumMetaSource = result.mediumSource ?? result.source;
+
   return {
     ...flow,
     style: result.style,
     styleClassifyMeta: { rationale: result.rationale, source: result.source },
-    ...(result.detectedMedium && result.mediumRationale
+    ...(hasMediumRead
       ? {
+          medium: result.detectedMedium!,
           mediumClassifyMeta: {
-            medium: result.detectedMedium,
-            rationale: result.mediumRationale,
-            source: result.source,
+            medium: result.detectedMedium!,
+            rationale: result.mediumRationale!.trim(),
+            source: mediumMetaSource,
           },
         }
       : {}),

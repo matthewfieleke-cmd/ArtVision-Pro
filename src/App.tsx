@@ -31,6 +31,7 @@ import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchClassifyMediumFromApi } from './classifyMediumApi';
+import { classifyMediumFromMetrics } from './classifyMediumHeuristic';
 import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
 import {
   applyDetectedStyle,
@@ -529,6 +530,12 @@ export default function App() {
             detectedMedium = mediumRead.medium;
             mediumRationale = mediumRead.rationale;
             mediumSource = 'api';
+          } else {
+            const metrics = await computeImageMetrics(compressed);
+            const hm = classifyMediumFromMetrics(metrics);
+            detectedMedium = hm.medium;
+            mediumRationale = hm.rationale;
+            mediumSource = 'local';
           }
         } catch (err) {
           console.warn('Classify API unavailable, using heuristic:', err);
@@ -537,6 +544,10 @@ export default function App() {
           style = h.style;
           styleRationale = h.rationale;
           styleSource = 'local';
+          const hm = classifyMediumFromMetrics(metrics);
+          detectedMedium = hm.medium;
+          mediumRationale = hm.rationale;
+          mediumSource = 'local';
         }
       } else {
         const metrics = await computeImageMetrics(compressed);
@@ -544,28 +555,27 @@ export default function App() {
         style = h.style;
         styleRationale = h.rationale;
         styleSource = 'local';
+        const hm = classifyMediumFromMetrics(metrics);
+        detectedMedium = hm.medium;
+        mediumRationale = hm.rationale;
+        mediumSource = 'local';
       }
 
       setFlow((cur) => {
         if (cur?.step !== 'setup') return cur;
-        const next = applyDetectedStyle(cur, {
+        return applyDetectedStyle(cur, {
           style,
           rationale: styleRationale,
           source: styleSource,
           imageDataUrl: compressed,
-        });
-        return {
-          ...next,
           ...(detectedMedium && mediumRationale && mediumSource
             ? {
-                mediumClassifyMeta: {
-                  medium: detectedMedium,
-                  rationale: mediumRationale,
-                  source: mediumSource,
-                },
+                detectedMedium,
+                mediumRationale,
+                ...(mediumSource !== styleSource ? { mediumSource } : {}),
               }
             : {}),
-        };
+        });
       });
     } catch (e) {
       setAnalyzeError(e instanceof Error ? e.message : 'Could not detect style');
@@ -1142,8 +1152,7 @@ export default function App() {
             {flow.step === 'setup' && (
               <div className="animate-slide-up space-y-7">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Style</p>
-                  <div className="mt-2 flex gap-1 rounded-xl bg-slate-100/90 p-1">
+                  <div className="flex gap-1 rounded-xl bg-slate-100/90 p-1">
                     <button
                       type="button"
                       onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToManualStyle(f) : f))}
@@ -1168,6 +1177,14 @@ export default function App() {
                       Categorize for me
                     </button>
                   </div>
+                  <p className="mt-2 text-xs leading-snug text-slate-500">
+                    “Categorize for me” infers <span className="font-medium text-slate-600">both</span> style and medium from
+                    your upload. You can adjust either below after it runs.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Style</p>
 
                   {flow.styleMode === 'manual' ? (
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1195,10 +1212,11 @@ export default function App() {
                           <Wand2 className="h-8 w-8 text-violet-500" />
                         )}
                         <span className="text-center text-sm font-semibold text-slate-800">
-                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style'}
+                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style & medium'}
                         </span>
                         <span className="text-center text-xs text-slate-500">
-                          We match Realism, Impressionism, Expressionism, or Abstract from the image.
+                          Style (Realism, Impressionism, Expressionism, Abstract) and medium are inferred together; change
+                          either in the lists below if needed.
                         </span>
                         <input
                           type="file"
