@@ -3,6 +3,7 @@ import {
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_B_COMPOSITE_TEACHERS,
 } from '../shared/critiqueVoiceA.js';
+import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
 import type { CritiqueRequestBody } from './critiqueTypes.js';
 import { CRITIQUE_JSON_SCHEMA, buildCritiqueSchemaInstruction } from './critiqueSchemas.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
@@ -34,11 +35,24 @@ function completionToneBlock(evidence: CritiqueEvidenceDTO): string {
 - Finish state is ambiguous: balance structure-level and selective advice; name what would change your mind in one more session vs. what is already reading resolved.`;
 }
 
-export function buildWritingPrompt(style: string, medium: string, evidence: CritiqueEvidenceDTO): string {
+function formatCalibrationCaps(calibration?: CritiqueCalibrationDTO): string {
+  if (!calibration) return '';
+  return calibration.criterionCaps
+    .map((cap) => `- ${cap.criterion}: do not rate above ${cap.maxLevel} (${cap.reason})`)
+    .join('\n');
+}
+
+export function buildWritingPrompt(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO,
+  calibration?: CritiqueCalibrationDTO
+): string {
   const benchmarks = isStyleKey(style)
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
   const exemplarBlock = isStyleKey(style) ? getCriterionExemplarBlock(style, medium) : '';
+  const capBlock = formatCalibrationCaps(calibration);
   return `You are stage 2 of a painting critique system.
 
 You are now writing the critique from already extracted evidence.
@@ -96,6 +110,7 @@ Rules:
 - Do not assign the same level to all eight criteria unless the evidence truly supports uniformity; weak paintings usually have several criteria at Beginner.
 - "Master" must stay rare; do not use it for work that still needs clear developmental passes in that area.
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
+- If calibration caps are supplied below, they are mandatory ceilings for this response.
 - studioAnalysis (Voice A — composite art-critical voice): two paragraphs only — whatWorks (specific likes tied to visible passages) and whatCouldImprove (specific tensions). Every claim must be anchored in THIS image (named areas, colors, motifs, edges, or mark types from the evidence—not generic painting advice). Ground both in evidence; reflect declared style, medium, and completion read (unfinished vs likely_finished). No bullet laundry lists inside these paragraphs unless the evidence demands it. These paragraphs are part of Voice A’s judgment and must align with the eight category levels (no overall praise that would imply Advanced/Master everywhere if several criteria are still weak).
 - Do not write generic intent boilerplate such as "the painting aims to..." or "the work seeks to...". Speak from visible evidence and judgment instead.
 - overallSummary (required):
@@ -140,6 +155,9 @@ Benchmarks for what "Master" means in this style: ${benchmarks}
 Criterion-specific exemplar intelligence for internal calibration (do not name these artists in the critique unless the product explicitly asks for it later):
 ${exemplarBlock || '- Use the strongest criterion exemplars available for this style and medium.'}
 
+Calibration caps (mandatory if present):
+${capBlock || '- No extra calibration caps supplied.'}
+
 Anti-pattern examples:
 - Bad: "The painting needs a stronger focal point."
 - Better: "The eye already moves through several active areas. Keep that distributed attention, but quiet the one competing accent that interrupts the painting's main rhythm."
@@ -176,7 +194,8 @@ export async function runCritiqueWritingStage(
   model: string,
   style: string,
   body: CritiqueRequestBody,
-  evidence: CritiqueEvidenceDTO
+  evidence: CritiqueEvidenceDTO,
+  calibration?: CritiqueCalibrationDTO
 ): Promise<unknown> {
   const writingRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -193,7 +212,7 @@ export async function runCritiqueWritingStage(
         json_schema: CRITIQUE_JSON_SCHEMA,
       },
       messages: [
-        { role: 'system', content: buildWritingPrompt(style, body.medium, evidence) },
+        { role: 'system', content: buildWritingPrompt(style, body.medium, evidence, calibration) },
         {
           role: 'user',
           content: `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildCritiqueSchemaInstruction()}`,

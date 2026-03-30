@@ -1,4 +1,5 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
+import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
 import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
 import { CRITIQUE_EVIDENCE_JSON_SCHEMA } from './critiqueSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
@@ -121,8 +122,9 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     medium: body.medium,
     userContent,
   });
+  let calibration = await runCritiqueCalibrationStage(apiKey, model, body.style, body.medium, evidence);
 
-  let parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
+  let parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
   let base = validateCritiqueResult(parsed);
   let withCompletion = {
     ...base,
@@ -141,7 +143,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       medium: body.medium,
       userContent,
     });
-    parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence);
+    calibration = await runCritiqueCalibrationStage(apiKey, model, body.style, body.medium, evidence);
+    parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
     base = validateCritiqueResult(parsed);
     withCompletion = {
       ...base,
