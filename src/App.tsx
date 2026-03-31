@@ -859,6 +859,17 @@ export default function App() {
         !classifyBusy
     );
 
+  /** Auto-classify finished: style + medium detection shown; simplify setup to Style/Medium grids + Run Critique. */
+  const postAutoClassifySetup =
+    Boolean(
+      flow?.step === 'setup' &&
+        flow.styleMode === 'auto' &&
+        flow.styleClassifyMeta &&
+        flow.mediumClassifyMeta &&
+        flow.style &&
+        flow.medium
+    );
+
   const previewTarget = useMemo(
     () => (flow ? previewDisplayTarget(flow, activePreviewEditId) : null),
     [flow, activePreviewEditId]
@@ -1204,37 +1215,39 @@ export default function App() {
           >
             {flow.step === 'setup' && (
               <div className="animate-slide-up space-y-7">
-                <div>
-                  <div className="flex gap-1 rounded-xl bg-slate-100/90 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToManualStyle(f) : f))}
-                      className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-                        flow.styleMode === 'manual'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      I’ll choose
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToAutoStyle(f) : f))}
-                      className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${
-                        flow.styleMode === 'auto'
-                          ? 'bg-white text-violet-700 shadow-sm'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      <Wand2 className="h-4 w-4 shrink-0" />
-                      Categorize for me
-                    </button>
+                {!postAutoClassifySetup ? (
+                  <div>
+                    <div className="flex gap-1 rounded-xl bg-slate-100/90 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToManualStyle(f) : f))}
+                        className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
+                          flow.styleMode === 'manual'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        I’ll choose
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToAutoStyle(f) : f))}
+                        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${
+                          flow.styleMode === 'auto'
+                            ? 'bg-white text-violet-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        <Wand2 className="h-4 w-4 shrink-0" />
+                        Categorize for me
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs leading-snug text-slate-500">
+                      “Categorize for me” infers <span className="font-medium text-slate-600">both</span> style and medium from
+                      your upload. The lists below update automatically; change any pick if it doesn’t match your work.
+                    </p>
                   </div>
-                  <p className="mt-2 text-xs leading-snug text-slate-500">
-                    “Categorize for me” infers <span className="font-medium text-slate-600">both</span> style and medium from
-                    your upload. The lists below update automatically; change any pick if it doesn’t match your work.
-                  </p>
-                </div>
+                ) : null}
 
                 {flow.styleMode === 'auto' ? (
                   <div className="space-y-3">
@@ -1361,7 +1374,7 @@ export default function App() {
                 </div>
 
                 {canRunCritiqueFromClassifyUpload ? (
-                  <div className="space-y-2">
+                  <div className={postAutoClassifySetup ? '' : 'space-y-2'}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1370,21 +1383,23 @@ export default function App() {
                       }}
                       className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition active:scale-[0.99]"
                     >
-                      Run critique on this painting
+                      Run Critique on this painting
                     </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFlow((f) => {
-                          if (f?.step !== 'setup') return f;
-                          const cleared = clearClassifySource(f);
-                          return enterCapture(cleared) ?? f;
-                        })
-                      }
-                      className="w-full rounded-2xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                    >
-                      {isDesktop ? 'Upload a different photo' : 'Use camera or a different photo'}
-                    </button>
+                    {!postAutoClassifySetup ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFlow((f) => {
+                            if (f?.step !== 'setup') return f;
+                            const cleared = clearClassifySource(f);
+                            return enterCapture(cleared) ?? f;
+                          })
+                        }
+                        className="w-full rounded-2xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        {isDesktop ? 'Upload a different photo' : 'Use camera or a different photo'}
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <button
