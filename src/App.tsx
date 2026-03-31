@@ -1540,14 +1540,12 @@ export default function App() {
             {flow.step === 'analyzing' && (
               <div className="flex flex-col items-center justify-center gap-4 px-4 py-20">
                 <Loader2 className="h-12 w-12 animate-spin text-violet-500" />
-                <p className="text-sm text-slate-500">
-                  {shouldTryApiFirst()
-                    ? 'Consulting the vision model—usually 15–45s…'
-                    : 'Mapping value, edges, color, and surface…'}
+                <p className="max-w-sm text-center text-sm leading-relaxed text-slate-600">
+                  ArtVision Pro is analyzing your painting and writing personalized feedback.
                 </p>
-                <p className="max-w-sm text-center text-xs leading-relaxed text-slate-400">
-                  For best results, stay on this screen until the critique finishes. Switching apps or locking the
-                  screen can slow or interrupt the request; we try one automatic retry when you return.
+                <p className="max-w-sm text-center text-xs leading-relaxed text-slate-500">
+                  Please allow 1–2 minutes for this process and do not leave this screen while the analysis is
+                  running. You will be taken automatically to your Critique once complete.
                 </p>
                 {analysisRetryNotice ? (
                   <p className="max-w-sm text-center text-xs font-medium text-violet-700">
