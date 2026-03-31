@@ -99,7 +99,7 @@ function newId(): string {
 function AnalyzingHeaderEllipsis() {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 420);
+    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 200);
     return () => clearInterval(id);
   }, []);
   const dots = phase === 0 ? '' : phase === 1 ? '.' : phase === 2 ? '..' : '...';
