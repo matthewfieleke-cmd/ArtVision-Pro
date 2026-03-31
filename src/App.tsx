@@ -1238,27 +1238,29 @@ export default function App() {
 
                 {flow.styleMode === 'auto' ? (
                   <div className="space-y-3">
-                    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-8 transition hover:border-violet-300 hover:bg-violet-50">
-                      {classifyBusy ? (
-                        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
-                      ) : (
-                        <Wand2 className="h-8 w-8 text-violet-500" />
-                      )}
-                      <span className="text-center text-sm font-semibold text-slate-800">
-                        {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style & medium'}
-                      </span>
-                      <span className="text-center text-xs text-slate-500">
-                        Style (Realism, Impressionism, Expressionism, Abstract) and medium are inferred together from this
-                        image.
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={classifyBusy}
-                        onChange={(e) => void onPickFileForClassify(e.target.files?.[0] ?? null)}
-                      />
-                    </label>
+                    {!(flow.style && flow.styleClassifyMeta) ? (
+                      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-8 transition hover:border-violet-300 hover:bg-violet-50">
+                        {classifyBusy ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                        ) : (
+                          <Wand2 className="h-8 w-8 text-violet-500" />
+                        )}
+                        <span className="text-center text-sm font-semibold text-slate-800">
+                          {classifyBusy ? 'Analyzing your painting…' : 'Upload a painting to detect style & medium'}
+                        </span>
+                        <span className="text-center text-xs text-slate-500">
+                          Style (Realism, Impressionism, Expressionism, Abstract) and medium are inferred together from this
+                          image.
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={classifyBusy}
+                          onChange={(e) => void onPickFileForClassify(e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                    ) : null}
                     {flow.style && flow.styleClassifyMeta ? (
                       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
                         {flow.classifySourceImageDataUrl ? (
