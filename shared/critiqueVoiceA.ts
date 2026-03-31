@@ -22,6 +22,7 @@ Foundational observation (evidence only—still no prescriptions):
 - **Integrate multiple visual signals** where they matter: value and light; hue and chroma and temperature; spatial and proportional cues; edge character and focal hierarchy; surface, mark, and medium behavior; compositional structure; internal coherence and necessity; how the picture addresses the viewer.
 - **No single proxy for skill:** do not treat **saturation, brightness, a “simple” layout, looseness, tightness, busyness, or minimalism** as automatic evidence of high or low level on any criterion. Describe what the picture **does** on each axis; stage 2 will judge degree.
 - **Flexible pictorial intelligence:** a work may be strong through **subtlety or intensity, flat design or deep space, spare or dense handling**—credit what the canvas supports under each criterion without forcing every mode toward one ideal look.
+- **Edge and focus** vs **Surface / medium:** give each axis **its own** evidence lines. For edges, name **where** hierarchy and transitions support or undermine the read. For surface, name **how** marks and material behavior cohere with the medium—do not infer execution quality from “strong composition” alone.
 `.trim();
 
 /**

@@ -124,7 +124,12 @@ Rules:
   - If level is **Intermediate**: give **specific numbered steps** (at least 3) aimed at moving toward **Advanced**, grounded in this image.
   - If level is **Advanced**: give **specific numbered steps** (at least 2) aimed at moving toward **Master**, grounded in this image.
   Steps must cite where on the painting (same identifiability rules as studioChanges). No generic studio drills unrelated to this image.
-- **Avoid lazy pairing:** Do not default **Edge and focus control** and **Surface and medium handling** to the same band (e.g. both Intermediate) just because a photo is imperfect. If evidence for edges/mark-making genuinely matches the same band as composition, value, and color, say why in that criterion’s feedback; otherwise rate each axis on its own integrated evidence. JPEG mush affects photoQuality confidence, not an automatic two-notch drop on every execution criterion.
+- **Edge and focus control** and **Surface and medium handling** (critic-aligned, no band inflation in code—your levels must earn the evidence):
+  - Rate each axis **only** from that criterion’s **visibleEvidence**, **strengthRead**, and **tensionRead**. Do **not** raise Edge or Surface because composition, value, or color are strong; execution must be justified on its own.
+  - **Do not** default both to the **same** band out of habit (e.g. both Intermediate “because execution is harder”). If they truly share the same band, **say why** in each criterion’s feedback with **distinct** observations (edges vs marks—not copy-paste).
+  - **Do not** use **Intermediate** as a safe hedge when the evidence describes **clear hierarchical edges** and **coherent, medium-appropriate facture**; that pattern supports **Advanced** on those axes if issues are localized. Reserve **Intermediate** for real but uneven control; **Beginner** for missing hierarchy or incoherent handling.
+  - When evidence **confidence** is **low** for an execution criterion (photo limits), you may keep the band **conservative** **only if** feedback states what cannot be verified and points to **large-scale** canvas evidence you *did* use. Never invent fine detail you could not see.
+  - JPEG mush and glare affect how much you claim, not an automatic rule that Edge and Surface must trail every other criterion by one band.
 - Shared anchor rules (required for every criterion):
   - categories[].anchor.areaSummary must name one main passage in THIS painting that a user could recognize.
   - categories[].anchor.evidencePointer must say what in that passage matters for this criterion.
