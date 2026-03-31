@@ -95,6 +95,21 @@ function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Cycles . … …… after “Analyzing” in the flow header while the critique runs. */
+function AnalyzingHeaderEllipsis() {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 420);
+    return () => clearInterval(id);
+  }, []);
+  const dots = phase === 0 ? '' : phase === 1 ? '.' : phase === 2 ? '..' : '...';
+  return (
+    <span className="inline-block min-w-[1.35em] text-left" aria-hidden>
+      {dots}
+    </span>
+  );
+}
+
 function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCategory {
   const rank = (l: (typeof RATING_LEVELS)[number]) => RATING_LEVELS.indexOf(l);
   const safeRank = (category: CritiqueCategory) =>
@@ -1199,7 +1214,12 @@ export default function App() {
             <p className="flex-1 text-center text-sm font-semibold text-slate-700">
               {flow.step === 'setup' && 'Style & medium'}
               {flow.step === 'capture' && (isDesktop ? 'Upload your painting' : 'Capture')}
-              {flow.step === 'analyzing' && 'Analyzing'}
+              {flow.step === 'analyzing' ? (
+                <>
+                  Analyzing
+                  <AnalyzingHeaderEllipsis />
+                </>
+              ) : null}
               {flow.step === 'results' && 'Critique'}
             </p>
             <span className="w-9 shrink-0" />
