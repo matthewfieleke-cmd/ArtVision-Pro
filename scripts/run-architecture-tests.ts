@@ -209,7 +209,8 @@ async function testApiHelpers(): Promise<void> {
 
 function testCritiqueGuardrails(): void {
   const base = applyCritiqueGuardrails({
-    summary: 'Strong painting.',
+    summary:
+      'The seated figure and left window strip hold the room together, but the foreground chair back still interrupts the first read.',
     simpleFeedback: {
       studioAnalysis: {
         whatWorks:
@@ -265,7 +266,7 @@ function testCritiqueGuardrails(): void {
         feedback:
           'The left window strip and the shirt already establish a clear light pattern. Around the seated head, the surrounding dark wall compresses value effectively. This axis is reading strongly overall.',
         actionPlan:
-          '1. Keep the current window-to-shirt value pattern; it is already doing the structural work.',
+          '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
         confidence: 'medium',
         evidenceSignals: ['The window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
         preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
