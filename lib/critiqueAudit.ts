@@ -11,15 +11,118 @@ function normalizedContains(haystack: string, needle: string): boolean {
   return n.length > 0 && h.includes(n);
 }
 
-function hasConcreteAnchorReference(text: string, anchorSummary: string): boolean {
+const ANCHOR_STOPWORDS = new Set([
+  'about',
+  'across',
+  'after',
+  'around',
+  'because',
+  'before',
+  'below',
+  'between',
+  'could',
+  'figure',
+  'from',
+  'into',
+  'like',
+  'near',
+  'onto',
+  'over',
+  'painting',
+  'passage',
+  'same',
+  'should',
+  'still',
+  'their',
+  'there',
+  'these',
+  'this',
+  'through',
+  'toward',
+  'under',
+  'using',
+  'while',
+  'with',
+]);
+
+function anchorTokens(text: string): string[] {
+  return Array.from(
+    new Set(
+      text
+        .toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter((token) => token.length >= 4 && !ANCHOR_STOPWORDS.has(token))
+    )
+  );
+}
+
+function matchedAnchorTokenCount(text: string, source: string): number {
+  const normalized = normalizeWhitespace(text).toLowerCase();
+  return anchorTokens(source).filter((token) => normalized.includes(token)).length;
+}
+
+function hasConcreteAnchorReference(
+  text: string,
+  anchorSummary: string,
+  evidencePointer = ''
+): boolean {
   if (!anchorSummary.trim()) return false;
   if (normalizedContains(text, anchorSummary)) return true;
-  const fallbackTokens = anchorSummary
-    .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')
-    .split(/\s+/)
-    .filter((token) => token.length >= 4);
-  return fallbackTokens.some((token) => normalizeWhitespace(text).toLowerCase().includes(token));
+  if (evidencePointer.trim() && normalizedContains(text, evidencePointer)) return true;
+
+  const summaryMatches = matchedAnchorTokenCount(text, anchorSummary);
+  const pointerMatches = evidencePointer.trim() ? matchedAnchorTokenCount(text, evidencePointer) : 0;
+  const summaryNeeded = Math.min(2, anchorTokens(anchorSummary).length);
+  const pointerNeeded = Math.min(2, anchorTokens(evidencePointer).length);
+
+  return (
+    (summaryNeeded > 0 && summaryMatches >= summaryNeeded) ||
+    (pointerNeeded > 0 && pointerMatches >= pointerNeeded) ||
+    (summaryMatches >= 1 && pointerMatches >= 1)
+  );
+}
+
+function anchoredCategoryMatchesText(
+  text: string,
+  category: CritiqueResultDTO['categories'][number]
+): boolean {
+  return hasConcreteAnchorReference(
+    text,
+    category.anchor?.areaSummary ?? '',
+    category.anchor?.evidencePointer ?? ''
+  );
+}
+
+function distinctAnchorMentions(
+  text: string,
+  critique: CritiqueResultDTO,
+  options?: { limit?: number }
+): number {
+  let count = 0;
+  for (const category of critique.categories) {
+    if (!category.anchor) continue;
+    if (!anchoredCategoryMatchesText(text, category)) continue;
+    count += 1;
+    if (options?.limit && count >= options.limit) return count;
+  }
+  return count;
+}
+
+function topLevelVoicesStayGrounded(critique: CritiqueResultDTO): boolean {
+  if (distinctAnchorMentions(critique.summary, critique, { limit: 1 }) < 1) return false;
+  if (distinctAnchorMentions(critique.overallSummary?.analysis ?? '', critique, { limit: 2 }) < 2) {
+    return false;
+  }
+
+  const whatWorks = critique.simpleFeedback?.studioAnalysis.whatWorks ?? '';
+  if (distinctAnchorMentions(whatWorks, critique, { limit: 1 }) < 1) return false;
+
+  const whatCouldImprove = critique.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '';
+  if (distinctAnchorMentions(whatCouldImprove, critique, { limit: 1 }) < 1) return false;
+
+  const topPriorities = critique.overallSummary?.topPriorities ?? [];
+  return topPriorities.every((priority) => distinctAnchorMentions(priority, critique, { limit: 1 }) >= 1);
 }
 
 function alignedStudioChanges(critique: CritiqueResultDTO): boolean {
@@ -30,7 +133,7 @@ function alignedStudioChanges(critique: CritiqueResultDTO): boolean {
   return critique.simpleFeedback.studioChanges.every((change) => {
     const category = categoryByCriterion.get(change.previewCriterion);
     if (!category?.anchor) return false;
-    return hasConcreteAnchorReference(change.text, category.anchor.areaSummary);
+    return hasConcreteAnchorReference(change.text, category.anchor.areaSummary, category.anchor.evidencePointer);
   });
 }
 
@@ -38,11 +141,11 @@ export function critiqueNeedsFreshEvidenceRead(critique: CritiqueResultDTO): boo
   for (const category of critique.categories) {
     const anchor = category.anchor;
     if (!anchor) return true;
-    if (!hasConcreteAnchorReference(category.feedback, anchor.areaSummary)) return true;
-    if (!hasConcreteAnchorReference(category.actionPlan, anchor.areaSummary)) return true;
+    if (!hasConcreteAnchorReference(category.feedback, anchor.areaSummary, anchor.evidencePointer)) return true;
+    if (!hasConcreteAnchorReference(category.actionPlan, anchor.areaSummary, anchor.evidencePointer)) return true;
     if (!normalizedContains(category.editPlan?.targetArea ?? '', anchor.areaSummary)) return true;
   }
-  return !alignedStudioChanges(critique);
+  return !topLevelVoicesStayGrounded(critique) || !alignedStudioChanges(critique);
 }
 
 const LEVEL_RANK = {
@@ -51,6 +154,81 @@ const LEVEL_RANK = {
   Advanced: 2,
   Master: 3,
 } as const;
+
+function firstSentence(text: string): string {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return '';
+  const match = normalized.match(/^.+?[.!?](?=\s|$)/);
+  return match?.[0] ?? normalized;
+}
+
+function sentenceCase(text: string): string {
+  const trimmed = normalizeWhitespace(text).replace(/[.!?]+$/, '');
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function weakestAnchoredCategories(
+  critique: CritiqueResultDTO,
+  limit: number
+): CritiqueResultDTO['categories'] {
+  return [...critique.categories]
+    .filter((category) => category.anchor)
+    .sort((a, b) => {
+      const aRank = a.level ? LEVEL_RANK[a.level] : LEVEL_RANK.Intermediate;
+      const bRank = b.level ? LEVEL_RANK[b.level] : LEVEL_RANK.Intermediate;
+      if (aRank !== bRank) return aRank - bRank;
+      return CRITERIA_ORDER.indexOf(a.criterion) - CRITERIA_ORDER.indexOf(b.criterion);
+    })
+    .slice(0, limit);
+}
+
+function anchoredIssueSentence(category: CritiqueResultDTO['categories'][number]): string {
+  const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
+  const issueSource =
+    category.editPlan?.issue?.trim() ||
+    category.anchor?.evidencePointer?.trim() ||
+    firstSentence(category.feedback);
+  if (!issueSource) {
+    return `In ${area}, the structure is still too underdeveloped for a higher read.`;
+  }
+  const issue = sentenceCase(issueSource);
+  if (normalizedContains(issue, area)) return `${issue}.`;
+  return `In ${area}, ${issue.charAt(0).toLowerCase()}${issue.slice(1)}.`;
+}
+
+function anchoredPriorityLine(category: CritiqueResultDTO['categories'][number]): string {
+  const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
+  const intendedChange = sentenceCase(category.editPlan?.intendedChange ?? '');
+  if (intendedChange) return `Focus on ${area}: ${intendedChange}.`;
+  return `Focus on ${area}: restate that passage with simpler value and edge decisions before adding more detail.`;
+}
+
+function buildSpecificNoviceAnalysis(critique: CritiqueResultDTO): string {
+  const weakest = weakestAnchoredCategories(critique, 2);
+  const localRead = weakest.map(anchoredIssueSentence).join(' ');
+  return normalizeWhitespace(
+    `Using the chosen style and medium lens, the work still reads as early-stage rather than as successful advanced stylization. ${localRead} These visible problems do not support high ratings across the criteria.`
+  );
+}
+
+function buildSpecificNoviceImprove(critique: CritiqueResultDTO): string {
+  const weakest = weakestAnchoredCategories(critique, 2);
+  const localRead = weakest.map(anchoredIssueSentence).join(' ');
+  return normalizeWhitespace(
+    `This work still reads as an early-stage drawing rather than as advanced expressive simplification. ${localRead} The current shape control, value structure, and edge hierarchy are still too undeveloped to justify higher ratings.`
+  );
+}
+
+function buildSpecificNovicePriorities(critique: CritiqueResultDTO): string[] {
+  const priorities = weakestAnchoredCategories(critique, 2).map(anchoredPriorityLine);
+  return priorities.length > 0
+    ? priorities
+    : [
+        'Focus on the weakest visible passage: simplify its value groups before pushing stylization further.',
+        'Focus on the main focal passage: separate it from nearby shapes with clearer edge decisions.',
+      ];
+}
 
 function critiqueText(critique: CritiqueResultDTO): string {
   return normalizeWhitespace(
@@ -234,12 +412,8 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
       overallSummary: critique.overallSummary
         ? {
             ...critique.overallSummary,
-            analysis:
-              'Using the chosen style and medium lens, the work still reads as early-stage rather than as successful advanced stylization. The simplified face, blunt features, and limited spatial or value development do not support high ratings across the criteria.',
-            topPriorities: [
-              'Simplify the head into clearer large shapes before trying to push expressive stylization.',
-              'Separate the main facial features with more deliberate value and edge decisions.',
-            ],
+            analysis: buildSpecificNoviceAnalysis({ ...critique, categories: adjustedCategories }),
+            topPriorities: buildSpecificNovicePriorities({ ...critique, categories: adjustedCategories }),
           }
         : critique.overallSummary,
       simpleFeedback: critique.simpleFeedback
@@ -247,8 +421,7 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
             ...critique.simpleFeedback,
             studioAnalysis: {
               ...critique.simpleFeedback.studioAnalysis,
-              whatCouldImprove:
-                'This work reads as an early-stage drawing rather than as advanced expressive simplification. The current shape control, value structure, and edge hierarchy are still too undeveloped to justify higher ratings.',
+              whatCouldImprove: buildSpecificNoviceImprove({ ...critique, categories: adjustedCategories }),
             },
           }
         : critique.simpleFeedback,

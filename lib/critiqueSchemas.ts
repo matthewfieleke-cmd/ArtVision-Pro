@@ -112,7 +112,11 @@ export const CRITIQUE_JSON_SCHEMA = {
       'suggestedPaintingTitles',
     ],
     properties: {
-      summary: { type: 'string' },
+      summary: {
+        type: 'string',
+        description:
+          `Voice A one-sentence synopsis for THIS painting only. Name at least one recognizable passage from the painting or its evidence; do not use generic praise or abstract summary language.`,
+      },
       suggestedPaintingTitles: {
         type: 'array',
         minItems: 3,
@@ -335,7 +339,7 @@ export const CRITIQUE_JSON_SCHEMA = {
 
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
-- summary
+- summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
 - suggestedPaintingTitles: exactly 3 strings — scholarly, catalogue-ready titles for THIS painting only, grounded in visible passages from the evidence (motifs, light, space, color behavior, mark-making). Standard conventions: Title Case; no quotation marks; no artist self-reference; not generic ("Beautiful Landscape"). Each title should feel like a plausible museum label variant and should differ in phrasing from the other two.
 - overallSummary: { analysis, topPriorities } — analysis is Voice A only; topPriorities = 1–2 Voice B priorities
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt); do not name critics. Two paragraphs; every claim anchored in THIS painting (named passages from evidence). Must align with the eight category levels.
