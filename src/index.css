@@ -25,3 +25,36 @@
     overscroll-behavior-y: none;
   }
 }
+
+/* “Analyzing …” header — soft pulsing dots (staggered, ease-in-out) */
+@keyframes analyzing-dot-wave {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: translateY(0) scale(0.92);
+  }
+  45% {
+    opacity: 1;
+    transform: translateY(-0.06em) scale(1);
+  }
+  70% {
+    opacity: 0.35;
+    transform: translateY(0) scale(0.96);
+  }
+}
+
+.analyzing-dot {
+  display: inline-block;
+  animation: analyzing-dot-wave 0.72s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: opacity, transform;
+}
+
+.analyzing-dot:nth-child(1) {
+  animation-delay: 0ms;
+}
+.analyzing-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+.analyzing-dot:nth-child(3) {
+  animation-delay: 240ms;
+}

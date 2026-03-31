@@ -95,17 +95,13 @@ function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/** Cycles . … …… after “Analyzing” in the flow header while the critique runs. */
+/** Soft staggered dots after “Analyzing” in the flow header (CSS-driven). */
 function AnalyzingHeaderEllipsis() {
-  const [phase, setPhase] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 200);
-    return () => clearInterval(id);
-  }, []);
-  const dots = phase === 0 ? '' : phase === 1 ? '.' : phase === 2 ? '..' : '...';
   return (
-    <span className="inline-block min-w-[1.35em] text-left" aria-hidden>
-      {dots}
+    <span className="inline-flex min-w-[1.35em] items-baseline gap-px pl-px" aria-hidden>
+      <span className="analyzing-dot">.</span>
+      <span className="analyzing-dot">.</span>
+      <span className="analyzing-dot">.</span>
     </span>
   );
 }
