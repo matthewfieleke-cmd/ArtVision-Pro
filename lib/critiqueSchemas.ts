@@ -230,7 +230,7 @@ export const CRITIQUE_JSON_SCHEMA = {
             actionPlan: {
               type: 'string',
               description:
-                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} If level is Master: praise what is exemplary (evidence-grounded), no faux homework. Else: numbered steps to move up one band (Beginner→Intermediate at least 3 steps; Intermediate→Advanced at least 3; Advanced→Master at least 2), each naming visible passages from evidence.`,
+                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master; for Beginner/Intermediate/Advanced you MUST give numbered improvement steps (never that opener). Master: brief praise only. Else: Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2; each step names visible evidence.`,
             },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
             evidenceSignals: {
@@ -348,7 +348,7 @@ export function buildCritiqueSchemaInstruction(): string {
 For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
 - feedback: Voice A for this criterion—3+ sentences; name THIS image (zones, colors, edges, motifs from evidence); consistent with level
-- actionPlan: Voice B for this criterion. If Master: praise only (evidence-grounded). Else: numbered steps to move up one level—Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2—all naming visible passages from evidence on THIS painting
+- actionPlan: Voice B for this criterion. Master only: may start with "Don't change a thing." then brief praise. Any other level: numbered steps only (no that phrase)—Beginner→Intermediate ≥3; Intermediate→Advanced ≥3; Advanced→Master ≥2; all grounded in evidence. Do not park Edge and Surface one band below everything else by default.
 - confidence
 - evidenceSignals
 - preserve

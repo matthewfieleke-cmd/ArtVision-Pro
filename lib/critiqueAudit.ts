@@ -129,6 +129,33 @@ function noviceLikeOverrated(critique: CritiqueResultDTO): boolean {
   return noviceSignals >= 1 && inflatedSignals >= 1 && highRatings >= 4 && lowFundamentalCount >= 2;
 }
 
+/** Voice B must only use "Don't change a thing" when level is Master; fix model drift. */
+function normalizeActionPlansToLevels(critique: CritiqueResultDTO): CritiqueResultDTO {
+  const dontChange = /^don['\u2019]t change a thing[.!]?\s*/i;
+  let changed = false;
+  const categories = critique.categories.map((cat) => {
+    if (cat.level === 'Master') return cat;
+    const raw = cat.actionPlan.trim();
+    if (!dontChange.test(raw)) return cat;
+    const stripped = raw.replace(dontChange, '').trim();
+    if (/^1[\.\)]\s/m.test(stripped) && stripped.length >= 50) {
+      changed = true;
+      return { ...cat, actionPlan: stripped };
+    }
+    const area = cat.anchor?.areaSummary?.trim() || 'the passage described in your feedback above';
+    const nextBand =
+      cat.level === 'Beginner'
+        ? 'Intermediate'
+        : cat.level === 'Intermediate'
+          ? 'Advanced'
+          : 'Master';
+    const fallback = `1. Focus on ${area}: use your feedback above to name what still limits this criterion at ${cat.level}.\n2. Make one concrete adjustment in that same zone toward ${nextBand}—use the lever this criterion cares about (edges and selective sharpness vs softness for edge/focus; mark vocabulary, wet/dry, or surface clarity for surface/medium).\n3. Step back and check that the change reads as clearer control, not busier detail.`;
+    changed = true;
+    return { ...cat, actionPlan: fallback };
+  });
+  return changed ? { ...critique, categories } : critique;
+}
+
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
   if (noviceLikeOverrated(critique)) {
     const adjustedCategories = critique.categories.map((category) => {
@@ -150,7 +177,7 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
       };
     });
 
-    return {
+    const adjusted: CritiqueResultDTO = {
       ...critique,
       categories: adjustedCategories,
       overallConfidence: 'low',
@@ -176,6 +203,7 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
           }
         : critique.simpleFeedback,
     };
+    return normalizeActionPlansToLevels(adjusted);
   }
-  return critique;
+  return normalizeActionPlansToLevels(critique);
 }

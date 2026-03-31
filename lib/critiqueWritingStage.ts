@@ -118,11 +118,13 @@ Rules:
   - analysis = one Voice A paragraph for THIS painting only. Explicitly mention the style and medium lens used. Name at least two concrete visible passages.
   - topPriorities = 1 or 2 Voice B lines only, each beginning with the primary action and naming a visible passage from this painting.
 - Voice B actionPlan (required for all eight categories): For each category, actionPlan is Voice B’s studio guidance for THAT criterion on THIS painting only.
+  - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for numbered improvement steps—Advanced still needs concrete moves toward Master.
   - If categories[].level is **Master** for that criterion: actionPlan must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
   - If level is **Beginner**: give **specific numbered steps** (at least 3) that would realistically move this criterion from Beginner toward **Intermediate**, each step naming a visible passage from the evidence.
   - If level is **Intermediate**: give **specific numbered steps** (at least 3) aimed at moving toward **Advanced**, grounded in this image.
   - If level is **Advanced**: give **specific numbered steps** (at least 2) aimed at moving toward **Master**, grounded in this image.
   Steps must cite where on the painting (same identifiability rules as studioChanges). No generic studio drills unrelated to this image.
+- **Avoid lazy pairing:** Do not default **Edge and focus control** and **Surface and medium handling** to the same band (e.g. both Intermediate) just because a photo is imperfect. If evidence for edges/mark-making genuinely matches the same band as composition, value, and color, say why in that criterion’s feedback; otherwise rate each axis on its own integrated evidence. JPEG mush affects photoQuality confidence, not an automatic two-notch drop on every execution criterion.
 - Shared anchor rules (required for every criterion):
   - categories[].anchor.areaSummary must name one main passage in THIS painting that a user could recognize.
   - categories[].anchor.evidencePointer must say what in that passage matters for this criterion.
