@@ -1,3 +1,4 @@
+import { CRITERIA_ORDER } from '../shared/criteria.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 
 function normalizeWhitespace(text: string): string {
@@ -156,6 +157,55 @@ function normalizeActionPlansToLevels(critique: CritiqueResultDTO): CritiqueResu
   return changed ? { ...critique, categories } : critique;
 }
 
+const EDGE = 'Edge and focus control' as const;
+const SURFACE = 'Surface and medium handling' as const;
+
+/** When photo is good and six structural criteria are Advanced but edge+surface are both Intermediate, nudge those two to Advanced unless work is clearly unfinished. */
+function rebalanceEdgeSurfaceIntermediateCluster(critique: CritiqueResultDTO): CritiqueResultDTO {
+  if (critique.photoQuality?.level !== 'good') return critique;
+  if (critique.completionRead?.state === 'unfinished') return critique;
+
+  const byCrit = new Map(critique.categories.map((c) => [c.criterion, c] as const));
+  const edge = byCrit.get(EDGE);
+  const surface = byCrit.get(SURFACE);
+  if (!edge || !surface) return critique;
+  if (edge.level !== 'Intermediate' || surface.level !== 'Intermediate') return critique;
+
+  const others = CRITERIA_ORDER.filter((c) => c !== EDGE && c !== SURFACE);
+  const allOthersAdvanced = others.every((c) => byCrit.get(c)?.level === 'Advanced');
+  if (!allOthersAdvanced) return critique;
+
+  const bandNote =
+    '\n\n(Read at Advanced on this capture: structural criteria are consistently strong and photo quality is good, so this axis is not held a band lower by capture limits alone.)';
+
+  let changed = false;
+  const categories = critique.categories.map((cat) => {
+    if (cat.criterion !== EDGE && cat.criterion !== SURFACE) return cat;
+    changed = true;
+    const nextTarget =
+      cat.criterion === EDGE
+        ? 'Push edge and focus control toward Master.'
+        : 'Push surface and medium handling toward Master.';
+    const subskills = cat.subskills?.map((s) => ({
+      ...s,
+      level: 'Advanced' as const,
+      score: Math.min(0.9, Math.max(s.score, 0.66)),
+    }));
+    const feedback = cat.feedback.includes('Read at Advanced on this capture')
+      ? cat.feedback
+      : `${cat.feedback.trim()}${bandNote}`;
+    return {
+      ...cat,
+      level: 'Advanced' as const,
+      nextTarget,
+      feedback,
+      ...(subskills ? { subskills } : {}),
+    };
+  });
+
+  return changed ? { ...critique, categories } : critique;
+}
+
 export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
   if (noviceLikeOverrated(critique)) {
     const adjustedCategories = critique.categories.map((category) => {
@@ -203,7 +253,7 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
           }
         : critique.simpleFeedback,
     };
-    return normalizeActionPlansToLevels(adjusted);
+    return rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(adjusted));
   }
-  return normalizeActionPlansToLevels(critique);
+  return rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(critique));
 }
