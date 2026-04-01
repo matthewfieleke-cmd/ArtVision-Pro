@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { memo, useId, useState, type ReactNode } from 'react';
 import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { PaintingOverlay } from './PaintingOverlay';
@@ -594,7 +594,7 @@ function CompletionReadBrief({ read }: { read: CompletionRead }) {
   );
 }
 
-export function CritiquePanels({
+export const CritiquePanels = memo(function CritiquePanels({
   critique,
   paintingImageSrc,
   onLearnMore,
@@ -657,4 +657,4 @@ export function CritiquePanels({
       })}
     </div>
   );
-}
+});

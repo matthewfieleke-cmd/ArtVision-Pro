@@ -541,6 +541,23 @@ export default function App() {
     [flow, openCropperForImage]
   );
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => setDragOver(false), []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file?.type.startsWith('image/')) void onPickFile(file);
+    },
+    [onPickFile]
+  );
+
   const onPickFileForClassify = useCallback(
     async (file: File | null) => {
       if (!file || !flowRef.current || flowRef.current.step !== 'setup') return;
@@ -1342,14 +1359,9 @@ export default function App() {
                         ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-500/20'
                         : 'border-slate-300 bg-white hover:border-violet-400 hover:bg-violet-50/30'
                     }`}
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file?.type.startsWith('image/')) void onPickFile(file);
-                    }}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
                   >
                     <div className={`rounded-2xl p-4 transition ${dragOver ? 'bg-violet-200' : 'bg-violet-100'}`}>
                       <Upload className="h-10 w-10 text-violet-600" />
@@ -1510,9 +1522,7 @@ export default function App() {
                   paintingImageSrc={flow.imageDataUrl}
                   onLearnMore={rememberCritiqueReturn}
                   canGenerateAiEdits
-                  onGenerateAiEditForCriterion={(criterion: CritiqueCategory['criterion']) =>
-                    void runPreviewEdit(criterion)
-                  }
+                  onGenerateAiEditForCriterion={runPreviewEdit}
                   previewEditIdByCriterion={previewEditIdByCriterion}
                   onFocusSessionPreviewForCriterion={focusSessionPreviewForCriterion}
                   previewLoading={preview.loading}
