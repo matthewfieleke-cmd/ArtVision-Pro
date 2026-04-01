@@ -26,13 +26,10 @@ import {
   requestScreenWakeLock,
   type WakeLockHandle,
 } from './analysisKeepAlive';
-import { analyzePainting } from './analyzePainting';
-import { fetchCritiqueFromApi, shouldTryApiFirst } from './critiqueApi';
+import { fetchCritiqueFromApi } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchClassifyMediumFromApi } from './classifyMediumApi';
-import { classifyMediumFromMetrics } from './classifyMediumHeuristic';
-import { classifyStyleFromMetrics } from './classifyStyleHeuristic';
 import {
   applyDetectedStyle,
   backFromCapture,
@@ -54,7 +51,6 @@ import {
   type CritiqueFlow,
 } from './critiqueFlow';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
-import { computeImageMetrics } from './imageMetrics';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { useIsDesktop } from './hooks/useIsDesktop';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
@@ -403,7 +399,6 @@ export default function App() {
           ? f.targetPainting.versions[f.targetPainting.versions.length - 1]
           : undefined;
       let critique: CritiqueResult;
-      let critiqueSource: 'api' | 'local' = 'local';
       const prevPayload =
         prev
           ? {
@@ -428,48 +423,27 @@ export default function App() {
           : {}),
       };
 
-      if (shouldTryApiFirst()) {
-        const attemptApi = async (signal: AbortSignal): Promise<CritiqueResult> =>
-          fetchCritiqueFromApi({ ...apiBody, signal });
+      const attemptApi = async (signal: AbortSignal): Promise<CritiqueResult> =>
+        fetchCritiqueFromApi({ ...apiBody, signal });
 
-        try {
-          critique = await attemptApi(ac.signal);
-          critiqueSource = 'api';
-        } catch (err) {
-          const visibilityRetry =
-            isAbortError(err) &&
-            analysisVisibilityAbortRef.current &&
-            !analysisRetryUsedRef.current &&
-            runId === analysisRunTokenRef.current;
+      const visibilityRetryable = (): boolean =>
+        analysisVisibilityAbortRef.current &&
+        !analysisRetryUsedRef.current &&
+        runId === analysisRunTokenRef.current;
 
-          if (visibilityRetry) {
-            analysisVisibilityAbortRef.current = false;
-            analysisRetryUsedRef.current = true;
-            setAnalysisRetryNotice(true);
-            const ac2 = new AbortController();
-            analysisAbortRef.current = ac2;
-            try {
-              critique = await attemptApi(ac2.signal);
-              critiqueSource = 'api';
-            } catch (err2) {
-              console.warn('Critique API unavailable after resume retry, using local analysis:', err2);
-              critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
-              critiqueSource = 'local';
-            }
-          } else if (isAbortError(err)) {
-            analysisVisibilityAbortRef.current = false;
-            critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
-            critiqueSource = 'local';
-          } else {
-            analysisVisibilityAbortRef.current = false;
-            console.warn('Critique API unavailable, using local analysis:', err);
-            critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
-            critiqueSource = 'local';
-          }
+      try {
+        critique = await attemptApi(ac.signal);
+      } catch (err) {
+        if (isAbortError(err) && visibilityRetryable()) {
+          analysisVisibilityAbortRef.current = false;
+          analysisRetryUsedRef.current = true;
+          setAnalysisRetryNotice(true);
+          const ac2 = new AbortController();
+          analysisAbortRef.current = ac2;
+          critique = await attemptApi(ac2.signal);
+        } else {
+          throw err;
         }
-      } else {
-        critique = await analyzePainting(compressed, f.style, f.medium, prevPayload, titleArg);
-        critiqueSource = 'local';
       }
 
       if (runId !== analysisRunTokenRef.current) return;
@@ -479,7 +453,7 @@ export default function App() {
       setPreviewCompareOpen(false);
       setPreviewCompareSeen(false);
       setPreviewLoadingTarget(null);
-      setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource }));
+      setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource: 'api' }));
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
       setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed');
@@ -505,7 +479,6 @@ export default function App() {
         analysisHiddenAtRef.current = null;
         return;
       }
-      if (!shouldTryApiFirst()) return;
       const hiddenAt = analysisHiddenAtRef.current;
       if (hiddenAt == null) return;
       const elapsed = Date.now() - hiddenAt;
@@ -526,56 +499,16 @@ export default function App() {
     setAnalyzeError(null);
     try {
       const compressed = await compressDataUrl(rawDataUrl);
-      let style: Style;
-      let styleRationale: string;
-      let styleSource: 'api' | 'local';
-      let detectedMedium: Medium | undefined;
-      let mediumRationale: string | undefined;
-      let mediumSource: 'api' | 'local' | undefined;
-
-      if (shouldTryApiFirst()) {
-        try {
-          const [styleRead, mediumRead] = await Promise.all([
-            fetchClassifyStyleFromApi(compressed),
-            fetchClassifyMediumFromApi(compressed).catch(() => null),
-          ]);
-          style = styleRead.style;
-          styleRationale = styleRead.rationale;
-          styleSource = 'api';
-          if (mediumRead) {
-            detectedMedium = mediumRead.medium;
-            mediumRationale = mediumRead.rationale;
-            mediumSource = 'api';
-          } else {
-            const metrics = await computeImageMetrics(compressed);
-            const hm = classifyMediumFromMetrics(metrics);
-            detectedMedium = hm.medium;
-            mediumRationale = hm.rationale;
-            mediumSource = 'local';
-          }
-        } catch (err) {
-          console.warn('Classify API unavailable, using heuristic:', err);
-          const metrics = await computeImageMetrics(compressed);
-          const h = classifyStyleFromMetrics(metrics);
-          style = h.style;
-          styleRationale = h.rationale;
-          styleSource = 'local';
-          const hm = classifyMediumFromMetrics(metrics);
-          detectedMedium = hm.medium;
-          mediumRationale = hm.rationale;
-          mediumSource = 'local';
-        }
-      } else {
-        const metrics = await computeImageMetrics(compressed);
-        const h = classifyStyleFromMetrics(metrics);
-        style = h.style;
-        styleRationale = h.rationale;
-        styleSource = 'local';
-        const hm = classifyMediumFromMetrics(metrics);
-        detectedMedium = hm.medium;
-        mediumRationale = hm.rationale;
-        mediumSource = 'local';
-      }
+      const [styleRead, mediumRead] = await Promise.all([
+        fetchClassifyStyleFromApi(compressed),
+        fetchClassifyMediumFromApi(compressed).catch(() => null),
+      ]);
+      const style: Style = styleRead.style;
+      const styleRationale: string = styleRead.rationale;
+      const styleSource: 'api' | 'local' = 'api';
+      const detectedMedium: Medium | undefined = mediumRead?.medium;
+      const mediumRationale: string | undefined = mediumRead?.rationale;
+      const mediumSource: 'api' | 'local' | undefined = mediumRead ? 'api' : undefined;
 
       setFlow((cur) => {
         if (cur?.step !== 'setup') return cur;
@@ -962,10 +895,6 @@ export default function App() {
     if (alreadyForCriterion) return;
     const changes = currentFlow.critique.simple?.studioChanges;
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
-    if (!shouldTryApiFirst()) {
-      setPreviewError('Connect the API (deploy with OPENAI_API_KEY) to generate previews.');
-      return;
-    }
     const matchingChange = changes?.find((change) => change.previewCriterion === criterion);
     const category =
       catList.find((entry) => entry.criterion === criterion) ?? priorityCritiqueCategory(catList);
@@ -1623,21 +1552,13 @@ export default function App() {
                       className={`w-full object-contain bg-slate-100 ${isDesktop ? 'max-h-[min(52vh,28rem)] md:max-h-[min(58vh,32rem)]' : 'max-h-56'}`}
                     />
                   </div>
-                  {flow.critiqueSource === 'local' ? (
-                    <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
-                      Offline / fallback critique (heuristic). Set{' '}
-                      <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">OPENAI_API_KEY</code> and run{' '}
-                      <code className="rounded bg-amber-100/80 px-1 font-mono text-[11px]">npm run dev</code> (API + UI) for
-                      full vision feedback.
-                    </p>
-                  ) : null}
                 </div>
                 <div className="min-h-0 space-y-4">
                 <CritiquePanels
                   critique={flow.critique}
                   paintingImageSrc={flow.imageDataUrl}
                   onLearnMore={rememberCritiqueReturn}
-                  canGenerateAiEdits={shouldTryApiFirst()}
+                  canGenerateAiEdits
                   onGenerateAiEditForCriterion={(criterion: CritiqueCategory['criterion']) =>
                     void runPreviewEdit(criterion)
                   }
