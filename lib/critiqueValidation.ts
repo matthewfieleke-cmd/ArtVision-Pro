@@ -111,17 +111,13 @@ function validateVoiceBPlan(raw: unknown, criterion: (typeof CRITERIA_ORDER)[num
   }
   return {
     currentRead: o.currentRead.trim(),
-    ...(typeof o.mainProblem === 'string' && o.mainProblem.trim().length > 0
-      ? { mainProblem: o.mainProblem.trim() }
-      : {}),
-    ...(typeof o.mainStrength === 'string' && o.mainStrength.trim().length > 0
-      ? { mainStrength: o.mainStrength.trim() }
-      : {}),
+    ...(typeof o.mainProblem === 'string' ? { mainProblem: o.mainProblem.trim() } : {}),
+    ...(typeof o.mainStrength === 'string' ? { mainStrength: o.mainStrength.trim() } : {}),
     bestNextMove: o.bestNextMove.trim(),
+    ...(typeof o.optionalSecondMove === 'string' ? { optionalSecondMove: o.optionalSecondMove.trim() } : {}),
+    ...(typeof o.avoidDoing === 'string' ? { avoidDoing: o.avoidDoing.trim() } : {}),
     expectedRead: o.expectedRead.trim(),
-    ...(typeof o.storyIfRelevant === 'string' && o.storyIfRelevant.trim().length > 0
-      ? { storyIfRelevant: o.storyIfRelevant.trim() }
-      : {}),
+    ...(typeof o.storyIfRelevant === 'string' ? { storyIfRelevant: o.storyIfRelevant.trim() } : {}),
   };
 }
 
@@ -148,7 +144,7 @@ function validateVoiceBSteps(raw: unknown, criterion: (typeof CRITERIA_ORDER)[nu
       ...(typeof o.preserve === 'string' && o.preserve.trim().length > 0
         ? { preserve: o.preserve.trim() }
         : {}),
-      priority: o.priority === 'secondary' ? 'secondary' : ('primary' as const),
+      priority: (o.priority === 'secondary' ? 'secondary' : 'primary') as 'primary' | 'secondary',
     };
   });
 }

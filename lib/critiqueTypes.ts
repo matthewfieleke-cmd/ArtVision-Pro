@@ -38,7 +38,7 @@ export type VoiceBPlanDTO = {
   bestNextMove: string;
   optionalSecondMove?: string;
   avoidDoing?: string;
-  intendedRead: string;
+  expectedRead: string;
   storyIfRelevant?: string;
 };
 

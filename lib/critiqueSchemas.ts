@@ -247,7 +247,7 @@ export const CRITIQUE_JSON_SCHEMA = {
               items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['area', 'currentRead', 'move', 'expectedRead', 'priority'],
+                required: ['area', 'currentRead', 'move', 'expectedRead', 'preserve', 'priority'],
                 properties: {
                   area: {
                     type: 'string',
@@ -276,7 +276,16 @@ export const CRITIQUE_JSON_SCHEMA = {
             voiceBPlan: {
               type: 'object',
               additionalProperties: false,
-              required: ['currentRead', 'bestNextMove', 'intendedRead'],
+              required: [
+                'currentRead',
+                'mainProblem',
+                'mainStrength',
+                'bestNextMove',
+                'optionalSecondMove',
+                'avoidDoing',
+                'intendedRead',
+                'storyIfRelevant',
+              ],
               properties: {
                 currentRead: {
                   type: 'string',
