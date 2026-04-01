@@ -168,6 +168,147 @@ function sentenceCase(text: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
+function lowerFirst(text: string): string {
+  const trimmed = normalizeWhitespace(text).replace(/[.!?]+$/, '');
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+}
+
+const VAGUE_VOICE_B_PATTERNS = [
+  /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
+  /\benhance\b.*\bfocus hierarchy\b/i,
+  /\benhance\b.*\bnarrative\b/i,
+  /\badd\b.*\bsmall details\b/i,
+  /\bcontribute to the story\b/i,
+  /\bsmooth out\b.*\bcolor transitions\b/i,
+  /\benhance\b.*\brealism\b/i,
+  /\bimprove the focus where needed\b/i,
+  /\bimprove the main focal area\b/i,
+];
+
+function isVagueVoiceBText(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return true;
+  return VAGUE_VOICE_B_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function splitNumberedSteps(actionPlan: string): string[] {
+  const matches = actionPlan.match(/(?:^|\n)\s*\d+[\.\)]\s+.*?(?=(?:\n\s*\d+[\.\)]\s)|$)/gs);
+  if (!matches) return [];
+  return matches.map((step) => normalizeWhitespace(step.replace(/^\s*\d+[\.\)]\s+/, ''))).filter(Boolean);
+}
+
+function ensureTrailingPeriod(text: string): string {
+  const trimmed = normalizeWhitespace(text);
+  if (!trimmed) return '';
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function fallbackVoiceBStep(
+  category: CritiqueResultDTO['categories'][number],
+  index: number
+): string {
+  const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
+  const issue =
+    lowerFirst(category.editPlan?.issue ?? '') ||
+    lowerFirst(category.anchor?.evidencePointer ?? '') ||
+    'the current relationship still reads too generically';
+  const move =
+    lowerFirst(category.editPlan?.intendedChange ?? '') ||
+    'make one clearer directional adjustment there';
+  const outcome =
+    lowerFirst(category.editPlan?.expectedOutcome ?? '') ||
+    'the passage reads with more deliberate control';
+  return `${index + 1}. In ${area}, ${issue}; ${move} so ${outcome}.`;
+}
+
+function rewriteActionPlanFromStructuredFields(
+  category: CritiqueResultDTO['categories'][number]
+): string {
+  if (category.level === 'Master') return category.actionPlan;
+  const existingSteps = splitNumberedSteps(category.actionPlan);
+  const minimumSteps = category.level === 'Advanced' ? 2 : 3;
+  const steps: string[] = [];
+  for (let i = 0; i < Math.max(minimumSteps, existingSteps.length); i++) {
+    const existing = existingSteps[i];
+    if (existing && !isVagueVoiceBText(existing) && anchoredCategoryMatchesText(existing, category)) {
+      steps.push(`${i + 1}. ${ensureTrailingPeriod(existing)}`);
+    } else {
+      steps.push(fallbackVoiceBStep(category, i));
+    }
+  }
+  return steps.join('\n');
+}
+
+function rewriteStudioChangeFromStructuredFields(
+  category: CritiqueResultDTO['categories'][number],
+  existingText?: string
+): string {
+  const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
+  const issue =
+    lowerFirst(category.editPlan?.issue ?? '') ||
+    lowerFirst(category.anchor?.evidencePointer ?? '') ||
+    'the current passage still needs a more deliberate read';
+  const move =
+    lowerFirst(category.editPlan?.intendedChange ?? '') ||
+    'make one clearer adjustment there';
+  const outcome =
+    lowerFirst(category.editPlan?.expectedOutcome ?? '') ||
+    'the painting reads more clearly afterward';
+
+  if (
+    existingText &&
+    !isVagueVoiceBText(existingText) &&
+    anchoredCategoryMatchesText(existingText, category)
+  ) {
+    return existingText;
+  }
+
+  return `In ${area}, ${issue}; ${move} so ${outcome}.`;
+}
+
+function hybridizeVoiceBFromStructuredFields(critique: CritiqueResultDTO): CritiqueResultDTO {
+  let changed = false;
+  const categories = critique.categories.map((category) => {
+    if (category.level === 'Master') return category;
+    const rewritten = rewriteActionPlanFromStructuredFields(category);
+    if (rewritten === category.actionPlan) return category;
+    changed = true;
+    return {
+      ...category,
+      actionPlan: rewritten,
+    };
+  });
+
+  if (!critique.simpleFeedback) {
+    return changed ? { ...critique, categories } : critique;
+  }
+
+  const categoryByCriterion = new Map(categories.map((category) => [category.criterion, category] as const));
+  const studioChanges = critique.simpleFeedback.studioChanges.map((change) => {
+    const category = categoryByCriterion.get(change.previewCriterion);
+    if (!category) return change;
+    const rewritten = rewriteStudioChangeFromStructuredFields(category, change.text);
+    if (rewritten === change.text) return change;
+    changed = true;
+    return {
+      ...change,
+      text: rewritten,
+    };
+  });
+
+  return changed
+    ? {
+        ...critique,
+        categories,
+        simpleFeedback: {
+          ...critique.simpleFeedback,
+          studioChanges,
+        },
+      }
+    : critique;
+}
+
 function weakestAnchoredCategories(
   critique: CritiqueResultDTO,
   limit: number
@@ -426,7 +567,11 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
           }
         : critique.simpleFeedback,
     };
-    return rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(adjusted));
+    return hybridizeVoiceBFromStructuredFields(
+      rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(adjusted))
+    );
   }
-  return rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(critique));
+  return hybridizeVoiceBFromStructuredFields(
+    rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(critique))
+  );
 }

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 
-import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from '../lib/critiqueAudit.js';
+import {
+  applyCritiqueGuardrails,
+  critiqueNeedsFreshEvidenceRead,
+  // eslint-disable-next-line import/named
+} from '../lib/critiqueAudit.js';
 import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
 import {
@@ -567,6 +571,20 @@ function testCritiqueGuardrails(): void {
     },
   };
   assert.equal(evaluateCritiqueQuality(specificVoiceB).genericNextSteps, false);
+
+  const rewrittenVoiceB = applyCritiqueGuardrails(vagueVoiceB as any);
+  assert.match(
+    rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
+    /foreground chair back|interior chair bars|face/i
+  );
+  assert.match(
+    rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
+    /soften|sharpen|preserve|keep|separate/i
+  );
+  assert.match(
+    rewrittenVoiceB.simpleFeedback!.studioChanges[1]!.text,
+    /floor-to-wall transition|warmth shift|muted palette/i
+  );
 }
 
 function testCriterionBandRubric(): void {
