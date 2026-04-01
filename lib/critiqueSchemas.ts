@@ -269,15 +269,15 @@ export const CRITIQUE_JSON_SCHEMA = {
                 properties: {
                   area: {
                     type: 'string',
-                    description: 'Exact visible passage for this step. Must be a recognizable passage in THIS painting, not a conceptual summary.',
+                    description: 'A visible, locatable passage a user could point to in THIS painting (e.g. "the terracotta pot against the red path"). NEVER use "arrangement of elements", "spatial relationships", "areas where energy is evident", or other abstract placeholders.',
                   },
                   currentRead: {
                     type: 'string',
-                    description: 'What is visibly happening in that passage right now.',
+                    description: 'What is visibly happening in that passage right now — name colors, shapes, edges, or spatial events you can see. NEVER write judgment-only language without naming what you see.',
                   },
                   move: {
                     type: 'string',
-                    description: 'Exact directional move to make or preserve in that passage.',
+                    description: 'One concrete verb + target: what to physically change in that passage (soften, darken, cool, group, separate, etc.). NEVER write "adjust elements", "enhance presence", "ensure consistency" without naming what exactly to do to what.',
                   },
                   expectedRead: {
                     type: 'string',

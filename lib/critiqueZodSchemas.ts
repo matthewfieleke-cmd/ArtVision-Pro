@@ -61,26 +61,28 @@ export const editPlanSchema = z.object({
 
 export const voiceBStepSchema = z.object({
   area: z.string().describe(
-    'Exact visible passage for this step. Must be a recognizable passage in THIS painting, not a conceptual summary.'
+    'A visible, locatable passage in THIS painting that a user could point to — e.g. "the terracotta pot against the red path" or "the blue delphiniums at left". NEVER use abstract placeholders like "arrangement of elements", "areas where energy is evident", "spatial relationships", or "the composition". If the criterion is conceptual (Intent, Presence), still name the physical passage that carries it.'
   ),
-  currentRead: z.string().describe('What is visibly happening in that passage right now.'),
-  move: z.string().describe('Exact directional move to make or preserve in that passage.'),
-  expectedRead: z.string().describe('What that same passage should read like after the move.'),
-  preserve: z.string().describe('Optional nearby success to protect while making the change.'),
+  currentRead: z.string().describe(
+    'What is visibly happening in that specific passage right now — name colors, shapes, edges, or spatial relationships you can see. NEVER write "could be more unified", "feels less necessary", or other judgment-only language without naming what you see.'
+  ),
+  move: z.string().describe(
+    'One specific directional verb + what to change in that passage. Must start with a concrete verb (soften, darken, cool, group, separate, sharpen, widen, compress, etc.) applied to a named visual element. NEVER write "adjust elements", "enhance presence", "ensure consistency", "improve structure", or "strengthen" without saying what exactly to do to what.'
+  ),
+  expectedRead: z.string().describe('What that same passage should read like after the move — describe the visual result, not an abstract improvement.'),
+  preserve: z.string().describe('What specific nearby success to protect while making the change.'),
   priority: z.enum(['primary', 'secondary']),
 });
 
 export const voiceBPlanSchema = z.object({
-  currentRead: z.string().describe('Voice B diagnosis of what this anchored passage is doing now.'),
-  mainProblem: z.string().describe('Optional main local problem in that anchored passage.'),
-  mainStrength: z.string().describe('Optional main local strength to preserve in that anchored passage.'),
-  bestNextMove: z.string().describe('Best next teaching move in that passage only.'),
-  optionalSecondMove: z.string().describe('Optional secondary move if one more local change would help.'),
-  avoidDoing: z.string().describe('Optional note on what not to break or overdo.'),
-  expectedRead: z.string().describe('What the passage should read like after the best next move.'),
-  storyIfRelevant: z.string().describe(
-    'Optional story or dramatic situation only when that is genuinely relevant and concrete in this painting.'
-  ),
+  currentRead: z.string().describe('What this anchored passage is visibly doing now — name what you see (colors, edges, shapes, spatial events), not abstract qualities.'),
+  mainProblem: z.string().describe('The specific visible problem in that passage — what two things compete, merge, or misalign. Empty string if none.'),
+  mainStrength: z.string().describe('The specific visible strength to preserve — name the exact relationship that works. Empty string if none.'),
+  bestNextMove: z.string().describe('One concrete verb + target: what to physically do in that passage. Must name the visual element to change.'),
+  optionalSecondMove: z.string().describe('A second distinct move if needed, or empty string.'),
+  avoidDoing: z.string().describe('What not to break or overdo in that passage, or empty string.'),
+  expectedRead: z.string().describe('What the passage should look like after the move — describe the visual result.'),
+  storyIfRelevant: z.string().describe('The specific narrative or dramatic situation visible in this painting, or empty string if not relevant.'),
 });
 
 // ---------------------------------------------------------------------------
