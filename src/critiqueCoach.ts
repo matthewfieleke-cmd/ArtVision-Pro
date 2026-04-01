@@ -32,15 +32,32 @@ function lowerFirst(text: string): string {
   return text;
 }
 
+function stripTrailingPunctuation(text: string): string {
+  return text.replace(/[.!?;,]+$/, '').trim();
+}
+
+const ANCHOR_GENERIC_TOKENS = new Set([
+  'area', 'areas', 'color', 'colors', 'edge', 'edges', 'form', 'forms',
+  'light', 'paint', 'space', 'style', 'surface', 'texture', 'value',
+  'values', 'composition', 'structure', 'handling', 'focus', 'control',
+  'painting', 'canvas', 'work', 'piece', 'image', 'scene', 'overall',
+  'main', 'some', 'more', 'most', 'less', 'with', 'from', 'into',
+  'between', 'across', 'within', 'where', 'that', 'this', 'these',
+  'those', 'there', 'their', 'which', 'about', 'through', 'around',
+]);
+
 function actionPlanReferencesAnchor(actionPlan: string, anchor?: { areaSummary?: string }): boolean {
-  if (!anchor?.areaSummary) return true;
+  if (!anchor?.areaSummary) return false;
   const plan = normalizeWhitespace(actionPlan).toLowerCase();
   const summary = normalizeWhitespace(anchor.areaSummary).toLowerCase();
-  if (!summary || summary.length < 4) return true;
+  if (!summary || summary.length < 4) return false;
   if (plan.includes(summary)) return true;
-  const tokens = summary.split(/\s+/).filter((t) => t.length >= 4);
+  const tokens = summary.split(/\s+/).filter(
+    (t) => t.length >= 4 && !ANCHOR_GENERIC_TOKENS.has(t)
+  );
+  if (tokens.length === 0) return false;
   const matched = tokens.filter((t) => plan.includes(t)).length;
-  return tokens.length > 0 && matched >= Math.min(2, tokens.length);
+  return matched >= Math.max(2, Math.ceil(tokens.length * 0.6));
 }
 
 function stripRedundantPreserve(text: string): string {
@@ -63,13 +80,13 @@ function deriveActionPlanFromSteps(
   const lines = steps
     .map((step, index) => {
       const area = normalizeWhitespace(step.area);
-      const currentRead = lowerFirst(normalizeWhitespace(step.currentRead));
-      const move = lowerFirst(normalizeWhitespace(step.move));
-      const expectedRead = lowerFirst(normalizeWhitespace(step.expectedRead));
+      const currentRead = stripTrailingPunctuation(lowerFirst(normalizeWhitespace(step.currentRead)));
+      const move = stripTrailingPunctuation(lowerFirst(normalizeWhitespace(step.move)));
+      const expectedRead = stripTrailingPunctuation(lowerFirst(normalizeWhitespace(step.expectedRead)));
       const rawPreserve = normalizeWhitespace(step.preserve ?? '');
-      const preserve = lowerFirst(stripRedundantPreserve(rawPreserve));
+      const preserve = stripTrailingPunctuation(lowerFirst(stripRedundantPreserve(rawPreserve)));
       if (!area || !move || !expectedRead) return '';
-      let sentence = `In ${area}, ${currentRead || 'the current read still needs work'}—${move} so that ${expectedRead}`;
+      let sentence = `In ${area}, ${currentRead || 'the current read still needs work'}—${move}, so that ${expectedRead}`;
       if (preserve) sentence += `. Protect ${preserve}`;
       return `${index + 1}. ${ensureSentence(sentence)}`;
     })

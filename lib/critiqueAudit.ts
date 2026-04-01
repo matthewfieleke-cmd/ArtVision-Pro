@@ -195,7 +195,9 @@ function ensureTrailingPeriod(text: string): string {
 }
 
 function concretePhrase(text: string): string {
-  return normalizeWhitespace(text).replace(/^[A-Z]/, (m) => m.toLowerCase());
+  return normalizeWhitespace(text)
+    .replace(/[.!?;,]+$/, '')
+    .replace(/^[A-Z]/, (m) => m.toLowerCase());
 }
 
 function looksConceptualLabel(text: string): boolean {
