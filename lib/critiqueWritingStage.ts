@@ -6,11 +6,15 @@ import {
 import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
 import type { CritiqueRequestBody } from './critiqueTypes.js';
 import {
-  VOICE_A_CRITIQUE_JSON_SCHEMA,
-  VOICE_B_CRITIQUE_JSON_SCHEMA,
   buildVoiceASchemaInstruction,
   buildVoiceBSchemaInstruction,
 } from './critiqueSchemas.js';
+import {
+  VOICE_A_OPENAI_SCHEMA,
+  VOICE_B_OPENAI_SCHEMA,
+  voiceAStageResultSchema,
+  voiceBStageResultSchema,
+} from './critiqueZodSchemas.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
@@ -399,13 +403,19 @@ export async function runCritiqueVoiceAStage(
   evidence: CritiqueEvidenceDTO,
   calibration?: CritiqueCalibrationDTO
 ): Promise<VoiceAStageResult> {
-  return (await runSchemaStage(
+  const raw = await runSchemaStage(
     apiKey,
     model,
     buildVoiceAPrompt(style, body.medium, evidence, calibration),
     `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildVoiceASchemaInstruction()}`,
-    VOICE_A_CRITIQUE_JSON_SCHEMA
-  )) as VoiceAStageResult;
+    VOICE_A_OPENAI_SCHEMA
+  );
+  const parsed = voiceAStageResultSchema.safeParse(raw);
+  if (!parsed.success) {
+    console.error('Voice A Zod validation failed:', parsed.error.message);
+    return raw as VoiceAStageResult;
+  }
+  return parsed.data as VoiceAStageResult;
 }
 
 export async function runCritiqueVoiceBStage(
@@ -417,14 +427,20 @@ export async function runCritiqueVoiceBStage(
   voiceA: VoiceAStageResult,
   calibration?: CritiqueCalibrationDTO
 ): Promise<VoiceBStageResult> {
-  return (await runSchemaStage(
+  const raw = await runSchemaStage(
     apiKey,
     model,
     buildWritingPrompt(style, body.medium, evidence, calibration),
     `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\n${buildVoiceBSchemaInstruction()}`,
-    VOICE_B_CRITIQUE_JSON_SCHEMA,
+    VOICE_B_OPENAI_SCHEMA,
     VOICE_B_MAX_TOKENS
-  )) as VoiceBStageResult;
+  );
+  const parsed = voiceBStageResultSchema.safeParse(raw);
+  if (!parsed.success) {
+    console.error('Voice B Zod validation failed:', parsed.error.message);
+    return raw as VoiceBStageResult;
+  }
+  return parsed.data as VoiceBStageResult;
 }
 
 function mergeVoiceStages(voiceA: VoiceAStageResult, voiceB: VoiceBStageResult): unknown {

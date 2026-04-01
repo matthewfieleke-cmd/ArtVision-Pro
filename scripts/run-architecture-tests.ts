@@ -35,6 +35,18 @@ import type { CritiqueResult, SavedPainting } from '../src/types.js';
 import { finalizeCritiqueResult } from '../src/critiqueCoach.ts';
 import { runPreviewResizeTests } from './test-preview-resize.js';
 import { formatRubricForPrompt, getCriterionRubric } from '../shared/masterCriteriaRubric.js';
+import {
+  voiceAStageResultSchema,
+  voiceBStageResultSchema,
+  voiceBPlanSchema,
+  voiceBStepSchema,
+  anchorSchema,
+  editPlanSchema,
+  VOICE_A_OPENAI_SCHEMA,
+  VOICE_B_OPENAI_SCHEMA,
+  EVIDENCE_OPENAI_SCHEMA,
+} from '../lib/critiqueZodSchemas.ts';
+import { CRITERIA_ORDER } from '../shared/criteria.js';
 
 function makeCritiqueResult(): CritiqueResult {
   return {
@@ -1285,6 +1297,133 @@ function testStructuredVoiceBPlanFlow(): void {
   assert.match(finalizedComposition.actionPlan, /2\. In the left window strip/i);
 }
 
+function testZodSchemaRoundTrip(): void {
+  // Verify OpenAI schemas are well-formed
+  assert.equal(VOICE_A_OPENAI_SCHEMA.strict, true);
+  assert.equal(VOICE_A_OPENAI_SCHEMA.name, 'painting_critique_voice_a');
+  assert.equal(VOICE_A_OPENAI_SCHEMA.schema.type, 'object');
+  assert.ok(VOICE_A_OPENAI_SCHEMA.schema.additionalProperties === false);
+
+  assert.equal(VOICE_B_OPENAI_SCHEMA.strict, true);
+  assert.equal(VOICE_B_OPENAI_SCHEMA.name, 'painting_critique_voice_b');
+  assert.equal(VOICE_B_OPENAI_SCHEMA.schema.type, 'object');
+  assert.ok(VOICE_B_OPENAI_SCHEMA.schema.additionalProperties === false);
+
+  assert.equal(EVIDENCE_OPENAI_SCHEMA.strict, true);
+  assert.equal(EVIDENCE_OPENAI_SCHEMA.name, 'painting_critique_evidence');
+
+  // Verify Voice B JSON schema has expectedRead, NOT intendedRead
+  const voiceBProps = VOICE_B_OPENAI_SCHEMA.schema.properties as Record<string, unknown>;
+  const catItems = (voiceBProps.categories as Record<string, unknown>).items as Record<string, unknown>;
+  const catProps = catItems.properties as Record<string, unknown>;
+  const planProps = (catProps.voiceBPlan as Record<string, unknown>).properties as Record<string, unknown>;
+  assert.ok('expectedRead' in planProps, 'voiceBPlan must have expectedRead in JSON schema');
+  assert.ok(!('intendedRead' in planProps), 'voiceBPlan must NOT have intendedRead in JSON schema');
+
+  // Round-trip: mock Voice B plan through Zod parse
+  const mockPlan = {
+    currentRead: 'The passage currently reads flat.',
+    mainProblem: 'The values compress too evenly.',
+    mainStrength: 'The edge at the jaw is already clean.',
+    bestNextMove: 'Darken the jacket side of the cheek-jacket junction.',
+    optionalSecondMove: '',
+    avoidDoing: 'Do not sharpen the ear contour.',
+    expectedRead: 'The face separates from the jacket.',
+    storyIfRelevant: '',
+  };
+  const planResult = voiceBPlanSchema.safeParse(mockPlan);
+  assert.ok(planResult.success, `voiceBPlan round-trip failed: ${planResult.error?.message}`);
+  assert.equal(planResult.data.expectedRead, 'The face separates from the jacket.');
+  assert.equal(planResult.data.bestNextMove, 'Darken the jacket side of the cheek-jacket junction.');
+
+  // Round-trip: mock Voice B step through Zod parse
+  const mockStep = {
+    area: 'the foreground chair back',
+    currentRead: 'interior bars compete with the face',
+    move: 'soften the interior bars',
+    expectedRead: 'the face regains priority',
+    preserve: 'the outer silhouette',
+    priority: 'primary' as const,
+  };
+  const stepResult = voiceBStepSchema.safeParse(mockStep);
+  assert.ok(stepResult.success, `voiceBStep round-trip failed: ${stepResult.error?.message}`);
+
+  // Round-trip: mock anchor through Zod parse
+  const mockAnchor = {
+    areaSummary: 'the foreground chair back',
+    evidencePointer: 'its interior verticals compete with the face',
+    region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
+  };
+  const anchorResult = anchorSchema.safeParse(mockAnchor);
+  assert.ok(anchorResult.success, `anchor round-trip failed: ${anchorResult.error?.message}`);
+
+  // Round-trip: mock edit plan through Zod parse
+  const mockEditPlan = {
+    targetArea: 'the foreground chair back',
+    preserveArea: 'the outer chair silhouette',
+    issue: 'the interior bars pull too strongly',
+    intendedChange: 'soften the interior bars while preserving the silhouette',
+    expectedOutcome: 'the face regains the first read',
+    editability: 'yes' as const,
+  };
+  const editResult = editPlanSchema.safeParse(mockEditPlan);
+  assert.ok(editResult.success, `editPlan round-trip failed: ${editResult.error?.message}`);
+
+  // Negative test: intendedRead in voiceBPlan should fail
+  const badPlan = { ...mockPlan, intendedRead: mockPlan.expectedRead };
+  delete (badPlan as Record<string, unknown>).expectedRead;
+  const badResult = voiceBPlanSchema.safeParse(badPlan);
+  assert.ok(!badResult.success, 'voiceBPlan with intendedRead instead of expectedRead should fail');
+
+  // Verify Zod field names match what validateVoiceBPlan and validateCritiqueResult expect
+  const mockMergedCategories = CRITERIA_ORDER.map((criterion) => ({
+    criterion,
+    level: 'Intermediate',
+    feedback: `Feedback for ${criterion} grounded in the foreground chair back.`,
+    actionPlan: `1. In the foreground chair back, soften the interior bars so the face regains priority.`,
+    actionPlanSteps: [mockStep],
+    voiceBPlan: mockPlan,
+    confidence: 'medium',
+    evidenceSignals: ['The chair bars cross the figure.', 'The head is the intended focal passage.'],
+    preserve: 'Preserve the outer silhouette.',
+    practiceExercise: 'Do a hard/soft edge chart.',
+    nextTarget: `Push ${criterion.toLowerCase()} toward Advanced.`,
+    anchor: mockAnchor,
+    editPlan: mockEditPlan,
+    subskills: [
+      { label: 'Sub A', score: 0.5, level: 'Intermediate' },
+      { label: 'Sub B', score: 0.48, level: 'Intermediate' },
+    ],
+  }));
+
+  const mockMerged = {
+    summary: 'A focused interior with one competing obstruction in the foreground chair back.',
+    suggestedPaintingTitles: ['Interior Study', 'Chair and Figure', 'Window Light Drawing'],
+    overallSummary: {
+      analysis: 'The foreground chair back and seated figure create a clear interior tension.',
+      topPriorities: ['Soften the interior bars of the foreground chair back.'],
+    },
+    studioAnalysis: {
+      whatWorks: 'The foreground chair back and window strip establish a strong scaffold.',
+      whatCouldImprove: 'The foreground chair back still competes with the face.',
+    },
+    studioChanges: [
+      { text: 'Soften the interior bars of the foreground chair back.', previewCriterion: 'Edge and focus control' },
+      { text: 'Keep the left window strip intact.', previewCriterion: 'Value and light structure' },
+    ],
+    comparisonNote: null,
+    overallConfidence: 'medium',
+    photoQuality: { level: 'good', summary: 'Good.', issues: [], tips: [] },
+    categories: mockMergedCategories,
+  };
+
+  const validated = validateCritiqueResult(mockMerged);
+  assert.ok(validated, 'Zod-shaped mock should pass validateCritiqueResult');
+  assert.equal(validated.categories[0]!.voiceBPlan?.expectedRead, 'The face separates from the jacket.');
+  assert.equal(validated.categories[0]!.actionPlanSteps?.length, 1);
+  assert.equal(validated.categories[0]!.anchor?.areaSummary, 'the foreground chair back');
+}
+
 async function main(): Promise<void> {
   await testCritiqueFlow();
   await testApiHelpers();
@@ -1293,6 +1432,7 @@ async function main(): Promise<void> {
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
   testStructuredVoiceBPlanFlow();
+  testZodSchemaRoundTrip();
   await runPreviewResizeTests();
   console.log('Architecture tests passed.');
 }
