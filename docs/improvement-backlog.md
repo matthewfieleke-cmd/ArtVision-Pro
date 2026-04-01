@@ -1,43 +1,101 @@
 # ArtVision Pro — Improvement Backlog
 
-Tracked items for future work. These are not blocking but represent meaningful
-opportunities discovered during codebase analysis.
+Tracked items for future work, ordered by reliability impact.
 
 ---
 
-## 1. App.tsx Complexity
+## Priority 1 — Schema / Type Unification
 
-`src/App.tsx` is ~1,800 lines managing tabs, camera, analysis flow, preview
-edits, and persistence in a single component. Extract into custom hooks
+**Status: IN PROGRESS**
+
+The same critique data shape is defined independently in four places:
+
+1. OpenAI JSON schema objects (`lib/critiqueSchemas.ts`)
+2. Stage result types (`VoiceBStageResult` in `lib/critiqueWritingStage.ts`)
+3. Server DTOs (`VoiceBPlanDTO` in `lib/critiqueTypes.ts`)
+4. Client types (`VoiceBPlan` in `src/types.ts`)
+
+A single field rename requires coordinated edits across all four with no
+compile-time enforcement that the JSON schema objects match the TypeScript
+types. The `intendedRead` / `expectedRead` mismatch that broke Voice B was
+a direct consequence.
+
+**Fix:** Introduce a single-source-of-truth schema library (Zod) that
+derives JSON schemas and TypeScript types from one definition.
+
+## Priority 2 — Schema Round-Trip Tests
+
+Architecture tests cover guardrails and flow logic thoroughly but never
+validate a mock API response through `validateVoiceBPlan` or
+`validateCritiqueResult`. A test that constructs a schema-conformant Voice B
+response and parses it through validation would have caught the
+`intendedRead` bug instantly.
+
+**Fix:** Add round-trip tests (construct → validate → assert shape) for
+each stage schema. Vitest is the natural runner since the project already
+uses Vite.
+
+## Priority 3 — AI Pipeline Error Handling
+
+- `runSchemaStage` had no truncation detection (now fixed, but only for
+  writing stages; the evidence stage still uses a separate fetch call
+  without this check).
+- No retry on transient failures (rate limits, network timeouts).
+- The one-shot retry in `openaiCritique.ts` re-runs the entire
+  evidence + calibration + writing pipeline — expensive and blunt.
+
+**Fix:** Extract a shared `callOpenAI` helper with truncation detection,
+exponential backoff on 429/5xx, and per-stage retry rather than full
+pipeline restart.
+
+## Priority 4 — Prompt / Schema Description Drift
+
+Schema `description` fields duplicate guidance that also lives in the
+system prompt, creating two sources of truth that can silently diverge.
+The step-count conflict (schema said `≥3`, prompt said `1–3`) was one
+instance; there may be others.
+
+**Fix:** Keep schema descriptions minimal and factual (field semantics
+only). Move all behavioral guidance — tone, step counts, anti-patterns —
+exclusively into the system prompt.
+
+## Priority 5 — App.tsx Complexity
+
+`src/App.tsx` is ~1,800 lines managing tabs, camera, analysis flow,
+preview edits, and persistence in one component. Extract into custom hooks
 (`useCritiqueFlow`, `usePreviewSession`, `usePaintingStorage`) or React
 context providers to improve readability and testability.
 
-## 2. Formal Test Framework
+## Priority 6 — Formal Test Framework (Vitest)
 
 Architecture and preview-resize tests use raw Node `assert`. Adopting
 **Vitest** (already Vite-native) would enable better coverage reporting,
 watch mode, snapshot testing, and CI integration without adding a separate
-build tool.
+build tool. Motivated primarily by Priority 2 (schema round-trip tests).
 
-## 3. State Management
+---
 
-All UI state lives in `App.tsx` `useState` calls with prop drilling.
-As the app grows, a lightweight solution (Zustand, Jotai, or React Context +
-`useReducer`) would reduce coupling between components.
+## Lower Priority (Quality of Life)
 
-## 4. localStorage-Only Persistence
+These are valid but not causing production failures.
 
-Paintings are lost if the user clears browser data or switches devices.
-Options: JSON export/import, optional cloud sync, or IndexedDB for larger
-storage budgets.
+### State Management
 
-## 5. API Rate Limiting / Abuse Protection
+All UI state lives in `App.tsx` `useState` calls with prop drilling. A
+lightweight solution (Zustand, Jotai, or React Context + `useReducer`)
+would reduce coupling as the app grows.
 
-Endpoints have no rate limiting or throttling beyond the `OPENAI_API_KEY`
-server guard. Adding per-IP rate limits (e.g., via Vercel Edge middleware)
-would reduce risk of runaway API costs.
+### localStorage-Only Persistence
 
-## 6. Single-File API Handler
+Paintings are lost if the user clears browser data. Options: JSON
+export/import, optional cloud sync, or IndexedDB for larger storage.
+
+### API Rate Limiting
+
+Endpoints have no rate limiting beyond the `OPENAI_API_KEY` server guard.
+Per-IP rate limits via Vercel Edge middleware would reduce runaway cost risk.
+
+### Single-File API Handler
 
 `lib/apiHandlers.ts` dispatches all routes in one function. Splitting into
-per-route handler modules would improve readability as the API surface grows.
+per-route modules would improve readability as the API surface grows.
