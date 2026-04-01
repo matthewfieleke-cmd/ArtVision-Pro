@@ -452,6 +452,30 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
   );
 }
 
+function normalizeTitles(raw: unknown[]): SuggestedTitle[] {
+  const categories: SuggestedTitle['category'][] = ['formalist', 'tactile', 'intent'];
+  return raw.map((entry, i) => {
+    if (typeof entry === 'string') {
+      return {
+        category: categories[i % 3] ?? 'formalist',
+        title: entry,
+        rationale: '',
+      };
+    }
+    if (entry && typeof entry === 'object') {
+      const e = entry as Record<string, unknown>;
+      return {
+        category: (typeof e.category === 'string' && ['formalist', 'tactile', 'intent'].includes(e.category)
+          ? e.category
+          : categories[i % 3] ?? 'formalist') as SuggestedTitle['category'],
+        title: typeof e.title === 'string' ? e.title : String(e.title ?? ''),
+        rationale: typeof e.rationale === 'string' ? e.rationale : '',
+      };
+    }
+    return { category: categories[i % 3] ?? 'formalist', title: String(entry ?? ''), rationale: '' };
+  });
+}
+
 const TITLE_CATEGORY_LABELS: Record<SuggestedTitle['category'], { label: string; accent: string }> = {
   formalist: { label: 'Formalist', accent: 'bg-blue-50 text-blue-700 ring-blue-200' },
   tactile: { label: 'Tactile', accent: 'bg-amber-50 text-amber-700 ring-amber-200' },
@@ -503,9 +527,10 @@ function SuggestedTitlesCard({
         >
           {titles.map((entry) => {
             const meta = TITLE_CATEGORY_LABELS[entry.category] ?? TITLE_CATEGORY_LABELS.formalist;
-            const selected = workingTitle?.trim() === entry.title.trim();
+            const titleText = entry.title || '';
+            const selected = workingTitle?.trim() === titleText.trim();
             return (
-              <div key={`${entry.category}-${entry.title}`} className="space-y-1">
+              <div key={`${entry.category}-${titleText}`} className="space-y-1">
                 <span
                   className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${meta.accent}`}
                 >
@@ -515,18 +540,20 @@ function SuggestedTitlesCard({
                   {onSelectSuggestedTitle ? (
                     <button
                       type="button"
-                      onClick={() => onSelectSuggestedTitle(entry.title)}
+                      onClick={() => onSelectSuggestedTitle(titleText)}
                       className={`text-left text-sm leading-snug underline decoration-violet-300 decoration-1 underline-offset-2 transition hover:decoration-violet-500 ${
                         selected ? 'font-semibold text-violet-900' : 'text-slate-800'
                       }`}
                     >
-                      {entry.title}
+                      {titleText}
                     </button>
                   ) : (
-                    <span className="text-sm leading-snug text-slate-800">{entry.title}</span>
+                    <span className="text-sm leading-snug text-slate-800">{titleText}</span>
                   )}
                 </div>
-                <p className="text-xs leading-relaxed text-slate-500">{entry.rationale}</p>
+                {entry.rationale ? (
+                  <p className="text-xs leading-relaxed text-slate-500">{entry.rationale}</p>
+                ) : null}
               </div>
             );
           })}
@@ -591,7 +618,7 @@ export function CritiquePanels({
       ) : null}
       {critique.suggestedPaintingTitles && critique.suggestedPaintingTitles.length >= 3 ? (
         <SuggestedTitlesCard
-          titles={critique.suggestedPaintingTitles.slice(0, 3)}
+          titles={normalizeTitles(critique.suggestedPaintingTitles.slice(0, 3))}
           workingTitle={workingTitle}
           onSelectSuggestedTitle={onSelectSuggestedTitle}
         />
