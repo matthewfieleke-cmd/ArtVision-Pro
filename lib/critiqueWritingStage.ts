@@ -5,7 +5,14 @@ import {
 } from '../shared/critiqueVoiceA.js';
 import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
 import type { CritiqueRequestBody } from './critiqueTypes.js';
-import { CRITIQUE_JSON_SCHEMA, buildCritiqueSchemaInstruction } from './critiqueSchemas.js';
+import {
+  CRITIQUE_JSON_SCHEMA,
+  VOICE_A_CRITIQUE_JSON_SCHEMA,
+  VOICE_B_CRITIQUE_JSON_SCHEMA,
+  buildCritiqueSchemaInstruction,
+  buildVoiceASchemaInstruction,
+  buildVoiceBSchemaInstruction,
+} from './critiqueSchemas.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
@@ -43,6 +50,129 @@ function formatCalibrationCaps(calibration?: CritiqueCalibrationDTO): string {
     .join('\n');
 }
 
+type VoiceAStageResult = {
+  summary: string;
+  suggestedPaintingTitles: string[];
+  overallSummary: { analysis: string };
+  studioAnalysis: { whatWorks: string; whatCouldImprove: string };
+  comparisonNote: string | null;
+  overallConfidence: 'low' | 'medium' | 'high';
+  photoQuality: {
+    level: 'poor' | 'fair' | 'good';
+    summary: string;
+    issues: string[];
+    tips: string[];
+  };
+  categories: Array<{
+    criterion: string;
+    level: string;
+    feedback: string;
+    confidence: 'low' | 'medium' | 'high';
+    evidenceSignals: string[];
+    preserve: string;
+    practiceExercise: string;
+    nextTarget: string;
+    subskills: Array<{ label: string; score: number; level: string }>;
+  }>;
+};
+
+type VoiceBStageResult = {
+  overallSummary: { topPriorities: string[] };
+  studioChanges: Array<{ text: string; previewCriterion: string }>;
+  categories: Array<{
+    criterion: string;
+    actionPlan: string;
+    actionPlanSteps: Array<{
+      area: string;
+      currentRead: string;
+      move: string;
+      expectedRead: string;
+      preserve: string;
+      priority: 'primary' | 'secondary';
+    }>;
+    voiceBPlan: {
+      currentRead: string;
+      mainProblem: string;
+      mainStrength: string;
+      bestNextMove: string;
+      optionalSecondMove: string;
+      avoidDoing: string;
+      intendedRead: string;
+      storyIfRelevant: string;
+    };
+    anchor: {
+      areaSummary: string;
+      evidencePointer: string;
+      region: { x: number; y: number; width: number; height: number };
+    };
+    editPlan: {
+      targetArea: string;
+      preserveArea: string;
+      issue: string;
+      intendedChange: string;
+      expectedOutcome: string;
+      editability: 'yes' | 'no';
+    };
+  }>;
+};
+
+function buildVoiceAPrompt(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO,
+  calibration?: CritiqueCalibrationDTO
+): string {
+  const benchmarks = isStyleKey(style)
+    ? ARTISTS_BY_STYLE[style].join(', ')
+    : 'the masters listed for the selected style';
+  const capBlock = formatCalibrationCaps(calibration);
+  const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
+  return `You are stage 2A of a painting critique system.
+
+You are now writing the critical judgment only from already extracted evidence.
+
+Voice:
+${VOICE_A_COMPOSITE_EXPERTS}
+
+Your job in this stage:
+- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/feedback/confidence/evidenceSignals/preserve/practiceExercise/nextTarget/subskills.
+- Do NOT output any Voice B fields in this stage: no topPriorities, no studioChanges, no anchors, no edit plans, no voiceBPlan, no actionPlanSteps, and no actionPlan.
+
+Full criterion rubric for this declared style (use it actively when deciding each band):
+${rubricBlock}
+
+How Voice A drives the eight ratings (required workflow):
+- First, from the evidence alone, form Voice A’s judgment of how the painting performs in EACH of the eight criteria (composition, value, color, drawing/space, edges, surface handling, intent/necessity, presence/point of view). Think in full critical terms for each—not a single overall grade copied eight times.
+- Then assign categories[].level for each criterion: that level MUST be the formal label (Beginner / Intermediate / Advanced / Master) for Voice A’s judgment in that criterion for this painting.
+- For each criterion, decide not just what band fits, but why the work is not one band lower and not one band higher according to the rubric language above.
+- Write studioAnalysis.whatWorks and whatCouldImprove as Voice A’s overall read, but ensure they do not contradict the per-criterion levels.
+
+${completionToneBlock(evidence)}
+
+Rules:
+- Use ONLY the supplied evidence JSON as your factual base.
+- Do not invent visible claims that are not supported by the evidence.
+- Judge the painting on its own terms.
+- Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
+- If the evidence suggests a strong work, let the critique say the issue is modest.
+- If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
+- Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
+- Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
+- Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
+- Rating calibration (per criterion, from visible evidence only):
+  - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
+  - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains.
+  - Advanced: strong in this criterion with only modest, selective refinement left.
+  - Master: very rare but real when deserved—museum-grade sustained control and intention in this criterion for this painting.
+- Master gating (mandatory):
+  - If photoQuality.level is not "good", no criterion may be Master.
+  - If completionRead.state is not "likely_finished", no criterion may be Master.
+- Calibration caps (mandatory if present):
+${capBlock || '- No extra calibration caps supplied.'}
+
+Return JSON only matching the schema.`;
+}
+
 export function buildWritingPrompt(
   style: string,
   medium: string,
@@ -55,33 +185,27 @@ export function buildWritingPrompt(
   const exemplarBlock = isStyleKey(style) ? getCriterionExemplarBlock(style, medium) : '';
   const capBlock = formatCalibrationCaps(calibration);
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
-  return `You are stage 2 of a painting critique system.
+  return `You are stage 2B of a painting critique system.
 
-You are now writing the critique from already extracted evidence.
+You are now writing the studio teaching plan from already extracted evidence and a completed Voice A judgment.
 
-Voices (composite, not literal impersonation of any single writer or painter):
-${VOICE_A_COMPOSITE_EXPERTS}
-
+Voice:
 ${VOICE_B_COMPOSITE_TEACHERS}
 
-- Voice A outputs: studioAnalysis (whatWorks, whatCouldImprove), categories[].level for all eight criteria, and categories[].feedback for each criterion. Those grades are Voice A’s opinion on each axis.
-- Voice B outputs for every criterion: (1) categories[].voiceBPlan = the teacher's structured diagnosis and best next move for the anchored passage, (2) categories[].actionPlanSteps = 1-3 structured teaching steps for that same passage, and (3) categories[].actionPlan = the readable numbered version of those same steps. Also output studioChanges (2–5 items). Voice B takes Voice A’s judgments plus the evidence and gives studio advice only for THIS painting—imperative, concrete, medium-aware; each studioChange names where + what + how; previewCriterion routes an illustrative edit.
+Your job in this stage:
+- Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and actionPlan.
+- Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
+- Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
 - For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
 ${rubricBlock}
 
-How Voice A drives the eight ratings (required workflow):
-- First, from the evidence alone, form Voice A’s judgment of how the painting performs in EACH of the eight criteria (composition, value, color, drawing/space, edges, surface handling, intent/necessity, presence/point of view). Think in full critical terms for each—not a single overall grade copied eight times.
-- Then assign categories[].level for each criterion: that level MUST be the formal label (Beginner / Intermediate / Advanced / Master) for Voice A’s judgment in that criterion for this painting. The eight levels are rankings of quality in those eight dimensions; they must reflect where Voice A would place the work on each axis, not a polite default or an average smeared across all eight.
-- For each criterion, decide not just what band fits, but why the work is not one band lower and not one band higher according to the rubric language above.
-- Write studioAnalysis.whatWorks and whatCouldImprove as Voice A’s overall read, but ensure they do not contradict the per-criterion levels: if Voice A says the work is still fundamentally shaky in an area, that criterion’s level cannot be Intermediate or above unless the evidence truly supports competence there.
-- For each category, categories[].feedback is Voice A’s expanded judgment for THAT criterion—same stance as its level, with evidence-grounded specifics. Voice B (actionPlan + studioChanges) gives studio how-to; Voice A (studioAnalysis + per-category feedback + levels) gives the critical assessment.
-
 ${completionToneBlock(evidence)}
 
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
+- Use the supplied Voice A JSON as the fixed diagnosis and rating context.
 - Do not invent visible claims that are not supported by the evidence.
 - Judge the painting on its own terms.
 - Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
@@ -89,12 +213,7 @@ Rules:
 - If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
 - Your usefulness comes from precision, not from forced criticism.
 - The eight criteria should usually vary; uniformity across all eight is possible but uncommon. Do not smooth everything to one level out of politeness or uncertainty.
-- Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
 - Voice B tone: teacherly coaching for a motivated serious hobbyist or art student. Lead with the clearest action, then explain it plainly.
-- Voice A diction guardrails:
-  - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
-  - Prefer direct pictorial description and judgment: what the painting does, where it does it, and why that matters on this criterion.
-  - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
   - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
@@ -117,11 +236,7 @@ Rules:
 - "Master" must stay rare; do not use it for work that still needs clear developmental passes in that area.
 - If no real problem is visible, say so plainly instead of manufacturing a weakness.
 - If calibration caps are supplied below, they are mandatory ceilings for this response.
-- suggestedPaintingTitles (required): output exactly **three** distinct exhibition-style titles for THIS painting. Mine **intentHypothesis**, **strongestVisibleQualities**, **mainTensions**, and **criterionEvidence[].visibleEvidence** for concrete nouns and spatial/light facts; titles should read as if a curator named the work after looking at it. Follow conventions: Title Case, no surrounding quotes, no “Untitled” unless unavoidable. Prefer varied structures (e.g. motif-led, “Study in …”, “… (medium)”) and avoid repeating the same opening word across all three. No social-media tone or generic praise phrases.
-- studioAnalysis (Voice A — composite art-critical voice): two paragraphs only — whatWorks (specific likes tied to visible passages) and whatCouldImprove (specific tensions). Every claim must be anchored in THIS image (named areas, colors, motifs, edges, or mark types from the evidence—not generic painting advice). Ground both in evidence; reflect declared style, medium, and completion read (unfinished vs likely_finished). No bullet laundry lists inside these paragraphs unless the evidence demands it. These paragraphs are part of Voice A’s judgment and must align with the eight category levels (no overall praise that would imply Advanced/Master everywhere if several criteria are still weak).
-- Do not write generic intent boilerplate such as "the painting aims to..." or "the work seeks to...". Speak from visible evidence and judgment instead.
 - overallSummary (required):
-  - analysis = one Voice A paragraph for THIS painting only. Explicitly mention the style and medium lens used. Name at least two concrete visible passages.
   - topPriorities = 1 or 2 Voice B lines only, each beginning with the primary action and naming a visible passage from this painting.
 - Voice B planning structure (required for all eight categories): First create categories[].voiceBPlan and categories[].actionPlanSteps for THAT criterion on THIS painting only.
   - categories[].voiceBPlan is Voice B's teacher note to self for the anchored passage: what it is doing now, what the main problem/strength is, what the best next move is, what should be preserved or avoided, and what the passage should read like afterward.
@@ -226,6 +341,114 @@ Anti-pattern examples:
 Return JSON only matching the schema.`;
 }
 
+async function runSchemaStage(
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  jsonSchema: unknown
+): Promise<unknown> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.18,
+      max_tokens: 3200,
+      response_format: {
+        type: 'json_schema',
+        json_schema: jsonSchema,
+      },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  });
+
+  const json = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    const err = json.error as { message?: string } | undefined;
+    throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+  }
+
+  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
+  const text = choices?.[0]?.message?.content;
+  if (!text || typeof text !== 'string') throw new Error('Empty model response');
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('Model returned non-JSON');
+  }
+}
+
+export async function runCritiqueVoiceAStage(
+  apiKey: string,
+  model: string,
+  style: string,
+  body: CritiqueRequestBody,
+  evidence: CritiqueEvidenceDTO,
+  calibration?: CritiqueCalibrationDTO
+): Promise<VoiceAStageResult> {
+  return (await runSchemaStage(
+    apiKey,
+    model,
+    buildVoiceAPrompt(style, body.medium, evidence, calibration),
+    `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildVoiceASchemaInstruction()}`,
+    VOICE_A_CRITIQUE_JSON_SCHEMA
+  )) as VoiceAStageResult;
+}
+
+export async function runCritiqueVoiceBStage(
+  apiKey: string,
+  model: string,
+  style: string,
+  body: CritiqueRequestBody,
+  evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult,
+  calibration?: CritiqueCalibrationDTO
+): Promise<VoiceBStageResult> {
+  return (await runSchemaStage(
+    apiKey,
+    model,
+    buildWritingPrompt(style, body.medium, evidence, calibration),
+    `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\n${buildVoiceBSchemaInstruction()}`,
+    VOICE_B_CRITIQUE_JSON_SCHEMA
+  )) as VoiceBStageResult;
+}
+
+function mergeVoiceStages(voiceA: VoiceAStageResult, voiceB: VoiceBStageResult): unknown {
+  const voiceBCategories = new Map(voiceB.categories.map((category) => [category.criterion, category] as const));
+  return {
+    summary: voiceA.summary,
+    suggestedPaintingTitles: voiceA.suggestedPaintingTitles,
+    overallSummary: {
+      analysis: voiceA.overallSummary.analysis,
+      topPriorities: voiceB.overallSummary.topPriorities,
+    },
+    studioAnalysis: voiceA.studioAnalysis,
+    studioChanges: voiceB.studioChanges,
+    comparisonNote: voiceA.comparisonNote,
+    overallConfidence: voiceA.overallConfidence,
+    photoQuality: voiceA.photoQuality,
+    categories: voiceA.categories.map((category) => {
+      const teacher = voiceBCategories.get(category.criterion);
+      if (!teacher) throw new Error(`Voice B category missing: ${category.criterion}`);
+      return {
+        ...category,
+        actionPlan: teacher.actionPlan,
+        actionPlanSteps: teacher.actionPlanSteps,
+        voiceBPlan: teacher.voiceBPlan,
+        anchor: teacher.anchor,
+        editPlan: teacher.editPlan,
+      };
+    }),
+  };
+}
+
 export async function runCritiqueWritingStage(
   apiKey: string,
   model: string,
@@ -234,43 +457,7 @@ export async function runCritiqueWritingStage(
   evidence: CritiqueEvidenceDTO,
   calibration?: CritiqueCalibrationDTO
 ): Promise<unknown> {
-  const writingRes = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.22,
-      max_tokens: 4500,
-      response_format: {
-        type: 'json_schema',
-        json_schema: CRITIQUE_JSON_SCHEMA,
-      },
-      messages: [
-        { role: 'system', content: buildWritingPrompt(style, body.medium, evidence, calibration) },
-        {
-          role: 'user',
-          content: `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildCritiqueSchemaInstruction()}`,
-        },
-      ],
-    }),
-  });
-
-  const json = (await writingRes.json()) as Record<string, unknown>;
-  if (!writingRes.ok) {
-    const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI error ${writingRes.status}`);
-  }
-
-  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
-  const text = choices?.[0]?.message?.content;
-  if (!text || typeof text !== 'string') throw new Error('Empty model response');
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error('Model returned non-JSON');
-  }
+  const voiceA = await runCritiqueVoiceAStage(apiKey, model, style, body, evidence, calibration);
+  const voiceB = await runCritiqueVoiceBStage(apiKey, model, style, body, evidence, voiceA, calibration);
+  return mergeVoiceStages(voiceA, voiceB);
 }

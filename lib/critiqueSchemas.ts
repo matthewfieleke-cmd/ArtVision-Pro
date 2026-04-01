@@ -424,6 +424,121 @@ export const CRITIQUE_JSON_SCHEMA = {
   },
 } as const;
 
+export const VOICE_A_CRITIQUE_JSON_SCHEMA = {
+  name: 'painting_critique_voice_a',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'summary',
+      'suggestedPaintingTitles',
+      'overallSummary',
+      'studioAnalysis',
+      'comparisonNote',
+      'overallConfidence',
+      'photoQuality',
+      'categories',
+    ],
+    properties: {
+      summary: CRITIQUE_JSON_SCHEMA.schema.properties.summary,
+      suggestedPaintingTitles: CRITIQUE_JSON_SCHEMA.schema.properties.suggestedPaintingTitles,
+      overallSummary: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['analysis'],
+        properties: {
+          analysis: CRITIQUE_JSON_SCHEMA.schema.properties.overallSummary.properties.analysis,
+        },
+      },
+      studioAnalysis: CRITIQUE_JSON_SCHEMA.schema.properties.studioAnalysis,
+      comparisonNote: CRITIQUE_JSON_SCHEMA.schema.properties.comparisonNote,
+      overallConfidence: CRITIQUE_JSON_SCHEMA.schema.properties.overallConfidence,
+      photoQuality: CRITIQUE_JSON_SCHEMA.schema.properties.photoQuality,
+      categories: {
+        type: 'array',
+        minItems: CRITERIA_ORDER.length,
+        maxItems: CRITERIA_ORDER.length,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'criterion',
+            'level',
+            'feedback',
+            'confidence',
+            'evidenceSignals',
+            'preserve',
+            'practiceExercise',
+            'nextTarget',
+            'subskills',
+          ],
+          properties: {
+            criterion: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.criterion,
+            level: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.level,
+            feedback: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.feedback,
+            confidence: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.confidence,
+            evidenceSignals:
+              CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.evidenceSignals,
+            preserve: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.preserve,
+            practiceExercise:
+              CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.practiceExercise,
+            nextTarget: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.nextTarget,
+            subskills: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.subskills,
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+export const VOICE_B_CRITIQUE_JSON_SCHEMA = {
+  name: 'painting_critique_voice_b',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['overallSummary', 'studioChanges', 'categories'],
+    properties: {
+      overallSummary: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['topPriorities'],
+        properties: {
+          topPriorities: CRITIQUE_JSON_SCHEMA.schema.properties.overallSummary.properties.topPriorities,
+        },
+      },
+      studioChanges: CRITIQUE_JSON_SCHEMA.schema.properties.studioChanges,
+      categories: {
+        type: 'array',
+        minItems: CRITERIA_ORDER.length,
+        maxItems: CRITERIA_ORDER.length,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'criterion',
+            'actionPlan',
+            'actionPlanSteps',
+            'voiceBPlan',
+            'anchor',
+            'editPlan',
+          ],
+          properties: {
+            criterion: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.criterion,
+            actionPlan: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.actionPlan,
+            actionPlanSteps:
+              CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.actionPlanSteps,
+            voiceBPlan: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.voiceBPlan,
+            anchor: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.anchor,
+            editPlan: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.editPlan,
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
@@ -450,4 +565,40 @@ For each criterion:
 - anchor: { areaSummary, evidencePointer, region } — same exact passage used by feedback, actionPlan, overlay, and edit plan
 - editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability } — machine-readable and aligned to anchor
 - subskills`;
+}
+
+export function buildVoiceASchemaInstruction(): string {
+  return `Return JSON with:
+- summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
+- suggestedPaintingTitles: exactly 3 strings — scholarly, catalogue-ready titles for THIS painting only, grounded in visible passages from the evidence
+- overallSummary: { analysis } — Voice A only
+- studioAnalysis: { whatWorks, whatCouldImprove } — Voice A only
+- comparisonNote
+- overallConfidence
+- photoQuality
+- categories
+
+For each criterion:
+- level: Voice A’s ranking for that criterion alone
+- feedback: Voice A for this criterion
+- confidence
+- evidenceSignals
+- preserve
+- practiceExercise
+- nextTarget
+- subskills`;
+}
+
+export function buildVoiceBSchemaInstruction(): string {
+  return `Return JSON with:
+- overallSummary: { topPriorities } — Voice B only
+- studioChanges: 2–5 items, each { text, previewCriterion }
+- categories
+
+For each criterion:
+- actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve, priority }
+- voiceBPlan: structured teacher notes for this criterion — { currentRead, mainProblem, mainStrength, bestNextMove, optionalSecondMove, avoidDoing, intendedRead, storyIfRelevant }
+- actionPlan: readable numbered rendering of the same steps
+- anchor: { areaSummary, evidencePointer, region }
+- editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability }`;
 }
