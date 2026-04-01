@@ -141,11 +141,17 @@ Rules:
   - categories[].anchor.evidencePointer must say what in that passage matters for this criterion.
   - categories[].anchor.region must be one normalized bounding region (x, y, width, height) covering that same passage. Use a larger connected region when the evidence is spread, but still keep one main area.
   - Prefer a connected visible passage such as a face, chair back, hand, foreground object, background tree line, wall drawing, sky band, or table edge—not a vague conceptual region like "the mood" or "the composition overall" unless the criterion truly cannot be localized more specifically.
+  - areaSummary must name visible content, not a judgment label or abstract design summary. Bad: "left side of the painting", "color transitions in clothing and background", "circular arrangement of figures around the table". Better: "the leftmost seated woman’s face against the dark hedge", "the orange sleeve where it meets the blue-gray wall", "the gap between the two front figures at the table edge".
+  - If the real issue is relational, the anchor should still name the visible relationship in concrete terms: "the overlap between the cup rim and the hand", "the jaw edge against the dark collar", "the warm cheek turning into the green shadow under the eye".
   - The anchor should be as tight as possible while still including the full visible relationship being discussed.
   - categories[].feedback, categories[].actionPlan, categories[].editPlan, and any related studioChanges must all stay aligned to that same anchored passage.
 - Edit plan rules (required for every criterion):
   - categories[].editPlan.targetArea must match categories[].anchor.areaSummary.
   - categories[].editPlan.issue, intendedChange, and expectedOutcome must be concrete, machine-readable, and limited to the same anchored passage.
+  - issue must describe the visible problem or strength in that passage, not a generic goal. Bad: "needs more depth", "some shadow areas could be more defined", "improve realism". Better: "the shadow behind the left cheek merges too evenly into the jacket so the head loses separation".
+  - intendedChange must be a directional studio move in that same passage, not a broad ambition. Bad: "refine shadow areas", "smooth transitions", "add details". Better: "darken the jacket side of that cheek-jacket junction and keep the cheek edge slightly cleaner".
+  - expectedOutcome must describe the resulting read in plain visual terms, not a slogan. Bad: "enhanced clarity", "better narrative", "more realism". Better: "the face separates sooner from the jacket and the overlap reads as depth instead of flattening".
+  - Think of editPlan as a studio teacher's note to self: where, what is happening there now, what exact move to make, and what the passage should read like afterward.
   - If categories[].level is Master, set editability to "no" and make intendedChange a preservation description only.
   - Otherwise set editability to "yes" unless the anchored target is too ambiguous or too broad to revise reliably.
 - studioChanges (Voice B — same composite teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).

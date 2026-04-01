@@ -8,6 +8,7 @@ import {
 import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
+import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
   applyCorsHeaders,
   handleApiRequest,
@@ -607,6 +608,107 @@ function testCriterionBandRubric(): void {
   assert.match(promptBlock, /Style-aware signals for Expressionism:/);
 }
 
+function testWritingPromptDemandsConcreteAnchors(): void {
+  const prompt = buildWritingPrompt(
+    'Realism',
+    'Oil on Canvas',
+    {
+      intentHypothesis: 'A quiet interior focused on obstruction and looking.',
+      strongestVisibleQualities: ['The left window strip establishes a clear light mass.', 'The chair obstruction creates a strong foreground screen.'],
+      mainTensions: ['The chair bars compete with the face.', 'Some room transitions stay compressed.'],
+      completionRead: {
+        state: 'likely_finished',
+        confidence: 'high',
+        cues: ['resolved edges', 'consistent finish'],
+        rationale: 'Most passages read presentation-ready rather than blocked in.',
+      },
+      photoQualityRead: {
+        level: 'good',
+        summary: 'Good photo.',
+        issues: [],
+      },
+      comparisonObservations: [],
+      criterionEvidence: [
+        {
+          criterion: 'Intent and necessity',
+          visibleEvidence: ['The chair obstruction and figure belong to one interior problem.', 'The room stays quiet and compressed.'],
+          strengthRead: 'The obstruction feels intentional.',
+          tensionRead: 'A few accents compete with the central inwardness.',
+          preserve: 'Keep the obstruction logic.',
+          confidence: 'high',
+        },
+        {
+          criterion: 'Composition and shape structure',
+          visibleEvidence: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
+          strengthRead: 'The room has a strong scaffold.',
+          tensionRead: 'The chair bars interrupt the route to the figure.',
+          preserve: 'Keep the window strip and shirt contrast.',
+          confidence: 'high',
+        },
+        {
+          criterion: 'Value and light structure',
+          visibleEvidence: ['The left window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
+          strengthRead: 'The main light-dark grouping is readable.',
+          tensionRead: 'Some compression remains in secondary passages.',
+          preserve: 'Keep the main window-to-shirt grouping.',
+          confidence: 'high',
+        },
+        {
+          criterion: 'Color relationships',
+          visibleEvidence: ['The floor reads slightly warmer than the wall.', 'Most passages stay within a muted palette.'],
+          strengthRead: 'The palette holds together.',
+          tensionRead: 'The floor/wall turn could separate a little more cleanly.',
+          preserve: 'Keep the muted palette world.',
+          confidence: 'medium',
+        },
+        {
+          criterion: 'Drawing, proportion, and spatial form',
+          visibleEvidence: ['The seated figure tilts back convincingly.', 'The table legs sit on the floor plane.'],
+          strengthRead: 'The room drawing is persuasive.',
+          tensionRead: 'The obstruction complicates some local reads.',
+          preserve: 'Keep the figure tilt and table-leg spacing.',
+          confidence: 'medium',
+        },
+        {
+          criterion: 'Edge and focus control',
+          visibleEvidence: ['The chair bars cross in front of the figure.', 'The head and shirt are the intended focal passage.'],
+          strengthRead: 'The focal passage is evident.',
+          tensionRead: 'The interior bars still compete with the face.',
+          preserve: 'Keep the outer chair silhouette and head-to-shirt contrast.',
+          confidence: 'high',
+        },
+        {
+          criterion: 'Surface and medium handling',
+          visibleEvidence: ['The wall is built with broad, even hatching.', 'The floor uses directional strokes distinct from the wall.'],
+          strengthRead: 'The mark economy is disciplined.',
+          tensionRead: 'Some transitions could be integrated more subtly.',
+          preserve: 'Keep the wall-floor mark-family distinction.',
+          confidence: 'medium',
+        },
+        {
+          criterion: 'Presence, point of view, and human force',
+          visibleEvidence: ['The seated figure reads as inward and absorbed.', 'The viewpoint from behind the chair feels deliberate.'],
+          strengthRead: 'The room has real inward pressure.',
+          tensionRead: 'A few local accents interrupt that quiet pressure.',
+          preserve: 'Keep the inwardness and obstructed viewpoint.',
+          confidence: 'medium',
+        },
+      ],
+    },
+    undefined
+  );
+  assert.match(
+    prompt,
+    /Bad: "left side of the painting", "color transitions in clothing and background", "circular arrangement of figures around the table"\./
+  );
+  assert.match(prompt, /Better: "the leftmost seated woman’s face against the dark hedge"/);
+  assert.match(prompt, /Bad: "needs more depth", "some shadow areas could be more defined", "improve realism"\./);
+  assert.match(
+    prompt,
+    /Better: "the shadow behind the left cheek merges too evenly into the jacket so the head loses separation"\./
+  );
+}
+
 function testPreviewEditPromptAlignment(): void {
   const prompt = buildEditPrompt({
     imageDataUrl: 'data:image/png;base64,abc',
@@ -691,6 +793,7 @@ async function main(): Promise<void> {
   await testApiHelpers();
   testCritiqueGuardrails();
   testCriterionBandRubric();
+  testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
   await runPreviewResizeTests();
   console.log('Architecture tests passed.');

@@ -254,12 +254,12 @@ export const CRITIQUE_JSON_SCHEMA = {
                 areaSummary: {
                   type: 'string',
                   description:
-                    'Short phrase naming the exact passage in THIS painting that Voice A and Voice B are both discussing. Reuse this same passage in feedback and actionPlan.',
+                    'Short phrase naming one exact, recognizable visible passage in THIS painting that Voice A and Voice B are both discussing. It must point to content a user could locate (e.g. "the leftmost seated figure\'s face", "the orange sleeve against the blue wall", "the foreground chair back"), not a conceptual label like "the story", "color transitions", or "left side of the painting". Reuse this same passage in feedback and actionPlan.',
                 },
                 evidencePointer: {
                   type: 'string',
                   description:
-                    'What about that area drives this criterion read in THIS painting. Must align with feedback, actionPlan, overlay, and edit plan.',
+                    'What visible relationship in that exact passage drives this criterion read in THIS painting. Name the concrete visual fact there now (e.g. one edge competing with the face, one warm/cool junction breaking, one overlap flattening). Must align with feedback, actionPlan, overlay, and edit plan.',
                 },
                 region: {
                   type: 'object',
@@ -296,16 +296,18 @@ export const CRITIQUE_JSON_SCHEMA = {
                 },
                 issue: {
                   type: 'string',
-                  description: 'The specific problem or strength in that anchored passage.',
+                  description:
+                    'The specific visual problem or strength in that anchored passage right now. Must name what is visibly happening there, not a generic goal like "more realism" or "more depth".',
                 },
                 intendedChange: {
                   type: 'string',
                   description:
-                    'Exact change for the AI preview to make in that passage only. If level is Master, describe preservation rather than revision.',
+                    'Exact directional change for the AI preview to make in that passage only. Must say what should be altered or preserved there (edge, spacing, temperature, overlap, mark family, etc.), not a vague fix like "refine" or "enhance". If level is Master, describe preservation rather than revision.',
                 },
                 expectedOutcome: {
                   type: 'string',
-                  description: 'What the painting should read like after that change.',
+                  description:
+                    'What the painting should read like after that change in that same passage. Must describe the resulting visual read (e.g. face regains first attention, overlap reads as depth, head turns in space), not a generic improvement slogan.',
                 },
                 editability: {
                   type: 'string',
