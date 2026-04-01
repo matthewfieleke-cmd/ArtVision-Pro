@@ -209,7 +209,8 @@ async function testApiHelpers(): Promise<void> {
 
 function testCritiqueGuardrails(): void {
   const base = applyCritiqueGuardrails({
-    summary: 'Strong painting.',
+    summary:
+      'The seated figure and left window strip hold the room together, but the foreground chair back still interrupts the first read.',
     simpleFeedback: {
       studioAnalysis: {
         whatWorks:
@@ -265,7 +266,7 @@ function testCritiqueGuardrails(): void {
         feedback:
           'The left window strip and the shirt already establish a clear light pattern. Around the seated head, the surrounding dark wall compresses value effectively. This axis is reading strongly overall.',
         actionPlan:
-          '1. Keep the current window-to-shirt value pattern; it is already doing the structural work.',
+          '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
         confidence: 'medium',
         evidenceSignals: ['The window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
         preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
@@ -477,7 +478,7 @@ function testCritiqueGuardrails(): void {
   assert.equal(critiqueNeedsFreshEvidenceRead(base), false);
   assert.equal(applyCritiqueGuardrails(base), base);
 
-  const vague = {
+  const vagueCategory = {
     ...base,
     categories: base.categories.map((category) =>
       category.criterion === 'Edge and focus control'
@@ -490,7 +491,44 @@ function testCritiqueGuardrails(): void {
     ),
   };
 
-  assert.equal(critiqueNeedsFreshEvidenceRead(vague), true);
+  assert.equal(critiqueNeedsFreshEvidenceRead(vagueCategory), true);
+
+  const vagueSummary = {
+    ...base,
+    summary: 'A strong painting with one area to improve.',
+  };
+  assert.equal(critiqueNeedsFreshEvidenceRead(vagueSummary), true);
+
+  const vagueOverallAnalysis = {
+    ...base,
+    overallSummary: {
+      ...base.overallSummary!,
+      analysis: 'Using the Drawing lens, the painting shows clear strengths and a few modest issues.',
+    },
+  };
+  assert.equal(critiqueNeedsFreshEvidenceRead(vagueOverallAnalysis), true);
+
+  const vagueTopPriority = {
+    ...base,
+    overallSummary: {
+      ...base.overallSummary!,
+      topPriorities: ['Improve the main focal area.'],
+    },
+  };
+  assert.equal(critiqueNeedsFreshEvidenceRead(vagueTopPriority), true);
+
+  const vagueStudioAnalysis = {
+    ...base,
+    simpleFeedback: {
+      ...base.simpleFeedback!,
+      studioAnalysis: {
+        whatWorks: 'Several passages are already working well together.',
+        whatCouldImprove: 'One area still needs clearer development.',
+      },
+      studioChanges: base.simpleFeedback!.studioChanges,
+    },
+  };
+  assert.equal(critiqueNeedsFreshEvidenceRead(vagueStudioAnalysis), true);
 }
 
 async function main(): Promise<void> {
