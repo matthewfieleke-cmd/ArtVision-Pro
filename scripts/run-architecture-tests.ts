@@ -776,6 +776,10 @@ function testWritingPromptDemandsConcreteAnchors(): void {
     prompt,
     /Better: "the shadow behind the left cheek merges too evenly into the jacket so the head loses separation"\./
   );
+  assert.match(prompt, /Voice B planning structure \(required for all eight categories\):/);
+  assert.match(prompt, /categories\[\]\.voiceBPlan is Voice B's teacher note to self/);
+  assert.match(prompt, /categories\[\]\.actionPlanSteps must contain 1-3 high-leverage steps only/);
+  assert.match(prompt, /Make categories\[\]\.actionPlan a readable numbered rendering of categories\[\]\.actionPlanSteps/);
 }
 
 function testPreviewEditPromptAlignment(): void {

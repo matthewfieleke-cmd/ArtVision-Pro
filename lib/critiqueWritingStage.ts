@@ -65,7 +65,7 @@ ${VOICE_A_COMPOSITE_EXPERTS}
 ${VOICE_B_COMPOSITE_TEACHERS}
 
 - Voice A outputs: studioAnalysis (whatWorks, whatCouldImprove), categories[].level for all eight criteria, and categories[].feedback for each criterion. Those grades are Voice A’s opinion on each axis.
-- Voice B outputs: categories[].actionPlan for every criterion (see Voice B actionPlan rules below) and studioChanges (2–5 items). Voice B takes Voice A’s judgments plus the evidence and gives studio advice only for THIS painting—imperative, concrete, medium-aware; each studioChange names where + what + how; previewCriterion routes an illustrative edit.
+- Voice B outputs for every criterion: (1) categories[].voiceBPlan = the teacher's structured diagnosis and best next move for the anchored passage, (2) categories[].actionPlanSteps = 1-3 structured teaching steps for that same passage, and (3) categories[].actionPlan = the readable numbered version of those same steps. Also output studioChanges (2–5 items). Voice B takes Voice A’s judgments plus the evidence and gives studio advice only for THIS painting—imperative, concrete, medium-aware; each studioChange names where + what + how; previewCriterion routes an illustrative edit.
 - For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
@@ -123,7 +123,13 @@ Rules:
 - overallSummary (required):
   - analysis = one Voice A paragraph for THIS painting only. Explicitly mention the style and medium lens used. Name at least two concrete visible passages.
   - topPriorities = 1 or 2 Voice B lines only, each beginning with the primary action and naming a visible passage from this painting.
-- Voice B actionPlan (required for all eight categories): For each category, actionPlan is Voice B’s studio guidance for THAT criterion on THIS painting only.
+- Voice B planning structure (required for all eight categories): First create categories[].voiceBPlan and categories[].actionPlanSteps for THAT criterion on THIS painting only.
+  - categories[].voiceBPlan is Voice B's teacher note to self for the anchored passage: what it is doing now, what the main problem/strength is, what the best next move is, what should be preserved or avoided, and what the passage should read like afterward.
+  - categories[].actionPlanSteps must contain 1-3 high-leverage steps only. Do not invent filler just to reach a quota. If one move is genuinely enough for this criterion, return one step. If two moves are enough, return two. Use three only when the painting truly needs three distinct moves.
+  - Every actionPlanStep must answer: where exactly, what is happening there now, what exact move to make, and what should read differently afterward.
+  - Prefer one primary step and at most two secondary steps. Secondary steps must be genuinely different, not paraphrases of the same move.
+  - Make categories[].actionPlan a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in actionPlan that is not already present in those structured steps.
+- Voice B actionPlan (required for all eight categories): For each category, actionPlan is the readable numbered studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
   - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and editPlan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
   - Every numbered step must answer all three questions explicitly: **where exactly**, **what exactly is wrong/right there**, and **what exactly should change or stay**. If a step could fit many paintings by swapping only the subject noun, it is too vague.
   - Do not use abstract placeholders such as "certain edges", "small details", "the story", "color transitions", "focal area", "more realism", or "more depth" unless the same sentence names the exact edge, exact detail, exact story beat, exact color junction, or exact focal passage in THIS painting.
@@ -131,10 +137,10 @@ Rules:
   - If you mention preserving a strength, say exactly what to preserve and why it matters: e.g. keep X contrast, keep Y diagonal, keep Z edge around the eyes—not "maintain the focus" in the abstract.
   - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for numbered improvement steps—Advanced still needs concrete moves toward Master.
   - If categories[].level is **Master** for that criterion: actionPlan must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
-  - If level is **Beginner**: give **specific numbered steps** (at least 3) that would realistically move this criterion from Beginner toward **Intermediate**, each step naming a visible passage from the evidence.
-  - If level is **Intermediate**: give **specific numbered steps** (at least 3) aimed at moving toward **Advanced**, grounded in this image.
-  - If level is **Advanced**: give **specific numbered steps** (at least 2) aimed at moving toward **Master**, grounded in this image.
-  Steps must cite where on the painting (same identifiability rules as studioChanges). No generic studio drills unrelated to this image.
+  - If level is **Beginner**: usually 1-3 specific steps that would realistically move this criterion toward **Intermediate**. Use more than one step only if each step names a different useful move on this image.
+  - If level is **Intermediate**: usually 1-3 specific steps aimed at moving toward **Advanced**.
+  - If level is **Advanced**: usually 1-2 specific steps aimed at moving toward **Master**.
+  Steps must cite where on the painting (same identifiability rules as studioChanges). No generic studio drills unrelated to this image, and no repeated restatements of the same move.
 - **Avoid lazy pairing:** Do not default **Edge and focus control** and **Surface and medium handling** to the same band (e.g. both Intermediate) just because a photo is imperfect. If evidence for edges/mark-making genuinely matches the same band as composition, value, and color, say why in that criterion’s feedback; otherwise rate each axis on its own integrated evidence. JPEG mush affects photoQuality confidence, not an automatic two-notch drop on every execution criterion.
 - Shared anchor rules (required for every criterion):
   - categories[].anchor.areaSummary must name one main passage in THIS painting that a user could recognize.
@@ -155,6 +161,7 @@ Rules:
   - If categories[].level is Master, set editability to "no" and make intendedChange a preservation description only.
   - Otherwise set editability to "yes" unless the anchored target is too ambiguous or too broad to revise reliably.
 - studioChanges (Voice B — same composite teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).
+- studioChanges should usually be selected from the strongest categories[].actionPlanSteps rather than invented as a separate loose advice stream. If you write a studioChange that is not visibly grounded in an existing actionPlanStep for that criterion, it is probably too vague.
 - For every studioChanges.text, use the same hidden template: **where** (named passage) + **what is happening there now** + **what exact move to make** + **what read should result**.
 - Each studioChanges.text must anchor to **identifiable content from the evidence** (same rules as before: motif, two colors at a junction, or precise zone + what occupies it). Bad: "In one area…", "two color families", "one contour" without naming what is in the picture.
 - No two studioChanges should repeat the same move or the same named passage.

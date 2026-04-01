@@ -430,7 +430,9 @@ export function buildCritiqueSchemaInstruction(): string {
 For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
 - feedback: Voice A for this criterion—3+ sentences; name THIS image (zones, colors, edges, motifs from evidence); consistent with level
-- actionPlan: Voice B for this criterion. Master only: may start with "Don't change a thing." then brief praise. Any other level: numbered steps only (no that phrase)—Beginner→Intermediate ≥3; Intermediate→Advanced ≥3; Advanced→Master ≥2; all grounded in evidence. Do not park Edge and Surface one band below everything else by default.
+- voiceBPlan: structured teacher notes for this criterion — currentRead, bestNextMove, intendedRead, plus optional mainProblem/mainStrength/avoidDoing/storyIfRelevant
+- actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve?, priority }; prefer high-leverage steps over filler
+- actionPlan: Voice B rendered user-facing text for this criterion, derived from the same structured Voice B plan/steps. Master only: may start with "Don't change a thing." then brief praise. Any other level: numbered steps grounded in evidence. Do not park Edge and Surface one band below everything else by default.
 - confidence
 - evidenceSignals
 - preserve
