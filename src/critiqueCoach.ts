@@ -30,6 +30,19 @@ function ensureSentence(text: string): string {
   return /[.!?]$/.test(normalized) ? normalized : `${normalized}.`;
 }
 
+function lowerFirst(text: string): string {
+  if (!text) return '';
+  if (/^[A-Z][a-z]/.test(text)) return text.charAt(0).toLowerCase() + text.slice(1);
+  return text;
+}
+
+function stripRedundantPreserve(text: string): string {
+  return text
+    .replace(/\s+should be (preserved|maintained|protected)\.?$/i, '')
+    .replace(/\s+needs? to be (preserved|maintained|protected)\.?$/i, '')
+    .trim();
+}
+
 function deriveActionPlanFromSteps(
   steps?: Array<{
     area: string;
@@ -43,18 +56,15 @@ function deriveActionPlanFromSteps(
   const lines = steps
     .map((step, index) => {
       const area = normalizeWhitespace(step.area);
-      const currentRead = normalizeWhitespace(step.currentRead);
-      const move = normalizeWhitespace(step.move);
-      const expectedRead = normalizeWhitespace(step.expectedRead);
-      const preserve = normalizeWhitespace(step.preserve ?? '');
+      const currentRead = lowerFirst(normalizeWhitespace(step.currentRead));
+      const move = lowerFirst(normalizeWhitespace(step.move));
+      const expectedRead = lowerFirst(normalizeWhitespace(step.expectedRead));
+      const rawPreserve = normalizeWhitespace(step.preserve ?? '');
+      const preserve = lowerFirst(stripRedundantPreserve(rawPreserve));
       if (!area || !move || !expectedRead) return '';
-      const parts = [
-        `In ${area}, ${currentRead || 'the current relationship still needs a clearer read'}`,
-        move,
-        `so ${expectedRead}`,
-      ];
-      if (preserve) parts.push(`while preserving ${preserve}`);
-      return `${index + 1}. ${ensureSentence(parts.join('; '))}`;
+      let sentence = `In ${area}, ${currentRead || 'the current read still needs work'}—${move} so that ${expectedRead}`;
+      if (preserve) sentence += `. Protect ${preserve}`;
+      return `${index + 1}. ${ensureSentence(sentence)}`;
     })
     .filter(Boolean);
   return lines.length ? lines.join('\n') : undefined;
@@ -274,7 +284,10 @@ export function finalizeCritiqueResult(
             cat.level
           )
         : undefined),
-    actionPlan: deriveActionPlanFromSteps(cat.actionPlanSteps) ?? cat.actionPlan,
+    actionPlan:
+      cat.actionPlan && normalizeWhitespace(cat.actionPlan).length > 0
+        ? cat.actionPlan
+        : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? cat.actionPlan,
     ...(analysisSource === 'local'
       ? {
           /** Hide Beginner–Master in UI for heuristic pass; keep sub-skills for snapshot. */

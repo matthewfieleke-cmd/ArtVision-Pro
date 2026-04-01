@@ -249,7 +249,7 @@ function fallbackVoiceBStep(
   const outcome =
     concretePhrase(category.editPlan?.expectedOutcome ?? '') ||
     'the passage reads with more deliberate control';
-  return `${index + 1}. In ${area}, ${issue}; ${move} so ${outcome}.`;
+  return `${index + 1}. In ${area}, ${issue}—${move} so that ${outcome}.`;
 }
 
 function rewriteActionPlanFromStructuredFields(
@@ -260,10 +260,9 @@ function rewriteActionPlanFromStructuredFields(
   if (!structuredFieldsAreConcrete(category) && existingSteps.length > 0) {
     return existingSteps.map((step, index) => `${index + 1}. ${ensureTrailingPeriod(step)}`).join('\n');
   }
-  const minimumSteps = category.level === 'Advanced' ? 2 : 3;
   const steps: string[] = [];
   const usedNormalizedSteps = new Set<string>();
-  for (let i = 0; i < Math.max(minimumSteps, existingSteps.length); i++) {
+  for (let i = 0; i < existingSteps.length; i++) {
     const existing = existingSteps[i];
     const normalizedExisting = existing ? normalizeWhitespace(existing).toLowerCase() : '';
     if (
@@ -282,7 +281,10 @@ function rewriteActionPlanFromStructuredFields(
       usedNormalizedSteps.add(normalizedFallback);
     }
   }
-  return steps.slice(0, minimumSteps).join('\n');
+  if (steps.length === 0) {
+    steps.push(fallbackVoiceBStep(category, 0));
+  }
+  return steps.join('\n');
 }
 
 function rewriteStudioChangeFromStructuredFields(
@@ -314,7 +316,7 @@ function rewriteStudioChangeFromStructuredFields(
     return existingText;
   }
 
-  return `In ${area}, ${issue}; ${move} so ${outcome}.`;
+  return `In ${area}, ${issue}—${move} so that ${outcome}.`;
 }
 
 function hybridizeVoiceBFromStructuredFields(critique: CritiqueResultDTO): CritiqueResultDTO {
