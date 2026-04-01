@@ -503,29 +503,56 @@ function noviceLikeOverrated(critique: CritiqueResultDTO): boolean {
   return noviceSignals >= 1 && inflatedSignals >= 1 && highRatings >= 4 && lowFundamentalCount >= 2;
 }
 
-/** Voice B must only use "Don't change a thing" when level is Master; fix model drift. */
+const PRESERVATION_LEAD = /^\s*\d*[.\)]*\s*(maintain|preserve|keep|continue|protect)\b/i;
+
+function isPreservationOnlyPlan(actionPlan: string): boolean {
+  const steps = splitNumberedSteps(actionPlan);
+  if (steps.length === 0) {
+    return PRESERVATION_LEAD.test(actionPlan.trim());
+  }
+  return steps.every((step) => PRESERVATION_LEAD.test(step.trim()));
+}
+
+function buildImprovementFallback(cat: CritiqueResultDTO['categories'][number]): string {
+  const area = cat.anchor?.areaSummary?.trim() || 'the passage described in your feedback above';
+  const nextBand =
+    cat.level === 'Beginner'
+      ? 'Intermediate'
+      : cat.level === 'Intermediate'
+        ? 'Advanced'
+        : 'Master';
+  const issue = concretePhrase(cat.editPlan?.issue ?? cat.anchor?.evidencePointer ?? '');
+  const move = concretePhrase(cat.editPlan?.intendedChange ?? '');
+  if (issue && move) {
+    return `1. In ${area}, ${issue}\u2014${move} to push this criterion toward ${nextBand}.`;
+  }
+  return `1. In ${area}, identify the single visible relationship that most limits this criterion at ${cat.level} and make one concrete adjustment toward ${nextBand}.`;
+}
+
+/** Voice B must only use "Don't change a thing" when level is Master; fix model drift including preservation-only advice. */
 function normalizeActionPlansToLevels(critique: CritiqueResultDTO): CritiqueResultDTO {
   const dontChange = /^don['\u2019]t change a thing[.!]?\s*/i;
   let changed = false;
   const categories = critique.categories.map((cat) => {
     if (cat.level === 'Master') return cat;
     const raw = cat.actionPlan.trim();
-    if (!dontChange.test(raw)) return cat;
-    const stripped = raw.replace(dontChange, '').trim();
-    if (/^1[\.\)]\s/m.test(stripped) && stripped.length >= 50) {
+
+    if (dontChange.test(raw)) {
+      const stripped = raw.replace(dontChange, '').trim();
+      if (/^1[\.\)]\s/m.test(stripped) && stripped.length >= 50 && !isPreservationOnlyPlan(stripped)) {
+        changed = true;
+        return { ...cat, actionPlan: stripped };
+      }
       changed = true;
-      return { ...cat, actionPlan: stripped };
+      return { ...cat, actionPlan: buildImprovementFallback(cat) };
     }
-    const area = cat.anchor?.areaSummary?.trim() || 'the passage described in your feedback above';
-    const nextBand =
-      cat.level === 'Beginner'
-        ? 'Intermediate'
-        : cat.level === 'Intermediate'
-          ? 'Advanced'
-          : 'Master';
-    const fallback = `1. Focus on ${area}: use your feedback above to name what still limits this criterion at ${cat.level}.\n2. Make one concrete adjustment in that same zone toward ${nextBand}—use the lever this criterion cares about (edges and selective sharpness vs softness for edge/focus; mark vocabulary, wet/dry, or surface clarity for surface/medium).\n3. Step back and check that the change reads as clearer control, not busier detail.`;
-    changed = true;
-    return { ...cat, actionPlan: fallback };
+
+    if (isPreservationOnlyPlan(raw)) {
+      changed = true;
+      return { ...cat, actionPlan: buildImprovementFallback(cat) };
+    }
+
+    return cat;
   });
   return changed ? { ...critique, categories } : critique;
 }

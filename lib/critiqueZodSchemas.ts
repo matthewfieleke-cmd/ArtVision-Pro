@@ -67,7 +67,7 @@ export const voiceBStepSchema = z.object({
     'What is visibly happening in that specific passage right now — name colors, shapes, edges, or spatial relationships you can see. NEVER write "could be more unified", "feels less necessary", or other judgment-only language without naming what you see.'
   ),
   move: z.string().describe(
-    'One specific directional verb + what to change in that passage. Must start with a concrete verb (soften, darken, cool, group, separate, sharpen, widen, compress, etc.) applied to a named visual element. NEVER write "adjust elements", "enhance presence", "ensure consistency", "improve structure", or "strengthen" without saying what exactly to do to what.'
+    'One specific directional verb + what to change in that passage. Must start with a concrete CHANGE verb (soften, darken, cool, group, separate, sharpen, widen, compress, vary, etc.) applied to a named visual element. For non-Master criteria, NEVER lead with "maintain", "preserve", "keep", "continue", or "protect" — those are preservation, not improvement. NEVER write "adjust elements", "enhance presence", "ensure consistency", "improve structure", or "strengthen" without saying what exactly to do to what.'
   ),
   expectedRead: z.string().describe('What that same passage should read like after the move — describe the visual result, not an abstract improvement.'),
   preserve: z.string().describe('What specific nearby success to protect while making the change.'),
