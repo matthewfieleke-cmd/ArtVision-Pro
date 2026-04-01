@@ -53,6 +53,7 @@ import {
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { useIsDesktop } from './hooks/useIsDesktop';
+import { usePreviewState } from './hooks/usePreviewState';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { loadPaintings, savePaintings } from './storage';
@@ -199,17 +200,7 @@ export default function App() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [classifyBusy, setClassifyBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  /** Which generate action is in flight so only that button shows a spinner. */
-  const [previewLoadingTarget, setPreviewLoadingTarget] = useState<null | { kind: 'single'; criterion: CritiqueCategory['criterion'] }>(
-    null
-  );
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  /** Which generated preview is shown in the blend card / compare overlay. */
-  const [activePreviewEditId, setActivePreviewEditId] = useState<string | null>(null);
-  const [previewCompareOpen, setPreviewCompareOpen] = useState(false);
-  /** After user opens compare once for this preview, show a compact link instead of the full tap prompt. */
-  const [previewCompareSeen, setPreviewCompareSeen] = useState(false);
+  const { preview, resetPreview, startPreviewLoading, completePreview, failPreview, selectEdit, openCompare, closeCompare } = usePreviewState();
   const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
   const [titleAppliedToast, setTitleAppliedToast] = useState(false);
   const titleToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -264,7 +255,7 @@ export default function App() {
     if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
       setFlow(returnView.flow);
       setAnalyzeError(null);
-      setPreviewCompareOpen(false);
+      closeCompare();
       return;
     }
     if (returnView?.kind === 'studio') {
@@ -275,7 +266,7 @@ export default function App() {
     }
     const intent = consumeReturnTabIntent();
     if (intent === 'benchmarks') setTab('benchmarks');
-  }, [location.pathname, location.key]);
+  }, [location.pathname, location.key, closeCompare]);
 
   const cancelAnalysisKeepAlive = useCallback(() => {
     analysisRunTokenRef.current += 1;
@@ -297,13 +288,8 @@ export default function App() {
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
-    setPreviewLoading(false);
-    setPreviewError(null);
-    setActivePreviewEditId(null);
-    setPreviewCompareOpen(false);
-    setPreviewCompareSeen(false);
-    setPreviewLoadingTarget(null);
-  }, [stopCamera, cancelAnalysisKeepAlive]);
+    resetPreview();
+  }, [stopCamera, cancelAnalysisKeepAlive, resetPreview]);
 
   const goHome = useCallback(() => {
     clearReturnViewIntent();
@@ -314,42 +300,27 @@ export default function App() {
     setFlow(null);
     setAnalyzeError(null);
     setClassifyBusy(false);
-    setPreviewLoading(false);
-    setPreviewError(null);
-    setActivePreviewEditId(null);
-    setPreviewCompareOpen(false);
-    setPreviewCompareSeen(false);
-    setPreviewLoadingTarget(null);
+    resetPreview();
     setTab('home');
-  }, [stopCamera, cancelAnalysisKeepAlive]);
+  }, [stopCamera, cancelAnalysisKeepAlive, resetPreview]);
 
   const startNewCritique = useCallback(() => {
     cancelAnalysisKeepAlive();
     setAnalyzeError(null);
     setClassifyBusy(false);
-    setPreviewLoading(false);
-    setPreviewError(null);
-    setActivePreviewEditId(null);
-    setPreviewCompareOpen(false);
-    setPreviewCompareSeen(false);
-    setPreviewLoadingTarget(null);
+    resetPreview();
     setFlow(createNewFlow());
-  }, [cancelAnalysisKeepAlive]);
+  }, [cancelAnalysisKeepAlive, resetPreview]);
 
   const startResubmit = useCallback((p: SavedPainting) => {
     cancelAnalysisKeepAlive();
     setAnalyzeError(null);
     setClassifyBusy(false);
-    setPreviewLoading(false);
-    setPreviewError(null);
-    setActivePreviewEditId(null);
-    setPreviewCompareOpen(false);
-    setPreviewCompareSeen(false);
-    setPreviewLoadingTarget(null);
+    resetPreview();
     stopCamera();
     setFlow(createResubmitFlow(p));
     setTab('studio');
-  }, [stopCamera, cancelAnalysisKeepAlive]);
+  }, [stopCamera, cancelAnalysisKeepAlive, resetPreview]);
 
   useEffect(() => {
     if (flow?.step === 'capture' && !isDesktop) {
@@ -448,11 +419,7 @@ export default function App() {
 
       if (runId !== analysisRunTokenRef.current) return;
 
-      setActivePreviewEditId(null);
-      setPreviewError(null);
-      setPreviewCompareOpen(false);
-      setPreviewCompareSeen(false);
-      setPreviewLoadingTarget(null);
+      resetPreview();
       setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource: 'api' }));
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
@@ -464,7 +431,7 @@ export default function App() {
       }
       releaseWakeIfCurrent();
     }
-  }, []);
+  }, [resetPreview]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -774,7 +741,7 @@ export default function App() {
 
   /** When preview finishes for a work already in Studio, persist (merge previews into last version) without leaving results. */
   useEffect(() => {
-    if (previewLoading) return;
+    if (preview.loading) return;
     const f = flowRef.current;
     if (!f || f.step !== 'results') return;
     const list = f.sessionPreviewEdits ?? [];
@@ -785,7 +752,7 @@ export default function App() {
     if (lastAutoPreviewSaveRef.current === sig) return;
     lastAutoPreviewSaveRef.current = sig;
     persistResultRef.current({ navigateToStudio: false });
-  }, [flow, previewLoading]);
+  }, [flow, preview.loading]);
 
   const deletePainting = useCallback((id: string) => {
     setPaintings((ps) => ps.filter((p) => p.id !== id));
@@ -818,14 +785,14 @@ export default function App() {
     );
 
   const previewTarget = useMemo(
-    () => (flow ? previewDisplayTarget(flow, activePreviewEditId) : null),
-    [flow, activePreviewEditId]
+    () => (flow ? previewDisplayTarget(flow, preview.activeEditId) : null),
+    [flow, preview.activeEditId]
   );
 
   const activePreviewImageDataUrl = useMemo(() => {
-    if (!flow || flow.step !== 'results' || !activePreviewEditId) return null;
-    return flow.sessionPreviewEdits?.find((e) => e.id === activePreviewEditId)?.imageDataUrl ?? null;
-  }, [flow, activePreviewEditId]);
+    if (!flow || flow.step !== 'results' || !preview.activeEditId) return null;
+    return flow.sessionPreviewEdits?.find((e) => e.id === preview.activeEditId)?.imageDataUrl ?? null;
+  }, [flow, preview.activeEditId]);
 
   const previewEditIdByCriterion = useMemo(() => {
     if (!flow || flow.step !== 'results') return undefined;
@@ -844,11 +811,11 @@ export default function App() {
   const focusSessionPreviewForCriterion = useCallback((criterion: CritiqueCategory['criterion']) => {
     const id = previewEditIdByCriterion?.[criterion];
     if (!id) return;
-    setActivePreviewEditId(id);
+    selectEdit(id);
     requestAnimationFrame(() => {
       document.getElementById('critique-session-ai-edits')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-  }, [previewEditIdByCriterion]);
+  }, [previewEditIdByCriterion, selectEdit]);
 
   const applySuggestedPaintingTitle = useCallback((title: string) => {
     const t = title.trim();
@@ -898,9 +865,7 @@ export default function App() {
     const matchingChange = changes?.find((change) => change.previewCriterion === criterion);
     const category =
       catList.find((entry) => entry.criterion === criterion) ?? priorityCritiqueCategory(catList);
-    setPreviewError(null);
-    setPreviewLoadingTarget({ kind: 'single', criterion });
-    setPreviewLoading(true);
+    startPreviewLoading({ kind: 'single', criterion });
     try {
       const target: PreviewEditTargetPayload = {
         criterion: category.criterion,
@@ -946,31 +911,22 @@ export default function App() {
         });
         return next;
       });
-      setActivePreviewEditId(entry.id);
-      setPreviewCompareOpen(false);
-      setPreviewCompareSeen(false);
+      completePreview(entry.id);
     } catch (e) {
-      setPreviewError(
+      failPreview(
         e instanceof Error ? e.message : 'Preview failed. Please retry from the critique screen.'
       );
-    } finally {
-      setPreviewLoading(false);
-      setPreviewLoadingTarget(null);
     }
-  }, []);
+  }, [startPreviewLoading, completePreview, failPreview]);
 
   useEffect(() => {
     if (!flow || flow.step !== 'results') return;
     const list = flow.sessionPreviewEdits ?? [];
     if (!list.length) return;
-    if (activePreviewEditId && list.some((e) => e.id === activePreviewEditId)) return;
-    setActivePreviewEditId(list[list.length - 1]!.id);
-  }, [flow, activePreviewEditId]);
+    if (preview.activeEditId && list.some((e) => e.id === preview.activeEditId)) return;
+    selectEdit(list[list.length - 1]!.id);
+  }, [flow, preview.activeEditId, selectEdit]);
 
-  const openPreviewCompare = useCallback(() => {
-    setPreviewCompareOpen(true);
-    setPreviewCompareSeen(true);
-  }, []);
 
   const handleTabChange = useCallback(
     (t: TabId) => {
@@ -1559,8 +1515,8 @@ export default function App() {
                   }
                   previewEditIdByCriterion={previewEditIdByCriterion}
                   onFocusSessionPreviewForCriterion={focusSessionPreviewForCriterion}
-                  previewLoading={previewLoading}
-                  previewLoadingTarget={previewLoadingTarget}
+                  previewLoading={preview.loading}
+                  previewLoadingTarget={preview.loadingTarget}
                   workingTitle={flow.workingTitle}
                   onSelectSuggestedTitle={applySuggestedPaintingTitle}
                   voiceBFooter={
@@ -1583,9 +1539,9 @@ export default function App() {
                                 key={e.id}
                                 type="button"
                                 title={previewEditChipTitle(e.mode, e.criterion)}
-                                onClick={() => setActivePreviewEditId(e.id)}
+                                onClick={() => selectEdit(e.id)}
                                 className={`rounded-lg border px-2 py-1 text-left text-[11px] font-medium transition ${
-                                  activePreviewEditId === e.id
+                                  preview.activeEditId === e.id
                                     ? 'border-violet-500 bg-violet-100 text-violet-900'
                                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-300'
                                 }`}
@@ -1595,8 +1551,8 @@ export default function App() {
                             ))}
                           </div>
                         </div>
-                        {previewError ? (
-                          <p className="mt-2 text-center text-xs text-red-600">{previewError}</p>
+                        {preview.error ? (
+                          <p className="mt-2 text-center text-xs text-red-600">{preview.error}</p>
                         ) : null}
                         {activePreviewImageDataUrl ? (
                           isDesktop ? (
@@ -1613,7 +1569,7 @@ export default function App() {
                               </div>
                               <button
                                 type="button"
-                                onClick={openPreviewCompare}
+                                onClick={openCompare}
                                 className="mt-4 w-full rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800 shadow-sm transition hover:bg-violet-50"
                               >
                                 Open full-screen compare
@@ -1626,13 +1582,13 @@ export default function App() {
                               </p>
                               <button
                                 type="button"
-                                onClick={openPreviewCompare}
+                                onClick={openCompare}
                                 className="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-violet-300 bg-white px-4 py-6 text-center shadow-sm transition hover:border-violet-400 hover:bg-violet-50/50 active:scale-[0.99]"
                               >
                                 <span className="text-sm font-bold text-violet-800">
-                                  {previewCompareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
+                                  {preview.compareSeen ? 'Open compare again' : 'Tap to compare with your photo'}
                                 </span>
-                                {!previewCompareSeen ? (
+                                {!preview.compareSeen ? (
                                   <span className="text-xs font-medium leading-snug text-slate-500">
                                     Your image, the AI preview, and notes on what changed.
                                   </span>
@@ -1646,9 +1602,9 @@ export default function App() {
                           )
                         ) : null}
                       </section>
-                    ) : previewError ? (
+                    ) : preview.error ? (
                       <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-center text-xs text-red-700">
-                        {previewError}
+                        {preview.error}
                       </p>
                     ) : null
                   }
@@ -1675,7 +1631,7 @@ export default function App() {
             )}
           </div>
         </div>
-        {previewCompareOpen &&
+        {preview.compareOpen &&
         flow.step === 'results' &&
         flow.imageDataUrl &&
         activePreviewImageDataUrl &&
@@ -1684,7 +1640,7 @@ export default function App() {
             originalSrc={flow.imageDataUrl}
             revisedSrc={activePreviewImageDataUrl}
             target={previewTarget}
-            onClose={() => setPreviewCompareOpen(false)}
+            onClose={closeCompare}
           />
         ) : null}
         {pendingCrop ? (
