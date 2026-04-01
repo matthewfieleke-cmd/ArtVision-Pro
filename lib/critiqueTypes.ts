@@ -22,6 +22,26 @@ export type PhotoQualityAssessmentDTO = {
   tips: string[];
 };
 
+export type VoiceBStepDTO = {
+  area: string;
+  currentRead: string;
+  move: string;
+  expectedRead: string;
+  preserve?: string;
+  priority: 'primary' | 'secondary';
+};
+
+export type VoiceBPlanDTO = {
+  currentRead: string;
+  mainProblem?: string;
+  mainStrength?: string;
+  bestNextMove: string;
+  optionalSecondMove?: string;
+  avoidDoing?: string;
+  intendedRead: string;
+  storyIfRelevant?: string;
+};
+
 export type CritiqueCategoryDTO = {
   criterion: CriterionLabel;
   level?: RatingLevelLabel;
@@ -34,6 +54,8 @@ export type CritiqueCategoryDTO = {
   nextTarget?: string;
   anchor?: CriterionAnchor;
   editPlan?: CriterionEditPlan;
+  voiceBPlan?: VoiceBPlanDTO;
+  actionPlanSteps?: VoiceBStepDTO[];
   subskills?: Array<{
     label: string;
     score: number;

@@ -6,7 +6,7 @@ export type PreviewEditPayload = {
   imageDataUrl: string;
   style: Style;
   medium: Medium;
-  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan'> & {
+  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan' | 'actionPlanSteps' | 'voiceBPlan'> & {
     anchor?: CriterionAnchor;
     editPlan?: CriterionEditPlan;
     studioChangeRecommendation?: string;

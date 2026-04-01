@@ -99,6 +99,60 @@ function validateEditPlan(raw: unknown, criterion: (typeof CRITERIA_ORDER)[numbe
   };
 }
 
+function validateVoiceBPlan(raw: unknown, criterion: (typeof CRITERIA_ORDER)[number]) {
+  if (!raw || typeof raw !== 'object') throw new Error(`Invalid Voice B plan for ${criterion}`);
+  const o = raw as Record<string, unknown>;
+  if (
+    typeof o.currentRead !== 'string' ||
+    typeof o.bestNextMove !== 'string' ||
+    typeof o.expectedRead !== 'string'
+  ) {
+    throw new Error(`Invalid Voice B plan fields for ${criterion}`);
+  }
+  return {
+    currentRead: o.currentRead.trim(),
+    ...(typeof o.mainProblem === 'string' && o.mainProblem.trim().length > 0
+      ? { mainProblem: o.mainProblem.trim() }
+      : {}),
+    ...(typeof o.mainStrength === 'string' && o.mainStrength.trim().length > 0
+      ? { mainStrength: o.mainStrength.trim() }
+      : {}),
+    bestNextMove: o.bestNextMove.trim(),
+    expectedRead: o.expectedRead.trim(),
+    ...(typeof o.storyIfRelevant === 'string' && o.storyIfRelevant.trim().length > 0
+      ? { storyIfRelevant: o.storyIfRelevant.trim() }
+      : {}),
+  };
+}
+
+function validateVoiceBSteps(raw: unknown, criterion: (typeof CRITERIA_ORDER)[number]) {
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 3) {
+    throw new Error(`Invalid Voice B steps for ${criterion}`);
+  }
+  return raw.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new Error(`Invalid Voice B step for ${criterion}`);
+    const o = entry as Record<string, unknown>;
+    if (
+      typeof o.area !== 'string' ||
+      typeof o.currentRead !== 'string' ||
+      typeof o.move !== 'string' ||
+      typeof o.expectedRead !== 'string'
+    ) {
+      throw new Error(`Invalid Voice B step fields for ${criterion}`);
+    }
+    return {
+      area: o.area.trim(),
+      currentRead: o.currentRead.trim(),
+      move: o.move.trim(),
+      expectedRead: o.expectedRead.trim(),
+      ...(typeof o.preserve === 'string' && o.preserve.trim().length > 0
+        ? { preserve: o.preserve.trim() }
+        : {}),
+      priority: o.priority === 'secondary' ? 'secondary' : ('primary' as const),
+    };
+  });
+}
+
 function normalizePreviewCriterion(raw: string): (typeof CRITERIA_ORDER)[number] {
   const c = canonicalCriterionLabel(raw);
   if (c) return c;
@@ -410,6 +464,8 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     }
     const anchor = validateAnchor(r.anchor, expected);
     const editPlan = validateEditPlan(r.editPlan, expected);
+    const voiceBPlan = validateVoiceBPlan(r.voiceBPlan, expected);
+    const actionPlanSteps = validateVoiceBSteps(r.actionPlanSteps, expected);
     const subskills =
       Array.isArray(r.subskills) &&
       r.subskills.length >= 2 &&
@@ -448,6 +504,8 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
       nextTarget: r.nextTarget,
       anchor,
       editPlan,
+      voiceBPlan,
+      actionPlanSteps,
       subskills,
     };
   });

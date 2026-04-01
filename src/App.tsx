@@ -86,7 +86,7 @@ type PendingCrop = {
 
 type PreviewEditTargetPayload = Pick<
   CritiqueCategory,
-  'criterion' | 'level' | 'feedback' | 'actionPlan' | 'anchor' | 'editPlan'
+  'criterion' | 'level' | 'feedback' | 'actionPlan' | 'actionPlanSteps' | 'anchor' | 'editPlan'
 > & {
   studioChangeRecommendation?: string;
 };
@@ -154,6 +154,7 @@ function previewDisplayTarget(
       level: cat.level,
       feedback: cat.feedback,
       actionPlan: cat.actionPlan,
+      actionPlanSteps: cat.actionPlanSteps,
       anchor: cat.anchor,
       editPlan: cat.editPlan,
       studioChangeRecommendation: active.studioChangeRecommendation,
@@ -169,6 +170,7 @@ function previewDisplayTarget(
       level: cat.level,
       feedback: cat.feedback,
       actionPlan: cat.actionPlan,
+      actionPlanSteps: cat.actionPlanSteps,
       anchor: cat.anchor,
       editPlan: cat.editPlan,
       studioChangeRecommendation: ch.text,
@@ -180,6 +182,7 @@ function previewDisplayTarget(
     level: p.level,
     feedback: p.feedback,
     actionPlan: p.actionPlan,
+    actionPlanSteps: p.actionPlanSteps,
     anchor: p.anchor,
     editPlan: p.editPlan,
   };
@@ -975,6 +978,7 @@ export default function App() {
         level: category.level,
         feedback: category.feedback,
         actionPlan: category.actionPlan,
+        actionPlanSteps: category.actionPlanSteps,
         anchor: category.anchor,
         editPlan: category.editPlan,
         ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),

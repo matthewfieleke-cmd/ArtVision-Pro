@@ -20,6 +20,46 @@ import type { ImageMetrics } from './imageMetrics';
 const LEVEL_ORDER: RatingLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Master'];
 const CONFIDENCE_ORDER: CritiqueConfidence[] = ['low', 'medium', 'high'];
 
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function ensureSentence(text: string): string {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return '';
+  return /[.!?]$/.test(normalized) ? normalized : `${normalized}.`;
+}
+
+function deriveActionPlanFromSteps(
+  steps?: Array<{
+    area: string;
+    currentRead: string;
+    move: string;
+    expectedRead: string;
+    preserve?: string;
+  }>
+): string | undefined {
+  if (!steps?.length) return undefined;
+  const lines = steps
+    .map((step, index) => {
+      const area = normalizeWhitespace(step.area);
+      const currentRead = normalizeWhitespace(step.currentRead);
+      const move = normalizeWhitespace(step.move);
+      const expectedRead = normalizeWhitespace(step.expectedRead);
+      const preserve = normalizeWhitespace(step.preserve ?? '');
+      if (!area || !move || !expectedRead) return '';
+      const parts = [
+        `In ${area}, ${currentRead || 'the current relationship still needs a clearer read'}`,
+        move,
+        `so ${expectedRead}`,
+      ];
+      if (preserve) parts.push(`while preserving ${preserve}`);
+      return `${index + 1}. ${ensureSentence(parts.join('; '))}`;
+    })
+    .filter(Boolean);
+  return lines.length ? lines.join('\n') : undefined;
+}
+
 function capConfidence(
   confidence: CritiqueConfidence,
   maxConfidence: CritiqueConfidence
@@ -234,6 +274,7 @@ export function finalizeCritiqueResult(
             cat.level
           )
         : undefined),
+    actionPlan: deriveActionPlanFromSteps(cat.actionPlanSteps) ?? cat.actionPlan,
     ...(analysisSource === 'local'
       ? {
           /** Hide Beginner–Master in UI for heuristic pass; keep sub-skills for snapshot. */

@@ -8,7 +8,7 @@ import {
 import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { splitNumberedSteps } from '../lib/numberedSteps.ts';
-import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
+import { migrateLegacySimpleFeedback, validateCritiqueResult } from '../lib/critiqueValidation.js';
 import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
   applyCorsHeaders,
@@ -32,6 +32,7 @@ import {
   switchToManualStyle,
 } from '../src/critiqueFlow.js';
 import type { CritiqueResult, SavedPainting } from '../src/types.js';
+import { finalizeCritiqueResult } from '../src/critiqueCoach.ts';
 import { runPreviewResizeTests } from './test-preview-resize.js';
 import { formatRubricForPrompt, getCriterionRubric } from '../shared/masterCriteriaRubric.js';
 
@@ -856,6 +857,411 @@ function testPreviewEditPromptAlignment(): void {
   );
 }
 
+function testStructuredVoiceBPlanFlow(): void {
+  const raw = {
+    summary: 'A focused interior with one competing obstruction.',
+    overallSummary: {
+      analysis:
+        'Using the Drawing lens, the foreground chair back and seated figure establish a clear interior tension.',
+      topPriorities: ['Soften the interior bars of the foreground chair back so the face keeps priority.'],
+    },
+    studioAnalysis: {
+      whatWorks: 'The left window strip and seated figure already give the room a persuasive scaffold.',
+      whatCouldImprove: 'The foreground chair back still competes with the face.',
+    },
+    studioChanges: [
+      {
+        text: 'Soften the interior bars of the foreground chair back so the seated face keeps priority.',
+        previewCriterion: 'Edge and focus control',
+      },
+      {
+        text: 'Keep the left window strip intact so the room preserves its current light scaffold.',
+        previewCriterion: 'Value and light structure',
+      },
+    ],
+    comparisonNote: null,
+    overallConfidence: 'high',
+    photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
+    suggestedPaintingTitles: ['Interior with Chair Back', 'Window Light Study', 'Figure Behind the Chair'],
+    categories: [
+      {
+        criterion: 'Intent and necessity',
+        level: 'Advanced',
+        feedback: 'The obstruction and figure belong to one coherent interior problem.',
+        actionPlan: '1. Keep the present tension between the chair obstruction and the seated figure.',
+        actionPlanSteps: [
+          {
+            area: 'the blocked view of the seated figure through the chair',
+            currentRead: 'the obstruction already feels necessary to the image logic',
+            move: 'keep the obstruction logic intact while simplifying any competing secondary accent',
+            expectedRead: 'the picture keeps its necessary internal tension',
+            preserve: 'the quiet compression of the room',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The obstruction already contributes to the picture logic.',
+          mainStrength: 'The quiet compression of the room already belongs to the image.',
+          bestNextMove: 'Preserve the obstruction logic while removing one competing accent.',
+          expectedRead: 'The picture keeps its internal tension without added noise.',
+        },
+        confidence: 'medium',
+        evidenceSignals: ['The chair obstruction and figure belong to the same pictorial problem.'],
+        preserve: 'Preserve the quiet compression of the room.',
+        practiceExercise: 'Thumbnail studies of obstruction as intent.',
+        nextTarget: 'Push intent and necessity toward Master.',
+        anchor: {
+          areaSummary: 'the blocked view of the seated figure through the chair',
+          evidencePointer: 'the obstruction feels intentional and belongs to the picture’s quiet interior logic',
+          region: { x: 0.18, y: 0.2, width: 0.5, height: 0.5 },
+        },
+        editPlan: {
+          targetArea: 'the blocked view of the seated figure through the chair',
+          preserveArea: 'the quiet compression of the room',
+          issue: 'the obstruction already feels necessary to the image logic',
+          intendedChange: 'preserve the current obstruction logic',
+          expectedOutcome: 'the picture keeps its necessary internal tension',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Coherence of aim', score: 0.72, level: 'Advanced' },
+          { label: 'Support from formal choices', score: 0.7, level: 'Advanced' },
+        ],
+      },
+      {
+        criterion: 'Composition and shape structure',
+        level: 'Advanced',
+        feedback: 'The chair back and seated figure already give the room a strong scaffold.',
+        actionPlan: '',
+        actionPlanSteps: [
+          {
+            area: 'the foreground chair back',
+            currentRead: 'the dark interior bars interrupt the route to the seated figure',
+            move: 'soften the interior chair bars while keeping the outer silhouette intact',
+            expectedRead: 'the figure regains priority without changing the room structure',
+            preserve: 'the bright window strip and the shirt-to-wall contrast',
+            priority: 'primary',
+          },
+          {
+            area: 'the left window strip',
+            currentRead: 'it already provides the clearest lateral pull in the room',
+            move: 'leave the light strip and its shirt relationship intact',
+            expectedRead: 'the room keeps its current scaffold while the chair competes less',
+            preserve: 'the current window-to-shirt value pattern',
+            priority: 'secondary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The room scaffold is strong, but one foreground passage pulls too hard.',
+          mainProblem: 'The chair bars interrupt the route to the figure.',
+          mainStrength: 'The left window strip and shirt contrast already anchor the room.',
+          bestNextMove: 'Soften the interior chair bars while keeping the silhouette intact.',
+          expectedRead: 'The figure regains priority without losing the obstruction logic.',
+        },
+        confidence: 'high',
+        evidenceSignals: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
+        preserve: 'Keep the window strip and the shirt-to-wall contrast.',
+        practiceExercise: 'Do two thumbnail studies of the chair against the figure.',
+        nextTarget: 'Push composition and shape structure toward Master.',
+        anchor: {
+          areaSummary: 'the foreground chair back',
+          evidencePointer: 'its dark vertical bars compete with the seated figure for first attention',
+          region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
+        },
+        editPlan: {
+          targetArea: 'the foreground chair back',
+          preserveArea: 'the bright window strip and the shirt-to-wall contrast',
+          issue: 'its dark interior bars pull as strongly as the face',
+          intendedChange: 'soften the interior chair bars while preserving the outer silhouette',
+          expectedOutcome: 'the figure regains priority without changing the room structure',
+          editability: 'yes',
+        },
+        subskills: [
+          { label: 'Focal hierarchy', score: 0.72, level: 'Advanced' },
+          { label: 'Eye path control', score: 0.69, level: 'Advanced' },
+        ],
+      },
+      {
+        criterion: 'Value and light structure',
+        level: 'Advanced',
+        feedback: 'The left window strip and shirt already establish a clear light pattern.',
+        actionPlan: '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
+        actionPlanSteps: [
+          {
+            area: 'the left window strip',
+            currentRead: 'the current window-to-shirt value pattern is already doing the structural work',
+            move: 'keep the left window strip and its window-to-shirt value pattern intact',
+            expectedRead: 'the room keeps its main light scaffold',
+            preserve: 'the shirt-to-wall relationship around the figure',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The main light scaffold is already convincing.',
+          mainStrength: 'The left window strip and shirt establish the room light clearly.',
+          bestNextMove: 'Protect the existing window-to-shirt value pattern.',
+          expectedRead: 'The value structure stays intact and legible.',
+        },
+        confidence: 'medium',
+        evidenceSignals: ['The window strip is the clearest light shape.'],
+        preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
+        practiceExercise: 'Squint studies of the room in 3 values.',
+        nextTarget: 'Push value and light structure toward Master.',
+        anchor: {
+          areaSummary: 'the left window strip',
+          evidencePointer: 'it establishes the painting’s clearest light mass',
+          region: { x: 0, y: 0, width: 0.16, height: 0.78 },
+        },
+        editPlan: {
+          targetArea: 'the left window strip',
+          preserveArea: 'the shirt-to-wall relationship around the figure',
+          issue: 'the main light scaffold already reads clearly',
+          intendedChange: 'preserve the existing light mass and avoid unnecessary revision',
+          expectedOutcome: 'the value structure stays intact',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Light-dark grouping', score: 0.74, level: 'Advanced' },
+          { label: 'Range control', score: 0.7, level: 'Advanced' },
+        ],
+      },
+      {
+        criterion: 'Color relationships',
+        level: 'Advanced',
+        feedback: 'The floor-to-wall warmth shift is enough to separate zones without forcing color.',
+        actionPlan: '1. Keep the current value-led palette discipline in the floor and wall.',
+        actionPlanSteps: [
+          {
+            area: 'the floor-to-wall transition at lower left',
+            currentRead: 'the slight warmth shift already separates the room planes',
+            move: 'preserve the present warmth shift rather than adding more color',
+            expectedRead: 'the room planes stay distinct without forcing hue',
+            preserve: 'the muted palette world across the room',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The palette separation is already doing enough work in this passage.',
+          mainStrength: 'The slight floor-to-wall warmth shift keeps the room planes distinct.',
+          bestNextMove: 'Preserve the present warmth shift rather than adding color.',
+          expectedRead: 'The room stays harmonious and the planes remain separated.',
+        },
+        confidence: 'medium',
+        evidenceSignals: ['The floor reads slightly warmer than the wall.'],
+        preserve: 'Keep the restrained palette world.',
+        practiceExercise: 'Do a graphite temperature map using only value notation.',
+        nextTarget: 'Push color relationships toward Master.',
+        anchor: {
+          areaSummary: 'the floor-to-wall transition at lower left',
+          evidencePointer: 'the slight warmth shift separates the room planes without breaking the drawing medium',
+          region: { x: 0, y: 0.55, width: 0.35, height: 0.33 },
+        },
+        editPlan: {
+          targetArea: 'the floor-to-wall transition at lower left',
+          preserveArea: 'the muted palette world across the room',
+          issue: 'the current value-led separation is already convincing',
+          intendedChange: 'preserve the present warmth shift rather than adding color',
+          expectedOutcome: 'the room planes stay distinct without forcing hue',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Palette harmony', score: 0.68, level: 'Advanced' },
+          { label: 'Temperature control', score: 0.66, level: 'Advanced' },
+        ],
+      },
+      {
+        criterion: 'Drawing, proportion, and spatial form',
+        level: 'Advanced',
+        feedback: 'The seated figure’s tilt and the table legs hold together believably.',
+        actionPlan: '1. Keep the current spatial drawing in the seated figure and table legs.',
+        actionPlanSteps: [
+          {
+            area: 'the seated figure and side table',
+            currentRead: 'the figure tilt and table spacing already establish a believable room structure',
+            move: 'preserve the present drawing relationships there',
+            expectedRead: 'the room structure remains coherent',
+            preserve: 'the current figure tilt and table-leg spacing',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The spatial drawing is already persuasive in the main figure-and-table passage.',
+          mainStrength: 'The tilt and spacing hold together believably.',
+          bestNextMove: 'Keep the current spatial drawing in the seated figure and table legs.',
+          expectedRead: 'The room structure remains coherent and convincing.',
+        },
+        confidence: 'medium',
+        evidenceSignals: ['The seated figure tilts back convincingly.'],
+        preserve: 'Preserve the figure tilt and the table-leg spacing.',
+        practiceExercise: 'Quick line studies of figure plus foreground obstruction.',
+        nextTarget: 'Push drawing, proportion, and spatial form toward Master.',
+        anchor: {
+          areaSummary: 'the seated figure and side table',
+          evidencePointer: 'their tilt and spacing establish a believable room structure',
+          region: { x: 0.36, y: 0.16, width: 0.47, height: 0.55 },
+        },
+        editPlan: {
+          targetArea: 'the seated figure and side table',
+          preserveArea: 'the current figure tilt and table-leg spacing',
+          issue: 'the spatial drawing already reads convincingly',
+          intendedChange: 'preserve the present drawing relationships',
+          expectedOutcome: 'the room structure remains coherent',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Shape placement', score: 0.73, level: 'Advanced' },
+          { label: 'Spatial construction', score: 0.71, level: 'Advanced' },
+        ],
+      },
+      {
+        criterion: 'Edge and focus control',
+        level: 'Intermediate',
+        feedback: 'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
+        actionPlan: '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+        actionPlanSteps: [
+          {
+            area: 'the foreground chair back',
+            currentRead: 'the interior verticals stay almost as insistent as the face',
+            move: 'soften the interior verticals so they stop competing with the face',
+            expectedRead: 'the face regains priority',
+            preserve: 'the outer chair silhouette and the head-to-shirt contrast',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The focal passage is clear, but the chair bars compete with it.',
+          mainProblem: 'The interior verticals interrupt the focus hierarchy.',
+          bestNextMove: 'Soften the interior verticals while keeping the silhouette intact.',
+          expectedRead: 'The face wins the first read more clearly.',
+        },
+        confidence: 'high',
+        evidenceSignals: ['The chair bars cross in front of the figure.'],
+        preserve: 'Preserve the outer chair silhouette and the head-to-shirt contrast.',
+        practiceExercise: 'Do a hard/soft edge chart from the chair against the figure.',
+        nextTarget: 'Push edge and focus control toward Advanced.',
+        anchor: {
+          areaSummary: 'the foreground chair back',
+          evidencePointer: 'its interior verticals compete with the face instead of supporting it',
+          region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
+        },
+        editPlan: {
+          targetArea: 'the foreground chair back',
+          preserveArea: 'the outer chair silhouette and the head-to-shirt contrast',
+          issue: 'the interior chair bars pull too strongly relative to the face',
+          intendedChange: 'soften the interior chair bars while preserving the silhouette',
+          expectedOutcome: 'the face regains the first read',
+          editability: 'yes',
+        },
+        subskills: [
+          { label: 'Edge hierarchy', score: 0.51, level: 'Intermediate' },
+          { label: 'Focus placement', score: 0.55, level: 'Intermediate' },
+        ],
+      },
+      {
+        criterion: 'Surface and medium handling',
+        level: 'Advanced',
+        feedback: 'The drawing strokes stay economical and directional.',
+        actionPlan: '1. Keep the current mark economy in the wall, floor, and chair.',
+        actionPlanSteps: [
+          {
+            area: 'the wall and floor hatching',
+            currentRead: 'the mark families are already economical and organized',
+            move: 'preserve the current mark economy in the wall, floor, and chair',
+            expectedRead: 'the drawing keeps its controlled surface rhythm',
+            preserve: 'the directional differences between wall and floor marks',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The mark economy is already supporting the room clearly.',
+          mainStrength: 'The wall and floor hatching stay distinct without fuss.',
+          bestNextMove: 'Protect the current mark economy instead of adding more surface activity.',
+          expectedRead: 'The drawing keeps its controlled surface rhythm.',
+        },
+        confidence: 'medium',
+        evidenceSignals: ['The wall is built with broad, even hatching.'],
+        preserve: 'Preserve the distinct mark families between wall and floor.',
+        practiceExercise: 'One-page mark-family study from the room.',
+        nextTarget: 'Push surface and medium handling toward Master.',
+        anchor: {
+          areaSummary: 'the wall and floor hatching',
+          evidencePointer: 'their distinct mark families keep the room organized without overworking the drawing',
+          region: { x: 0, y: 0, width: 1, height: 1 },
+        },
+        editPlan: {
+          targetArea: 'the wall and floor hatching',
+          preserveArea: 'the directional differences between wall and floor marks',
+          issue: 'the surface handling already supports the room clearly',
+          intendedChange: 'preserve the current mark economy',
+          expectedOutcome: 'the drawing keeps its controlled surface rhythm',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Mark economy', score: 0.72, level: 'Advanced' },
+          { label: 'Surface character', score: 0.69, level: 'Advanced' },
+        ],
+      },
+      {
+        criterion: 'Presence, point of view, and human force',
+        level: 'Advanced',
+        feedback: 'The seated figure has a quiet inwardness, and the room feels inhabited rather than staged.',
+        actionPlan: '1. Keep the current inward pressure around the seated figure and the obstructed viewpoint.',
+        actionPlanSteps: [
+          {
+            area: 'the seated figure’s head and upper torso',
+            currentRead: 'the inward tilt already carries quiet human pressure',
+            move: 'keep the current inward pressure around the seated figure and the obstructed viewpoint',
+            expectedRead: 'the picture keeps its authored presence',
+            preserve: 'the inward tilt and obstructed viewpoint',
+            priority: 'primary',
+          },
+        ],
+        voiceBPlan: {
+          currentRead: 'The point of view already feels inhabited and specific.',
+          mainStrength: 'The inward tilt gives the figure quiet human force.',
+          bestNextMove: 'Preserve the current inward pressure and obstructed viewpoint.',
+          expectedRead: 'The picture keeps its authored presence.',
+        },
+        confidence: 'medium',
+        evidenceSignals: ['The seated figure reads as inward and absorbed.'],
+        preserve: 'Preserve the figure’s inwardness and the obstructed viewpoint.',
+        practiceExercise: 'Short studies of viewpoint and mood through obstruction.',
+        nextTarget: 'Push presence, point of view, and human force toward Master.',
+        anchor: {
+          areaSummary: 'the seated figure’s head and upper torso',
+          evidencePointer: 'their inward tilt carries the painting’s quiet human pressure',
+          region: { x: 0.46, y: 0.12, width: 0.22, height: 0.3 },
+        },
+        editPlan: {
+          targetArea: 'the seated figure’s head and upper torso',
+          preserveArea: 'the inward tilt and obstructed viewpoint',
+          issue: 'the human pressure is already convincing',
+          intendedChange: 'preserve the current inward pressure',
+          expectedOutcome: 'the picture keeps its authored presence',
+          editability: 'no',
+        },
+        subskills: [
+          { label: 'Atmospheric force', score: 0.71, level: 'Advanced' },
+          { label: 'Point of view', score: 0.73, level: 'Advanced' },
+        ],
+      },
+    ],
+  } as const;
+
+  const validated = validateCritiqueResult(raw);
+  const composition = validated.categories[1]!;
+  assert.equal(composition.actionPlanSteps?.length, 2);
+  assert.equal(composition.voiceBPlan?.bestNextMove, 'Soften the interior chair bars while keeping the silhouette intact.');
+
+  const finalized = finalizeCritiqueResult(validated as unknown as CritiqueResult, {
+    analysisSource: 'api',
+    photoQuality: validated.photoQuality,
+  });
+  const finalizedComposition = finalized.categories[1]!;
+  assert.match(finalizedComposition.actionPlan, /1\. In the foreground chair back/i);
+  assert.match(finalizedComposition.actionPlan, /2\. In the left window strip/i);
+}
+
 async function main(): Promise<void> {
   await testCritiqueFlow();
   await testApiHelpers();
@@ -863,6 +1269,7 @@ async function main(): Promise<void> {
   testCriterionBandRubric();
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
+  testStructuredVoiceBPlanFlow();
   await runPreviewResizeTests();
   console.log('Architecture tests passed.');
 }

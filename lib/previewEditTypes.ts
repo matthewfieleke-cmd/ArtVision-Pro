@@ -1,11 +1,14 @@
 import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
+import type { VoiceBPlanDTO, VoiceBStepDTO } from './critiqueTypes.js';
 
 export type PreviewEditTarget = {
   criterion: CriterionLabel;
   level?: RatingLevelLabel;
   feedback: string;
   actionPlan: string;
+  actionPlanSteps?: VoiceBStepDTO[];
+  voiceBPlan?: VoiceBPlanDTO;
   anchor?: CriterionAnchor;
   editPlan?: CriterionEditPlan;
   /** When set, the image edit is driven primarily by this Voice B line from Studio read. */

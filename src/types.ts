@@ -54,11 +54,31 @@ export type CritiqueSubskill = {
   level: RatingLevel;
 };
 
+export type VoiceBPlanStep = {
+  area: string;
+  currentRead: string;
+  move: string;
+  expectedRead: string;
+  preserve?: string;
+  priority?: 'primary' | 'secondary';
+};
+
+export type VoiceBPlan = {
+  currentRead: string;
+  mainProblem?: string;
+  mainStrength?: string;
+  bestNextMove: string;
+  expectedRead: string;
+  storyIfRelevant?: string;
+};
+
 export type CritiqueCategory = {
   criterion: Criterion;
   level?: RatingLevel;
   feedback: string;
   actionPlan: string;
+  actionPlanSteps?: VoiceBPlanStep[];
+  voiceBPlan?: VoiceBPlan;
   confidence?: CritiqueConfidence;
   /** Short observable reasons behind the grade; useful for quick review. */
   evidenceSignals?: string[];

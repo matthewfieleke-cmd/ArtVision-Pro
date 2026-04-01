@@ -209,6 +209,8 @@ export const CRITIQUE_JSON_SCHEMA = {
             'level',
             'feedback',
             'actionPlan',
+            'actionPlanSteps',
+            'voiceBPlan',
             'confidence',
             'evidenceSignals',
             'preserve',
@@ -235,6 +237,80 @@ export const CRITIQUE_JSON_SCHEMA = {
               type: 'string',
               description:
                 `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master; for Beginner/Intermediate/Advanced you MUST give numbered improvement steps (never that opener). Master: brief praise only. Else: Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2. Every step must state (1) where in the painting, (2) what exact relationship/problem/strength is there now, and (3) what exact directional move to make or preserve there.`,
+            },
+            actionPlanSteps: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 3,
+              description:
+                `Voice B structured teaching steps for THIS criterion only. Prefer 1-3 high-leverage moves instead of filler. Each step must stay on the same anchored passage and say where, what is happening there now, what to do, and what should read differently after the move.`,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['area', 'currentRead', 'move', 'expectedRead', 'priority'],
+                properties: {
+                  area: {
+                    type: 'string',
+                    description: 'Exact visible passage for this step. Must be a recognizable passage in THIS painting, not a conceptual summary.',
+                  },
+                  currentRead: {
+                    type: 'string',
+                    description: 'What is visibly happening in that passage right now.',
+                  },
+                  move: {
+                    type: 'string',
+                    description: 'Exact directional move to make or preserve in that passage.',
+                  },
+                  expectedRead: {
+                    type: 'string',
+                    description: 'What that same passage should read like after the move.',
+                  },
+                  preserve: {
+                    type: 'string',
+                    description: 'Optional nearby success to protect while making the change.',
+                  },
+                  priority: { type: 'string', enum: ['primary', 'secondary'] },
+                },
+              },
+            },
+            voiceBPlan: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['currentRead', 'bestNextMove', 'intendedRead'],
+              properties: {
+                currentRead: {
+                  type: 'string',
+                  description: 'Voice B diagnosis of what this anchored passage is doing now.',
+                },
+                mainProblem: {
+                  type: 'string',
+                  description: 'Optional main local problem in that anchored passage.',
+                },
+                mainStrength: {
+                  type: 'string',
+                  description: 'Optional main local strength to preserve in that anchored passage.',
+                },
+                bestNextMove: {
+                  type: 'string',
+                  description: 'Best next teaching move in that passage only.',
+                },
+                optionalSecondMove: {
+                  type: 'string',
+                  description: 'Optional secondary move if one more local change would help.',
+                },
+                avoidDoing: {
+                  type: 'string',
+                  description: 'Optional note on what not to break or overdo.',
+                },
+                intendedRead: {
+                  type: 'string',
+                  description: 'What the passage should read like after the best next move.',
+                },
+                storyIfRelevant: {
+                  type: 'string',
+                  description: 'Optional story or dramatic situation only when that is genuinely relevant and concrete in this painting.',
+                },
+              },
             },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
             evidenceSignals: {
