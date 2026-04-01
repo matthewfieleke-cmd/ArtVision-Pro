@@ -100,7 +100,7 @@ export type CritiqueResultDTO = {
   paintingTitle?: string;
   /** Categorized title suggestions with rationales (Formalist / Tactile / Intent). */
   suggestedPaintingTitles?: SuggestedTitleDTO[];
-  analysisSource?: 'api' | 'local';
+  analysisSource?: 'api';
   overallConfidence?: CritiqueConfidenceDTO;
   photoQuality?: PhotoQualityAssessmentDTO;
   completionRead?: CompletionReadDTO;

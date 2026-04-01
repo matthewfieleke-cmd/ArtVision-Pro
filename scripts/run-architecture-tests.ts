@@ -1293,7 +1293,6 @@ function testStructuredVoiceBPlanFlow(): void {
   assert.equal(composition.voiceBPlan?.bestNextMove, 'Soften the interior chair bars while keeping the silhouette intact.');
 
   const finalized = finalizeCritiqueResult(validated as unknown as CritiqueResult, {
-    analysisSource: 'api',
     photoQuality: validated.photoQuality,
   });
   const finalizedComposition = finalized.categories[1]!;

@@ -1,6 +1,5 @@
 import {
   canonicalCriterionLabel,
-  criterionLabelMatches,
   CRITERIA_ORDER,
 } from '../shared/criteria';
 import type {
@@ -9,13 +8,10 @@ import type {
   CritiqueResult,
   CritiqueSimpleFeedback,
   Criterion,
-  Medium,
   OverallSummaryCard,
   PhotoQualityAssessment,
   RatingLevel,
-  Style,
 } from './types';
-import type { ImageMetrics } from './imageMetrics';
 
 const LEVEL_ORDER: RatingLevel[] = ['Beginner', 'Intermediate', 'Advanced', 'Master'];
 const CONFIDENCE_ORDER: CritiqueConfidence[] = ['low', 'medium', 'high'];
@@ -124,8 +120,7 @@ export function confidenceLabel(confidence: CritiqueConfidence): string {
 
 export function deriveOverallConfidence(
   categories: CritiqueCategory[],
-  photoQuality?: PhotoQualityAssessment,
-  analysisSource?: 'api' | 'local'
+  photoQuality?: PhotoQualityAssessment
 ): CritiqueConfidence {
   const numeric: number[] = categories.map((cat) => {
     switch (cat.confidence) {
@@ -142,7 +137,6 @@ export function deriveOverallConfidence(
 
   if (photoQuality?.level === 'fair') confidence = capConfidence(confidence, 'medium');
   if (photoQuality?.level === 'poor') confidence = 'low';
-  if (analysisSource === 'local') confidence = capConfidence(confidence, 'medium');
   return confidence;
 }
 
@@ -274,11 +268,9 @@ function deriveOverallSummaryFromSimple(simple: CritiqueSimpleFeedback): Overall
 export function finalizeCritiqueResult(
   critique: CritiqueResult,
   options?: {
-    analysisSource?: 'api' | 'local';
     photoQuality?: PhotoQualityAssessment;
   }
 ): CritiqueResult {
-  const analysisSource = options?.analysisSource ?? critique.analysisSource;
   const categories = critique.categories.map((cat) => ({
     ...cat,
     criterion:
@@ -301,12 +293,6 @@ export function finalizeCritiqueResult(
       actionPlanReferencesAnchor(cat.actionPlan, cat.anchor)
         ? cat.actionPlan
         : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? cat.actionPlan,
-    ...(analysisSource === 'local'
-      ? {
-          /** Hide Beginner–Master in UI for heuristic pass; keep sub-skills for snapshot. */
-          level: undefined,
-        }
-      : {}),
   }));
   const photoQuality = options?.photoQuality ?? critique.photoQuality;
   const simple =
@@ -319,255 +305,11 @@ export function finalizeCritiqueResult(
     categories,
     simple,
     overallSummary,
-    ...(analysisSource ? { analysisSource } : {}),
+    analysisSource: 'api',
     ...(photoQuality ? { photoQuality } : {}),
     overallConfidence:
       critique.overallConfidence ??
-      deriveOverallConfidence(categories, photoQuality, analysisSource),
+      deriveOverallConfidence(categories, photoQuality),
   };
 }
 
-export function deriveLocalCategoryConfidence(
-  criterion: Criterion,
-  metrics: ImageMetrics
-): CritiqueConfidence {
-  const capturePenalty =
-    (metrics.highlightClip > 0.04 ? 1 : 0) +
-    (metrics.shadowClip > 0.04 ? 1 : 0) +
-    (metrics.borderActivity > 0.28 ? 1 : 0) +
-    (metrics.centerFocus < 0.42 ? 1 : 0);
-
-  const downgrade = (confidence: CritiqueConfidence): CritiqueConfidence => {
-    if (capturePenalty <= 0) return confidence;
-    if (capturePenalty >= 2) {
-      return confidence === 'high' ? 'low' : 'low';
-    }
-    return confidence === 'high' ? 'medium' : confidence;
-  };
-
-  if (
-    criterionLabelMatches(criterion, 'Composition and shape structure') ||
-    criterionLabelMatches(criterion, 'Value and light structure') ||
-    criterionLabelMatches(criterion, 'Edge and focus control')
-  ) {
-    return downgrade(metrics.contrast > 0.18 && metrics.edgeDensity > 0.14 ? 'high' : 'medium');
-  }
-  if (criterionLabelMatches(criterion, 'Color relationships')) {
-    return downgrade(
-      metrics.saturationMean > 0.06 &&
-        metrics.highlightClip < 0.05 &&
-        metrics.shadowClip < 0.05
-        ? 'medium'
-        : 'low'
-    );
-  }
-  if (criterionLabelMatches(criterion, 'Intent and necessity')) {
-    return downgrade(metrics.contrast > 0.12 ? 'medium' : 'low');
-  }
-  if (criterionLabelMatches(criterion, 'Surface and medium handling')) {
-    return downgrade(
-      metrics.textureScore > 0.09 && metrics.highlightClip < 0.05 ? 'medium' : 'low'
-    );
-  }
-  if (
-    criterionLabelMatches(criterion, 'Drawing, proportion, and spatial form') ||
-    criterionLabelMatches(criterion, 'Presence, point of view, and human force')
-  ) {
-    return downgrade(
-      metrics.centerFocus > 0.52 && metrics.borderActivity < 0.24 ? 'medium' : 'low'
-    );
-  }
-  switch (criterion) {
-    case 'Composition and shape structure':
-    case 'Value and light structure':
-    case 'Edge and focus control':
-      return downgrade(metrics.contrast > 0.18 && metrics.edgeDensity > 0.14 ? 'high' : 'medium');
-    case 'Color relationships':
-    case 'Intent and necessity':
-    case 'Surface and medium handling':
-      return downgrade(
-        metrics.textureScore > 0.09 && metrics.highlightClip < 0.05 ? 'medium' : 'low'
-      );
-    case 'Drawing, proportion, and spatial form':
-    case 'Presence, point of view, and human force':
-      return downgrade(
-        metrics.centerFocus > 0.52 && metrics.borderActivity < 0.24 ? 'medium' : 'low'
-      );
-    default:
-      return 'medium';
-  }
-}
-
-function describeFocalOffset(focalOffset: number): string {
-  if (focalOffset < 0.22) return 'the focal pull stays close to center';
-  if (focalOffset < 0.5) return 'the focal pull sits slightly off-center';
-  return 'the strongest pull drifts far from center';
-}
-
-function describeEdgeDensity(edgeDensity: number): string {
-  if (edgeDensity < 0.14) return 'edge activity is fairly soft';
-  if (edgeDensity < 0.34) return 'edge activity is controlled';
-  return 'edge activity is busy';
-}
-
-function describeValueSpread(valueSpread: number): string {
-  if (valueSpread < 0.16) return 'light and dark masses read close together';
-  if (valueSpread < 0.34) return 'there is a usable value separation';
-  return 'light and dark masses separate clearly';
-}
-
-export function deriveLocalEvidenceSignals(
-  criterion: Criterion,
-  metrics: ImageMetrics
-): string[] {
-  switch (criterion) {
-    case 'Intent and necessity':
-      return [
-        metrics.colorHarmony > 0.62
-          ? 'major color families mostly belong to one world'
-          : 'different areas compete as separate ideas',
-        metrics.contrast > 0.18
-          ? 'structure gives the painting one dominant read'
-          : 'the read stays more dispersed than decisive',
-        metrics.edgeBalance < 0.24
-          ? 'emphasis is concentrated rather than spread evenly'
-          : 'many passages ask for equal attention',
-      ];
-    case 'Composition and shape structure':
-      return [
-        describeFocalOffset(metrics.focalOffset),
-        describeEdgeDensity(metrics.edgeDensity),
-        metrics.edgeBalance < 0.24
-          ? 'hard accents are not scattered everywhere'
-          : 'many similar accents compete at once',
-      ];
-    case 'Value and light structure':
-      return [
-        describeValueSpread(metrics.valueSpread),
-        metrics.contrast < 0.18 ? 'contrast stays compressed' : 'contrast gives the image a readable hierarchy',
-        metrics.saturationStd < 0.14
-          ? 'color variation is restrained enough to support value reads'
-          : 'color shifts may be distracting from the value pattern',
-      ];
-    case 'Color relationships':
-      return [
-        metrics.colorHarmony > 0.62
-          ? 'the palette stays in one color family'
-          : 'color families feel varied and harder to unify',
-        metrics.saturationMean > 0.18
-          ? 'there is enough chroma to create color accents'
-          : 'the palette reads muted overall',
-        metrics.saturationStd < 0.16
-          ? 'saturation changes are fairly controlled'
-          : 'saturation jumps between areas',
-      ];
-    case 'Drawing, proportion, and spatial form':
-      return [
-        metrics.edgeDensity > 0.2
-          ? 'major contours are visible enough to judge big shape placement'
-          : 'major contours stay soft and harder to compare',
-        metrics.textureScore < 0.12
-          ? 'surface noise is low enough to read shape relationships'
-          : 'surface activity makes structural reads less certain',
-        metrics.contrast > 0.18
-          ? 'value breaks help reveal planes'
-          : 'low contrast makes proportional reads less reliable',
-      ];
-    case 'Edge and focus control':
-      return [
-        describeEdgeDensity(metrics.edgeDensity),
-        metrics.edgeBalance < 0.2
-          ? 'sharp edges are concentrated in a few places'
-          : metrics.edgeBalance < 0.32
-            ? 'sharp edges are moderately spread'
-            : 'sharp edges appear in many areas',
-        describeValueSpread(metrics.valueSpread),
-      ];
-    case 'Surface and medium handling':
-      return [
-        metrics.textureScore > 0.18
-          ? 'surface variation is active'
-          : 'surface variation reads subdued',
-        metrics.edgeDensity > 0.22
-          ? 'marks create visible directional breaks'
-          : 'marks merge into broad shapes',
-        metrics.contrast > 0.18
-          ? 'light-dark changes help separate mark families'
-          : 'mark families are closer in value',
-      ];
-    case 'Presence, point of view, and human force':
-      return [
-        metrics.textureScore > 0.16
-          ? 'surface energy is visibly active'
-          : 'surface energy reads comparatively restrained',
-        metrics.saturationStd > 0.14
-          ? 'color variation adds some expressive pressure'
-          : 'color variation stays controlled and quieter',
-        describeFocalOffset(metrics.focalOffset),
-      ];
-    default:
-      return [];
-  }
-}
-
-export function deriveLocalPreserveText(
-  criterion: Criterion,
-  level: RatingLevel,
-  metrics: ImageMetrics
-): string {
-  switch (criterion) {
-    case 'Intent and necessity':
-      return 'Preserve the strongest overall read already in the piece; build revisions around that instead of starting over everywhere.';
-    case 'Composition and shape structure':
-      return level === 'Beginner'
-        ? 'Keep the clearest anchor you already have; one stable focal area is enough to build the rest around.'
-        : 'Protect the existing focal pull while you simplify secondary movement.';
-    case 'Value and light structure':
-      return metrics.valueSpread > 0.22
-        ? 'Preserve the biggest light-dark separation already working in the painting.'
-        : 'Preserve whichever passage still reads when you squint; that is your current value anchor.';
-    case 'Color relationships':
-      return metrics.colorHarmony > 0.6
-        ? 'Hold on to the overall color family even as you sharpen accents.'
-        : 'Keep the most convincing warm-cool relationship already present and build outward from it.';
-    case 'Drawing, proportion, and spatial form':
-      return 'Preserve the strongest silhouette or alignment you already trust; use it as the measuring key for weaker passages.';
-    case 'Edge and focus control':
-      return 'Keep one edge area clearly dominant so the painting still knows where to focus.';
-    case 'Surface and medium handling':
-      return metrics.textureScore > 0.14
-        ? 'Protect the passages where the marks already feel committed and economical.'
-        : 'Preserve your broadest, least-fussy shapes while you rework louder passages.';
-    case 'Presence, point of view, and human force':
-      return 'Preserve the clearest mood cue already in the piece before you add more complexity.';
-    default:
-      return 'Preserve the clearest strength already visible in the piece.';
-  }
-}
-
-export function deriveLocalPracticeExercise(
-  criterion: Criterion,
-  style: Style,
-  medium: Medium
-): string {
-  switch (criterion) {
-    case 'Intent and necessity':
-      return 'Before painting, write one sentence about what this piece is trying to do, then make a quick study that removes anything not serving that aim.';
-    case 'Composition and shape structure':
-      return `Do six 2-minute thumbnails in ${style}, changing only the focal placement and big value masses before touching detail.`;
-    case 'Value and light structure':
-      return `Make a 3-value study in ${medium.toLowerCase()} from the same reference: light, mid, dark only.`;
-    case 'Color relationships':
-      return `Paint a limited-palette study with one warm and one cool bias per major area before mixing tertiary accents.`;
-    case 'Drawing, proportion, and spatial form':
-      return 'Spend one session on envelope/block-in only: compare angles, halves, and plumb lines before rendering.';
-    case 'Edge and focus control':
-      return 'Do a small edge map study, labeling each major contour hard, soft, or lost before repainting the passage.';
-    case 'Surface and medium handling':
-      return `Make one small study with only 3-4 mark types in ${medium.toLowerCase()} so every stroke family has a job.`;
-    case 'Presence, point of view, and human force':
-      return `Make two quick variants of this piece with opposite emotional intents, then note which visual decisions actually changed.`;
-    default:
-      return 'Do one short focused study on the weakest visible sub-skill before the next full repaint.';
-  }
-}

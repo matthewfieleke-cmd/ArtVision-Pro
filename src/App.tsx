@@ -1236,11 +1236,6 @@ export default function App() {
                         ) : null}
                         <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Detection notes</p>
                         <p className="mt-2 text-sm leading-relaxed text-slate-600">{flow.styleClassifyMeta.rationale}</p>
-                        {flow.styleClassifyMeta.source === 'local' ? (
-                          <p className="mt-2 text-xs text-amber-700">
-                            Quick estimate from color and brushwork signals. Connect the API for a vision-based match.
-                          </p>
-                        ) : null}
                         {flow.mediumClassifyMeta ? (
                           <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">

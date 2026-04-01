@@ -1,7 +1,7 @@
 import type { CritiqueResult, Medium, SavedPainting, SavedPreviewEdit, Style } from './types';
 
 export type StyleMode = 'manual' | 'auto';
-export type CritiqueSource = 'api' | 'local';
+export type CritiqueSource = 'api';
 
 type FlowShared = {
   styleMode: StyleMode;
@@ -379,7 +379,7 @@ export function isCritiqueFlow(value: unknown): value is CritiqueFlow {
 
   if (candidate.step === 'results') {
     if (!candidate.critique) return false;
-    if (candidate.critiqueSource !== 'api' && candidate.critiqueSource !== 'local') return false;
+    if (candidate.critiqueSource !== 'api') return false;
   }
 
   return true;

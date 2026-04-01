@@ -53,12 +53,6 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
       : {}),
   };
   return finalizeCritiqueResult(normalized, {
-    analysisSource: normalized.analysisSource ?? 'api',
     photoQuality: normalized.photoQuality,
   });
-}
-
-export function shouldTryApiFirst(): boolean {
-  if (import.meta.env.VITE_USE_LOCAL_CRITIQUE === 'true') return false;
-  return true;
 }

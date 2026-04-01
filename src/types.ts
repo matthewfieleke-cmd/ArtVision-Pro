@@ -142,7 +142,7 @@ export type CritiqueResult = {
   /** @deprecated Plain string titles from older saves; migrated into SuggestedTitle[] on load. */
   suggestedPaintingTitlesLegacy?: string[];
   /** Whether this critique came from the API vision model or local heuristics. */
-  analysisSource?: 'api' | 'local';
+  analysisSource?: 'api';
   overallConfidence?: CritiqueConfidence;
   photoQuality?: PhotoQualityAssessment;
   /** Read of whether the piece looks in progress vs finished; steers tone of feedback. */
