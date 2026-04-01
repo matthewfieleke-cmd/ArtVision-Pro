@@ -304,12 +304,85 @@ function rankingScore(
   return 0.58 * similarity + 0.42 * criterionGain;
 }
 
-function buildEditPrompt(body: PreviewEditRequestBody): string {
+type CanonicalEditBrief = {
+  area: string;
+  whyItMatters: string;
+  issue: string;
+  move: string;
+  preserve: string;
+  expectedOutcome: string;
+  voiceBLine: string;
+};
+
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function lowerFirst(text: string): string {
+  const trimmed = normalizeWhitespace(text).replace(/[.!?]+$/, '');
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+}
+
+function splitNumberedSteps(actionPlan: string): string[] {
+  const matches = actionPlan.match(/(?:^|\n)\s*\d+[\.\)]\s+.*?(?=(?:\n\s*\d+[\.\)]\s)|$)/gs);
+  return (matches ?? []).map((step) => normalizeWhitespace(step.replace(/^\s*\d+[\.\)]\s+/, '')));
+}
+
+function recommendationAlignsToTarget(target: PreviewEditRequestBody['target']): boolean {
+  const recommendation = target.studioChangeRecommendation?.trim();
+  if (!recommendation) return false;
+  const anchor = target.anchor;
+  const editPlan = target.editPlan;
+  if (!anchor || !editPlan) return false;
+  const normalized = normalizeWhitespace(recommendation).toLowerCase();
+  const requiredBits = [
+    anchor.areaSummary,
+    editPlan.targetArea,
+    editPlan.issue,
+    editPlan.intendedChange,
+  ]
+    .map((text) => lowerFirst(text))
+    .filter(Boolean);
+  return requiredBits.some((bit) => normalized.includes(bit));
+}
+
+function buildCanonicalEditBrief(target: PreviewEditRequestBody['target']): CanonicalEditBrief {
+  const area = normalizeWhitespace(
+    target.editPlan?.targetArea ?? target.anchor?.areaSummary ?? target.criterion.toLowerCase()
+  );
+  const whyItMatters = normalizeWhitespace(
+    target.anchor?.evidencePointer ?? target.feedback ?? `${area} is the selected passage for this criterion.`
+  );
+  const issue = normalizeWhitespace(
+    target.editPlan?.issue ?? target.feedback ?? `This passage still limits ${target.criterion.toLowerCase()}.`
+  );
+  const move = normalizeWhitespace(
+    target.editPlan?.intendedChange ??
+      splitNumberedSteps(target.actionPlan)[0] ??
+      `Revise ${area} to improve ${target.criterion.toLowerCase()}.`
+  );
+  const preserve = normalizeWhitespace(
+    target.editPlan?.preserveArea ?? `Keep the nearby strengths around ${area} intact.`
+  );
+  const expectedOutcome = normalizeWhitespace(
+    target.editPlan?.expectedOutcome ?? `The passage should read more clearly after this edit.`
+  );
+  const voiceBLine = recommendationAlignsToTarget(target)
+    ? normalizeWhitespace(target.studioChangeRecommendation!)
+    : splitNumberedSteps(target.actionPlan)[0] ??
+      normalizeWhitespace(target.actionPlan) ??
+      normalizeWhitespace(target.feedback);
+  return { area, whyItMatters, issue, move, preserve, expectedOutcome, voiceBLine };
+}
+
+export function buildEditPrompt(body: PreviewEditRequestBody): string {
   const { style, medium, target } = body;
   const masterSignals = getCriterionMasterSignals(style, target.criterion)
     .slice(0, 4)
     .map((signal: string) => `- ${signal}`)
     .join('\n');
+  const brief = buildCanonicalEditBrief(target);
   const anchorBlock = target.anchor
     ? `Anchored passage to revise:
 - Area: ${target.anchor.areaSummary}
@@ -324,22 +397,26 @@ function buildEditPrompt(body: PreviewEditRequestBody): string {
 - intendedChange: ${target.editPlan.intendedChange}
 - expectedOutcome: ${target.editPlan.expectedOutcome}`
     : 'Machine-readable edit plan: infer the exact edit from the critique text only.';
-  const changeBlock =
-    target.studioChangeRecommendation?.trim() ?? `${target.feedback}\n\n${target.actionPlan}`;
   return `You are a master painter doing a single careful revision pass on the artist's OWN work for teaching purposes.
 
 Context: ${style}, medium ${medium}.
 
 Focus ONLY on: "${target.criterion}"${target.level ? ` (rated ${target.level})` : ''}.
 
-What to address — specific change to implement on this canvas (from the artist's critique):
-${changeBlock}
+Canonical edit brief for this selected criterion (authoritative priority order: editPlan -> aligned Voice B line -> actionPlan wording):
+- Area to revise: ${brief.area}
+- Why this passage matters: ${brief.whyItMatters}
+- Current issue in that passage: ${brief.issue}
+- Exact move to make: ${brief.move}
+- What to preserve nearby: ${brief.preserve}
+- Expected read after the move: ${brief.expectedOutcome}
+- Voice B line to honor if aligned: ${brief.voiceBLine}
 
 ${anchorBlock}
 
 ${planBlock}
 
-Show this improvement via paint (not caption). Treat the anchor and edit plan as the authoritative target; use the prose only to clarify nuance.
+Show this improvement via paint (not caption). Treat the canonical edit brief and edit plan as authoritative; use any remaining prose only to clarify nuance, never to broaden the target.
 
 Master-level signals to honor for this exact criterion in ${style}:
 ${masterSignals || '- Use the strongest available style-consistent master signals for this criterion.'}

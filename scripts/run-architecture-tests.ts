@@ -6,6 +6,7 @@ import {
   // eslint-disable-next-line import/named
 } from '../lib/critiqueAudit.js';
 import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
+import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
 import {
   applyCorsHeaders,
@@ -606,11 +607,91 @@ function testCriterionBandRubric(): void {
   assert.match(promptBlock, /Style-aware signals for Expressionism:/);
 }
 
+function testPreviewEditPromptAlignment(): void {
+  const prompt = buildEditPrompt({
+    imageDataUrl: 'data:image/png;base64,abc',
+    style: 'Realism',
+    medium: 'Oil on Canvas',
+    target: {
+      criterion: 'Edge and focus control',
+      level: 'Intermediate',
+      feedback:
+        'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
+      actionPlan:
+        '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+      anchor: {
+        areaSummary: 'the foreground chair back',
+        evidencePointer: 'its interior verticals compete with the face instead of supporting it',
+        region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
+      },
+      editPlan: {
+        targetArea: 'the foreground chair back',
+        preserveArea: 'the outer chair silhouette and the head-to-shirt contrast',
+        issue: 'the interior chair bars pull too strongly relative to the face',
+        intendedChange: 'soften the interior chair bars while preserving the silhouette',
+        expectedOutcome: 'the face regains the first read',
+        editability: 'yes',
+      },
+      studioChangeRecommendation:
+        'Soften the interior bars of the foreground chair back so the seated face keeps priority.',
+    },
+  });
+  assert.match(prompt, /Focus ONLY on: "Edge and focus control"/);
+  assert.match(prompt, /Canonical edit brief for this selected criterion/);
+  assert.match(prompt, /- Area to revise: the foreground chair back/);
+  assert.match(prompt, /- Current issue in that passage: the interior chair bars pull too strongly relative to the face/);
+  assert.match(prompt, /- Exact move to make: soften the interior chair bars while preserving the silhouette/);
+  assert.match(prompt, /- Expected read after the move: the face regains the first read/);
+  assert.match(
+    prompt,
+    /- Voice B line to honor if aligned: Soften the interior bars of the foreground chair back so the seated face keeps priority\./
+  );
+  assert.doesNotMatch(prompt, /What to address — specific change to implement on this canvas/);
+
+  const unalignedPrompt = buildEditPrompt({
+    imageDataUrl: 'data:image/png;base64,abc',
+    style: 'Realism',
+    medium: 'Oil on Canvas',
+    target: {
+      criterion: 'Color relationships',
+      level: 'Advanced',
+      feedback:
+        'Muted drawing values remain disciplined in one family. The slight warmth of the floor against the cooler wall is enough to separate zones without forcing color.',
+      actionPlan:
+        '1. Keep the current value-led palette discipline in the floor and wall.',
+      anchor: {
+        areaSummary: 'the floor-to-wall transition at lower left',
+        evidencePointer: 'the slight warmth shift separates the room planes without breaking the drawing medium',
+        region: { x: 0.0, y: 0.55, width: 0.35, height: 0.33 },
+      },
+      editPlan: {
+        targetArea: 'the floor-to-wall transition at lower left',
+        preserveArea: 'the muted palette world across the room',
+        issue: 'the current value-led separation is already convincing',
+        intendedChange: 'preserve the present warmth shift rather than adding color',
+        expectedOutcome: 'the room planes stay distinct without forcing hue',
+        editability: 'no',
+      },
+      studioChangeRecommendation:
+        'Ensure that the focus on the eyes and lips remains sharp to draw attention to the expression.',
+    },
+  });
+  assert.match(
+    unalignedPrompt,
+    /Voice B line to honor if aligned: Keep the current value-led palette discipline in the floor and wall\./
+  );
+  assert.doesNotMatch(
+    unalignedPrompt,
+    /Ensure that the focus on the eyes and lips remains sharp to draw attention to the expression\./
+  );
+}
+
 async function main(): Promise<void> {
   await testCritiqueFlow();
   await testApiHelpers();
   testCritiqueGuardrails();
   testCriterionBandRubric();
+  testPreviewEditPromptAlignment();
   await runPreviewResizeTests();
   console.log('Architecture tests passed.');
 }
