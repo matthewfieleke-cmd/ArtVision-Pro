@@ -1,4 +1,5 @@
 import { CRITERIA_ORDER } from '../shared/criteria.js';
+import { splitNumberedSteps } from './numberedSteps.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 
 function normalizeWhitespace(text: string): string {
@@ -192,32 +193,63 @@ function isVagueVoiceBText(text: string): boolean {
   return VAGUE_VOICE_B_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-function splitNumberedSteps(actionPlan: string): string[] {
-  const matches = actionPlan.match(/(?:^|\n)\s*\d+[\.\)]\s+.*?(?=(?:\n\s*\d+[\.\)]\s)|$)/gs);
-  if (!matches) return [];
-  return matches.map((step) => normalizeWhitespace(step.replace(/^\s*\d+[\.\)]\s+/, ''))).filter(Boolean);
-}
-
 function ensureTrailingPeriod(text: string): string {
   const trimmed = normalizeWhitespace(text);
   if (!trimmed) return '';
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+function concretePhrase(text: string): string {
+  return normalizeWhitespace(text).replace(/^[A-Z]/, (m) => m.toLowerCase());
+}
+
+function looksConceptualLabel(text: string): boolean {
+  const normalized = normalizeWhitespace(text).toLowerCase();
+  if (!normalized) return true;
+  return (
+    /\b(left side of the painting|right side of the painting|background colors?|background color transitions|color transitions|peripheral elements|narrative focus|story|composition overall)\b/i.test(
+      normalized
+    ) ||
+    (!/[,'’\-]/.test(normalized) &&
+      /\b(arrangement|transitions|elements|background|foreground|narrative|composition|integration)\b/i.test(normalized))
+  );
+}
+
+function structuredFieldsAreConcrete(category: CritiqueResultDTO['categories'][number]): boolean {
+  const area = category.anchor?.areaSummary ?? category.editPlan?.targetArea ?? '';
+  const issue = category.editPlan?.issue ?? '';
+  const move = category.editPlan?.intendedChange ?? '';
+  const outcome = category.editPlan?.expectedOutcome ?? '';
+  if (!area.trim() || !issue.trim() || !move.trim() || !outcome.trim()) return false;
+  if (looksConceptualLabel(area)) return false;
+  if (
+    /\b(more depth|better narrative|improve realism|enhanced clarity|more cohesive|more integrated)\b/i.test(
+      `${issue} ${move} ${outcome}`
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function fallbackVoiceBStep(
   category: CritiqueResultDTO['categories'][number],
   index: number
 ): string {
+  if (!structuredFieldsAreConcrete(category)) {
+    const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
+    return `${index + 1}. Rework ${area} with one specific, local adjustment that this criterion can actually see; keep the strongest nearby relationship intact.`;
+  }
   const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
   const issue =
-    lowerFirst(category.editPlan?.issue ?? '') ||
-    lowerFirst(category.anchor?.evidencePointer ?? '') ||
+    concretePhrase(category.editPlan?.issue ?? '') ||
+    concretePhrase(category.anchor?.evidencePointer ?? '') ||
     'the current relationship still reads too generically';
   const move =
-    lowerFirst(category.editPlan?.intendedChange ?? '') ||
+    concretePhrase(category.editPlan?.intendedChange ?? '') ||
     'make one clearer directional adjustment there';
   const outcome =
-    lowerFirst(category.editPlan?.expectedOutcome ?? '') ||
+    concretePhrase(category.editPlan?.expectedOutcome ?? '') ||
     'the passage reads with more deliberate control';
   return `${index + 1}. In ${area}, ${issue}; ${move} so ${outcome}.`;
 }
@@ -244,16 +276,21 @@ function rewriteStudioChangeFromStructuredFields(
   category: CritiqueResultDTO['categories'][number],
   existingText?: string
 ): string {
+  if (!structuredFieldsAreConcrete(category)) {
+    return existingText && normalizeWhitespace(existingText).length > 0
+      ? existingText
+      : `In ${category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase()}, make one clearly local change that strengthens ${category.criterion.toLowerCase()}.`;
+  }
   const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
   const issue =
-    lowerFirst(category.editPlan?.issue ?? '') ||
-    lowerFirst(category.anchor?.evidencePointer ?? '') ||
+    concretePhrase(category.editPlan?.issue ?? '') ||
+    concretePhrase(category.anchor?.evidencePointer ?? '') ||
     'the current passage still needs a more deliberate read';
   const move =
-    lowerFirst(category.editPlan?.intendedChange ?? '') ||
+    concretePhrase(category.editPlan?.intendedChange ?? '') ||
     'make one clearer adjustment there';
   const outcome =
-    lowerFirst(category.editPlan?.expectedOutcome ?? '') ||
+    concretePhrase(category.editPlan?.expectedOutcome ?? '') ||
     'the painting reads more clearly afterward';
 
   if (

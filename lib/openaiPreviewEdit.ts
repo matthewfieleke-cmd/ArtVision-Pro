@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { getCriterionMasterSignals } from '../shared/masterCriteriaRubric.js';
+import { splitNumberedSteps } from './numberedSteps.js';
 import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes.js';
 import {
   bufferToApiInputPng,
@@ -322,11 +323,6 @@ function lowerFirst(text: string): string {
   const trimmed = normalizeWhitespace(text).replace(/[.!?]+$/, '');
   if (!trimmed) return '';
   return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
-}
-
-function splitNumberedSteps(actionPlan: string): string[] {
-  const matches = actionPlan.match(/(?:^|\n)\s*\d+[\.\)]\s+.*?(?=(?:\n\s*\d+[\.\)]\s)|$)/gs);
-  return (matches ?? []).map((step) => normalizeWhitespace(step.replace(/^\s*\d+[\.\)]\s+/, '')));
 }
 
 function recommendationAlignsToTarget(target: PreviewEditRequestBody['target']): boolean {

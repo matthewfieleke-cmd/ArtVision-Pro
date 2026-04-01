@@ -3,6 +3,7 @@ import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { PaintingOverlay } from './PaintingOverlay';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
+import { parseNumberedSteps } from '../../lib/numberedSteps';
 import type {
   CompletionRead,
   CritiqueCategory,
@@ -30,6 +31,22 @@ type CritiquePanelsProps = {
   workingTitle?: string;
   onSelectSuggestedTitle?: (title: string) => void;
 };
+
+function ActionPlanBlock({ actionPlan }: { actionPlan: string }) {
+  const steps = parseNumberedSteps(actionPlan);
+  if (!steps.length) {
+    return <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">{actionPlan}</p>;
+  }
+  return (
+    <ol className="mt-1 space-y-2 pl-4 text-xs leading-relaxed text-slate-700">
+      {steps.map((step, idx) => (
+        <li key={`${idx}-${step}`} className="list-decimal">
+          {step}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 function completionBadgeClasses(state: WorkCompletionState): string {
   switch (state) {
@@ -274,7 +291,7 @@ function CategoryCard({
           ) : null}
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
-            <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">{category.actionPlan}</p>
+            <ActionPlanBlock actionPlan={category.actionPlan} />
           </div>
           {hasRating && category.practiceExercise ? (
             <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3">

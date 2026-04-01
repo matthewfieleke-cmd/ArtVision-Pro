@@ -7,6 +7,7 @@ import {
 } from '../lib/critiqueAudit.js';
 import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
+import { splitNumberedSteps } from '../lib/numberedSteps.ts';
 import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
 import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
@@ -576,16 +577,83 @@ function testCritiqueGuardrails(): void {
 
   const rewrittenVoiceB = applyCritiqueGuardrails(vagueVoiceB as any);
   assert.match(
-    rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
+    rewrittenVoiceB.categories.find((category) => category.criterion === 'Edge and focus control')!.actionPlan,
     /foreground chair back|interior chair bars|face/i
   );
   assert.match(
-    rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
+    rewrittenVoiceB.categories.find((category) => category.criterion === 'Edge and focus control')!.actionPlan,
     /soften|sharpen|preserve|keep|separate/i
   );
+  assert.equal(
+    rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
+    'Define certain edges more clearly to enhance the focus hierarchy.'
+  );
+
+  const inlineNumbered = {
+    ...base,
+    categories: base.categories.map((category) =>
+      category.criterion === 'Composition and shape structure'
+        ? {
+            ...category,
+            actionPlan:
+              '1. Preserve the circular arrangement of figures around the table, as it effectively guides the viewer’s eye. 2. Slightly adjust the spacing between figures to reduce visual competition and enhance clarity. 3. Ensure that the integration of background and foreground continues to support the depth of the composition.',
+          }
+        : category
+    ),
+  };
+  const normalizedInline = applyCritiqueGuardrails(inlineNumbered as any);
+  assert.ok(splitNumberedSteps(normalizedInline.categories[1]!.actionPlan).length >= 1);
+  assert.doesNotMatch(
+    normalizedInline.categories[1]!.actionPlan,
+    /1\..*2\..*3\..*\n2\./s
+  );
+
+  const weakStructuredVoiceB = {
+    ...base,
+    categories: base.categories.map((category) =>
+      category.criterion === 'Color relationships'
+        ? {
+            ...category,
+            anchor: {
+              areaSummary: 'background color transitions',
+              evidencePointer: 'some color transitions in the background are abrupt',
+              region: { x: 0.4, y: 0.1, width: 0.45, height: 0.4 },
+            },
+            editPlan: {
+              targetArea: 'background color transitions',
+              preserveArea: 'the lively atmosphere',
+              issue: 'some color transitions could be more gradual',
+              intendedChange: 'soften abrupt color transitions in the background',
+              expectedOutcome: 'the visual flow is more cohesive',
+              editability: 'yes',
+            },
+            actionPlan:
+              '1. Smooth transitions between colors in the background to enhance harmony. 2. Keep the lively atmosphere intact.',
+          }
+        : category
+    ),
+    simpleFeedback: {
+      ...base.simpleFeedback!,
+      studioChanges: [
+        {
+          text: 'Smooth out abrupt color transitions to enhance the realism of the painting.',
+          previewCriterion: 'Color relationships',
+        },
+      ],
+    },
+  };
+  const guardedWeakStructured = applyCritiqueGuardrails(weakStructuredVoiceB as any);
+  const guardedColorCategory = guardedWeakStructured.categories.find(
+    (category) => category.criterion === 'Color relationships'
+  );
+  assert.ok(guardedColorCategory);
   assert.match(
-    rewrittenVoiceB.simpleFeedback!.studioChanges[1]!.text,
-    /floor-to-wall transition|warmth shift|muted palette/i
+    guardedColorCategory!.actionPlan,
+    /Smooth transitions between colors in the background to enhance harmony|Keep the lively atmosphere intact/
+  );
+  assert.doesNotMatch(
+    guardedColorCategory!.actionPlan,
+    /so the visual flow is more cohesive, enhancing the painting's mood|the depth is enhanced with smoother transitions/i
   );
 }
 
