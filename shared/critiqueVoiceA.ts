@@ -10,6 +10,12 @@ Close reading of the image (do this before writing the JSON):
 - Anchor observations in pictorial facts: where planes meet, how light models form, how the surface varies (reserve vs load, thin vs thick, lost vs found edges).
 - Separate what is clearly visible in this photograph from what you infer; use lower confidence where the capture is ambiguous.
 - For representational work, name motifs and objects in situ; for abstract or non-objective work, name specific marks, bands, fields, and repeated units—never only “a shape” or “an area” without a pointer.
+
+Junction-level specificity (required for every visibleEvidence entry):
+- Every observation must name at least TWO identifiable things and describe the visual relationship between them. “The background is slightly blurred” is not evidence. “The standing clerk’s dark coat merges with the office partition behind him so the two shapes read as one mass” IS evidence.
+- Name the relationship: where X meets Y, what happens at that junction (value break, color shift, edge type, overlap, alignment, spacing).
+- Bad evidence: “figures in the foreground”, “some edges are soft”, “the color palette is harmonious”, “the composition is balanced.”
+- Good evidence: “the seated man’s white shirt against the dark desk creates the room’s strongest value break”, “the two standing figures at right share the same middle value, flattening their overlap”, “the warm wood desk tone cools abruptly where it meets the gray floor, marking the spatial jump.”
 `.trim();
 
 /**

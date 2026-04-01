@@ -211,10 +211,20 @@ const photoQualityReadSchema = z.object({
 
 const criterionEvidenceSchema = z.object({
   criterion: criterionEnum,
-  visibleEvidence: z.array(z.string()).min(2).max(5),
-  strengthRead: z.string(),
-  tensionRead: z.string(),
-  preserve: z.string(),
+  visibleEvidence: z.array(
+    z.string().describe(
+      'One specific visual observation for this criterion. Must name two identifiable things and their relationship — e.g. "the white newspaper page meets the dark coat behind it at left-center with almost no value break" or "the warm yellow window glow against the cool blue-gray clapboard creates the strongest temperature contrast on the facade." NEVER write "the background could be improved" or "some edges are soft" without naming which objects/areas and what is happening between them.'
+    )
+  ).min(2).max(5),
+  strengthRead: z.string().describe(
+    'What already works for this criterion in this painting. Name the specific passage and relationship that succeeds — not "good composition" but "the diagonal of figures from lower-left to upper-right creates a clear reading path through the office."'
+  ),
+  tensionRead: z.string().describe(
+    'What is unresolved for this criterion, if anything. Name the specific passage and what competes, merges, or misaligns there. If nothing is genuinely unresolved, say so plainly. NEVER manufacture a tension just to fill this field.'
+  ),
+  preserve: z.string().describe(
+    'What specific relationship in this painting must survive any revision for this criterion. Name the passage and the visual event to protect.'
+  ),
   confidence: confidenceEnum,
 });
 

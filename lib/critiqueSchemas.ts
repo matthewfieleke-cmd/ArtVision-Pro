@@ -81,11 +81,27 @@ export const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
               type: 'array',
               minItems: 2,
               maxItems: 5,
-              items: { type: 'string' },
+              items: {
+                type: 'string',
+                description:
+                  'One specific visual observation: name two identifiable things and their relationship (e.g. "the white newspaper meets the dark coat behind with almost no value break"). Never write "some edges are soft" without naming which objects and what happens between them.',
+              },
             },
-            strengthRead: { type: 'string' },
-            tensionRead: { type: 'string' },
-            preserve: { type: 'string' },
+            strengthRead: {
+              type: 'string',
+              description:
+                'What works for this criterion. Name the specific passage and relationship that succeeds.',
+            },
+            tensionRead: {
+              type: 'string',
+              description:
+                'What is unresolved. Name the specific passage and what competes or merges there. If nothing is genuinely unresolved, say so plainly.',
+            },
+            preserve: {
+              type: 'string',
+              description:
+                'What specific relationship must survive revision. Name the passage and visual event to protect.',
+            },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
           },
         },

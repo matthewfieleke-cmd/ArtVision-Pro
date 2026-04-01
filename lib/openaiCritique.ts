@@ -56,8 +56,15 @@ async function runCritiqueEvidenceStage(
     throw new Error(err?.message ?? `OpenAI error ${response.status}`);
   }
 
-  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
-  const text = choices?.[0]?.message?.content;
+  const choices = json.choices as Array<{
+    message?: { content?: string };
+    finish_reason?: string;
+  }> | undefined;
+  const choice = choices?.[0];
+  if (choice?.finish_reason === 'length') {
+    throw new Error('Evidence response truncated (token limit reached)');
+  }
+  const text = choice?.message?.content;
   if (!text || typeof text !== 'string') throw new Error('Empty model response');
 
   try {
