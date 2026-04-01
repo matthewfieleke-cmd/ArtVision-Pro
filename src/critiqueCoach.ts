@@ -36,6 +36,17 @@ function lowerFirst(text: string): string {
   return text;
 }
 
+function actionPlanReferencesAnchor(actionPlan: string, anchor?: { areaSummary?: string }): boolean {
+  if (!anchor?.areaSummary) return true;
+  const plan = normalizeWhitespace(actionPlan).toLowerCase();
+  const summary = normalizeWhitespace(anchor.areaSummary).toLowerCase();
+  if (!summary || summary.length < 4) return true;
+  if (plan.includes(summary)) return true;
+  const tokens = summary.split(/\s+/).filter((t) => t.length >= 4);
+  const matched = tokens.filter((t) => plan.includes(t)).length;
+  return tokens.length > 0 && matched >= Math.min(2, tokens.length);
+}
+
 function stripRedundantPreserve(text: string): string {
   return text
     .replace(/\s+should be (preserved|maintained|protected)\.?$/i, '')
@@ -285,7 +296,9 @@ export function finalizeCritiqueResult(
           )
         : undefined),
     actionPlan:
-      cat.actionPlan && normalizeWhitespace(cat.actionPlan).length > 0
+      cat.actionPlan &&
+      normalizeWhitespace(cat.actionPlan).length > 0 &&
+      actionPlanReferencesAnchor(cat.actionPlan, cat.anchor)
         ? cat.actionPlan
         : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? cat.actionPlan,
     ...(analysisSource === 'local'
