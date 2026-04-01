@@ -6,7 +6,7 @@ Tracked items for future work, ordered by reliability impact.
 
 ## Priority 1 — Schema / Type Unification
 
-**Status: IN PROGRESS**
+**Status: DONE** (lib/critiqueZodSchemas.ts)
 
 The same critique data shape is defined independently in four places:
 
@@ -25,15 +25,12 @@ derives JSON schemas and TypeScript types from one definition.
 
 ## Priority 2 — Schema Round-Trip Tests
 
-Architecture tests cover guardrails and flow logic thoroughly but never
-validate a mock API response through `validateVoiceBPlan` or
-`validateCritiqueResult`. A test that constructs a schema-conformant Voice B
-response and parses it through validation would have caught the
-`intendedRead` bug instantly.
+**Status: DONE** (testZodSchemaRoundTrip in run-architecture-tests.ts)
 
-**Fix:** Add round-trip tests (construct → validate → assert shape) for
-each stage schema. Vitest is the natural runner since the project already
-uses Vite.
+Round-trip tests verify that mock Voice B responses conforming to the Zod
+schema also pass through `validateCritiqueResult`. Negative tests confirm
+that field-name mismatches (e.g. `intendedRead` instead of `expectedRead`)
+are caught.
 
 ## Priority 3 — AI Pipeline Error Handling
 
