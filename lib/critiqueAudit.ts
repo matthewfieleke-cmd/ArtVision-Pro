@@ -238,7 +238,10 @@ function fallbackVoiceBStep(
 ): string {
   if (!structuredFieldsAreConcrete(category)) {
     const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
-    return `${index + 1}. Rework ${area} with one specific, local adjustment that this criterion can actually see; keep the strongest nearby relationship intact.`;
+    const existingSteps = splitNumberedSteps(category.actionPlan);
+    const reusable = existingSteps.find((step) => normalizeWhitespace(step).length > 0 && !isVagueVoiceBText(step));
+    if (reusable) return `${index + 1}. ${ensureTrailingPeriod(reusable)}`;
+    return `${index + 1}. Keep the strongest relationship in ${area} intact and make only one clearly local revision there.`;
   }
   const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
   const issue =
@@ -259,17 +262,32 @@ function rewriteActionPlanFromStructuredFields(
 ): string {
   if (category.level === 'Master') return category.actionPlan;
   const existingSteps = splitNumberedSteps(category.actionPlan);
+  if (!structuredFieldsAreConcrete(category) && existingSteps.length > 0) {
+    return existingSteps.map((step, index) => `${index + 1}. ${ensureTrailingPeriod(step)}`).join('\n');
+  }
   const minimumSteps = category.level === 'Advanced' ? 2 : 3;
   const steps: string[] = [];
+  const usedNormalizedSteps = new Set<string>();
   for (let i = 0; i < Math.max(minimumSteps, existingSteps.length); i++) {
     const existing = existingSteps[i];
-    if (existing && !isVagueVoiceBText(existing) && anchoredCategoryMatchesText(existing, category)) {
+    const normalizedExisting = existing ? normalizeWhitespace(existing).toLowerCase() : '';
+    if (
+      existing &&
+      !isVagueVoiceBText(existing) &&
+      anchoredCategoryMatchesText(existing, category) &&
+      !usedNormalizedSteps.has(normalizedExisting)
+    ) {
       steps.push(`${i + 1}. ${ensureTrailingPeriod(existing)}`);
+      usedNormalizedSteps.add(normalizedExisting);
     } else {
-      steps.push(fallbackVoiceBStep(category, i));
+      const fallback = fallbackVoiceBStep(category, i);
+      const normalizedFallback = normalizeWhitespace(fallback).toLowerCase();
+      if (usedNormalizedSteps.has(normalizedFallback)) continue;
+      steps.push(fallback);
+      usedNormalizedSteps.add(normalizedFallback);
     }
   }
-  return steps.join('\n');
+  return steps.slice(0, minimumSteps).join('\n');
 }
 
 function rewriteStudioChangeFromStructuredFields(
@@ -279,7 +297,7 @@ function rewriteStudioChangeFromStructuredFields(
   if (!structuredFieldsAreConcrete(category)) {
     return existingText && normalizeWhitespace(existingText).length > 0
       ? existingText
-      : `In ${category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase()}, make one clearly local change that strengthens ${category.criterion.toLowerCase()}.`;
+      : `Keep the strongest visible relationship in ${category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase()} intact before making any revision on this criterion.`;
   }
   const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
   const issue =

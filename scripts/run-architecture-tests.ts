@@ -653,7 +653,7 @@ function testCritiqueGuardrails(): void {
   );
   assert.doesNotMatch(
     guardedColorCategory!.actionPlan,
-    /so the visual flow is more cohesive, enhancing the painting's mood|the depth is enhanced with smoother transitions/i
+    /so the visual flow is more cohesive, enhancing the painting's mood|the depth is enhanced with smoother transitions|one specific, local adjustment that this criterion can actually see/i
   );
 }
 
