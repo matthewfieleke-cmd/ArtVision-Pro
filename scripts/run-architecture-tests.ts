@@ -25,6 +25,7 @@ import {
 } from '../src/critiqueFlow.js';
 import type { CritiqueResult, SavedPainting } from '../src/types.js';
 import { runPreviewResizeTests } from './test-preview-resize.js';
+import { formatRubricForPrompt, getCriterionRubric } from '../shared/masterCriteriaRubric.js';
 
 function makeCritiqueResult(): CritiqueResult {
   return {
@@ -531,10 +532,30 @@ function testCritiqueGuardrails(): void {
   assert.equal(critiqueNeedsFreshEvidenceRead(vagueStudioAnalysis), true);
 }
 
+function testCriterionBandRubric(): void {
+  const realismEdgeRubric = getCriterionRubric('Realism', 'Edge and focus control');
+  assert.ok(realismEdgeRubric);
+  assert.ok(realismEdgeRubric!.genericBands.Beginner.visibleSignals.length > 0);
+  assert.ok(realismEdgeRubric!.genericBands.Intermediate.visibleSignals.length > 0);
+  assert.ok(realismEdgeRubric!.genericBands.Advanced.visibleSignals.length > 0);
+  assert.ok(realismEdgeRubric!.genericBands.Master.visibleSignals.length > 0);
+  assert.ok(realismEdgeRubric!.stylizationGuardrails.length > 0);
+
+  const promptBlock = formatRubricForPrompt('Expressionism');
+  assert.match(promptBlock, /Composition and shape structure:/);
+  assert.match(promptBlock, /- Beginner:/);
+  assert.match(promptBlock, /- Intermediate:/);
+  assert.match(promptBlock, /- Advanced:/);
+  assert.match(promptBlock, /- Master:/);
+  assert.match(promptBlock, /Stylization guardrails:/);
+  assert.match(promptBlock, /Style-aware signals for Expressionism:/);
+}
+
 async function main(): Promise<void> {
   await testCritiqueFlow();
   await testApiHelpers();
   testCritiqueGuardrails();
+  testCriterionBandRubric();
   await runPreviewResizeTests();
   console.log('Architecture tests passed.');
 }

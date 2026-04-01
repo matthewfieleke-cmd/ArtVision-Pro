@@ -1,341 +1,505 @@
 import type { StyleKey } from './artists.js';
-import { CRITERIA_ORDER, type CriterionLabel } from './criteria.js';
+import { CRITERIA_ORDER, RATING_LEVELS, type CriterionLabel, type RatingLevelLabel } from './criteria.js';
+
+export type BandRubric = {
+  /** Short bullets for the model; keep concrete and visually checkable in a photo. */
+  visibleSignals: string[];
+  /** Boundary language: what is still missing before the next band. */
+  separatesFromHigher?: string[];
+};
 
 /**
- * Style-specific observable signals for vision critique prompts.
- * Grounds "Master" in techniques associated with the full benchmark roster (including added masters).
+ * Criterion-specific rating language used by evidence, calibration, and writing stages.
+ * Includes a generic four-band rubric plus style-aware additions and stylization guardrails.
  */
 export type CriterionRubric = {
   criterion: CriterionLabel;
-  /** Short bullets for the model; keep concrete and visually checkable in a photo */
-  masterSignals: string[];
+  genericBands: Record<RatingLevelLabel, BandRubric>;
+  styleSignals: string[];
+  stylizationGuardrails: string[];
 };
 
-const REALISM_RUBRIC: CriterionRubric[] = [
+type CriterionRubricSeed = {
+  criterion: CriterionLabel;
+  styleSignals: string[];
+  stylizationGuardrails?: string[];
+};
+
+function baseBandRubric(criterion: CriterionLabel): Record<RatingLevelLabel, BandRubric> {
+  switch (criterion) {
+    case 'Composition and shape structure':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Big shapes feel scattered, accidental, or weakly related to each other.',
+            'Focal pull is missing or unstable unless distributed attention still feels controlled.',
+            'Stylized flattening or distortion reads as loose placement rather than authored structure.',
+          ],
+          separatesFromHigher: ['The painting still lacks a dependable large-shape scaffold.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'Major masses hold together enough to give the eye a usable route.',
+            'Some intervals, alignments, or asymmetries feel intentional rather than accidental.',
+            'Simplification can be bold, but the picture still keeps enough structural coherence to read deliberately.',
+          ],
+          separatesFromHigher: ['Secondary shapes still compete or drift enough to weaken the whole design.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'Large-shape organization is strong across most of the rectangle.',
+            'Distributed attention, off-center emphasis, or compression still feel controlled rather than merely busy or sparse.',
+            'Only selective local refinement remains before the design feels fully inevitable.',
+          ],
+          separatesFromHigher: ['One or two shape relationships still feel developed rather than exemplary.'],
+        },
+        Master: {
+          visibleSignals: [
+            'The entire rectangle feels authored; every major mass and interval belongs to the same compositional logic.',
+            'Stylization, asymmetry, openness, or narrative staging all read as fully controlled choices.',
+            'No passage feels compositional filler or casually placed.',
+          ],
+        },
+      };
+    case 'Value and light structure':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Light and dark groups do not separate convincingly or shift arbitrarily.',
+            'Form lighting feels guessy, blunt, or unsupported by the rest of the image.',
+            'High contrast or compression may be dramatic, but it does not yet organize the picture clearly.',
+          ],
+          separatesFromHigher: ['The eye cannot trust the current value pattern to hold the picture together.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'Main light-dark groups are readable more often than not.',
+            'Value decisions support some form or atmosphere, even if local passages remain uncertain.',
+            'Stylized value compression still preserves a workable hierarchy.',
+          ],
+          separatesFromHigher: ['Local value steps still flatten, merge, or overstate important passages.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'The value structure stays coherent across most of the painting and survives a squint test.',
+            'Light, compression, or chiaroscuro feel interpreted but controlled.',
+            'Only modest local refinement remains in selective passages.',
+          ],
+          separatesFromHigher: ['A few transitions or emphases still stop short of fully sustained mastery.'],
+        },
+        Master: {
+          visibleSignals: [
+            'The value pattern feels inevitable and fully integrated with form, mood, and attention.',
+            'Stylized compression or drama remains completely legible and authored.',
+            'No meaningful passage needs further light-logic correction.',
+          ],
+        },
+      };
+    case 'Color relationships':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Color families clash, drift, or behave without a clear relational logic.',
+            'Saturation or bold hue carries attention by loudness rather than by structure.',
+            'Expressive or non-natural color may be vivid, but it does not yet hold together as a controlled system.',
+          ],
+          separatesFromHigher: ['The palette still reads more accidental than intentional.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'The palette mostly belongs to one world, even if some transitions are abrupt.',
+            'Temperature or saturation shifts support parts of the image with partial consistency.',
+            'Stylized color choices feel somewhat controlled rather than purely arbitrary.',
+          ],
+          separatesFromHigher: ['Some passages still need cleaner relational discipline or stronger color hierarchy.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'Color decisions are coherent, purposeful, and supportive across most of the painting.',
+            'Bold, muted, symbolic, or naturalistic color all read as chosen rather than defaulted.',
+            'Only selective local passages need more precision or subtlety.',
+          ],
+          separatesFromHigher: ['The chromatic system is strong but not yet fully inexhaustible or inevitable.'],
+        },
+        Master: {
+          visibleSignals: [
+            'Color relationships feel fully authored and structurally necessary throughout.',
+            'Temperature, saturation, and hue all work together without dead or arbitrary zones.',
+            'The palette achieves exceptional unity and distinction at once.',
+          ],
+        },
+      };
+    case 'Drawing, proportion, and spatial form':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Placements, proportions, or spatial turns feel unstable or weakly measured.',
+            'Stylized distortion reads as inconsistency rather than controlled transformation.',
+            'Forms do not hold together convincingly enough to trust the image structure.',
+          ],
+          separatesFromHigher: ['Large shape relationships are still too unreliable for a higher band.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'Major placements mostly hold and the image has a usable underlying structure.',
+            'Proportions or spatial cues read intentionally more often than not.',
+            'Stylization still preserves enough internal order to feel partly controlled.',
+          ],
+          separatesFromHigher: ['Secondary passages still break down under closer structural scrutiny.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'Shape placement and structural logic remain persuasive across most of the work.',
+            'Stylization bends structure without forfeiting conviction.',
+            'Only local passages show developmental rather than exemplary command.',
+          ],
+          separatesFromHigher: ['A few turns, alignments, or intervals still stop short of total authority.'],
+        },
+        Master: {
+          visibleSignals: [
+            'Proportion, structure, and spatial intelligence feel fully authored throughout.',
+            'Even strong stylization transforms form without losing exact control.',
+            'No passage suggests unresolved construction.',
+          ],
+        },
+      };
+    case 'Edge and focus control':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Hard and soft edges feel accidental, uniformly scattered, or disconnected from the image priorities.',
+            'Lost edges read as uncertainty rather than intention.',
+            'Blur, roughness, or stylized diffusion do not yet organize attention convincingly.',
+          ],
+          separatesFromHigher: ['The picture still lacks a dependable first-read hierarchy.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'Some passages clearly win attention and some edge changes support that hierarchy.',
+            'Softness can be useful in places, but control is uneven across the whole image.',
+            'Stylized edges feel partially authored rather than entirely incidental.',
+          ],
+          separatesFromHigher: ['Hierarchy still drifts or weakens in too many secondary passages.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'Edge hierarchy is deliberate across most of the painting.',
+            'Distributed attention, softness, or rough handling still preserve a readable focus logic.',
+            'Only local refinements remain in selective transitions.',
+          ],
+          separatesFromHigher: ['A few transitions still feel strong rather than fully inevitable.'],
+        },
+        Master: {
+          visibleSignals: [
+            'Edge control is inseparable from the painting pictorial logic.',
+            'Ambiguity, softness, sharpness, or diffusion all feel completely authored.',
+            'No edge passage feels casually handled or mechanically resolved.',
+          ],
+        },
+      };
+    case 'Surface and medium handling':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Marks or material behavior feel hesitant, inconsistent, or disconnected from form.',
+            'The medium is used generically rather than according to its strengths.',
+            'Painterly roughness or simplification does not yet read as controlled surface intelligence.',
+          ],
+          separatesFromHigher: ['The surface still reads as under-controlled for this medium.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'The medium behaves credibly in several passages, with some purposeful mark or layer decisions.',
+            'Handling supports parts of the image even if consistency drops elsewhere.',
+            'Stylized surface activity feels partly selected rather than purely uncontrolled.',
+          ],
+          separatesFromHigher: ['The surface still includes avoidable dead, noisy, or under-resolved passages.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'Material handling is convincing and supports the image across most passages.',
+            'Economy, revision, layering, or touch all feel largely intentional for the declared medium.',
+            'Only selective areas need more refinement or integration.',
+          ],
+          separatesFromHigher: ['Some passages still show strong handling rather than exceptional inevitability.'],
+        },
+        Master: {
+          visibleSignals: [
+            'Surface intelligence is fully integrated with structure, form, and mood.',
+            'The medium is used at an exemplary level rather than merely competently.',
+            'No passage feels generic, dead, or mechanically overworked.',
+          ],
+        },
+      };
+    case 'Intent and necessity':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'Formal decisions do not yet add up to one convincing pictorial aim.',
+            'Stylized choices may be vivid, but they do not behave like one coherent system.',
+            'The work reads more accidental, copied, or improvised than necessary.',
+          ],
+          separatesFromHigher: ['The image still lacks a stable internal why.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'There is a readable aim or direction, and several formal decisions support it.',
+            'The picture feels partly coherent even if some choices seem generic or unresolved.',
+            'Stylization begins to read as selective rather than random.',
+          ],
+          separatesFromHigher: ['Too many decisions still feel available to swap out without changing the painting point.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'Most decisions feel subordinate to one clear pictorial logic or emotional aim.',
+            'The work stylization, realism, restraint, or excess all support its own terms.',
+            'Only selective passages still feel less necessary than the strongest ones.',
+          ],
+          separatesFromHigher: ['The work is strong, but not every choice yet feels wholly inevitable.'],
+        },
+        Master: {
+          visibleSignals: [
+            'The painting feels fully necessary on its own terms; form and purpose are inseparable.',
+            'No major decision feels ornamental, generic, or replaceable.',
+            'The work reads as exemplary conviction rather than just strong execution.',
+          ],
+        },
+      };
+    case 'Presence, point of view, and human force':
+      return {
+        Beginner: {
+          visibleSignals: [
+            'The work has little sustained point of view beyond basic subject statement or noise.',
+            'Expressive distortion or mood does not yet carry conviction.',
+            'Human, atmospheric, or emotional pressure feels generic, tentative, or borrowed.',
+          ],
+          separatesFromHigher: ['The painting does not yet compel attention through a distinct way of seeing.'],
+        },
+        Intermediate: {
+          visibleSignals: [
+            'A viewpoint or mood is present and intermittently convincing.',
+            'The image carries some pressure or atmosphere beyond simple description.',
+            'Stylization begins to feel personal rather than merely rough or loud.',
+          ],
+          separatesFromHigher: ['The work presence still weakens in too many passages or feels only partly owned.'],
+        },
+        Advanced: {
+          visibleSignals: [
+            'The painting clearly carries a distinct point of view, mood, or human pressure.',
+            'The way of seeing remains persuasive across most of the image, not just one focal zone.',
+            'Only modest local passages feel less fully inhabited than the strongest ones.',
+          ],
+          separatesFromHigher: ['The work is memorable, but not yet wholly inseparable from an authored voice.'],
+        },
+        Master: {
+          visibleSignals: [
+            'A distinct voice governs the work from edge to edge.',
+            'Human force, atmosphere, or pictorial presence feels fully inhabited and unforgettable.',
+            'The subject and treatment seem inseparable at an exemplary level.',
+          ],
+        },
+      };
+  }
+}
+
+const DEFAULT_STYLIZATION_GUARDRAILS: Partial<Record<CriterionLabel, string[]>> = {
+  'Composition and shape structure': [
+    'Flatness, distortion, or asymmetry stay Beginner when the big-shape logic still feels unstable.',
+  ],
+  'Value and light structure': [
+    'Dramatic contrast or expressive compression do not rise above Beginner unless they still organize the image clearly.',
+  ],
+  'Color relationships': [
+    'Bold hue or saturation is not enough; color must still behave as a controlled relational system.',
+  ],
+  'Drawing, proportion, and spatial form': [
+    'Distortion only counts as stylization when the structural logic remains convincing inside the chosen mode.',
+  ],
+  'Edge and focus control': [
+    'Rough, soft, or diffuse edges stay low when they dissolve hierarchy accidentally instead of authoring attention.',
+  ],
+  'Surface and medium handling': [
+    'Visible texture, scratch, or speed do not raise the band unless the medium still feels controlled.',
+  ],
+  'Intent and necessity': [
+    'Symbolic marks, simplification, or expressive noise remain Beginner when they do not add up to one pictorial aim.',
+  ],
+  'Presence, point of view, and human force': [
+    'Emotional temperature stays low if the image feels merely loud, awkward, or borrowed rather than inhabited.',
+  ],
+};
+
+const REALISM_SIGNALS: CriterionRubricSeed[] = [
   {
     criterion: 'Composition and shape structure',
-    masterSignals: [
-      'Frieze or pyramid grouping with clear figure–ground (Courbet, Millet); diagonal narrative pull (Repin); measured spatial depth (Eakins).',
-      'Social or moral focus staged through who is centered and who labors (Courbet, Daumier, Millet).',
-      'Urban geometry and reflective façades as compositional puzzle—stacked mirrors, signage, and depth cues (Estes, Photorealism).',
-      'Intimate head-and-shoulders or single-figure focus with fabric and jewelry as abstract anchors (Vermeer).',
-      'Mirror, doorway, and multi-figure space as a reflexive puzzle—who sees whom (Velázquez, Las Meninas).',
+    styleSignals: [
+      'Frieze or pyramid grouping with clear figure-ground and measured spatial depth can support Master in realism.',
+      'Mirror, doorway, and multi-figure staging should still feel structurally accountable rather than merely busy.',
     ],
   },
   {
     criterion: 'Value and light structure',
-    masterSignals: [
-      'Big readable masses when squinting; differentiated blacks and earth families (Courbet, Daumier).',
-      'Outdoor light that explains form and weight—cool reflected light, warm top light (Repin, Homer, Eakins).',
-      'Photorealist clarity: reflections and transparencies parsed into discrete value steps on glass and metal (Estes).',
-      'Controlled spotlight and deep shadow as moral staging—one lit body against compressed dark (Goya, Third of May).',
-      'Luminous dissolution in mist and sunset while narrative silhouette holds (Turner, marine light).',
-      'High-fashion contrast: porcelain flesh, black satin, and background recession in few steps (Sargent, Madame X).',
+    styleSignals: [
+      'Big readable masses, differentiated dark families, and believable reflected light separate Advanced from Master in realism.',
+      'Spotlit drama, compressed dusk, or luminous interior light only count high when form and hierarchy remain exact.',
     ],
   },
   {
     criterion: 'Color relationships',
-    masterSignals: [
-      'Restrained harmony disciplined by observed light; temperature shifts in greys and neutrals (Eakins, Repin).',
-      'Sky vs ground color families stay distinct so figures anchor (Millet, Homer).',
-      'Synthetic color in city light—neutrals keyed to chrome, glass, and sky reflection (Estes).',
-      'Limited chord keyed to headscarf, flesh, and pearl—cool shadow in whites and blues (Vermeer).',
-      'Velázquez greys and blacks unify court dress while isolated reds and creams signal rank (Las Meninas).',
-    ],
+    styleSignals: ['Restrained harmony, temperature logic in greys, and chromatic restraint that still feels alive support higher bands.'],
   },
   {
     criterion: 'Drawing, proportion, and spatial form',
-    masterSignals: [
-      'Anatomy and architecture observed with construction underneath (Eakins, Repin).',
-      'Graphic clarity of type and posture with few strokes (Daumier); weight and contact read convincingly.',
-      'Linear perspective and architectural module held while reflections fracture the view (Estes).',
-      'Portrait likeness with subtle asymmetry and sculptural turning of the head (Vermeer).',
-      'Spatial drawing across servants, royals, dog, and canvas-within-canvas (Velázquez).',
-    ],
+    styleSignals: ['Construction, anatomy, and architecture must still hold under close scrutiny; stylized realism cannot hide weak placement.'],
   },
   {
     criterion: 'Edge and focus control',
-    masterSignals: [
-      'Hard silhouettes where bodies meet sky vs softer internal modeling (Millet, Courbet).',
-      'Selective sharpness on hands, faces, and narrative hooks vs atmospheric recession (Homer water, Repin ropes).',
-      'Razor transitions between reflection, transparency, and support—edges as optical facts (Estes).',
-      'Soft lost edges in flesh and fabric vs crisp jewelry or collar accents (Vermeer).',
-      'Hard contour on victim’s shirt vs painterly dissolution in crowd and hill (Goya).',
-    ],
+    styleSignals: ['Selective sharpness, softened recession, and lost edges in flesh or fabric must all feel optically exact rather than generic.'],
   },
   {
     criterion: 'Surface and medium handling',
-    masterSignals: [
-      'Facture supports description—rough stone, wet water, fabric weight (Courbet, Homer).',
-      'Economy: large accurate passages before detail (Homer, Daumier lithographic logic in oil).',
-      'Acrylic-friendly layering: crisp passes that preserve earlier information—mechanical precision without visible hesitation (Estes, Photorealism).',
-      'Thin translucent darks and pointillé highlights in restrained passages (Vermeer).',
-      'Velázquez’s confident shorthand on secondary figures vs measured focus on Infanta (Las Meninas).',
-      'Sweeping atmospheric scumble and scraped light on water and sky (Turner).',
-      'Bold wet passages on satin and skin with decisive silhouette (Sargent).',
-    ],
+    styleSignals: ['Facture should support description without deadening the surface; shorthand and finish need to feel equally authored.'],
   },
   {
     criterion: 'Intent and necessity',
-    masterSignals: [
-      'Every formal choice feels tied to the subject’s social and human weight, not added as generic polish (Courbet, Millet, Daumier).',
-      'Observation, staging, and facture all serve one pictorial aim—nothing feels merely decorative (Eakins, Homer).',
-      'Modern urban exactitude turns ordinary infrastructure into a coherent visual argument, not a pile of detail (Estes).',
-      'Each decision about focus, silhouette, and interval feels necessary to the painting’s point, as in Velázquez and Vermeer.',
-    ],
+    styleSignals: ['Realism reads higher when observation, staging, and facture all serve one lived or social point rather than generic polish.'],
   },
   {
     criterion: 'Presence, point of view, and human force',
-    masterSignals: [
-      'Ordinary life is given moral or human weight without sentimentality (Millet, Courbet).',
-      'A distinct way of seeing governs the image—private, severe, tender, or unflinching (Vermeer, Eakins, Homer).',
-      'The painting carries atmosphere or psychological charge that lingers after the first read (Goya, Sargent).',
-      'Subject and treatment feel inseparable, so the work reads as necessary rather than merely well made.',
-    ],
+    styleSignals: ['Higher bands require more than likeness; the work must carry a distinct way of seeing or human weight.'],
   },
 ];
 
-const IMPRESSIONISM_RUBRIC: CriterionRubric[] = [
+const IMPRESSIONISM_SIGNALS: CriterionRubricSeed[] = [
   {
     criterion: 'Composition and shape structure',
-    masterSignals: [
-      'Casual crop, off-center emphasis, modern life framing (Degas, Cassatt, Morisot).',
-      'Horizon and water geometry carry the design (Monet, Pissarro); leisure clusters (Renoir).',
-      'Modern architecture as calm stage; explosive transient motif (splash, figure, splash) as timed event (Hockney).',
-      'Figures distributed as color notes across horizontal band—Sunday leisure as frieze (Seurat, Grande Jatte).',
-      'Mountain and architecture built from shifting planes—Cézanne’s constructive stroke holds space without single vanishing theatrics.',
-    ],
+    styleSignals: ['Casual crops and open design only count high when the big intervals still feel placed rather than incidental.'],
   },
   {
     criterion: 'Value and light structure',
-    masterSignals: [
-      'Few value keys; light as the true subject—still reads when squinting (Monet).',
-      'High-key interiors with soft envelope of light (Morisot, Cassatt).',
-      'Flat sun-bleached planes vs one high-contrast “event” area—value reserved for the fleeting moment (Hockney).',
-      'Pointillist dots aggregate into shadow under trees and grass—value from optical mixture, not blended mud (Seurat).',
-      'Parallel planes of warm and cool grey-green build mass on Mont Sainte-Victoire (Cézanne).',
-    ],
+    styleSignals: ['Light may be high-key or broken, but the picture still needs a legible value scaffold beneath the atmosphere.'],
   },
   {
     criterion: 'Color relationships',
-    masterSignals: [
-      'Broken color and complements for vibration; simultaneous contrast (Monet, Pissarro).',
-      'Domestic palettes: warm skin, cool surround, restrained accents (Cassatt, Morisot, Renoir).',
-      'Opaque acrylic flats for architecture and water body; high-chroma accents where motion demands (Hockney).',
-      'Complementary pairs in grass, shadow, and water—science-minded harmony at a distance (Seurat).',
-      'Earth greens, violets, and ochres modulate one mountain motif (Cézanne).',
-    ],
+    styleSignals: ['Broken color, complement vibration, and domestic palette shifts should feel relationally controlled, not muddied.'],
   },
   {
     criterion: 'Drawing, proportion, and spatial form',
-    masterSignals: [
-      'Drawing dissolved into sensation but structure underneath figures (Degas, Morisot).',
-      'Tender observation of gesture without stiff outline (Cassatt, Renoir).',
-      'Pool geometry and diving board read as simple vectors; figure and splash as calligraphic incident (Hockney).',
-      'Silhouette and posture read at distance; individual backs and hats still accountable (Seurat).',
-      'Underlying geometry of slopes and rooflines even when contour wobbles (Cézanne).',
-    ],
+    styleSignals: ['Open drawing still needs enough structural accountability to keep gesture, figure, or landscape from collapsing.'],
   },
   {
     criterion: 'Edge and focus control',
-    masterSignals: [
-      'Lost edges in light, found edges in silhouette and contour (Monet, Pissarro).',
-      'Pastel-like softness vs decisive contour where the story needs it (Cassatt, Degas).',
-      'Crisp building edges vs splintered splash edges—scale of edge matches scale of motion (Hockney).',
-      'Thousands of micro-edges from dots aggregate into soft boundaries (Seurat).',
-      'Contour “searches” and color boundaries replace ink line (Cézanne).',
-    ],
+    styleSignals: ['Lost edges in light and found edges in silhouette should feel timed and selective rather than merely soft.'],
   },
   {
     criterion: 'Surface and medium handling',
-    masterSignals: [
-      'Separate touches that fuse optically at distance (Monet, Pissarro).',
-      'Feathered veils and scumble for atmosphere (Morisot); brisk figure notation (Degas).',
-      'Broad blocked-in fields plus patient small-brush notation for turbulence—acrylic supports both speeds (Hockney).',
-      'Consistent dot or dash module—discipline of touch as style (Seurat).',
-      'Patch-like parallel strokes that construct plane rather than illustrate texture (Cézanne).',
-    ],
+    styleSignals: ['Touch, dash, or patch should read as disciplined notation, not as repetitive busyness or under-finished surface.'],
   },
   {
     criterion: 'Intent and necessity',
-    masterSignals: [
-      'Light, crop, and touch all serve the chosen sensation of the moment rather than competing for attention (Monet, Pissarro).',
-      'Figure and setting belong to one atmosphere and one way of seeing (Cassatt, Morisot, Renoir).',
-      'The painting’s looseness is disciplined: apparent spontaneity still feels organized and necessary (Monet series, Cézanne, Hockney).',
-      'Optical decisions read as a coherent pictorial problem, not a collection of Impressionist effects.',
-    ],
+    styleSignals: ['Apparent spontaneity only rises high when crop, light, and touch all answer the same sensation of the moment.'],
   },
   {
     criterion: 'Presence, point of view, and human force',
-    masterSignals: [
-      'A specific lived sensation—light, weather, intimacy, leisure, or stillness—comes through clearly (Monet, Cassatt, Morisot).',
-      'The painting carries a recognizable viewpoint without needing theatrical drama (Renoir, Pissarro).',
-      'Modern life is filtered through a distinct sensibility rather than merely recorded (Seurat, Hockney).',
-      'Atmosphere and point of view stay memorable even when drawing and edges remain open.',
-    ],
+    styleSignals: ['Atmosphere, weather, intimacy, or leisure should carry a specific lived viewpoint rather than generic prettiness.'],
   },
 ];
 
-const EXPRESSIONISM_RUBRIC: CriterionRubric[] = [
+const EXPRESSIONISM_SIGNALS: CriterionRubricSeed[] = [
   {
     criterion: 'Composition and shape structure',
-    masterSignals: [
-      'Distortion and diagonal stress as psychological fact (Munch, Kirchner).',
-      'Compressed monumentality and stillness (Modersohn-Becker) vs diagrammatic panic (Munch).',
-      'Central iconic form—skull, mask, totem—anchoring scribal energy and peripheral marks (Basquiat, Neo-Expressionism).',
-      'Riverfront night sky pulsing with directional strokes—lights reflected as a second rhythm below (van Gogh, Starry Night Over the Rhône).',
-    ],
+    styleSignals: ['Distortion, diagonal stress, or iconic centrality only read high when the image still holds together as one pressure system.'],
   },
   {
     criterion: 'Value and light structure',
-    masterSignals: [
-      'Non-naturalistic value still serves hierarchy and mood (Munch, Nolde).',
-      'High-contrast graphic clarity in compressed space (Schiele, Kirchner).',
-      'Graphic punch from flat color fields vs scraped, worked passages—value as stage for graffiti logic (Basquiat).',
-      'Moon and stars as bright accents against deep blue-green recession—night as pulsing field (van Gogh).',
-    ],
+    styleSignals: ['Non-natural value can score high only when it still creates hierarchy, emotional staging, or graphic conviction.'],
   },
   {
     criterion: 'Color relationships',
-    masterSignals: [
-      'Symbolic or feverish chords—chromatic pressure without total mud (Nolde, Kirchner).',
-      'Earthy, simplified flesh and ground (Modersohn-Becker) vs acidic urban pairs (Kirchner).',
-      'Street primaries and industrial hues; color as shout and label—layered but not muddied (Basquiat).',
-      'Cobalt, viridian, and yellow strokes in rhythmic opposition—color as vibration (van Gogh).',
-    ],
+    styleSignals: ['Feverish or symbolic color needs internal logic; loud chroma alone is not enough.'],
   },
   {
     criterion: 'Drawing, proportion, and spatial form',
-    masterSignals: [
-      'Deliberate elongation, hinge joints, exposed structure (Schiele, Modersohn-Becker).',
-      'Wavy perspective and simplified masses as inner state (Munch).',
-      'Primal silhouette (skull) plus improvised anatomy and signage—drawing that collapses icon and doodle (Basquiat).',
-      'Masts, shoreline, and reflected lights act as vertical and horizontal anchors inside a moving night field (van Gogh).',
-    ],
+    styleSignals: ['Elongation and exposed structure must intensify the image rather than reveal weak construction.'],
   },
   {
     criterion: 'Edge and focus control',
-    masterSignals: [
-      'Nervous contour vs blunt blocked shapes—chosen for anxiety or weight (Schiele, Nolde).',
-      'Carved outlines around figures in street scenes (Kirchner).',
-      'Spray softness vs oil-stick scrape vs acrylic flat—edge type signals layer order (Basquiat).',
-      'Impasto ridges create sharp halos; sky and land merge in stroke direction (van Gogh).',
-    ],
+    styleSignals: ['Nervous contour, blunt blocks, or haloed impasto only rise high when they still guide attention deliberately.'],
   },
   {
     criterion: 'Surface and medium handling',
-    masterSignals: [
-      'Scratch, drag, stain—surface matches emotional temperature (Kirchner, Nolde).',
-      'Heavy simplicity and tactile earth (Modersohn-Becker); graphic wipe in Munch skies.',
-      'Fast-drying ground (acrylic) for immediate overwrites—oil stick and spray on top without dirtying underlayers (Basquiat).',
-      'Parallel and spiral strokes follow form and feeling—energy made visible (van Gogh).',
-    ],
+    styleSignals: ['Scratch, drag, and overwrite should feel chosen for emotional temperature rather than merely rough.'],
   },
   {
     criterion: 'Intent and necessity',
-    masterSignals: [
-      'Distortion, chroma, and brush energy all serve one emotional pressure rather than pulling in different directions (Munch, Kirchner).',
-      'The work knows when to simplify and when to intensify; force comes from selection, not noise (Modersohn-Becker, Nolde).',
-      'Graphic signs, figures, and marks all belong to one expressive system (Basquiat).',
-      'Stroke rhythm and motif handling feel necessary to the mood the painting is trying to create (van Gogh).',
-    ],
+    styleSignals: ['Distortion, color, and energy must all serve one emotional pressure; otherwise the work stays lower.'],
   },
   {
     criterion: 'Presence, point of view, and human force',
-    masterSignals: [
-      'Inner life becomes visible through color, distortion, and surface rather than literal storytelling (Munch, Schiele).',
-      'The painting carries a clear emotional or psychological temperature that does not dilute itself (Nolde, Modersohn-Becker).',
-      'Subject and treatment fuse into a point of view that feels unmistakably personal (Basquiat, van Gogh).',
-      'Even rough or unstable passages contribute to conviction instead of reading as unresolved by accident.',
-    ],
+    styleSignals: ['Roughness can still be Master only when it intensifies conviction instead of reading unresolved by accident.'],
   },
 ];
 
-const ABSTRACT_ART_RUBRIC: CriterionRubric[] = [
+const ABSTRACT_SIGNALS: CriterionRubricSeed[] = [
   {
     criterion: 'Composition and shape structure',
-    masterSignals: [
-      'Grid equilibrium and dynamic asymmetry (Mondrian); stacked intervals (Rothko).',
-      'All-over rhythm without a single “hero” motif (Pollock); biomorphic placement (Miró, Kandinsky).',
-      'Open field stained with floating shapes—figure and ground merge through absorption (Frankenthaler, soak-stain).',
-      'Couple as icon within decorative field—gold and pattern flatten and elevate simultaneously (Klimt, The Kiss).',
-      'Eiffel Tower and disks fracture Paris into color rhythm—Orphism as urban abstraction (Delaunay).',
-    ],
+    styleSignals: ['All-over rhythm, stacked intervals, or open-field abstraction only count high when the whole rectangle feels governed.'],
   },
   {
     criterion: 'Value and light structure',
-    masterSignals: [
-      'Intervals of white, grey, and black as active space (Mondrian, Malevich).',
-      'Close-value fields that breathe—luminosity from layering (Rothko).',
-      'Light seems to emanate from within the weave—value carried by stain density, not only surface paint (Frankenthaler).',
-      'Metallic leaf catches real light; flesh and robe built from mosaic-like value steps (Klimt).',
-    ],
+    styleSignals: ['Close-value fields or luminous stain must still create active space rather than sleepy sameness.'],
   },
   {
     criterion: 'Color relationships',
-    masterSignals: [
-      'Few hues, high stakes per plane—primaries as structural events (Mondrian).',
-      'Color chords as non-objective “sound” (Kandinsky); restrained accents in Miró’s signs.',
-      'Diluted acrylic pools: temperature shifts where pigments meet and bleed in raw canvas (Frankenthaler).',
-      'Jewel-like blues, greens, and golds in repeating ornamental units (Klimt).',
-      'Simultaneous contrast in disk segments—Paris read as prismatic motion (Delaunay).',
-    ],
+    styleSignals: ['Color must behave as a system with high stakes per plane, interval, or chord—not as attractive but arbitrary parts.'],
   },
   {
     criterion: 'Drawing, proportion, and spatial form',
-    masterSignals: [
-      'Internal proportion of intervals, bars, and shapes—not depiction (Mondrian, Malevich).',
-      'Calligraphic drawing merged with field (Pollock, Miró).',
-      'Soft contours born from liquid flow—drawing implied by tide-lines of stain, not contour first (Frankenthaler).',
-      'Figure contour simplified to merge with surrounding arabesque (Klimt).',
-      'Tower geometry implied through overlapping color wedges (Delaunay).',
-    ],
+    styleSignals: ['Non-representational spacing still needs accountable interval logic; abstraction does not exempt weak proportion.'],
   },
   {
     criterion: 'Edge and focus control',
-    masterSignals: [
-      'Knife-sharp junctions vs matte correction (Mondrian); feathered horizontals (Rothko).',
-      'Linear skeins as edge and texture (Pollock).',
-      'Feathered stain edges vs untouched canvas—edge as soak front (Frankenthaler).',
-      'Hard silhouette of bodies vs soft dissolve into ornament (Klimt).',
-      'Circular and diagonal edges slice space without perspectival box (Delaunay).',
-    ],
+    styleSignals: ['Feathered stain, knife edges, or linear skeins should all feel specific to the abstract structure, not leftover artifacts.'],
   },
   {
     criterion: 'Surface and medium handling',
-    masterSignals: [
-      'Hidden brushing in veils (Rothko); visible drip choreography (Pollock).',
-      'Flat discipline and sanded revision (Mondrian); graphic sign-painting clarity (Miró, Malevich).',
-      'Thin fluid application—brush or pour—where body and soak time are the “hand” (Frankenthaler).',
-      'Gold leaf, oil paint, and pattern—surface as luxury and design (Klimt).',
-      'Broken brushy facets in high-chroma passages (Delaunay).',
-    ],
+    styleSignals: ['Drip, pour, sand, veil, or graphic flatness only rise high when the surface reads as a disciplined system.'],
   },
   {
     criterion: 'Intent and necessity',
-    masterSignals: [
-      'Every interval, color decision, and shape family feels governed by one pictorial law (Mondrian, Malevich, Rothko).',
-      'Gesture, stain, or pattern behaves as a system rather than as unrelated incidents (Pollock, Frankenthaler, Klimt).',
-      'Even playfulness or openness still feels structurally committed, not casual (Miró, Delaunay).',
-      'The work reads as a deliberate proposition about painting, not simply an arrangement of attractive abstract parts.',
-    ],
+    styleSignals: ['Abstraction reaches higher bands when intervals, color, and gesture all obey one pictorial law.'],
   },
   {
     criterion: 'Presence, point of view, and human force',
-    masterSignals: [
-      'The painting carries conviction through scale, interval, atmosphere, or sign rather than representational subject matter (Rothko, Malevich).',
-      'A distinct voice appears in the way the surface and structure meet—bodily, lyrical, severe, or ecstatic (Pollock, Miró, Frankenthaler).',
-      'Abstraction still generates felt presence: the work seems inhabited by a way of seeing (Klimt, Delaunay).',
-      'Reduction, ornament, or gesture become memorable because they feel necessary, not merely novel.',
-    ],
+    styleSignals: ['Reduction, ornament, or gesture should still generate inhabited presence rather than novelty alone.'],
   },
 ];
+
+const STYLE_SIGNAL_SEEDS: Record<StyleKey, CriterionRubricSeed[]> = {
+  Realism: REALISM_SIGNALS,
+  Impressionism: IMPRESSIONISM_SIGNALS,
+  Expressionism: EXPRESSIONISM_SIGNALS,
+  'Abstract Art': ABSTRACT_SIGNALS,
+};
+
+function buildStyleRubric(style: StyleKey): CriterionRubric[] {
+  const seeds = STYLE_SIGNAL_SEEDS[style];
+  return CRITERIA_ORDER.map((criterion) => {
+    const seed = seeds.find((row) => row.criterion === criterion);
+    return {
+      criterion,
+      genericBands: baseBandRubric(criterion),
+      styleSignals: seed?.styleSignals ?? [],
+      stylizationGuardrails: seed?.stylizationGuardrails ?? DEFAULT_STYLIZATION_GUARDRAILS[criterion] ?? [],
+    };
+  });
+}
 
 const BY_STYLE: Record<StyleKey, CriterionRubric[]> = {
-  Realism: REALISM_RUBRIC,
-  Impressionism: IMPRESSIONISM_RUBRIC,
-  Expressionism: EXPRESSIONISM_RUBRIC,
-  'Abstract Art': ABSTRACT_ART_RUBRIC,
+  Realism: buildStyleRubric('Realism'),
+  Impressionism: buildStyleRubric('Impressionism'),
+  Expressionism: buildStyleRubric('Expressionism'),
+  'Abstract Art': buildStyleRubric('Abstract Art'),
 };
 
 export function getCriterionRubric(style: string, criterion: CriterionLabel): CriterionRubric | null {
@@ -346,26 +510,37 @@ export function getCriterionRubric(style: string, criterion: CriterionLabel): Cr
 }
 
 export function getCriterionMasterSignals(style: string, criterion: CriterionLabel): string[] {
-  return getCriterionRubric(style, criterion)?.masterSignals ?? [];
+  const rubric = getCriterionRubric(style, criterion);
+  if (!rubric) return [];
+  return [...rubric.genericBands.Master.visibleSignals, ...rubric.styleSignals];
 }
 
-/** Compact text block for OpenAI system prompt (per declared style). */
+/** Full four-band rubric block for prompts. */
 export function formatRubricForPrompt(style: string): string {
   const key = style as StyleKey;
-  const rows = BY_STYLE[key as StyleKey];
+  const rows = BY_STYLE[key];
   if (!rows) return '';
-  const ordered = CRITERIA_ORDER.map((criterion) => rows.find((row) => row.criterion === criterion)).filter(
-    (row): row is CriterionRubric => Boolean(row)
-  );
-  return ordered
-    .map((r) => {
-      const bullets = r.masterSignals.map((s) => `  - ${s}`).join('\n');
-      return `${r.criterion}:\n${bullets}`;
+  return rows
+    .map((row) => {
+      const parts: string[] = [`${row.criterion}:`];
+      for (const band of RATING_LEVELS) {
+        const rubric = row.genericBands[band];
+        parts.push(`- ${band}: ${rubric.visibleSignals.join(' ')}`);
+        if (rubric.separatesFromHigher?.length) {
+          parts.push(`  Not yet higher because: ${rubric.separatesFromHigher.join(' ')}`);
+        }
+      }
+      if (row.styleSignals.length) {
+        parts.push(`- Style-aware signals for ${style}: ${row.styleSignals.join(' ')}`);
+      }
+      if (row.stylizationGuardrails.length) {
+        parts.push(`- Stylization guardrails: ${row.stylizationGuardrails.join(' ')}`);
+      }
+      return parts.join('\n');
     })
     .join('\n\n');
 }
 
-/** Ensures every style supplies one rubric row per criterion label. */
 function assertRubricOrder(): void {
   for (const style of Object.keys(BY_STYLE) as StyleKey[]) {
     const rubric = BY_STYLE[style];
@@ -374,6 +549,13 @@ function assertRubricOrder(): void {
     for (const criterion of CRITERIA_ORDER) {
       if (!seen.has(criterion)) {
         throw new Error(`Rubric criterion missing at ${style}: ${criterion}`);
+      }
+    }
+    for (const row of rubric) {
+      for (const band of RATING_LEVELS) {
+        if (!row.genericBands[band] || row.genericBands[band].visibleSignals.length === 0) {
+          throw new Error(`Rubric band missing at ${style} / ${row.criterion} / ${band}`);
+        }
       }
     }
   }

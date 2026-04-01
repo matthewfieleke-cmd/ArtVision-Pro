@@ -1,3 +1,4 @@
+import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import { CRITERIA_ORDER, RATING_LEVELS, type RatingLevelLabel } from '../shared/criteria.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
@@ -57,6 +58,7 @@ type CalibrationUserContent = Array<
 >;
 
 function buildCalibrationPrompt(style: string, medium: string, evidence: CritiqueEvidenceDTO): string {
+  const rubricBlock = formatRubricForPrompt(style);
   return `You are a calibration gate for a painting-critique system.
 
 Your job is NOT to write the critique. Your job is to decide whether the visible image itself suggests that the work should be capped at lower rating bands before the critic writes.
@@ -77,6 +79,9 @@ Calibration rules:
   - competent_or_better = not obviously novice work
 - Look at the IMAGE first. Use the evidence JSON only as supporting context, not as a substitute for your own raw visual judgment.
 - maxLevel means the writer stage must not rate that criterion above this level.
+
+Per-criterion band rubric for this style:
+${rubricBlock || '- No style-aware rubric block supplied.'}
 
 Evidence JSON:
 ${JSON.stringify(evidence)}

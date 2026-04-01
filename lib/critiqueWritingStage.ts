@@ -8,6 +8,7 @@ import type { CritiqueRequestBody } from './critiqueTypes.js';
 import { CRITIQUE_JSON_SCHEMA, buildCritiqueSchemaInstruction } from './critiqueSchemas.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
+import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -53,6 +54,7 @@ export function buildWritingPrompt(
     : 'the masters listed for the selected style';
   const exemplarBlock = isStyleKey(style) ? getCriterionExemplarBlock(style, medium) : '';
   const capBlock = formatCalibrationCaps(calibration);
+  const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
   return `You are stage 2 of a painting critique system.
 
 You are now writing the critique from already extracted evidence.
@@ -66,9 +68,13 @@ ${VOICE_B_COMPOSITE_TEACHERS}
 - Voice B outputs: categories[].actionPlan for every criterion (see Voice B actionPlan rules below) and studioChanges (2–5 items). Voice B takes Voice A’s judgments plus the evidence and gives studio advice only for THIS painting—imperative, concrete, medium-aware; each studioChange names where + what + how; previewCriterion routes an illustrative edit.
 - For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
+Full criterion rubric for this declared style (use it actively when deciding each band):
+${rubricBlock}
+
 How Voice A drives the eight ratings (required workflow):
 - First, from the evidence alone, form Voice A’s judgment of how the painting performs in EACH of the eight criteria (composition, value, color, drawing/space, edges, surface handling, intent/necessity, presence/point of view). Think in full critical terms for each—not a single overall grade copied eight times.
 - Then assign categories[].level for each criterion: that level MUST be the formal label (Beginner / Intermediate / Advanced / Master) for Voice A’s judgment in that criterion for this painting. The eight levels are rankings of quality in those eight dimensions; they must reflect where Voice A would place the work on each axis, not a polite default or an average smeared across all eight.
+- For each criterion, decide not just what band fits, but why the work is not one band lower and not one band higher according to the rubric language above.
 - Write studioAnalysis.whatWorks and whatCouldImprove as Voice A’s overall read, but ensure they do not contradict the per-criterion levels: if Voice A says the work is still fundamentally shaky in an area, that criterion’s level cannot be Intermediate or above unless the evidence truly supports competence there.
 - For each category, categories[].feedback is Voice A’s expanded judgment for THAT criterion—same stance as its level, with evidence-grounded specifics. Voice B (actionPlan + studioChanges) gives studio how-to; Voice A (studioAnalysis + per-category feedback + levels) gives the critical assessment.
 

@@ -78,7 +78,7 @@ Context:
 - Declared medium: ${medium}
 - Benchmarks for what "Master" means in this style: ${benchmarks}
 
-Style-specific master signals:
+Criterion-specific four-band rubric for this style (use visible evidence and the stated band boundaries, not generic vibe):
 ${rubricBlock}
 
 ${mediumEvidenceGuardrails(medium)}
