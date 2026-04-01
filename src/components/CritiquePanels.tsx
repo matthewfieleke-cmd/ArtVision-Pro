@@ -3,7 +3,7 @@ import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { PaintingOverlay } from './PaintingOverlay';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
-import { parseNumberedSteps } from '../../lib/numberedSteps';
+import { splitNumberedSteps } from '../../lib/numberedSteps';
 import type {
   CompletionRead,
   CritiqueCategory,
@@ -33,7 +33,7 @@ type CritiquePanelsProps = {
 };
 
 function ActionPlanBlock({ actionPlan }: { actionPlan: string }) {
-  const steps = parseNumberedSteps(actionPlan);
+  const steps = splitNumberedSteps(actionPlan);
   if (!steps.length) {
     return <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">{actionPlan}</p>;
   }
