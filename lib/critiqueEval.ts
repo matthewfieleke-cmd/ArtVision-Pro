@@ -3,6 +3,7 @@ import type { CritiqueResultDTO } from './critiqueTypes.js';
 export type CritiqueEvalResult = {
   genericMainIssue: boolean;
   genericNextSteps: boolean;
+  vagueVoiceB: boolean;
   weakEvidence: boolean;
   suspiciousOverpraise: boolean;
   notes: string[];
@@ -55,6 +56,28 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
           /\brefine the edges\b/i,
           /\badjust the lighting\b/i,
           /\badd subtle variations\b/i,
+          /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
+          /\benhance\b.*\bfocus hierarchy\b/i,
+          /\benhance\b.*\bnarrative\b/i,
+          /\badd\b.*\bsmall details\b/i,
+          /\bcontribute to the story\b/i,
+          /\bsmooth out\b.*\bcolor transitions\b/i,
+          /\benhance\b.*\brealism\b/i,
+        ])
+      )
+  );
+
+  const vagueVoiceB = Boolean(
+    simple &&
+      simple.studioChanges.some((ch) =>
+        containsAny(ch.text, [
+          /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
+          /\benhance\b.*\bfocus hierarchy\b/i,
+          /\benhance\b.*\bnarrative\b/i,
+          /\badd\b.*\bsmall details\b/i,
+          /\bcontribute to the story\b/i,
+          /\bsmooth out\b.*\bcolor transitions\b/i,
+          /\benhance\b.*\brealism\b/i,
         ])
       )
   );
@@ -85,8 +108,13 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
   );
   notes.push(
     genericNextSteps
-      ? 'Some studio change lines still fall back on stock advice such as more contrast, stronger focal point, or sharper definition.'
+      ? 'Some studio change lines still fall back on stock advice such as more contrast, stronger focal point, vague edge fixes, vague narrative additions, or unspecified color-transition cleanup.'
       : 'The studio change lines are more exact and less trapped in stock “clarify / contrast / focus” moves.'
+  );
+  notes.push(
+    vagueVoiceB
+      ? 'Voice B still includes teacherly but underspecified moves (for example: define edges, enhance narrative, smooth transitions) without naming the exact passage, the exact visual problem there, and the exact move to make.'
+      : 'Voice B usually states where, what, and how rather than relying on generic “improve this area” coaching.'
   );
   notes.push(
     genericVoiceA
@@ -112,6 +140,7 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
   return {
     genericMainIssue,
     genericNextSteps,
+    vagueVoiceB,
     weakEvidence,
     suspiciousOverpraise,
     notes,

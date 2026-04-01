@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from '../lib/critiqueAudit.js';
+import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { migrateLegacySimpleFeedback } from '../lib/critiqueValidation.js';
 import {
   applyCorsHeaders,
@@ -530,6 +531,42 @@ function testCritiqueGuardrails(): void {
     },
   };
   assert.equal(critiqueNeedsFreshEvidenceRead(vagueStudioAnalysis), true);
+
+  const vagueVoiceB = {
+    ...base,
+    simpleFeedback: {
+      ...base.simpleFeedback!,
+      studioChanges: [
+        {
+          text: 'Define certain edges more clearly to enhance the focus hierarchy.',
+          previewCriterion: 'Edge and focus control',
+        },
+        {
+          text: 'Smooth out abrupt color transitions to enhance the realism of the painting.',
+          previewCriterion: 'Color relationships',
+        },
+      ],
+    },
+  };
+  assert.equal(evaluateCritiqueQuality(vagueVoiceB).genericNextSteps, true);
+
+  const specificVoiceB = {
+    ...base,
+    simpleFeedback: {
+      ...base.simpleFeedback!,
+      studioChanges: [
+        {
+          text: 'Maintain the contrast between the blue headscarf and warm skin tones to keep the focus on the subject.',
+          previewCriterion: 'Color relationships',
+        },
+        {
+          text: 'Ensure that the focus on the eyes and lips remains sharp to draw attention to the expression.',
+          previewCriterion: 'Edge and focus control',
+        },
+      ],
+    },
+  };
+  assert.equal(evaluateCritiqueQuality(specificVoiceB).genericNextSteps, false);
 }
 
 function testCriterionBandRubric(): void {

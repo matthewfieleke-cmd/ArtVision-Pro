@@ -124,6 +124,11 @@ Rules:
   - analysis = one Voice A paragraph for THIS painting only. Explicitly mention the style and medium lens used. Name at least two concrete visible passages.
   - topPriorities = 1 or 2 Voice B lines only, each beginning with the primary action and naming a visible passage from this painting.
 - Voice B actionPlan (required for all eight categories): For each category, actionPlan is Voice B’s studio guidance for THAT criterion on THIS painting only.
+  - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and editPlan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
+  - Every numbered step must answer all three questions explicitly: **where exactly**, **what exactly is wrong/right there**, and **what exactly should change or stay**. If a step could fit many paintings by swapping only the subject noun, it is too vague.
+  - Do not use abstract placeholders such as "certain edges", "small details", "the story", "color transitions", "focal area", "more realism", or "more depth" unless the same sentence names the exact edge, exact detail, exact story beat, exact color junction, or exact focal passage in THIS painting.
+  - If you mention a narrative or story, say what that story or dramatic situation appears to be in this painting and which visible passages carry it; do not refer to "the story" generically.
+  - If you mention preserving a strength, say exactly what to preserve and why it matters: e.g. keep X contrast, keep Y diagonal, keep Z edge around the eyes—not "maintain the focus" in the abstract.
   - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for numbered improvement steps—Advanced still needs concrete moves toward Master.
   - If categories[].level is **Master** for that criterion: actionPlan must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
   - If level is **Beginner**: give **specific numbered steps** (at least 3) that would realistically move this criterion from Beginner toward **Intermediate**, each step naming a visible passage from the evidence.
@@ -144,6 +149,7 @@ Rules:
   - If categories[].level is Master, set editability to "no" and make intendedChange a preservation description only.
   - Otherwise set editability to "yes" unless the anchored target is too ambiguous or too broad to revise reliably.
 - studioChanges (Voice B — same composite teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).
+- For every studioChanges.text, use the same hidden template: **where** (named passage) + **what is happening there now** + **what exact move to make** + **what read should result**.
 - Each studioChanges.text must anchor to **identifiable content from the evidence** (same rules as before: motif, two colors at a junction, or precise zone + what occupies it). Bad: "In one area…", "two color families", "one contour" without naming what is in the picture.
 - No two studioChanges should repeat the same move or the same named passage.
 - If a work is rated below Master in any criterion, every studioChange must be a true revision move on this image, not generic practice homework.
@@ -176,6 +182,15 @@ Anti-pattern examples:
 
 - Bad: "Refine the edges to improve clarity."
 - Better: "Most of the softness is doing useful atmospheric work. Keep the broad soft passages, but sharpen only the one edge that truly needs to hold the eye."
+
+- Bad: "Define certain edges more clearly to enhance the focus hierarchy."
+- Better: "Along the lower contour of the jaw where it meets the dark collar, sharpen that one edge and leave the cheek-to-background edge softer so the face, not the coat, wins first attention."
+
+- Bad: "Enhance the narrative by adding small details that contribute to the story being told."
+- Better: "If the scene is meant to read as a hurried kitchen cleanup, add one wet plate reflection on the back counter and a dish towel hanging from the chair so the domestic aftermath already implied by the sink and bent figure becomes legible."
+
+- Bad: "Smooth out abrupt color transitions to enhance the realism of the painting."
+- Better: "Where the orange cheek turns into the cool green shadow under the eye, bridge the jump with a muted red-violet half-tone so the head turns in space instead of breaking into two flat color stickers."
 
 - Bad: "Make the composition more dynamic."
 - Better: "The stillness is part of the work's effect. Instead of forcing more drama, adjust one directional cue so the eye moves more naturally through the existing calm."

@@ -234,7 +234,7 @@ export const CRITIQUE_JSON_SCHEMA = {
             actionPlan: {
               type: 'string',
               description:
-                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master; for Beginner/Intermediate/Advanced you MUST give numbered improvement steps (never that opener). Master: brief praise only. Else: Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2; each step names visible evidence.`,
+                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master; for Beginner/Intermediate/Advanced you MUST give numbered improvement steps (never that opener). Master: brief praise only. Else: Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2. Every step must state (1) where in the painting, (2) what exact relationship/problem/strength is there now, and (3) what exact directional move to make or preserve there.`,
             },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
             evidenceSignals: {
