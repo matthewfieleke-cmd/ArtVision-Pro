@@ -83,6 +83,14 @@ export type OverallSummaryCardDTO = {
   topPriorities: string[];
 };
 
+export type SuggestedTitleCategoryDTO = 'formalist' | 'tactile' | 'intent';
+
+export type SuggestedTitleDTO = {
+  category: SuggestedTitleCategoryDTO;
+  title: string;
+  rationale: string;
+};
+
 export type CritiqueResultDTO = {
   categories: CritiqueCategoryDTO[];
   summary: string;
@@ -90,8 +98,8 @@ export type CritiqueResultDTO = {
   simpleFeedback?: CritiqueSimpleFeedbackDTO;
   comparisonNote?: string;
   paintingTitle?: string;
-  /** Three exhibition-style title suggestions grounded in visible content. */
-  suggestedPaintingTitles?: string[];
+  /** Categorized title suggestions with rationales (Formalist / Tactile / Intent). */
+  suggestedPaintingTitles?: SuggestedTitleDTO[];
   analysisSource?: 'api' | 'local';
   overallConfidence?: CritiqueConfidenceDTO;
   photoQuality?: PhotoQualityAssessmentDTO;

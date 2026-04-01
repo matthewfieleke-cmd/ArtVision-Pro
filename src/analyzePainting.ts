@@ -956,11 +956,8 @@ export async function analyzePainting(
 
   const trimmed = paintingTitle?.trim();
   const suggestedPaintingTitles = buildLocalSuggestedPaintingTitles(
-    style,
     medium,
-    categories,
-    completionRead,
-    benchmarks
+    categories
   );
   return finalizeCritiqueResult({
     categories,

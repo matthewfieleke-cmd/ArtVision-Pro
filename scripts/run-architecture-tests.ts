@@ -491,9 +491,9 @@ function testCritiqueGuardrails(): void {
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
     analysisSource: 'api',
     suggestedPaintingTitles: [
-      'Interior with Seated Figure and Foreground Chair',
-      'Study in Window Light and Compressed Wall Tone',
-      'Chair Back and Face: Drawing After Vermeer',
+      { category: 'formalist', title: 'Interior with Seated Figure and Foreground Chair', rationale: 'Composition reads at Advanced with the chair-figure obstruction as the dominant structural element.' },
+      { category: 'tactile', title: 'Study in Window Light and Compressed Wall Tone', rationale: 'Surface handling reads at Advanced in drawing with economical hatching mark families.' },
+      { category: 'intent', title: 'Chair Back and Face: Drawing After Vermeer', rationale: 'Intent reads at Advanced with the obstruction feeling necessary to the quiet interior logic.' },
     ],
   });
 
@@ -898,7 +898,11 @@ function testStructuredVoiceBPlanFlow(): void {
     comparisonNote: null,
     overallConfidence: 'high',
     photoQuality: { level: 'good', summary: 'Good photo.', issues: [], tips: [] },
-    suggestedPaintingTitles: ['Interior with Chair Back', 'Window Light Study', 'Figure Behind the Chair'],
+    suggestedPaintingTitles: [
+      { category: 'formalist', title: 'Interior with Chair Back', rationale: 'Composition at Advanced with the chair-figure scaffold.' },
+      { category: 'tactile', title: 'Window Light Study', rationale: 'Surface handling at Advanced with economical hatching.' },
+      { category: 'intent', title: 'Figure Behind the Chair', rationale: 'Intent at Advanced with deliberate obstruction.' },
+    ],
     categories: [
       {
         criterion: 'Intent and necessity',
@@ -1398,7 +1402,11 @@ function testZodSchemaRoundTrip(): void {
 
   const mockMerged = {
     summary: 'A focused interior with one competing obstruction in the foreground chair back.',
-    suggestedPaintingTitles: ['Interior Study', 'Chair and Figure', 'Window Light Drawing'],
+    suggestedPaintingTitles: [
+      { category: 'formalist', title: 'Interior Study', rationale: 'Composition at Intermediate with the foreground chair back as dominant structure.' },
+      { category: 'tactile', title: 'Chair and Figure', rationale: 'Surface at Intermediate with the foreground chair back as key physical element.' },
+      { category: 'intent', title: 'Window Light Drawing', rationale: 'Intent at Intermediate with the foreground chair back as core psychological weight.' },
+    ],
     overallSummary: {
       analysis: 'The foreground chair back and seated figure create a clear interior tension.',
       topPriorities: ['Soften the interior bars of the foreground chair back.'],

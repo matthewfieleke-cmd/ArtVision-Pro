@@ -88,7 +88,7 @@ export async function runOpenAICritique(
 
   const titleSuggestionLine =
     trimmedUserTitle.length === 0
-      ? ` The artist has not supplied a title. You must still output suggestedPaintingTitles: exactly three distinct, catalogue-quality titles grounded in visible evidence (motifs, light, space, color, handling)—scholarly tone, Title Case, no quotes.`
+      ? ` The artist has not supplied a title. You must still output suggestedPaintingTitles: exactly three categorized title objects. One "formalist" (from Composition, Value, Color, Drawing criteria—name the dominant structural element), one "tactile" (from Style, Medium, Surface, Edge criteria—name the physical execution), one "intent" (from Intent and Presence criteria—name the mood/psychology). Each { category, title, rationale }. Title Case, no quotes, no cliché. Rationale: 1–2 sentences explaining how the specific criterion data generated this title.`
       : '';
 
   const userContent: Array<

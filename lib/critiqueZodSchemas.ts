@@ -116,15 +116,25 @@ const photoQualitySchema = z.object({
   tips: z.array(z.string()),
 });
 
+export const suggestedTitleSchema = z.object({
+  category: z.enum(['formalist', 'tactile', 'intent']).describe(
+    'Title category: formalist (structural/compositional), tactile (medium/surface/execution), or intent (mood/psychology/narrative).'
+  ),
+  title: z.string().describe(
+    'Title Case, no quotes. Must avoid cliché, overly poetic, or generic names. Ground in specific analysis data from THIS painting.'
+  ),
+  rationale: z.string().describe(
+    '1–2 sentences explaining exactly how the specific scores and feedback for this painting generated this title.'
+  ),
+});
+
 export const voiceAStageResultSchema = z.object({
   summary: z.string().describe(
     'Voice A one-sentence synopsis for THIS painting only. Name at least one recognizable passage from the evidence.'
   ),
-  suggestedPaintingTitles: z.array(
-    z.string().describe(
-      'Exhibition-style painting title: Title Case, no quotes. Ground in visible motifs from THIS image.'
-    )
-  ).min(3).max(3),
+  suggestedPaintingTitles: z.array(suggestedTitleSchema).min(3).max(3).describe(
+    'Exactly three categorized title suggestions: one formalist, one tactile, one intent. Each with a rationale grounded in the criterion analysis.'
+  ),
   overallSummary: z.object({
     analysis: z.string().describe(
       'Voice A overall summary for THIS painting only. Mention style and medium lens explicitly.'

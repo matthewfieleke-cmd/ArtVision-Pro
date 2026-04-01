@@ -54,7 +54,7 @@ function formatCalibrationCaps(calibration?: CritiqueCalibrationDTO): string {
 
 type VoiceAStageResult = {
   summary: string;
-  suggestedPaintingTitles: string[];
+  suggestedPaintingTitles: Array<{ category: string; title: string; rationale: string }>;
   overallSummary: { analysis: string };
   studioAnalysis: { whatWorks: string; whatCouldImprove: string };
   comparisonNote: string | null;

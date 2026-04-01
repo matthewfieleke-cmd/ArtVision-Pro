@@ -4,6 +4,7 @@ import type {
   CritiqueResultDTO,
   CritiqueSimpleFeedbackDTO,
   StudioChangeDTO,
+  SuggestedTitleDTO,
 } from './critiqueTypes.js';
 
 export type CritiqueEvidenceDTO = {
@@ -524,13 +525,26 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     throw new Error('Invalid photoQuality fields');
   }
   const titlesRaw = o.suggestedPaintingTitles;
-  if (!Array.isArray(titlesRaw) || titlesRaw.length !== 3 || titlesRaw.some((v) => typeof v !== 'string')) {
+  if (!Array.isArray(titlesRaw) || titlesRaw.length !== 3) {
     throw new Error('Invalid critique: suggestedPaintingTitles');
   }
-  const suggestedPaintingTitles = titlesRaw.map((t) => t.trim()).filter((t) => t.length > 0);
-  if (suggestedPaintingTitles.length !== 3) {
-    throw new Error('Invalid critique: suggestedPaintingTitles empty');
-  }
+  const validCategories = new Set(['formalist', 'tactile', 'intent']);
+  const suggestedPaintingTitles: SuggestedTitleDTO[] = titlesRaw.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new Error('Invalid suggestedPaintingTitles item');
+    const e = entry as Record<string, unknown>;
+    if (
+      typeof e.category !== 'string' || !validCategories.has(e.category) ||
+      typeof e.title !== 'string' || e.title.trim().length === 0 ||
+      typeof e.rationale !== 'string' || e.rationale.trim().length === 0
+    ) {
+      throw new Error('Invalid suggestedPaintingTitles item fields');
+    }
+    return {
+      category: e.category as SuggestedTitleDTO['category'],
+      title: e.title.trim(),
+      rationale: e.rationale.trim(),
+    };
+  });
   return {
     summary: o.summary,
     overallSummary: {

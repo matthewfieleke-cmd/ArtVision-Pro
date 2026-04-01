@@ -119,6 +119,14 @@ export type OverallSummaryCard = {
   topPriorities: string[];
 };
 
+export type SuggestedTitleCategory = 'formalist' | 'tactile' | 'intent';
+
+export type SuggestedTitle = {
+  category: SuggestedTitleCategory;
+  title: string;
+  rationale: string;
+};
+
 export type CritiqueResult = {
   categories: CritiqueCategory[];
   summary: string;
@@ -129,8 +137,10 @@ export type CritiqueResult = {
   comparisonNote?: string;
   /** Optional title the artist gave this work for this critique */
   paintingTitle?: string;
-  /** Catalogue-style name ideas when the artist has not titled the work (API or local). */
-  suggestedPaintingTitles?: string[];
+  /** Categorized title suggestions with rationales (Formalist / Tactile / Intent). */
+  suggestedPaintingTitles?: SuggestedTitle[];
+  /** @deprecated Plain string titles from older saves; migrated into SuggestedTitle[] on load. */
+  suggestedPaintingTitlesLegacy?: string[];
   /** Whether this critique came from the API vision model or local heuristics. */
   analysisSource?: 'api' | 'local';
   overallConfidence?: CritiqueConfidence;

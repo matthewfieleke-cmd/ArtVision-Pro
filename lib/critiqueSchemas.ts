@@ -122,9 +122,27 @@ export const CRITIQUE_JSON_SCHEMA = {
         minItems: 3,
         maxItems: 3,
         items: {
-          type: 'string',
-          description:
-            'Exhibition-style painting title: Title Case, no quotes. Ground in visible motifs, light, space, or handling from THIS image. Avoid generic praise. Vary structure across the three (e.g. descriptive, study-style, subtitle with medium).',
+          type: 'object',
+          additionalProperties: false,
+          required: ['category', 'title', 'rationale'],
+          properties: {
+            category: {
+              type: 'string',
+              enum: ['formalist', 'tactile', 'intent'],
+              description:
+                'Title category: formalist (structural/compositional), tactile (medium/surface/execution), or intent (mood/psychology/narrative).',
+            },
+            title: {
+              type: 'string',
+              description:
+                'Title Case, no quotes. Must avoid cliché, overly poetic, or generic names. Ground in specific analysis data from THIS painting.',
+            },
+            rationale: {
+              type: 'string',
+              description:
+                '1–2 sentences explaining exactly how the specific scores and feedback for this painting generated this title.',
+            },
+          },
         },
       },
       overallSummary: {
@@ -542,7 +560,7 @@ export const VOICE_B_CRITIQUE_JSON_SCHEMA = {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
-- suggestedPaintingTitles: exactly 3 strings — scholarly, catalogue-ready titles for THIS painting only, grounded in visible passages from the evidence (motifs, light, space, color behavior, mark-making). Standard conventions: Title Case; no quotation marks; no artist self-reference; not generic ("Beautiful Landscape"). Each title should feel like a plausible museum label variant and should differ in phrasing from the other two.
+- suggestedPaintingTitles: exactly 3 objects, each { category, title, rationale }. One "formalist" (from Composition, Value, Color, Drawing criteria — name the dominant structural element), one "tactile" (from Style, Medium, Surface, Edge criteria — name the physical execution), one "intent" (from Intent and Presence criteria — name the mood/psychology). Title Case, no quotes, no cliché or generic names. Each rationale: 1–2 sentences explaining how the specific criterion scores/feedback generated this title.
 - overallSummary: { analysis, topPriorities } — analysis is Voice A only; topPriorities = 1–2 Voice B priorities
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt); do not name critics. Two paragraphs; every claim anchored in THIS painting (named passages from evidence). Must align with the eight category levels.
 - studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: composite studio teacher (see system prompt); responds to Voice A + evidence; do not name teachers. Each text names where and how on THIS canvas; previewCriterion from CRITERIA_ORDER.
@@ -570,7 +588,7 @@ For each criterion:
 export function buildVoiceASchemaInstruction(): string {
   return `Return JSON with:
 - summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
-- suggestedPaintingTitles: exactly 3 strings — scholarly, catalogue-ready titles for THIS painting only, grounded in visible passages from the evidence
+- suggestedPaintingTitles: exactly 3 objects { category, title, rationale }. One "formalist", one "tactile", one "intent". Title Case, no quotes, no cliché. Rationale explains how the specific criterion data generated the title.
 - overallSummary: { analysis } — Voice A only
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A only
 - comparisonNote

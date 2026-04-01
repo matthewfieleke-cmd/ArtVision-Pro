@@ -10,6 +10,7 @@ import type {
   CritiqueResult,
   CritiqueSubskill,
   PhotoQualityAssessment,
+  SuggestedTitle,
   WorkCompletionState,
 } from '../types';
 
@@ -451,12 +452,18 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
   );
 }
 
+const TITLE_CATEGORY_LABELS: Record<SuggestedTitle['category'], { label: string; accent: string }> = {
+  formalist: { label: 'Formalist', accent: 'bg-blue-50 text-blue-700 ring-blue-200' },
+  tactile: { label: 'Tactile', accent: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  intent: { label: 'Intent', accent: 'bg-violet-50 text-violet-700 ring-violet-200' },
+};
+
 function SuggestedTitlesCard({
   titles,
   workingTitle,
   onSelectSuggestedTitle,
 }: {
-  titles: string[];
+  titles: SuggestedTitle[];
   workingTitle?: string;
   onSelectSuggestedTitle?: (title: string) => void;
 }) {
@@ -483,8 +490,7 @@ function SuggestedTitlesCard({
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-slate-900">Suggested titles</span>
           <span className="mt-0.5 block text-xs text-slate-500">
-            Tap a title to use it for this work (also fills the title field above). Names are grounded in what we see in
-            the image.
+            Three title options derived from your painting&apos;s criterion analysis. Tap to use.
           </span>
         </span>
       </button>
@@ -493,30 +499,37 @@ function SuggestedTitlesCard({
           id={panelId}
           role="region"
           aria-labelledby={headingId}
-          className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
+          className="space-y-4 border-t border-slate-100 px-4 pb-4 pt-3"
         >
-          <ol className="list-decimal space-y-2 pl-4 text-sm leading-relaxed text-slate-700">
-            {titles.map((t) => {
-              const selected = workingTitle?.trim() === t.trim();
-              return (
-                <li key={t} className="pl-1">
+          {titles.map((entry) => {
+            const meta = TITLE_CATEGORY_LABELS[entry.category] ?? TITLE_CATEGORY_LABELS.formalist;
+            const selected = workingTitle?.trim() === entry.title.trim();
+            return (
+              <div key={`${entry.category}-${entry.title}`} className="space-y-1">
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${meta.accent}`}
+                >
+                  {meta.label}
+                </span>
+                <div>
                   {onSelectSuggestedTitle ? (
                     <button
                       type="button"
-                      onClick={() => onSelectSuggestedTitle(t)}
-                      className={`text-left underline decoration-violet-300 decoration-1 underline-offset-2 transition hover:decoration-violet-500 ${
+                      onClick={() => onSelectSuggestedTitle(entry.title)}
+                      className={`text-left text-sm leading-snug underline decoration-violet-300 decoration-1 underline-offset-2 transition hover:decoration-violet-500 ${
                         selected ? 'font-semibold text-violet-900' : 'text-slate-800'
                       }`}
                     >
-                      {t}
+                      {entry.title}
                     </button>
                   ) : (
-                    t
+                    <span className="text-sm leading-snug text-slate-800">{entry.title}</span>
                   )}
-                </li>
-              );
-            })}
-          </ol>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-500">{entry.rationale}</p>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </article>
