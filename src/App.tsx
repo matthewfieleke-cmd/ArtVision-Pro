@@ -231,7 +231,7 @@ export default function App() {
     }
     const intent = consumeReturnTabIntent();
     if (intent === 'benchmarks') setTab('benchmarks');
-  }, [location.pathname, location.key, closeCompare]);
+  }, [location.pathname, location.key, closeCompare, setStudioSelectedId]);
 
   const cancelAnalysisKeepAlive = useCallback(() => {
     analysisRunTokenRef.current += 1;

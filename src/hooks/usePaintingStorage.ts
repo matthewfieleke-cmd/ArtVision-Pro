@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { loadPaintings, savePaintings } from '../storage';
 import type {
   CritiqueResult,
@@ -59,7 +59,7 @@ export type PaintingStorageActions = {
 };
 
 export function usePaintingStorage(
-  setTab: (tab: string) => void
+  setTab: (tab: 'studio') => void
 ): PaintingStorageActions {
   const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
