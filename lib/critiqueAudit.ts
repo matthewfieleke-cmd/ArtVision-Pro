@@ -169,11 +169,6 @@ function sentenceCase(text: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-function lowerFirst(text: string): string {
-  const trimmed = normalizeWhitespace(text).replace(/[.!?]+$/, '');
-  if (!trimmed) return '';
-  return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
-}
 
 const VAGUE_VOICE_B_PATTERNS = [
   /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,

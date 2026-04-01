@@ -236,7 +236,7 @@ export const CRITIQUE_JSON_SCHEMA = {
             actionPlan: {
               type: 'string',
               description:
-                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master; for Beginner/Intermediate/Advanced you MUST give numbered improvement steps (never that opener). Master: brief praise only. Else: Beginner→Intermediate ≥3 steps; Intermediate→Advanced ≥3; Advanced→Master ≥2. Every step must state (1) where in the painting, (2) what exact relationship/problem/strength is there now, and (3) what exact directional move to make or preserve there.`,
+                `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master; for Beginner/Intermediate/Advanced you MUST give numbered improvement steps (never that opener). Master: brief praise only. Else: 1–3 steps (prefer fewer high-leverage steps over padding; Beginner usually 1–3, Intermediate 1–3, Advanced 1–2). Every step must state (1) where in the painting, (2) what exact relationship/problem/strength is there now, and (3) what exact directional move to make or preserve there.`,
             },
             actionPlanSteps: {
               type: 'array',
@@ -283,7 +283,7 @@ export const CRITIQUE_JSON_SCHEMA = {
                 'bestNextMove',
                 'optionalSecondMove',
                 'avoidDoing',
-                'intendedRead',
+                'expectedRead',
                 'storyIfRelevant',
               ],
               properties: {
@@ -311,7 +311,7 @@ export const CRITIQUE_JSON_SCHEMA = {
                   type: 'string',
                   description: 'Optional note on what not to break or overdo.',
                 },
-                intendedRead: {
+                expectedRead: {
                   type: 'string',
                   description: 'What the passage should read like after the best next move.',
                 },
@@ -554,7 +554,7 @@ export function buildCritiqueSchemaInstruction(): string {
 For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
 - feedback: Voice A for this criterion—3+ sentences; name THIS image (zones, colors, edges, motifs from evidence); consistent with level
-- voiceBPlan: structured teacher notes for this criterion — currentRead, bestNextMove, intendedRead, plus optional mainProblem/mainStrength/avoidDoing/storyIfRelevant
+- voiceBPlan: structured teacher notes for this criterion — currentRead, bestNextMove, expectedRead, plus optional mainProblem/mainStrength/avoidDoing/storyIfRelevant
 - actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve?, priority }; prefer high-leverage steps over filler
 - actionPlan: Voice B rendered user-facing text for this criterion, derived from the same structured Voice B plan/steps. Master only: may start with "Don't change a thing." then brief praise. Any other level: numbered steps grounded in evidence. Do not park Edge and Surface one band below everything else by default.
 - confidence
@@ -597,7 +597,7 @@ export function buildVoiceBSchemaInstruction(): string {
 
 For each criterion:
 - actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve, priority }
-- voiceBPlan: structured teacher notes for this criterion — { currentRead, mainProblem, mainStrength, bestNextMove, optionalSecondMove, avoidDoing, intendedRead, storyIfRelevant }
+- voiceBPlan: structured teacher notes for this criterion — { currentRead, mainProblem, mainStrength, bestNextMove, optionalSecondMove, avoidDoing, expectedRead, storyIfRelevant }
 - actionPlan: readable numbered rendering of the same steps
 - anchor: { areaSummary, evidencePointer, region }
 - editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability }`;

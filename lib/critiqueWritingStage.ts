@@ -6,10 +6,8 @@ import {
 import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
 import type { CritiqueRequestBody } from './critiqueTypes.js';
 import {
-  CRITIQUE_JSON_SCHEMA,
   VOICE_A_CRITIQUE_JSON_SCHEMA,
   VOICE_B_CRITIQUE_JSON_SCHEMA,
-  buildCritiqueSchemaInstruction,
   buildVoiceASchemaInstruction,
   buildVoiceBSchemaInstruction,
 } from './critiqueSchemas.js';
@@ -97,7 +95,7 @@ type VoiceBStageResult = {
       bestNextMove: string;
       optionalSecondMove: string;
       avoidDoing: string;
-      intendedRead: string;
+      expectedRead: string;
       storyIfRelevant: string;
     };
     anchor: {
@@ -122,9 +120,6 @@ function buildVoiceAPrompt(
   evidence: CritiqueEvidenceDTO,
   calibration?: CritiqueCalibrationDTO
 ): string {
-  const benchmarks = isStyleKey(style)
-    ? ARTISTS_BY_STYLE[style].join(', ')
-    : 'the masters listed for the selected style';
   const capBlock = formatCalibrationCaps(calibration);
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
   return `You are stage 2A of a painting critique system.
@@ -341,12 +336,16 @@ Anti-pattern examples:
 Return JSON only matching the schema.`;
 }
 
+const VOICE_A_MAX_TOKENS = 3200;
+const VOICE_B_MAX_TOKENS = 4800;
+
 async function runSchemaStage(
   apiKey: string,
   model: string,
   systemPrompt: string,
   userPrompt: string,
-  jsonSchema: unknown
+  jsonSchema: unknown,
+  maxTokens: number = VOICE_A_MAX_TOKENS
 ): Promise<unknown> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -357,7 +356,7 @@ async function runSchemaStage(
     body: JSON.stringify({
       model,
       temperature: 0.18,
-      max_tokens: 3200,
+      max_tokens: maxTokens,
       response_format: {
         type: 'json_schema',
         json_schema: jsonSchema,
@@ -375,8 +374,15 @@ async function runSchemaStage(
     throw new Error(err?.message ?? `OpenAI error ${response.status}`);
   }
 
-  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
-  const text = choices?.[0]?.message?.content;
+  const choices = json.choices as Array<{
+    message?: { content?: string };
+    finish_reason?: string;
+  }> | undefined;
+  const choice = choices?.[0];
+  if (choice?.finish_reason === 'length') {
+    throw new Error('Model response truncated (token limit reached)');
+  }
+  const text = choice?.message?.content;
   if (!text || typeof text !== 'string') throw new Error('Empty model response');
   try {
     return JSON.parse(text);
@@ -416,7 +422,8 @@ export async function runCritiqueVoiceBStage(
     model,
     buildWritingPrompt(style, body.medium, evidence, calibration),
     `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\n${buildVoiceBSchemaInstruction()}`,
-    VOICE_B_CRITIQUE_JSON_SCHEMA
+    VOICE_B_CRITIQUE_JSON_SCHEMA,
+    VOICE_B_MAX_TOKENS
   )) as VoiceBStageResult;
 }
 
