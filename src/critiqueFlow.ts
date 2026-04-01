@@ -249,6 +249,7 @@ export function completeAnalysis(
     critique: result.critique,
     critiqueSource: result.critiqueSource,
     sessionPreviewEdits: [],
+    classifySourceImageDataUrl: undefined,
   };
 }
 
