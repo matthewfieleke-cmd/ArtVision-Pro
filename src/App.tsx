@@ -56,7 +56,7 @@ import { useIsDesktop } from './hooks/useIsDesktop';
 import { usePreviewState } from './hooks/usePreviewState';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
-import { loadPaintings, savePaintings } from './storage';
+import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { HomeTab } from './screens/HomeTab';
 import { ProfileTab } from './screens/ProfileTab';
@@ -65,7 +65,6 @@ import type {
   CritiqueCategory,
   CritiqueResult,
   Medium,
-  PaintingVersion,
   SavedPainting,
   SavedPreviewEdit,
   Style,
@@ -108,31 +107,6 @@ function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCateg
   const safeRank = (category: CritiqueCategory) =>
     category.level ? rank(category.level) : Number.POSITIVE_INFINITY;
   return categories.reduce((a, b) => (safeRank(a) <= safeRank(b) ? a : b));
-}
-
-/** When saving after preview, merge into the last version instead of appending a duplicate. */
-function mergePreviewIntoLastVersion(
-  versions: PaintingVersion[],
-  flowImageDataUrl: string,
-  critiqueToStore: CritiqueResult,
-  previewEdits: SavedPreviewEdit[]
-): { versions: PaintingVersion[]; merged: boolean } {
-  const last = versions[versions.length - 1];
-  if (!last || last.imageDataUrl !== flowImageDataUrl) {
-    return { versions, merged: false };
-  }
-  const next = versions.slice(0, -1);
-  const existing = last.previewEdits ?? [];
-  const byId = new Map(existing.map((e) => [e.id, e]));
-  for (const e of previewEdits) byId.set(e.id, e);
-  const mergedEdits = [...byId.values()];
-  next.push({
-    ...last,
-    critique: critiqueToStore,
-    ...(mergedEdits.length ? { previewEdits: mergedEdits } : {}),
-    previewEdit: undefined,
-  });
-  return { versions: next, merged: true };
 }
 
 function previewDisplayTarget(
@@ -189,8 +163,7 @@ export default function App() {
   const location = useLocation();
   const isDesktop = useIsDesktop();
   const [tab, setTab] = useState<TabId>('home');
-  const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
-  const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
+  const { paintings, studioSelectedId, setStudioSelectedId, persistResult: storagePersist, deletePainting, openPaintingFromHome } = usePaintingStorage(setTab);
   const [flow, setFlow] = useState<CritiqueFlow | null>(null);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
   const pendingCropRef = useRef<PendingCrop | null>(null);
@@ -240,14 +213,6 @@ export default function App() {
     if (isDesktop || !flow) return;
     flowScrollRef.current?.scrollTo(0, 0);
   }, [isDesktop, flow, flow?.step]);
-
-  useEffect(() => {
-    try {
-      savePaintings(paintings);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [paintings]);
 
   useEffect(() => {
     if (location.pathname !== '/') return;
@@ -578,183 +543,7 @@ export default function App() {
     openCropperForImage(shot, 'live-camera');
   }, [captureFrame, openCropperForImage]);
 
-  const persistResult = useCallback(
-    (opts?: { navigateToStudio?: boolean }) => {
-      const navigateToStudio = opts?.navigateToStudio !== false;
-      if (!flow || flow.step !== 'results') return;
-      const resultFlow = flow;
-      const savedTitle =
-        resultFlow.workingTitle.trim() ||
-        resultFlow.critique.paintingTitle?.trim() ||
-        undefined;
-      const critiqueToStore: CritiqueResult = {
-        ...resultFlow.critique,
-        ...(savedTitle ? { paintingTitle: savedTitle } : {}),
-      };
-      const sessionPreviews = resultFlow.sessionPreviewEdits ?? [];
-      const version = {
-        id: newId(),
-        imageDataUrl: resultFlow.imageDataUrl,
-        createdAt: new Date().toISOString(),
-        critique: critiqueToStore,
-        ...(sessionPreviews.length ? { previewEdits: sessionPreviews } : {}),
-      };
-      if (resultFlow.mode === 'resubmit') {
-        const t = resultFlow.workingTitle.trim();
-        const merged = sessionPreviews.length
-          ? mergePreviewIntoLastVersion(
-              resultFlow.targetPainting.versions,
-              resultFlow.imageDataUrl,
-              critiqueToStore,
-              sessionPreviews
-            )
-          : { versions: resultFlow.targetPainting.versions, merged: false };
-        const nextVersions = merged.merged
-          ? merged.versions
-          : [...resultFlow.targetPainting.versions, version];
-        setPaintings((ps) =>
-          ps.map((p) =>
-            p.id === resultFlow.targetPainting.id
-              ? {
-                  ...p,
-                  ...(t.length > 0 ? { title: t } : {}),
-                  versions: nextVersions,
-                }
-              : p
-          )
-        );
-        if (navigateToStudio) {
-          setStudioSelectedId(resultFlow.targetPainting.id);
-          setTab('studio');
-        }
-        setFlow((cur) => {
-          if (!cur || cur.step !== 'results' || cur.mode !== 'resubmit') return cur;
-          return {
-            ...cur,
-            targetPainting: {
-              ...cur.targetPainting,
-              ...(t.length > 0 ? { title: t } : {}),
-              versions: nextVersions,
-            },
-            savedPaintingId: resultFlow.targetPainting.id,
-          };
-        });
-        return;
-      }
-
-      if (resultFlow.savedPaintingId) {
-        const t = resultFlow.workingTitle.trim();
-        const existingPainting = paintings.find((p) => p.id === resultFlow.savedPaintingId);
-
-        let nextVersions: PaintingVersion[];
-        if (sessionPreviews.length && existingPainting) {
-          const m = mergePreviewIntoLastVersion(
-            existingPainting.versions,
-            resultFlow.imageDataUrl,
-            critiqueToStore,
-            sessionPreviews
-          );
-          nextVersions = m.merged ? m.versions : [...existingPainting.versions, version];
-        } else if (existingPainting) {
-          nextVersions = [...existingPainting.versions, version];
-        } else {
-          nextVersions = [version];
-        }
-
-        setPaintings((ps) =>
-          ps.map((p) =>
-            p.id === resultFlow.savedPaintingId
-              ? {
-                  ...p,
-                  ...(t.length > 0 ? { title: t } : {}),
-                  versions: nextVersions,
-                }
-              : p
-          )
-        );
-        if (navigateToStudio) {
-          setStudioSelectedId(resultFlow.savedPaintingId);
-          setTab('studio');
-        }
-        setFlow((cur) => {
-          if (!cur || cur.step !== 'results') return cur;
-          const targetPainting =
-            cur.mode === 'resubmit' && cur.targetPainting.id === resultFlow.savedPaintingId
-              ? {
-                  ...cur.targetPainting,
-                  ...(t.length > 0 ? { title: t } : {}),
-                  versions: nextVersions,
-                }
-              : {
-                  id: flow.savedPaintingId!,
-                  title:
-                    t.length > 0
-                      ? t
-                      : savedTitle && savedTitle.length > 0
-                        ? savedTitle
-                        : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
-                  style: cur.style,
-                  medium: cur.medium,
-                  versions: nextVersions,
-                };
-          return {
-            ...cur,
-            mode: 'resubmit',
-            targetPainting,
-            savedPaintingId: resultFlow.savedPaintingId,
-          };
-        });
-        return;
-      } else {
-        const fromUser = resultFlow.workingTitle.trim();
-        const fromCritique = resultFlow.critique.paintingTitle?.trim();
-        const title =
-          fromUser.length > 0
-            ? fromUser
-            : fromCritique && fromCritique.length > 0
-              ? fromCritique
-              : `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-        const painting: SavedPainting = {
-          id: newId(),
-          title,
-          style: resultFlow.style,
-          medium: resultFlow.medium,
-          versions: [version],
-        };
-        setPaintings((ps) => [painting, ...ps]);
-        if (navigateToStudio) {
-          setStudioSelectedId(painting.id);
-          setTab('studio');
-        }
-        setFlow((cur) =>
-          cur && cur.step === 'results'
-            ? {
-                ...cur,
-                mode: 'resubmit',
-                targetPainting: painting,
-                savedPaintingId: painting.id,
-              }
-            : cur
-        );
-      }
-    },
-    [flow, paintings]
-  );
-
-  const persistResultRef = useRef(persistResult);
-  persistResultRef.current = persistResult;
-
-  const lastAutoPreviewSaveRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!flow || flow.step !== 'results') {
-      lastAutoPreviewSaveRef.current = null;
-      return;
-    }
-    const list = flow.sessionPreviewEdits ?? [];
-    const sig = list.map((e) => e.id).join('|');
-    if (!sig) lastAutoPreviewSaveRef.current = null;
-  }, [flow]);
+  const lastAutoSaveSigRef = useRef<string | null>(null);
 
   /** When preview finishes for a work already in Studio, persist (merge previews into last version) without leaving results. */
   useEffect(() => {
@@ -766,20 +555,13 @@ export default function App() {
     const hasStudio = f.mode === 'resubmit' || f.savedPaintingId != null;
     if (!hasStudio) return;
     const sig = list.map((e) => e.id).join('|');
-    if (lastAutoPreviewSaveRef.current === sig) return;
-    lastAutoPreviewSaveRef.current = sig;
-    persistResultRef.current({ navigateToStudio: false });
-  }, [flow, preview.loading]);
-
-  const deletePainting = useCallback((id: string) => {
-    setPaintings((ps) => ps.filter((p) => p.id !== id));
-    setStudioSelectedId((cur) => (cur === id ? null : cur));
-  }, []);
-
-  const openPaintingFromHome = useCallback((id: string) => {
-    setStudioSelectedId(id);
-    setTab('studio');
-  }, []);
+    if (lastAutoSaveSigRef.current === sig) return;
+    lastAutoSaveSigRef.current = sig;
+    const result = storagePersist(f, { navigateToStudio: false });
+    if (result) {
+      setFlow((cur) => cur && cur.step === 'results' ? { ...cur, mode: 'resubmit', targetPainting: result.targetPainting, savedPaintingId: result.savedPaintingId } : cur);
+    }
+  }, [flow, preview.loading, storagePersist]);
 
   const canRunCritiqueFromClassifyUpload =
     Boolean(
@@ -1622,7 +1404,13 @@ export default function App() {
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => persistResult()}
+                    onClick={() => {
+                      if (!flow || flow.step !== 'results') return;
+                      const result = storagePersist(flow);
+                      if (result) {
+                        setFlow((cur) => cur && cur.step === 'results' ? { ...cur, mode: 'resubmit', targetPainting: result.targetPainting, savedPaintingId: result.savedPaintingId } : cur);
+                      }
+                    }}
                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25"
                   >
                     <Save className="h-5 w-5" />
