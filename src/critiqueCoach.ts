@@ -20,6 +20,14 @@ function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function criticText(category: CritiqueCategory): string {
+  return category.phase2.criticsAnalysis;
+}
+
+function teacherText(category: CritiqueCategory): string {
+  return category.phase3.teacherNextSteps;
+}
+
 function ensureSentence(text: string): string {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return '';
@@ -165,7 +173,7 @@ function fallbackSimpleRead(categories: CritiqueCategory[]): CritiqueSimpleFeedb
   const strongest = [...categories].sort((a, b) => levelRank(b.level) - levelRank(a.level));
   const keep = strongest[0] ?? categories[0];
   const planPairs = sorted
-    .map((cat) => ({ cat, plan: cat.actionPlan?.trim() }))
+    .map((cat) => ({ cat, plan: teacherText(cat).trim() }))
     .filter((x): x is { cat: CritiqueCategory; plan: string } => Boolean(x.plan && x.plan.length > 0))
     .slice(0, 5);
   const strengthCats = strongest
@@ -185,7 +193,7 @@ function fallbackSimpleRead(categories: CritiqueCategory[]): CritiqueSimpleFeedb
         'The capture already suggests at least one passage worth building around while you address weaker structure elsewhere.';
 
   const whatCouldImprove =
-    mainIssue?.feedback?.trim() ||
+    (mainIssue ? criticText(mainIssue).trim() : '') ||
     'One structural area still lags the rest; use the detailed categories below to prioritize before smaller fixes.';
 
   const studioChanges: CritiqueSimpleFeedback['studioChanges'] = planPairs.map(({ cat, plan }) => ({
@@ -304,12 +312,14 @@ export function finalizeCritiqueResult(
             cat.level
           )
         : undefined),
-    actionPlan:
-      cat.actionPlan &&
-      normalizeWhitespace(cat.actionPlan).length > 0 &&
-      actionPlanReferencesAnchor(cat.actionPlan, cat.anchor)
-        ? cat.actionPlan
-        : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? cat.actionPlan,
+    phase3: {
+      teacherNextSteps:
+        teacherText(cat) &&
+        normalizeWhitespace(teacherText(cat)).length > 0 &&
+        actionPlanReferencesAnchor(teacherText(cat), cat.anchor)
+          ? teacherText(cat)
+          : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? teacherText(cat),
+    },
   }));
   const photoQuality = options?.photoQuality ?? critique.photoQuality;
   const simple =

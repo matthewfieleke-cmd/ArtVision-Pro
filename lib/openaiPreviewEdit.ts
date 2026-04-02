@@ -348,14 +348,18 @@ function buildCanonicalEditBrief(target: PreviewEditRequestBody['target']): Cano
     target.editPlan?.targetArea ?? target.anchor?.areaSummary ?? target.criterion.toLowerCase()
   );
   const whyItMatters = normalizeWhitespace(
-    target.anchor?.evidencePointer ?? target.feedback ?? `${area} is the selected passage for this criterion.`
+    target.anchor?.evidencePointer ??
+      target.phase2?.criticsAnalysis ??
+      `${area} is the selected passage for this criterion.`
   );
   const issue = normalizeWhitespace(
-    target.editPlan?.issue ?? target.feedback ?? `This passage still limits ${target.criterion.toLowerCase()}.`
+    target.editPlan?.issue ??
+      target.phase2?.criticsAnalysis ??
+      `This passage still limits ${target.criterion.toLowerCase()}.`
   );
   const move = normalizeWhitespace(
     target.editPlan?.intendedChange ??
-      splitNumberedSteps(target.actionPlan)[0] ??
+      splitNumberedSteps(target.phase3?.teacherNextSteps ?? '')[0] ??
       `Revise ${area} to improve ${target.criterion.toLowerCase()}.`
   );
   const preserve = normalizeWhitespace(
@@ -366,9 +370,9 @@ function buildCanonicalEditBrief(target: PreviewEditRequestBody['target']): Cano
   );
   const voiceBLine = recommendationAlignsToTarget(target)
     ? normalizeWhitespace(target.studioChangeRecommendation!)
-    : splitNumberedSteps(target.actionPlan)[0] ??
-      normalizeWhitespace(target.actionPlan) ??
-      normalizeWhitespace(target.feedback);
+    : splitNumberedSteps(target.phase3?.teacherNextSteps ?? '')[0] ??
+      normalizeWhitespace(target.phase3?.teacherNextSteps ?? '') ??
+      normalizeWhitespace(target.phase2?.criticsAnalysis ?? '');
   return { area, whyItMatters, issue, move, preserve, expectedOutcome, voiceBLine };
 }
 

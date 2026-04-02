@@ -68,10 +68,6 @@ export type CritiqueCategory = {
   phase1: CritiquePhase1;
   phase2: CritiquePhase2;
   phase3: CritiquePhase3;
-  /** Flat aliases preserved for downstream app helpers that still consume them directly. */
-  visualInventory: string;
-  feedback: string;
-  actionPlan: string;
   confidence?: CritiqueConfidence;
   evidenceSignals?: string[];
   preserve?: string;

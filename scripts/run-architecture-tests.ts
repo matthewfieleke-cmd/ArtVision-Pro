@@ -56,50 +56,58 @@ function makeCritiqueResult(): CritiqueResult {
       {
         criterion: 'Composition and shape structure',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'Large shapes are organized into a stable scaffold across the rectangle.' },
+        phase2: { criticsAnalysis: 'The composition already reads as coherent and controlled.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
       {
         criterion: 'Value and light structure',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'The light-dark grouping is readable across the main masses.' },
+        phase2: { criticsAnalysis: 'The value structure is holding together convincingly.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
       {
         criterion: 'Color relationships',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'Color families stay in a coherent palette world.' },
+        phase2: { criticsAnalysis: 'Color relationships are already functioning with control.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
       {
         criterion: 'Drawing, proportion, and spatial form',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'The main forms sit in space with believable placement.' },
+        phase2: { criticsAnalysis: 'The drawing and spatial form read as persuasive.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
       {
         criterion: 'Edge and focus control',
         level: 'Intermediate',
-        feedback: 'Needs better hierarchy.',
-        actionPlan: '1. Quiet the background edges.',
+        phase1: { visualInventory: 'Some secondary edges compete too strongly with the intended focal passage.' },
+        phase2: { criticsAnalysis: 'The focus hierarchy is weaker here than in the other criteria.' },
+        phase3: { teacherNextSteps: '1. Quiet the background edges.' },
       },
       {
         criterion: 'Surface and medium handling',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'Mark families remain controlled and medium-appropriate.' },
+        phase2: { criticsAnalysis: 'Surface handling reads as confident and economical.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
       {
         criterion: 'Intent and necessity',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'The major decisions support one readable pictorial aim.' },
+        phase2: { criticsAnalysis: 'Intent reads as coherent rather than accidental.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
       {
         criterion: 'Presence, point of view, and human force',
         level: 'Advanced',
-        feedback: 'Good.',
-        actionPlan: '1. Keep going.',
+        phase1: { visualInventory: 'The point of view creates a stable sense of presence.' },
+        phase2: { criticsAnalysis: 'The work carries a persuasive human pressure.' },
+        phase3: { teacherNextSteps: '1. Keep going.' },
       },
     ],
   };
@@ -256,12 +264,18 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Composition and shape structure',
         level: 'Advanced',
-        visualInventory:
-          'In the foreground chair back, dark vertical bars cross the seated figure near the center-left of the rectangle. A bright window strip runs down the far left edge, and the figure\'s shirt forms a second light shape against the darker wall. The chair, shirt, and window make three distinct vertical bands.',
-        feedback:
-          'In the foreground chair back, the dark vertical bars interrupt the route to the seated figure. The window strip at left and the bright shirt already create a strong scaffold. The issue is not the whole arrangement but that this one passage pulls too loudly.',
-        actionPlan:
-          '1. In the foreground chair back, soften the interior bars while keeping the outer silhouette intact. 2. Leave the bright window strip alone so the room keeps its current lateral pull.',
+        phase1: {
+          visualInventory:
+            'In the foreground chair back, dark vertical bars cross the seated figure near the center-left of the rectangle. A bright window strip runs down the far left edge, and the figure\'s shirt forms a second light shape against the darker wall. The chair, shirt, and window make three distinct vertical bands.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'In the foreground chair back, the dark vertical bars interrupt the route to the seated figure. The window strip at left and the bright shirt already create a strong scaffold. The issue is not the whole arrangement but that this one passage pulls too loudly.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. In the foreground chair back, soften the interior bars while keeping the outer silhouette intact. 2. Leave the bright window strip alone so the room keeps its current lateral pull.',
+        },
         confidence: 'high',
         evidenceSignals: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
         preserve: 'Keep the window strip and the shirt-to-wall contrast.',
@@ -287,12 +301,18 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Value and light structure',
         level: 'Advanced',
-        visualInventory:
-          'The clearest light mass sits in the left window strip, which runs from the upper-left corner down most of the canvas height. The shirt on the seated figure lands one step darker than that strip and brighter than the wall behind the head. The surrounding wall stays in a compressed dark family around the figure.',
-        feedback:
-          'The left window strip and the shirt already establish a clear light pattern. Around the seated head, the surrounding dark wall compresses value effectively. This axis is reading strongly overall.',
-        actionPlan:
-          '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
+        phase1: {
+          visualInventory:
+            'The clearest light mass sits in the left window strip, which runs from the upper-left corner down most of the canvas height. The shirt on the seated figure lands one step darker than that strip and brighter than the wall behind the head. The surrounding wall stays in a compressed dark family around the figure.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'The left window strip and the shirt already establish a clear light pattern. Around the seated head, the surrounding dark wall compresses value effectively. This axis is reading strongly overall.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
+        },
         confidence: 'medium',
         evidenceSignals: ['The window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
         preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
@@ -318,10 +338,17 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Color relationships',
         level: 'Advanced',
-        visualInventory:
-          'At the lower-left floor-to-wall turn, the floor reads slightly warmer than the cooler wall. Most of the room stays inside a muted drawing palette without high-chroma accents. The warm floor band, cooler wall, and neutral shirt create a restrained temperature sequence.',
-        feedback: 'Muted drawing values remain disciplined in one family. The slight warmth of the floor against the cooler wall is enough to separate zones without forcing color. That restraint is working.',
-        actionPlan: '1. Keep the current value-led palette discipline in the floor and wall.',
+        phase1: {
+          visualInventory:
+            'At the lower-left floor-to-wall turn, the floor reads slightly warmer than the cooler wall. Most of the room stays inside a muted drawing palette without high-chroma accents. The warm floor band, cooler wall, and neutral shirt create a restrained temperature sequence.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'Muted drawing values remain disciplined in one family. The slight warmth of the floor against the cooler wall is enough to separate zones without forcing color. That restraint is working.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the current value-led palette discipline in the floor and wall.',
+        },
         confidence: 'medium',
         evidenceSignals: ['The floor reads slightly warmer than the wall.', 'Most passages stay within a muted drawing palette.'],
         preserve: 'Keep the restrained palette world.',
@@ -347,10 +374,17 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Drawing, proportion, and spatial form',
         level: 'Advanced',
-        visualInventory:
-          'The seated figure tilts back in the middle-right area, and the side table legs angle onto the floor plane below. Chair bars cross the torso from the foreground without breaking the larger body placement. The table and figure occupy a shared room space with readable overlap and angle shifts.',
-        feedback: 'The seated figure\'s tilt and the table legs hold together believably. The chair bars crossing the body are intentionally awkward but still spatially coherent. This criterion is strong.',
-        actionPlan: '1. Keep the current spatial drawing in the seated figure and table legs.',
+        phase1: {
+          visualInventory:
+            'The seated figure tilts back in the middle-right area, and the side table legs angle onto the floor plane below. Chair bars cross the torso from the foreground without breaking the larger body placement. The table and figure occupy a shared room space with readable overlap and angle shifts.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'The seated figure\'s tilt and the table legs hold together believably. The chair bars crossing the body are intentionally awkward but still spatially coherent. This criterion is strong.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the current spatial drawing in the seated figure and table legs.',
+        },
         confidence: 'medium',
         evidenceSignals: ['The seated figure tilts back convincingly.', 'The table legs sit on the floor plane with readable angle shifts.'],
         preserve: 'Preserve the figure tilt and the table-leg spacing.',
@@ -376,12 +410,18 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Edge and focus control',
         level: 'Intermediate',
-        visualInventory:
-          'Inside the foreground chair back, the interior verticals are nearly as crisp and dark as the face passage behind them. The seated head and shirt sit slightly right of center and are meant to win the first read. The outer silhouette of the chair stays clearer than some of its interior bars.',
-        feedback:
-          'In the foreground chair back, the interior verticals stay almost as insistent as the face. The seated head and shirt should win the first read, but the chair interrupts that hierarchy. The problem is specific and local rather than global.',
-        actionPlan:
-          '1. In the foreground chair back, soften the interior verticals so they stop competing with the face. 2. Keep the outer chair silhouette crisp enough to retain the obstruction. 3. Leave the head-and-shirt edge contrast intact so the figure keeps priority.',
+        phase1: {
+          visualInventory:
+            'Inside the foreground chair back, the interior verticals are nearly as crisp and dark as the face passage behind them. The seated head and shirt sit slightly right of center and are meant to win the first read. The outer silhouette of the chair stays clearer than some of its interior bars.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'In the foreground chair back, the interior verticals stay almost as insistent as the face. The seated head and shirt should win the first read, but the chair interrupts that hierarchy. The problem is specific and local rather than global.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. In the foreground chair back, soften the interior verticals so they stop competing with the face. 2. Keep the outer chair silhouette crisp enough to retain the obstruction. 3. Leave the head-and-shirt edge contrast intact so the figure keeps priority.',
+        },
         confidence: 'high',
         evidenceSignals: ['The chair bars cross in front of the figure.', 'The head and shirt are the intended focal passage.'],
         preserve: 'Preserve the outer chair silhouette and the head-to-shirt contrast.',
@@ -407,10 +447,17 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Surface and medium handling',
         level: 'Advanced',
-        visualInventory:
-          'The wall is built with broad even hatching, while the floor uses a different directional stroke family below it. The chair back shows tighter linear marks than the wall field. The figure\'s shirt is laid in more smoothly than the surrounding hatched room.',
-        feedback: 'The drawing strokes stay economical and directional. The chair, wall, and floor all use distinct mark families without fuss. The surface handling is already disciplined.',
-        actionPlan: '1. Keep the current mark economy in the wall, floor, and chair.',
+        phase1: {
+          visualInventory:
+            'The wall is built with broad even hatching, while the floor uses a different directional stroke family below it. The chair back shows tighter linear marks than the wall field. The figure\'s shirt is laid in more smoothly than the surrounding hatched room.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'The drawing strokes stay economical and directional. The chair, wall, and floor all use distinct mark families without fuss. The surface handling is already disciplined.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the current mark economy in the wall, floor, and chair.',
+        },
         confidence: 'medium',
         evidenceSignals: ['The wall is built with broad, even hatching.', 'The floor uses directional strokes distinct from the wall.'],
         preserve: 'Preserve the distinct mark families between wall and floor.',
@@ -436,10 +483,18 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Intent and necessity',
         level: 'Advanced',
-        visualInventory:
-          'The chair obstruction cuts in front of the seated figure through the center-left and center of the composition. The room remains quiet and compressed from the dark wall to the table and chair. The blocked figure, side table, and left window all belong to one interior setup rather than separate incidents.',
-        feedback: 'The figure, chair obstruction, and side table all belong to one observed interior problem. The awkwardness feels chosen rather than accidental. Most decisions answer to the same quiet, compressed world.',
-        actionPlan: '1. Keep the present tension between the chair obstruction and the seated figure; it belongs to the painting\'s logic.',
+        phase1: {
+          visualInventory:
+            'The chair obstruction cuts in front of the seated figure through the center-left and center of the composition. The room remains quiet and compressed from the dark wall to the table and chair. The blocked figure, side table, and left window all belong to one interior setup rather than separate incidents.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'The figure, chair obstruction, and side table all belong to one observed interior problem. The awkwardness feels chosen rather than accidental. Most decisions answer to the same quiet, compressed world.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. Keep the present tension between the chair obstruction and the seated figure; it belongs to the painting\'s logic.',
+        },
         confidence: 'medium',
         evidenceSignals: ['The chair obstruction and figure belong to the same pictorial problem.', 'The room stays quiet and compressed throughout.'],
         preserve: 'Preserve the quiet compression of the room and the obstructed figure setup.',
@@ -465,10 +520,18 @@ function testCritiqueGuardrails(): void {
       {
         criterion: 'Presence, point of view, and human force',
         level: 'Advanced',
-        visualInventory:
-          'The seated figure\'s head and upper torso tilt inward just right of center, partly screened by the chair back in front. The viewpoint sits behind the chair rather than directly in front of the figure. The gaze aims down toward the table instead of outward to the viewer.',
-        feedback: 'The seated figure has a quiet inwardness, and the room feels inhabited rather than staged. The specific viewpoint from behind the chair contributes to that pressure. The painting has real presence.',
-        actionPlan: '1. Keep the current inward pressure around the seated figure and the obstructed viewpoint.',
+        phase1: {
+          visualInventory:
+            'The seated figure\'s head and upper torso tilt inward just right of center, partly screened by the chair back in front. The viewpoint sits behind the chair rather than directly in front of the figure. The gaze aims down toward the table instead of outward to the viewer.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'The seated figure has a quiet inwardness, and the room feels inhabited rather than staged. The specific viewpoint from behind the chair contributes to that pressure. The painting has real presence.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. Keep the current inward pressure around the seated figure and the obstructed viewpoint.',
+        },
         confidence: 'medium',
         evidenceSignals: ['The seated figure reads as inward and absorbed.', 'The viewpoint from behind the chair feels deliberate.'],
         preserve: 'Preserve the figure\'s inwardness and the obstructed viewpoint.',
@@ -515,8 +578,12 @@ function testCritiqueGuardrails(): void {
       category.criterion === 'Edge and focus control'
         ? {
             ...category,
-            feedback: 'The focus could be stronger in places.',
-            actionPlan: '1. Improve the focus where needed.',
+            phase2: {
+              criticsAnalysis: 'The focus could be stronger in places.',
+            },
+            phase3: {
+              teacherNextSteps: '1. Improve the focus where needed.',
+            },
           }
         : category
     ),
@@ -599,11 +666,13 @@ function testCritiqueGuardrails(): void {
 
   const rewrittenVoiceB = applyCritiqueGuardrails(vagueVoiceB as any);
   assert.match(
-    rewrittenVoiceB.categories.find((category) => category.criterion === 'Edge and focus control')!.actionPlan,
+    rewrittenVoiceB.categories.find((category) => category.criterion === 'Edge and focus control')!.phase3
+      .teacherNextSteps,
     /foreground chair back|interior chair bars|face/i
   );
   assert.match(
-    rewrittenVoiceB.categories.find((category) => category.criterion === 'Edge and focus control')!.actionPlan,
+    rewrittenVoiceB.categories.find((category) => category.criterion === 'Edge and focus control')!.phase3
+      .teacherNextSteps,
     /soften|sharpen|preserve|keep|separate/i
   );
   assert.equal(
@@ -617,16 +686,18 @@ function testCritiqueGuardrails(): void {
       category.criterion === 'Composition and shape structure'
         ? {
             ...category,
-            actionPlan:
-              '1. Preserve the circular arrangement of figures around the table, as it effectively guides the viewer’s eye. 2. Slightly adjust the spacing between figures to reduce visual competition and enhance clarity. 3. Ensure that the integration of background and foreground continues to support the depth of the composition.',
+            phase3: {
+              teacherNextSteps:
+                '1. Preserve the circular arrangement of figures around the table, as it effectively guides the viewer’s eye. 2. Slightly adjust the spacing between figures to reduce visual competition and enhance clarity. 3. Ensure that the integration of background and foreground continues to support the depth of the composition.',
+            },
           }
         : category
     ),
   };
   const normalizedInline = applyCritiqueGuardrails(inlineNumbered as any);
-  assert.ok(splitNumberedSteps(normalizedInline.categories[1]!.actionPlan).length >= 1);
+  assert.ok(splitNumberedSteps(normalizedInline.categories[1]!.phase3.teacherNextSteps).length >= 1);
   assert.doesNotMatch(
-    normalizedInline.categories[1]!.actionPlan,
+    normalizedInline.categories[1]!.phase3.teacherNextSteps,
     /1\..*2\..*3\..*\n2\./s
   );
 
@@ -649,8 +720,10 @@ function testCritiqueGuardrails(): void {
               expectedOutcome: 'the visual flow is more cohesive',
               editability: 'yes',
             },
-            actionPlan:
-              '1. Smooth transitions between colors in the background to enhance harmony. 2. Keep the lively atmosphere intact.',
+            phase3: {
+              teacherNextSteps:
+                '1. Smooth transitions between colors in the background to enhance harmony. 2. Keep the lively atmosphere intact.',
+            },
           }
         : category
     ),
@@ -670,11 +743,11 @@ function testCritiqueGuardrails(): void {
   );
   assert.ok(guardedColorCategory);
   assert.match(
-    guardedColorCategory!.actionPlan,
+    guardedColorCategory!.phase3.teacherNextSteps,
     /Smooth transitions between colors in the background to enhance harmony|Keep the lively atmosphere intact/
   );
   assert.doesNotMatch(
-    guardedColorCategory!.actionPlan,
+    guardedColorCategory!.phase3.teacherNextSteps,
     /so the visual flow is more cohesive, enhancing the painting's mood|the depth is enhanced with smoother transitions|one specific, local adjustment that this criterion can actually see/i
   );
 }
@@ -851,10 +924,18 @@ function testPreviewEditPromptAlignment(): void {
     target: {
       criterion: 'Edge and focus control',
       level: 'Intermediate',
-      feedback:
-        'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
-      actionPlan:
-        '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+      phase1: {
+        visualInventory:
+          'The foreground chair back crosses the face passage, and the interior verticals are close in sharpness to the head behind them.',
+      },
+      phase2: {
+        criticsAnalysis:
+          'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
+      },
+      phase3: {
+        teacherNextSteps:
+          '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+      },
       anchor: {
         areaSummary: 'the foreground chair back',
         evidencePointer: 'its interior verticals compete with the face instead of supporting it',
@@ -891,10 +972,18 @@ function testPreviewEditPromptAlignment(): void {
     target: {
       criterion: 'Color relationships',
       level: 'Advanced',
-      feedback:
-        'Muted drawing values remain disciplined in one family. The slight warmth of the floor against the cooler wall is enough to separate zones without forcing color.',
-      actionPlan:
-        '1. Keep the current value-led palette discipline in the floor and wall.',
+      phase1: {
+        visualInventory:
+          'At the lower-left floor-to-wall turn, the floor stays slightly warmer than the cooler wall while the rest of the room remains muted.',
+      },
+      phase2: {
+        criticsAnalysis:
+          'Muted drawing values remain disciplined in one family. The slight warmth of the floor against the cooler wall is enough to separate zones without forcing color.',
+      },
+      phase3: {
+        teacherNextSteps:
+          '1. Keep the current value-led palette discipline in the floor and wall.',
+      },
       anchor: {
         areaSummary: 'the floor-to-wall transition at lower left',
         evidencePointer: 'the slight warmth shift separates the room planes without breaking the drawing medium',
@@ -956,10 +1045,16 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Intent and necessity',
         level: 'Advanced',
-        visualInventory:
-          'The blocked figure sits behind the chair in the middle of the room, with the chair structure cutting through the central view. The room stays compressed from the left window strip to the darker rear wall. The figure, obstruction, and table read as one setup rather than scattered parts.',
-        feedback: 'The obstruction and figure belong to one coherent interior problem.',
-        actionPlan: '1. Keep the present tension between the chair obstruction and the seated figure.',
+        phase1: {
+          visualInventory:
+            'The blocked figure sits behind the chair in the middle of the room, with the chair structure cutting through the central view. The room stays compressed from the left window strip to the darker rear wall. The figure, obstruction, and table read as one setup rather than scattered parts.',
+        },
+        phase2: {
+          criticsAnalysis: 'The obstruction and figure belong to one coherent interior problem.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the present tension between the chair obstruction and the seated figure.',
+        },
         actionPlanSteps: [
           {
             area: 'the blocked view of the seated figure through the chair',
@@ -1001,10 +1096,16 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Composition and shape structure',
         level: 'Advanced',
-        visualInventory:
-          'The foreground chair back occupies the center-left foreground and crosses the seated figure behind it. A bright vertical window strip sits along the left edge, while the seated figure and shirt hold the center-right. These three vertical passages establish the room scaffold.',
-        feedback: 'The chair back and seated figure already give the room a strong scaffold.',
-        actionPlan: '',
+        phase1: {
+          visualInventory:
+            'The foreground chair back occupies the center-left foreground and crosses the seated figure behind it. A bright vertical window strip sits along the left edge, while the seated figure and shirt hold the center-right. These three vertical passages establish the room scaffold.',
+        },
+        phase2: {
+          criticsAnalysis: 'The chair back and seated figure already give the room a strong scaffold.',
+        },
+        phase3: {
+          teacherNextSteps: '',
+        },
         actionPlanSteps: [
           {
             area: 'the foreground chair back',
@@ -1058,10 +1159,17 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Value and light structure',
         level: 'Advanced',
-        visualInventory:
-          'The left window strip is the lightest vertical passage in the picture. The shirt sits just below that brightness and against a darker wall around the seated figure. The wall behind the head and the chair bars share a compressed darker range.',
-        feedback: 'The left window strip and shirt already establish a clear light pattern.',
-        actionPlan: '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
+        phase1: {
+          visualInventory:
+            'The left window strip is the lightest vertical passage in the picture. The shirt sits just below that brightness and against a darker wall around the seated figure. The wall behind the head and the chair bars share a compressed darker range.',
+        },
+        phase2: {
+          criticsAnalysis: 'The left window strip and shirt already establish a clear light pattern.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. Keep the left window strip and its window-to-shirt value pattern; it is already doing the structural work.',
+        },
         actionPlanSteps: [
           {
             area: 'the left window strip',
@@ -1107,10 +1215,16 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Color relationships',
         level: 'Advanced',
-        visualInventory:
-          'At the lower-left transition, the floor carries a slight warmth against the cooler wall. The rest of the room remains in a muted palette with small temperature shifts rather than saturated hue jumps. The neutral shirt sits between the cooler window light and warmer floor note.',
-        feedback: 'The floor-to-wall warmth shift is enough to separate zones without forcing color.',
-        actionPlan: '1. Keep the current value-led palette discipline in the floor and wall.',
+        phase1: {
+          visualInventory:
+            'At the lower-left transition, the floor carries a slight warmth against the cooler wall. The rest of the room remains in a muted palette with small temperature shifts rather than saturated hue jumps. The neutral shirt sits between the cooler window light and warmer floor note.',
+        },
+        phase2: {
+          criticsAnalysis: 'The floor-to-wall warmth shift is enough to separate zones without forcing color.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the current value-led palette discipline in the floor and wall.',
+        },
         actionPlanSteps: [
           {
             area: 'the floor-to-wall transition at lower left',
@@ -1156,10 +1270,16 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Drawing, proportion, and spatial form',
         level: 'Advanced',
-        visualInventory:
-          'The seated figure leans back in the mid-right area, and the side table holds its angle on the floor plane below. Chair elements overlap the body in front without collapsing the main figure placement. The room furniture and figure share a coherent spatial setup.',
-        feedback: 'The seated figure’s tilt and the table legs hold together believably.',
-        actionPlan: '1. Keep the current spatial drawing in the seated figure and table legs.',
+        phase1: {
+          visualInventory:
+            'The seated figure leans back in the mid-right area, and the side table holds its angle on the floor plane below. Chair elements overlap the body in front without collapsing the main figure placement. The room furniture and figure share a coherent spatial setup.',
+        },
+        phase2: {
+          criticsAnalysis: 'The seated figure’s tilt and the table legs hold together believably.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the current spatial drawing in the seated figure and table legs.',
+        },
         actionPlanSteps: [
           {
             area: 'the seated figure and side table',
@@ -1205,10 +1325,18 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Edge and focus control',
         level: 'Intermediate',
-        visualInventory:
-          'The interior verticals in the foreground chair back are close in sharpness to the face behind them. The head and shirt passage sits slightly right of center and is meant to hold focus. The chair silhouette reads more clearly than some of the interior slats.',
-        feedback: 'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
-        actionPlan: '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+        phase1: {
+          visualInventory:
+            'The interior verticals in the foreground chair back are close in sharpness to the face behind them. The head and shirt passage sits slightly right of center and is meant to hold focus. The chair silhouette reads more clearly than some of the interior slats.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+        },
         actionPlanSteps: [
           {
             area: 'the foreground chair back',
@@ -1254,10 +1382,16 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Surface and medium handling',
         level: 'Advanced',
-        visualInventory:
-          'Broad even hatching builds the wall, while the floor uses a different directional stroke below. The chair carries tighter linear marks than the wall field. The shirt handling is smoother than the surrounding room hatching.',
-        feedback: 'The drawing strokes stay economical and directional.',
-        actionPlan: '1. Keep the current mark economy in the wall, floor, and chair.',
+        phase1: {
+          visualInventory:
+            'Broad even hatching builds the wall, while the floor uses a different directional stroke below. The chair carries tighter linear marks than the wall field. The shirt handling is smoother than the surrounding room hatching.',
+        },
+        phase2: {
+          criticsAnalysis: 'The drawing strokes stay economical and directional.',
+        },
+        phase3: {
+          teacherNextSteps: '1. Keep the current mark economy in the wall, floor, and chair.',
+        },
         actionPlanSteps: [
           {
             area: 'the wall and floor hatching',
@@ -1299,10 +1433,18 @@ function testStructuredVoiceBPlanFlow(): void {
       {
         criterion: 'Presence, point of view, and human force',
         level: 'Advanced',
-        visualInventory:
-          'The seated figure\'s head and torso tilt inward on the right half of the painting. The chair screens part of the body from a viewpoint set behind it. The figure\'s attention stays directed toward the table rather than outward.',
-        feedback: 'The seated figure has a quiet inwardness, and the room feels inhabited rather than staged.',
-        actionPlan: '1. Keep the current inward pressure around the seated figure and the obstructed viewpoint.',
+        phase1: {
+          visualInventory:
+            'The seated figure\'s head and torso tilt inward on the right half of the painting. The chair screens part of the body from a viewpoint set behind it. The figure\'s attention stays directed toward the table rather than outward.',
+        },
+        phase2: {
+          criticsAnalysis:
+            'The seated figure has a quiet inwardness, and the room feels inhabited rather than staged.',
+        },
+        phase3: {
+          teacherNextSteps:
+            '1. Keep the current inward pressure around the seated figure and the obstructed viewpoint.',
+        },
         actionPlanSteps: [
           {
             area: 'the seated figure’s head and upper torso',
@@ -1353,8 +1495,8 @@ function testStructuredVoiceBPlanFlow(): void {
     photoQuality: validated.photoQuality,
   });
   const finalizedComposition = finalized.categories[1]!;
-  assert.match(finalizedComposition.actionPlan, /1\. In the foreground chair back/i);
-  assert.match(finalizedComposition.actionPlan, /2\. In the left window strip/i);
+  assert.match(finalizedComposition.phase3.teacherNextSteps, /1\. In the foreground chair back/i);
+  assert.match(finalizedComposition.phase3.teacherNextSteps, /2\. In the left window strip/i);
 }
 
 function testZodSchemaRoundTrip(): void {
@@ -1439,9 +1581,15 @@ function testZodSchemaRoundTrip(): void {
   const mockMergedCategories = CRITERIA_ORDER.map((criterion) => ({
     criterion,
     level: 'Intermediate',
-    visualInventory: `Literal visual inventory for ${criterion} centered on the foreground chair back and its overlap with the seated figure.`,
-    feedback: `Feedback for ${criterion} grounded in the foreground chair back.`,
-    actionPlan: `1. In the foreground chair back, soften the interior bars so the face regains priority.`,
+    phase1: {
+      visualInventory: `Literal visual inventory for ${criterion} centered on the foreground chair back and its overlap with the seated figure.`,
+    },
+    phase2: {
+      criticsAnalysis: `Feedback for ${criterion} grounded in the foreground chair back.`,
+    },
+    phase3: {
+      teacherNextSteps: `1. In the foreground chair back, soften the interior bars so the face regains priority.`,
+    },
     actionPlanSteps: [mockStep],
     voiceBPlan: mockPlan,
     confidence: 'medium',
@@ -1484,7 +1632,7 @@ function testZodSchemaRoundTrip(): void {
   const validated = validateCritiqueResult(mockMerged);
   assert.ok(validated, 'Zod-shaped mock should pass validateCritiqueResult');
   assert.equal(
-    validated.categories[0]!.visualInventory,
+    validated.categories[0]!.phase1.visualInventory,
     'Literal visual inventory for Intent and necessity centered on the foreground chair back and its overlap with the seated figure.'
   );
   assert.equal(validated.categories[0]!.voiceBPlan?.expectedRead, 'The face separates from the jacket.');

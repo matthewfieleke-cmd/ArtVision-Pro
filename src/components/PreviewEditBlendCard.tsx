@@ -32,7 +32,7 @@ const overlayImgClass =
 type Props = {
   originalSrc: string;
   revisedSrc: string;
-  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'feedback' | 'actionPlan' | 'actionPlanSteps'> & {
+  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'phase2' | 'phase3' | 'actionPlanSteps'> & {
     anchor?: CritiqueCategory['anchor'];
     editPlan?: CritiqueCategory['editPlan'];
     studioChangeRecommendation?: string;
@@ -99,8 +99,8 @@ export function PreviewEditBlendCard({
           <p className="mt-2 whitespace-pre-line font-medium">{target.studioChangeRecommendation.trim()}</p>
         ) : (
           <>
-            <p className="mt-2 whitespace-pre-line">{target.feedback.trim()}</p>
-            <p className="mt-2 whitespace-pre-line">{target.actionPlan.trim()}</p>
+            <p className="mt-2 whitespace-pre-line">{target.phase2.criticsAnalysis.trim()}</p>
+            <p className="mt-2 whitespace-pre-line">{target.phase3.teacherNextSteps.trim()}</p>
           </>
         )}
       </div>

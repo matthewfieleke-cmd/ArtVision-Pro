@@ -440,24 +440,9 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     if (typeof r.level !== 'string' || !RATING_LEVELS.includes(r.level as (typeof RATING_LEVELS)[number])) {
       throw new Error(`Invalid level for ${expected}`);
     }
-    const phase1 =
-      r.phase1 && typeof r.phase1 === 'object'
-        ? r.phase1
-        : typeof r.visualInventory === 'string'
-          ? { visualInventory: r.visualInventory }
-          : null;
-    const phase2 =
-      r.phase2 && typeof r.phase2 === 'object'
-        ? r.phase2
-        : typeof r.feedback === 'string'
-          ? { criticsAnalysis: r.feedback }
-          : null;
-    const phase3 =
-      r.phase3 && typeof r.phase3 === 'object'
-        ? r.phase3
-        : typeof r.actionPlan === 'string'
-          ? { teacherNextSteps: r.actionPlan }
-          : null;
+    const phase1 = r.phase1;
+    const phase2 = r.phase2;
+    const phase3 = r.phase3;
     if (
       !phase1 || typeof phase1 !== 'object' ||
       !phase2 || typeof phase2 !== 'object' ||
@@ -530,9 +515,6 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
       phase3: {
         teacherNextSteps: p3.teacherNextSteps.trim(),
       },
-      visualInventory: p1.visualInventory.trim(),
-      feedback: p2.criticsAnalysis.trim(),
-      actionPlan: p3.teacherNextSteps.trim(),
       confidence: r.confidence as 'low' | 'medium' | 'high',
       evidenceSignals: r.evidenceSignals as string[],
       preserve: r.preserve,

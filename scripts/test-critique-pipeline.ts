@@ -149,11 +149,13 @@ async function main() {
       }
     }
 
-    console.log(`\n  FEEDBACK: ${cat.feedback?.slice(0, 200)}${(cat.feedback?.length ?? 0) > 200 ? '...' : ''}`);
+    console.log(
+      `\n  FEEDBACK: ${cat.phase2.criticsAnalysis.slice(0, 200)}${cat.phase2.criticsAnalysis.length > 200 ? '...' : ''}`
+    );
 
     console.log(`\n  ACTION PLAN (How to Improve):`);
-    console.log(`    ${cat.actionPlan}`);
-    const planGrade = gradeStep(cat.actionPlan, cat.level);
+    console.log(`    ${cat.phase3.teacherNextSteps}`);
+    const planGrade = gradeStep(cat.phase3.teacherNextSteps, cat.level);
     console.log(`    Grade: ${planGrade.grade}`);
     if (planGrade.issues.length) {
       for (const issue of planGrade.issues) console.log(`      ⚠ ${issue}`);
@@ -177,7 +179,7 @@ async function main() {
   console.log('GRADE SUMMARY');
   console.log('='.repeat(80));
   const grades = result.categories.map((cat) => {
-    const g = gradeStep(cat.actionPlan, cat.level);
+    const g = gradeStep(cat.phase3.teacherNextSteps, cat.level);
     return { criterion: cat.criterion, grade: g.grade, issues: g.issues };
   });
   for (const g of grades) {

@@ -82,7 +82,7 @@ type PendingCrop = {
 
 type PreviewEditTargetPayload = Pick<
   CritiqueCategory,
-  'criterion' | 'level' | 'feedback' | 'actionPlan' | 'actionPlanSteps' | 'anchor' | 'editPlan'
+  'criterion' | 'level' | 'phase2' | 'phase3' | 'actionPlanSteps' | 'anchor' | 'editPlan'
 > & {
   studioChangeRecommendation?: string;
 };
@@ -123,8 +123,8 @@ function previewDisplayTarget(
     return {
       criterion: active.criterion,
       level: cat.level,
-      feedback: cat.feedback,
-      actionPlan: cat.actionPlan,
+      phase2: cat.phase2,
+      phase3: cat.phase3,
       actionPlanSteps: cat.actionPlanSteps,
       anchor: cat.anchor,
       editPlan: cat.editPlan,
@@ -139,8 +139,8 @@ function previewDisplayTarget(
     return {
       criterion: ch.previewCriterion,
       level: cat.level,
-      feedback: cat.feedback,
-      actionPlan: cat.actionPlan,
+      phase2: cat.phase2,
+      phase3: cat.phase3,
       actionPlanSteps: cat.actionPlanSteps,
       anchor: cat.anchor,
       editPlan: cat.editPlan,
@@ -151,8 +151,8 @@ function previewDisplayTarget(
   return {
     criterion: p.criterion,
     level: p.level,
-    feedback: p.feedback,
-    actionPlan: p.actionPlan,
+    phase2: p.phase2,
+    phase3: p.phase3,
     actionPlanSteps: p.actionPlanSteps,
     anchor: p.anchor,
     editPlan: p.editPlan,
@@ -669,8 +669,8 @@ export default function App() {
       const target: PreviewEditTargetPayload = {
         criterion: category.criterion,
         level: category.level,
-        feedback: category.feedback,
-        actionPlan: category.actionPlan,
+        phase2: category.phase2,
+        phase3: category.phase3,
         actionPlanSteps: category.actionPlanSteps,
         anchor: category.anchor,
         editPlan: category.editPlan,

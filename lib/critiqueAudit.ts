@@ -6,6 +6,14 @@ function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function phase2Text(category: CritiqueResultDTO['categories'][number]): string {
+  return category.phase2?.criticsAnalysis ?? '';
+}
+
+function phase3Text(category: CritiqueResultDTO['categories'][number]): string {
+  return category.phase3?.teacherNextSteps ?? '';
+}
+
 function normalizedContains(haystack: string, needle: string): boolean {
   const h = normalizeWhitespace(haystack).toLowerCase();
   const n = normalizeWhitespace(needle).toLowerCase();
@@ -142,8 +150,8 @@ export function critiqueNeedsFreshEvidenceRead(critique: CritiqueResultDTO): boo
   for (const category of critique.categories) {
     const anchor = category.anchor;
     if (!anchor) return true;
-    if (!hasConcreteAnchorReference(category.feedback, anchor.areaSummary, anchor.evidencePointer)) return true;
-    if (!hasConcreteAnchorReference(category.actionPlan, anchor.areaSummary, anchor.evidencePointer)) return true;
+    if (!hasConcreteAnchorReference(phase2Text(category), anchor.areaSummary, anchor.evidencePointer)) return true;
+    if (!hasConcreteAnchorReference(phase3Text(category), anchor.areaSummary, anchor.evidencePointer)) return true;
     if (!normalizedContains(category.editPlan?.targetArea ?? '', anchor.areaSummary)) return true;
   }
   return !topLevelVoicesStayGrounded(critique) || !alignedStudioChanges(critique);
@@ -235,7 +243,7 @@ function fallbackVoiceBStep(
 ): string {
   if (!structuredFieldsAreConcrete(category)) {
     const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
-    const existingSteps = splitNumberedSteps(category.actionPlan);
+    const existingSteps = splitNumberedSteps(phase3Text(category));
     const reusable = existingSteps.find((step) => normalizeWhitespace(step).length > 0 && !isVagueVoiceBText(step));
     if (reusable) return `${index + 1}. ${ensureTrailingPeriod(reusable)}`;
     return `${index + 1}. Keep the strongest relationship in ${area} intact and make only one clearly local revision there.`;
@@ -257,8 +265,8 @@ function fallbackVoiceBStep(
 function rewriteActionPlanFromStructuredFields(
   category: CritiqueResultDTO['categories'][number]
 ): string {
-  if (category.level === 'Master') return category.actionPlan;
-  const existingSteps = splitNumberedSteps(category.actionPlan);
+  if (category.level === 'Master') return phase3Text(category);
+  const existingSteps = splitNumberedSteps(phase3Text(category));
   if (!structuredFieldsAreConcrete(category) && existingSteps.length > 0) {
     return existingSteps.map((step, index) => `${index + 1}. ${ensureTrailingPeriod(step)}`).join('\n');
   }
@@ -326,11 +334,13 @@ function hybridizeVoiceBFromStructuredFields(critique: CritiqueResultDTO): Criti
   const categories = critique.categories.map((category) => {
     if (category.level === 'Master') return category;
     const rewritten = rewriteActionPlanFromStructuredFields(category);
-    if (rewritten === category.actionPlan) return category;
+    if (rewritten === phase3Text(category)) return category;
     changed = true;
     return {
       ...category,
-      actionPlan: rewritten,
+      phase3: {
+        teacherNextSteps: rewritten,
+      },
     };
   });
 
@@ -383,7 +393,7 @@ function anchoredIssueSentence(category: CritiqueResultDTO['categories'][number]
   const issueSource =
     category.editPlan?.issue?.trim() ||
     category.anchor?.evidencePointer?.trim() ||
-    firstSentence(category.feedback);
+    firstSentence(phase2Text(category));
   if (!issueSource) {
     return `In ${area}, the structure is still too underdeveloped for a higher read.`;
   }
@@ -434,8 +444,8 @@ function critiqueText(critique: CritiqueResultDTO): string {
       critique.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '',
       ...(critique.simpleFeedback?.studioChanges.map((change) => change.text) ?? []),
       ...critique.categories.flatMap((category) => [
-        category.feedback,
-        category.actionPlan,
+        phase2Text(category),
+        phase3Text(category),
         ...(category.evidenceSignals ?? []),
         category.anchor?.areaSummary ?? '',
         category.anchor?.evidencePointer ?? '',
@@ -535,21 +545,36 @@ function normalizeActionPlansToLevels(critique: CritiqueResultDTO): CritiqueResu
   let changed = false;
   const categories = critique.categories.map((cat) => {
     if (cat.level === 'Master') return cat;
-    const raw = cat.actionPlan.trim();
+    const raw = phase3Text(cat).trim();
 
     if (dontChange.test(raw)) {
       const stripped = raw.replace(dontChange, '').trim();
       if (/^1[\.\)]\s/m.test(stripped) && stripped.length >= 50 && !isPreservationOnlyPlan(stripped)) {
         changed = true;
-        return { ...cat, actionPlan: stripped };
+        return {
+          ...cat,
+          phase3: {
+            teacherNextSteps: stripped,
+          },
+        };
       }
       changed = true;
-      return { ...cat, actionPlan: buildImprovementFallback(cat) };
+      return {
+        ...cat,
+        phase3: {
+          teacherNextSteps: buildImprovementFallback(cat),
+        },
+      };
     }
 
     if (isPreservationOnlyPlan(raw)) {
       changed = true;
-      return { ...cat, actionPlan: buildImprovementFallback(cat) };
+      return {
+        ...cat,
+        phase3: {
+          teacherNextSteps: buildImprovementFallback(cat),
+        },
+      };
     }
 
     return cat;
@@ -591,14 +616,17 @@ function rebalanceEdgeSurfaceIntermediateCluster(critique: CritiqueResultDTO): C
       level: 'Advanced' as const,
       score: Math.min(0.9, Math.max(s.score, 0.66)),
     }));
-    const feedback = cat.feedback.includes('Read at Advanced on this capture')
-      ? cat.feedback
-      : `${cat.feedback.trim()}${bandNote}`;
+    const currentFeedback = phase2Text(cat);
+    const feedback = currentFeedback.includes('Read at Advanced on this capture')
+      ? currentFeedback
+      : `${currentFeedback.trim()}${bandNote}`;
     return {
       ...cat,
       level: 'Advanced' as const,
       nextTarget,
-      feedback,
+      phase2: {
+        criticsAnalysis: feedback,
+      },
       ...(subskills ? { subskills } : {}),
     };
   });

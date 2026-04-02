@@ -5,8 +5,15 @@ import type { VoiceBPlanDTO, VoiceBStepDTO } from './critiqueTypes.js';
 export type PreviewEditTarget = {
   criterion: CriterionLabel;
   level?: RatingLevelLabel;
-  feedback: string;
-  actionPlan: string;
+  phase1: {
+    visualInventory: string;
+  };
+  phase2: {
+    criticsAnalysis: string;
+  };
+  phase3: {
+    teacherNextSteps: string;
+  };
   actionPlanSteps?: VoiceBStepDTO[];
   voiceBPlan?: VoiceBPlanDTO;
   anchor?: CriterionAnchor;
