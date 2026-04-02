@@ -95,17 +95,31 @@ const voiceASubskillSchema = z.object({
   level: ratingLevelEnum,
 });
 
+const critiquePhase1Schema = z.object({
+  visualInventory: z.string().describe(
+    `Phase 1 — objective extraction only for THIS criterion. List the literal visible data first: named motifs, quadrants/regions, colors, shapes, edges, textures, and specific junctions. Ground every sentence in the supplied visibleEvidence and avoid judgment verbs such as "works", "fails", "successful", or "weak". ${VOICE_A_SCHEMA_REMINDER}`
+  ),
+});
+
+const critiquePhase2Schema = z.object({
+  criticsAnalysis: z.string().describe(
+    `Phase 2 — Voice A expert critics: 2–4 sentences for THIS criterion only. Analyze how effectively the artist handled this criterion based strictly on the phase1 visual inventory and this criterion's visibleEvidence in the supplied evidence JSON—name motifs, junctions, colors, edges, or intervals. State the rating rationale without repeating the same fact in two sentences. ${VOICE_A_SCHEMA_REMINDER}`
+  ),
+});
+
+const critiquePhase3Schema = z.object({
+  teacherNextSteps: z.string().describe(
+    `Phase 3 — Voice B expert teachers: 2-3 bullet-style or numbered steps only, derived strictly from actionPlanSteps—no extra sentences, no duplicate steps, no pasted Voice A wording. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master. Else: 1–3 steps.`
+  ),
+});
+
 const voiceACategorySchema = z.object({
   criterion: criterionEnum,
   level: ratingLevelEnum.describe(
     `Voice A's quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER}`
   ),
-  visualInventory: z.string().describe(
-    `Phase 1 — objective extraction only for THIS criterion. List the literal visible data first: named motifs, quadrants/regions, colors, shapes, edges, textures, and specific junctions. Ground every sentence in the supplied visibleEvidence and avoid judgment verbs such as "works", "fails", "successful", or "weak". ${VOICE_A_SCHEMA_REMINDER}`
-  ),
-  feedback: z.string().describe(
-    `Phase 2 — Voice A expert critics: 2–4 sentences for THIS criterion only. Analyze how effectively the artist handled this criterion based strictly on the visible inventory and this criterion's visibleEvidence in the supplied evidence JSON—name motifs, junctions, colors, edges, or intervals. State the rating rationale without repeating the same fact in two sentences. ${VOICE_A_SCHEMA_REMINDER}`
-  ),
+  phase1: critiquePhase1Schema,
+  phase2: critiquePhase2Schema,
   confidence: confidenceEnum,
   evidenceSignals: z
     .array(z.string())
@@ -170,9 +184,7 @@ export const voiceAStageResultSchema = z.object({
 
 const voiceBCategorySchema = z.object({
   criterion: criterionEnum,
-  actionPlan: z.string().describe(
-    `Phase 3 — Voice B expert teachers: 2-3 bullet-style or numbered steps only, derived strictly from actionPlanSteps—no extra sentences, no duplicate steps, no pasted Voice A wording. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master. Else: 1–3 steps.`
-  ),
+  phase3: critiquePhase3Schema,
   actionPlanSteps: z.array(voiceBStepSchema).min(1).max(3).describe(
     'Voice B structured teaching steps for THIS criterion only. Prefer 1-3 high-leverage moves instead of filler.'
   ),

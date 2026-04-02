@@ -17,8 +17,9 @@ export function buildCritiqueSchemaInstruction(): string {
 
 For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
-- visualInventory: Phase 1 objective extraction for this criterion only—2–4 sentences listing literal visual data from the supplied evidence. Name specific quadrants, objects, color/value passages, textures, and anchored relationships. No praise, diagnosis, or verbs like "works", "fails", "effective", or "weak".
-- feedback: Phase 2 Critic's Analysis for this criterion—2–4 sentences grounded in that criterion’s visibleEvidence and visualInventory; no redundant sentences; consistent with level
+- phase1: { visualInventory } — objective extraction for this criterion only; 2–4 sentences listing literal visual data from the supplied evidence. Name specific quadrants, objects, color/value passages, textures, and anchored relationships. No praise, diagnosis, or verbs like "works", "fails", "effective", or "weak".
+- phase2: { criticsAnalysis } — Critic's Analysis for this criterion; 2–4 sentences grounded in that criterion’s visibleEvidence and phase1.visualInventory; no redundant sentences; consistent with level
+- phase3: { teacherNextSteps } — Teacher's Next Steps for this criterion; numbered rendering of the same teacher guidance as actionPlan, aligned with actionPlanSteps and anchor
 - voiceBPlan: structured teacher notes for this criterion — currentRead, bestNextMove, expectedRead, plus optional mainProblem/mainStrength/avoidDoing/storyIfRelevant; fields must not duplicate the same prose
 - actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve, priority }; prefer high-leverage steps over filler
 - actionPlan: Phase 3 Teacher's Next Steps — Voice B numbered rendering of actionPlanSteps only, one numbered item per step, no extra duplicate moves. Prefer 2–3 highly specific steps when revision is warranted. Master only: may start with "Don't change a thing." then brief praise. Any other level: numbered steps grounded in evidence. Do not park Edge and Surface one band below everything else by default.
@@ -44,8 +45,8 @@ export function buildVoiceASchemaInstruction(): string {
 
 For each criterion:
 - level: Voice A’s ranking for that criterion alone
-- visualInventory: Phase 1 objective extraction—2–4 sentences listing only literal visual evidence from this criterion’s visibleEvidence. Name the specific area, objects, colors, values, textures, and junctions. No evaluative wording.
-- feedback: Phase 2 Critic's Analysis — 2–4 sentences; ground every sentence in this criterion’s visibleEvidence and visualInventory; no redundancy
+- phase1: { visualInventory } — objective extraction; 2–4 sentences listing only literal visual evidence from this criterion’s visibleEvidence. Name the specific area, objects, colors, values, textures, and junctions. No evaluative wording.
+- phase2: { criticsAnalysis } — 2–4 sentences; ground every sentence in this criterion’s visibleEvidence and phase1.visualInventory; no redundancy
 - confidence
 - evidenceSignals: 2–4 short lines, each from a distinct visibleEvidence entry—no new locations
 - preserve
@@ -60,6 +61,7 @@ export function buildVoiceBSchemaInstruction(): string {
 - categories
 
 For each criterion:
+- phase3: { teacherNextSteps } — numbered list matching actionPlan exactly
 - actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve, priority }
 - voiceBPlan: structured teacher notes for this criterion — { currentRead, mainProblem, mainStrength, bestNextMove, optionalSecondMove, avoidDoing, expectedRead, storyIfRelevant }
 - actionPlan: numbered list matching actionPlanSteps only—no extra steps or repeated moves

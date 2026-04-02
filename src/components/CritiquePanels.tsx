@@ -296,18 +296,18 @@ function CategoryCard({
           <div className="space-y-3">
             <PhaseBlock
               label="Visual inventory"
-              body={category.visualInventory}
+              body={category.phase1?.visualInventory}
             />
             <PhaseBlock
               label="Critic's analysis"
-              body={category.feedback}
+              body={category.phase2?.criticsAnalysis}
               tone="violet"
             />
             <div className="rounded-xl bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Teacher&apos;s next steps
               </p>
-              <ActionPlanBlock actionPlan={category.actionPlan} />
+              <ActionPlanBlock actionPlan={category.phase3?.teacherNextSteps ?? ''} />
             </div>
           </div>
           {hasUsableSubskills(category) ? (

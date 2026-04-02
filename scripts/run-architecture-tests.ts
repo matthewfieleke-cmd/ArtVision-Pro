@@ -840,7 +840,7 @@ function testWritingPromptDemandsConcreteAnchors(): void {
   assert.match(prompt, /Voice B planning structure \(required for all eight categories\):/);
   assert.match(prompt, /categories\[\]\.voiceBPlan is Voice B's teacher note to self/);
   assert.match(prompt, /categories\[\]\.actionPlanSteps must contain 1-3 high-leverage steps only/);
-  assert.match(prompt, /Make categories\[\]\.actionPlan a readable numbered rendering of categories\[\]\.actionPlanSteps/);
+  assert.match(prompt, /Make categories\[\]\.phase3\.teacherNextSteps a readable numbered rendering of categories\[\]\.actionPlanSteps/);
 }
 
 function testPreviewEditPromptAlignment(): void {

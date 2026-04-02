@@ -49,10 +49,26 @@ export type CritiqueSubskill = {
   level: RatingLevelLabel;
 };
 
+export type CritiquePhase1 = {
+  /** Objective visual extraction anchored to named passages or canvas regions. */
+  visualInventory: string;
+};
+
+export type CritiquePhase2 = {
+  criticsAnalysis: string;
+};
+
+export type CritiquePhase3 = {
+  teacherNextSteps: string;
+};
+
 export type CritiqueCategory = {
   criterion: CriterionLabel;
   level?: RatingLevelLabel;
-  /** Phase 1: objective visual extraction anchored to named passages or canvas regions. */
+  phase1: CritiquePhase1;
+  phase2: CritiquePhase2;
+  phase3: CritiquePhase3;
+  /** Flat aliases preserved for downstream app helpers that still consume them directly. */
   visualInventory: string;
   feedback: string;
   actionPlan: string;

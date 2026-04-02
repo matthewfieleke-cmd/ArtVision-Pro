@@ -68,8 +68,8 @@ type VoiceAStageResult = {
   categories: Array<{
     criterion: string;
     level: string;
-    visualInventory: string;
-    feedback: string;
+    phase1: { visualInventory: string };
+    phase2: { criticsAnalysis: string };
     confidence: 'low' | 'medium' | 'high';
     evidenceSignals: string[];
     preserve: string;
@@ -83,7 +83,7 @@ type VoiceBStageResult = {
   studioChanges: Array<{ text: string; previewCriterion: string }>;
   categories: Array<{
     criterion: string;
-    actionPlan: string;
+    phase3: { teacherNextSteps: string };
     actionPlanSteps: Array<{
       area: string;
       currentRead: string;
@@ -134,7 +134,7 @@ Voice:
 ${VOICE_A_COMPOSITE_EXPERTS}
 
 Your job in this stage:
-- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/visualInventory/feedback/confidence/evidenceSignals/preserve/nextTarget/subskills.
+- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/phase1/phase2/confidence/evidenceSignals/preserve/nextTarget/subskills.
 - Do NOT output any Voice B fields in this stage: no topPriorities, no studioChanges, no anchors, no edit plans, no voiceBPlan, no actionPlanSteps, and no actionPlan.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
@@ -151,8 +151,8 @@ ${completionToneBlock(evidence)}
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
 - Do not invent visible claims that are not supported by the evidence.
-- For every criterion, write categories[].visualInventory first in an objective register: list literal visual data only, anchored to exact zones, quadrants, objects, colors, values, edges, or textures. No judgment words such as "successful", "weak", "effective", "awkward", or "better" in visualInventory.
-- categories[].feedback is Phase 2 only: the critic's analysis based strictly on that criterion's visualInventory/evidence. It should read like an expert critic evaluating what those specific visual facts do psychologically and formally.
+- For every criterion, write categories[].phase1.visualInventory first in an objective register: list literal visual data only, anchored to exact zones, quadrants, objects, colors, values, edges, or textures. No judgment words such as "successful", "weak", "effective", "awkward", or "better" in visualInventory.
+- categories[].phase2.criticsAnalysis is Phase 2 only: the critic's analysis based strictly on that criterion's phase1.visualInventory/evidence. It should read like an expert critic evaluating what those specific visual facts do psychologically and formally.
 - Judge the painting on its own terms.
 - Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
 - If the evidence suggests a strong work, let the critique say the issue is modest.
@@ -160,7 +160,7 @@ Rules:
 - Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
-- Non-redundancy: categories[].visualInventory must stay objective and distinct from categories[].feedback. categories[].feedback must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate feedback verbatim.
+- Non-redundancy: categories[].phase1.visualInventory must stay objective and distinct from categories[].phase2.criticsAnalysis. categories[].phase2.criticsAnalysis must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate the phase2 text verbatim.
 - Overall prose: studioAnalysis.whatWorks vs whatCouldImprove must not duplicate each other; summary and overallSummary.analysis must add different angles, not repeat the same phrases.
 - Rating calibration (per criterion, from visible evidence only):
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
@@ -199,7 +199,7 @@ Your job in this stage:
 - Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and actionPlan.
 - Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
 - Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
-- Treat Voice A's categories[].visualInventory as the objective Phase 1 record for each criterion. Your actionPlanSteps/actionPlan are Phase 3 only and must build directly on those observed facts rather than replacing them with generic coaching.
+- Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis. Your actionPlanSteps and categories[].phase3.teacherNextSteps are Phase 3 only and must build directly on those observed facts rather than replacing them with generic coaching.
 - For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
@@ -251,8 +251,8 @@ Rules:
   - actionPlanSteps[].move must begin with a concrete studio verb (soften, darken, cool, group, separate, sharpen, widen, compress, quiet, warm, lose, restate) applied to a specific visual element in that passage. NEVER use "adjust elements", "enhance presence", "ensure consistency", "improve structure", "strengthen the painting's presence", "define these spatial relationships", or "unify texture" without naming what exactly to change. If you cannot name a specific brushstroke, edge, color relationship, or spatial event to change, the step is too vague.
   - actionPlanSteps[].currentRead must describe a visible fact, not a judgment. Bad: "could be more unified", "feels less necessary", "some relationships could be clearer". Better: "the green foliage patches are all the same value and chroma, flattening the depth between near and far beds."
   - Prefer one primary step and at most two secondary steps. Secondary steps must be genuinely different, not paraphrases of the same move.
-  - Make categories[].actionPlan a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in actionPlan that is not already present in those structured steps. One numbered item per step—no duplicate numbered lines saying the same move.
-- Voice B actionPlan (required for all eight categories): For each category, actionPlan is the readable numbered studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
+  - Make categories[].phase3.teacherNextSteps a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in phase3.teacherNextSteps that is not already present in those structured steps. One numbered item per step—no duplicate numbered lines saying the same move.
+- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable numbered studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
   - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and editPlan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
   - Every numbered step must answer all three questions explicitly: **where exactly**, **what exactly is wrong/right there**, and **what exactly should change or stay**. If a step could fit many paintings by swapping only the subject noun, it is too vague.
   - Do not use abstract placeholders such as "certain edges", "small details", "the story", "color transitions", "focal area", "more realism", or "more depth" unless the same sentence names the exact edge, exact detail, exact story beat, exact color junction, or exact focal passage in THIS painting.
@@ -260,7 +260,7 @@ Rules:
   - If you mention preserving a strength, say exactly what to preserve and why it matters: e.g. keep X contrast, keep Y diagonal, keep Z edge around the eyes—not "maintain the focus" in the abstract.
   - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for numbered improvement steps—Advanced still needs concrete moves toward Master.
   - **Equally critical — no preservation masquerading as improvement:** For any criterion below Master, the actionPlan and actionPlanSteps must contain at least one genuine CHANGE instruction—something the artist would physically alter on the canvas. Steps that begin with "Maintain", "Preserve", "Keep", "Continue", or "Protect" are preservation steps, NOT improvement steps. Preservation is allowed as a secondary step or as part of a step that also names a change, but it must NEVER be the only advice for a non-Master criterion. If a criterion is Advanced, there is still a real gap between Advanced and Master—name the specific move that would close it rather than telling the artist to keep doing what they are doing.
-  - If categories[].level is **Master** for that criterion: actionPlan must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
+  - If categories[].level is **Master** for that criterion: phase3.teacherNextSteps must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
   - If level is **Beginner**: usually 1-3 specific steps that would realistically move this criterion toward **Intermediate**. Use more than one step only if each step names a different useful move on this image.
   - If level is **Intermediate**: usually 1-3 specific steps aimed at moving toward **Advanced**.
   - If level is **Advanced**: usually 1-2 specific steps aimed at moving toward **Master**. These must name a real refinement, not just praise. Even a strong painting has a next move—name it. Example for a watercolor: "Vary the wash density in the upper sky from left to right so the dark-to-medium gradient reads less uniform." Example for an oil: "Cool the shadow under the porch roof by one step so the warm window glow separates more from the shadow."
@@ -276,7 +276,7 @@ Rules:
   - Bad: "left side of the painting", "color transitions in clothing and background", "circular arrangement of figures around the table". Better: "the leftmost seated woman’s face against the dark hedge", "the orange sleeve where it meets the blue-gray wall", "the gap between the two front figures at the table edge".
   - If the real issue is relational, the anchor should still name the visible relationship in concrete terms: "the overlap between the cup rim and the hand", "the jaw edge against the dark collar", "the warm cheek turning into the green shadow under the eye".
   - The anchor should be as tight as possible while still including the full visible relationship being discussed.
-  - categories[].feedback, categories[].actionPlan, categories[].editPlan, and any related studioChanges must all stay aligned to that same anchored passage.
+  - Voice A categories[].phase2.criticsAnalysis, Voice B categories[].phase3.teacherNextSteps, categories[].editPlan, and any related studioChanges must all stay aligned to that same anchored passage.
 - Edit plan rules (required for every criterion):
   - categories[].editPlan.targetArea must match categories[].anchor.areaSummary.
   - categories[].editPlan.issue, intendedChange, and expectedOutcome must be concrete, machine-readable, and limited to the same anchored passage.
@@ -472,9 +472,13 @@ function mergeVoiceStages(voiceA: VoiceAStageResult, voiceB: VoiceBStageResult):
     categories: voiceA.categories.map((category) => {
       const teacher = voiceBCategories.get(category.criterion);
       if (!teacher) throw new Error(`Voice B category missing: ${category.criterion}`);
+      const phase3 = {
+        teacherNextSteps: teacher.phase3.teacherNextSteps,
+      };
       return {
         ...category,
-        actionPlan: teacher.actionPlan,
+        phase3,
+        actionPlan: phase3.teacherNextSteps,
         actionPlanSteps: teacher.actionPlanSteps,
         voiceBPlan: teacher.voiceBPlan,
         anchor: teacher.anchor,

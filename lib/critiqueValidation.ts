@@ -440,11 +440,39 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     if (typeof r.level !== 'string' || !RATING_LEVELS.includes(r.level as (typeof RATING_LEVELS)[number])) {
       throw new Error(`Invalid level for ${expected}`);
     }
+    const phase1 =
+      r.phase1 && typeof r.phase1 === 'object'
+        ? r.phase1
+        : typeof r.visualInventory === 'string'
+          ? { visualInventory: r.visualInventory }
+          : null;
+    const phase2 =
+      r.phase2 && typeof r.phase2 === 'object'
+        ? r.phase2
+        : typeof r.feedback === 'string'
+          ? { criticsAnalysis: r.feedback }
+          : null;
+    const phase3 =
+      r.phase3 && typeof r.phase3 === 'object'
+        ? r.phase3
+        : typeof r.actionPlan === 'string'
+          ? { teacherNextSteps: r.actionPlan }
+          : null;
     if (
-      typeof r.visualInventory !== 'string' ||
-      r.visualInventory.trim().length < 12 ||
-      typeof r.feedback !== 'string' ||
-      typeof r.actionPlan !== 'string'
+      !phase1 || typeof phase1 !== 'object' ||
+      !phase2 || typeof phase2 !== 'object' ||
+      !phase3 || typeof phase3 !== 'object'
+    ) {
+      throw new Error(`Invalid phases for ${expected}`);
+    }
+    const p1 = phase1 as Record<string, unknown>;
+    const p2 = phase2 as Record<string, unknown>;
+    const p3 = phase3 as Record<string, unknown>;
+    if (
+      typeof p1.visualInventory !== 'string' ||
+      p1.visualInventory.trim().length < 12 ||
+      typeof p2.criticsAnalysis !== 'string' ||
+      typeof p3.teacherNextSteps !== 'string'
     ) {
       throw new Error(`Invalid text for ${expected}`);
     }
@@ -493,9 +521,18 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     return {
       criterion: r.criterion as (typeof CRITERIA_ORDER)[number],
       level: r.level as (typeof RATING_LEVELS)[number],
-      visualInventory: r.visualInventory.trim(),
-      feedback: r.feedback,
-      actionPlan: r.actionPlan,
+      phase1: {
+        visualInventory: p1.visualInventory.trim(),
+      },
+      phase2: {
+        criticsAnalysis: p2.criticsAnalysis.trim(),
+      },
+      phase3: {
+        teacherNextSteps: p3.teacherNextSteps.trim(),
+      },
+      visualInventory: p1.visualInventory.trim(),
+      feedback: p2.criticsAnalysis.trim(),
+      actionPlan: p3.teacherNextSteps.trim(),
       confidence: r.confidence as 'low' | 'medium' | 'high',
       evidenceSignals: r.evidenceSignals as string[],
       preserve: r.preserve,
