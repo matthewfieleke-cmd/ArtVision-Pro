@@ -68,6 +68,7 @@ type VoiceAStageResult = {
   categories: Array<{
     criterion: string;
     level: string;
+    visualInventory: string;
     feedback: string;
     confidence: 'low' | 'medium' | 'high';
     evidenceSignals: string[];
@@ -133,7 +134,7 @@ Voice:
 ${VOICE_A_COMPOSITE_EXPERTS}
 
 Your job in this stage:
-- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/feedback/confidence/evidenceSignals/preserve/nextTarget/subskills.
+- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/visualInventory/feedback/confidence/evidenceSignals/preserve/nextTarget/subskills.
 - Do NOT output any Voice B fields in this stage: no topPriorities, no studioChanges, no anchors, no edit plans, no voiceBPlan, no actionPlanSteps, and no actionPlan.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
@@ -150,6 +151,8 @@ ${completionToneBlock(evidence)}
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
 - Do not invent visible claims that are not supported by the evidence.
+- For every criterion, write categories[].visualInventory first in an objective register: list literal visual data only, anchored to exact zones, quadrants, objects, colors, values, edges, or textures. No judgment words such as "successful", "weak", "effective", "awkward", or "better" in visualInventory.
+- categories[].feedback is Phase 2 only: the critic's analysis based strictly on that criterion's visualInventory/evidence. It should read like an expert critic evaluating what those specific visual facts do psychologically and formally.
 - Judge the painting on its own terms.
 - Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
 - If the evidence suggests a strong work, let the critique say the issue is modest.
@@ -157,7 +160,7 @@ Rules:
 - Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
-- Non-redundancy: categories[].feedback must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate feedback verbatim.
+- Non-redundancy: categories[].visualInventory must stay objective and distinct from categories[].feedback. categories[].feedback must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate feedback verbatim.
 - Overall prose: studioAnalysis.whatWorks vs whatCouldImprove must not duplicate each other; summary and overallSummary.analysis must add different angles, not repeat the same phrases.
 - Rating calibration (per criterion, from visible evidence only):
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
@@ -196,6 +199,7 @@ Your job in this stage:
 - Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and actionPlan.
 - Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
 - Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
+- Treat Voice A's categories[].visualInventory as the objective Phase 1 record for each criterion. Your actionPlanSteps/actionPlan are Phase 3 only and must build directly on those observed facts rather than replacing them with generic coaching.
 - For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):

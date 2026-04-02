@@ -45,6 +45,7 @@ export type VoiceBPlanDTO = {
 export type CritiqueCategoryDTO = {
   criterion: CriterionLabel;
   level?: RatingLevelLabel;
+  visualInventory: string;
   feedback: string;
   actionPlan: string;
   confidence?: CritiqueConfidenceDTO;

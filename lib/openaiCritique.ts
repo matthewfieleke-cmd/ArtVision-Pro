@@ -1,16 +1,14 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
 import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
+import {
+  buildHighDetailImageMessage,
+  type VisionUserMessagePart,
+} from './openaiVisionContent.js';
 import { EVIDENCE_OPENAI_SCHEMA } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 import { validateCritiqueResult, validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
-
-function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
-  if (!match) throw new Error('Invalid image data URL');
-  return { mime: match[1]!, base64: match[2]! };
-}
 
 async function runCritiqueEvidenceStage(
   apiKey: string,
@@ -18,10 +16,7 @@ async function runCritiqueEvidenceStage(
     model: string;
     style: string;
     medium: string;
-    userContent: Array<
-      | { type: 'text'; text: string }
-      | { type: 'image_url'; image_url: { url: string; detail: 'high' | 'low' } }
-    >;
+    userContent: VisionUserMessagePart[];
   }
 ): Promise<ReturnType<typeof validateEvidenceResult>> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -84,8 +79,6 @@ export async function runOpenAICritique(
     process.env.OPENAI_CRITIQUE_MODEL ??
     process.env.OPENAI_MODEL ??
     'gpt-4o';
-  const { mime, base64 } = parseDataUrl(body.imageDataUrl);
-
   const trimmedUserTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const titleLine =
@@ -98,10 +91,7 @@ export async function runOpenAICritique(
       ? ` The artist has not supplied a title. You must still output suggestedPaintingTitles: exactly three categorized title objects. One "formalist" (from Composition, Value, Color, Drawing criteria—name the dominant structural element), one "tactile" (from Style, Medium, Surface, Edge criteria—name the physical execution), one "intent" (from Intent and Presence criteria—name the mood/psychology). Each { category, title, rationale }. Title Case, no quotes, no cliché. Rationale: 1–2 sentences explaining how the specific criterion data generated this title.`
       : '';
 
-  const userContent: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image_url'; image_url: { url: string; detail: 'high' | 'low' } }
-  > = [
+  const userContent: VisionUserMessagePart[] = [
     {
       type: 'text',
       text: `Analyze this painting for studio use. Style: ${body.style}. Medium: ${body.medium}.${titleLine}${titleSuggestionLine}
@@ -112,18 +102,11 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
           : ''
       }`,
     },
-    {
-      type: 'image_url',
-      image_url: { url: `data:${mime};base64,${base64}`, detail: 'high' },
-    },
+    buildHighDetailImageMessage(body.imageDataUrl),
   ];
 
   if (body.previousImageDataUrl && body.previousCritique) {
-    const prev = parseDataUrl(body.previousImageDataUrl);
-    userContent.push({
-      type: 'image_url',
-      image_url: { url: `data:${prev.mime};base64,${prev.base64}`, detail: 'high' },
-    });
+    userContent.push(buildHighDetailImageMessage(body.previousImageDataUrl));
     userContent.push({
       type: 'text',
       text: `Prior critique JSON (for comparison only):\n${JSON.stringify(body.previousCritique)}`,

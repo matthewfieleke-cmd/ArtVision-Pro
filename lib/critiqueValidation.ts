@@ -440,7 +440,12 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     if (typeof r.level !== 'string' || !RATING_LEVELS.includes(r.level as (typeof RATING_LEVELS)[number])) {
       throw new Error(`Invalid level for ${expected}`);
     }
-    if (typeof r.feedback !== 'string' || typeof r.actionPlan !== 'string') {
+    if (
+      typeof r.visualInventory !== 'string' ||
+      r.visualInventory.trim().length < 12 ||
+      typeof r.feedback !== 'string' ||
+      typeof r.actionPlan !== 'string'
+    ) {
       throw new Error(`Invalid text for ${expected}`);
     }
     if (
@@ -488,6 +493,7 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     return {
       criterion: r.criterion as (typeof CRITERIA_ORDER)[number],
       level: r.level as (typeof RATING_LEVELS)[number],
+      visualInventory: r.visualInventory.trim(),
       feedback: r.feedback,
       actionPlan: r.actionPlan,
       confidence: r.confidence as 'low' | 'medium' | 'high',

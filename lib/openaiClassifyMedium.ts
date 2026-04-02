@@ -1,3 +1,5 @@
+import { buildHighDetailImageMessage } from './openaiVisionContent.js';
+
 const MEDIUM_ENUM = [
   'Oil on Canvas',
   'Acrylic',
@@ -41,19 +43,12 @@ Watercolor — transparent washes, paper reserve, blooms/backruns, wet-into-wet 
 
 Pick the single best fit. If uncertain, choose the best-supported answer and lower confidence.`;
 
-function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
-  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
-  if (!m) throw new Error('Invalid image data URL');
-  return { mime: m[1]!, base64: m[2]! };
-}
-
 export async function runOpenAIClassifyMedium(
   apiKey: string,
   imageDataUrl: string,
   options?: { model?: string }
 ): Promise<ClassifyMediumResult> {
   const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
-  const { mime, base64 } = parseDataUrl(imageDataUrl);
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -76,10 +71,7 @@ Respond with JSON only matching the schema. rationale: 2–4 sentences. Name vis
           role: 'user',
           content: [
             { type: 'text', text: 'Which medium category best fits this artwork?' },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mime};base64,${base64}`, detail: 'high' },
-            },
+            buildHighDetailImageMessage(imageDataUrl),
           ],
         },
       ],

@@ -1,3 +1,5 @@
+import { buildHighDetailImageMessage } from './openaiVisionContent.js';
+
 const STYLE_ENUM = [
   'Realism',
   'Impressionism',
@@ -42,19 +44,12 @@ const NOVICE_GUARDRAIL = `Important calibration rule:
 - Rudimentary anatomy, arbitrary placement, elementary symbol-making, or very limited value/edge control are evidence of beginner execution, not proof of expressive mastery.
 - If the image looks like an early-stage or childlike drawing, say so plainly in the rationale instead of dressing it up as expert stylization.`;
 
-function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
-  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
-  if (!m) throw new Error('Invalid image data URL');
-  return { mime: m[1]!, base64: m[2]! };
-}
-
 export async function runOpenAIClassifyStyle(
   apiKey: string,
   imageDataUrl: string,
   options?: { model?: string }
 ): Promise<ClassifyStyleResult> {
   const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
-  const { mime, base64 } = parseDataUrl(imageDataUrl);
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -79,10 +74,7 @@ Respond with JSON only matching the schema. rationale: 3–4 sentences. Name whe
           role: 'user',
           content: [
             { type: 'text', text: 'Which style category fits this painting best?' },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mime};base64,${base64}`, detail: 'high' },
-            },
+            buildHighDetailImageMessage(imageDataUrl),
           ],
         },
       ],

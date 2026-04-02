@@ -75,6 +75,8 @@ export type VoiceBPlan = {
 export type CritiqueCategory = {
   criterion: Criterion;
   level?: RatingLevel;
+  /** Phase 1: objective visual extraction anchored to named passages or canvas regions. */
+  visualInventory: string;
   feedback: string;
   actionPlan: string;
   actionPlanSteps?: VoiceBPlanStep[];

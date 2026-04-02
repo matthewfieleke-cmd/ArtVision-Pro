@@ -49,6 +49,43 @@ function ActionPlanBlock({ actionPlan }: { actionPlan: string }) {
   );
 }
 
+function PhaseBlock({
+  label,
+  body,
+  tone = 'slate',
+}: {
+  label: string;
+  body?: string;
+  tone?: 'slate' | 'violet' | 'emerald';
+}) {
+  if (!body?.trim()) return null;
+  const styles =
+    tone === 'violet'
+      ? {
+          wrap: 'rounded-xl border border-violet-200 bg-violet-50/60 p-3',
+          label: 'text-violet-700',
+          body: 'text-slate-700',
+        }
+      : tone === 'emerald'
+        ? {
+            wrap: 'rounded-xl border border-emerald-200 bg-emerald-50/60 p-3',
+            label: 'text-emerald-700',
+            body: 'text-emerald-950/90',
+          }
+        : {
+            wrap: 'rounded-xl border border-slate-200 bg-slate-50/80 p-3',
+            label: 'text-slate-500',
+            body: 'text-slate-700',
+          };
+
+  return (
+    <div className={styles.wrap}>
+      <p className={`text-[10px] font-bold uppercase tracking-wider ${styles.label}`}>{label}</p>
+      <p className={`mt-1 whitespace-pre-line text-xs leading-relaxed ${styles.body}`}>{body}</p>
+    </div>
+  );
+}
+
 function completionBadgeClasses(state: WorkCompletionState): string {
   switch (state) {
     case 'unfinished':
@@ -256,7 +293,23 @@ function CategoryCard({
               </div>
             </div>
           ) : null}
-          <p className="text-sm leading-relaxed text-slate-600">{category.feedback}</p>
+          <div className="space-y-3">
+            <PhaseBlock
+              label="Visual inventory"
+              body={category.visualInventory}
+            />
+            <PhaseBlock
+              label="Critic's analysis"
+              body={category.feedback}
+              tone="violet"
+            />
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Teacher&apos;s next steps
+              </p>
+              <ActionPlanBlock actionPlan={category.actionPlan} />
+            </div>
+          </div>
           {hasUsableSubskills(category) ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skill snapshot</p>
@@ -290,10 +343,6 @@ function CategoryCard({
               <p className="mt-1 text-xs leading-relaxed text-emerald-950/90">{category.preserve}</p>
             </div>
           ) : null}
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
-            <ActionPlanBlock actionPlan={category.actionPlan} />
-          </div>
           {generateButtonVisible && canGenerateAiEdits && (onGenerateAiEdit || (hasSessionPreview && onViewAiEdit)) ? (
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3">
               <button
