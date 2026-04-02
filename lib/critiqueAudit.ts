@@ -1,17 +1,10 @@
 import { CRITERIA_ORDER } from '../shared/criteria.js';
+import { phase2Text, phase3Text } from '../shared/critiquePhaseText.js';
 import { splitNumberedSteps } from './numberedSteps.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
-}
-
-function phase2Text(category: CritiqueResultDTO['categories'][number]): string {
-  return category.phase2?.criticsAnalysis ?? '';
-}
-
-function phase3Text(category: CritiqueResultDTO['categories'][number]): string {
-  return category.phase3?.teacherNextSteps ?? '';
 }
 
 function normalizedContains(haystack: string, needle: string): boolean {

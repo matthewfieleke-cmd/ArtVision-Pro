@@ -10,6 +10,10 @@ import {
   buildVoiceBSchemaInstruction,
 } from './critiqueSchemas.js';
 import {
+  phaseVoiceAWorkflowRules,
+  phaseVoiceBWorkflowRules,
+} from './critiquePhasePromptBlocks.js';
+import {
   VOICE_A_OPENAI_SCHEMA,
   VOICE_B_OPENAI_SCHEMA,
   voiceAStageResultSchema,
@@ -151,8 +155,7 @@ ${completionToneBlock(evidence)}
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
 - Do not invent visible claims that are not supported by the evidence.
-- For every criterion, write categories[].phase1.visualInventory first in an objective register: list literal visual data only, anchored to exact zones, quadrants, objects, colors, values, edges, or textures. No judgment words such as "successful", "weak", "effective", "awkward", or "better" in visualInventory.
-- categories[].phase2.criticsAnalysis is Phase 2 only: the critic's analysis based strictly on that criterion's phase1.visualInventory/evidence. It should read like an expert critic evaluating what those specific visual facts do psychologically and formally.
+${phaseVoiceAWorkflowRules()}
 - Judge the painting on its own terms.
 - Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
 - If the evidence suggests a strong work, let the critique say the issue is modest.
@@ -199,7 +202,8 @@ Your job in this stage:
 - Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and actionPlan.
 - Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
 - Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
-- Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis. Your actionPlanSteps and categories[].phase3.teacherNextSteps are Phase 3 only and must build directly on those observed facts rather than replacing them with generic coaching.
+- Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis.
+${phaseVoiceBWorkflowRules()}
 - For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):

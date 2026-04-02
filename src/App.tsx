@@ -30,6 +30,7 @@ import { fetchCritiqueFromApi } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchClassifyMediumFromApi } from './classifyMediumApi';
+import type { PreviewEditTarget } from '../lib/previewEditTypes.js';
 import {
   applyDetectedStyle,
   backFromCapture,
@@ -80,12 +81,7 @@ type PendingCrop = {
   action: CropAction;
 };
 
-type PreviewEditTargetPayload = Pick<
-  CritiqueCategory,
-  'criterion' | 'level' | 'phase2' | 'phase3' | 'actionPlanSteps' | 'anchor' | 'editPlan'
-> & {
-  studioChangeRecommendation?: string;
-};
+type PreviewEditTargetPayload = PreviewEditTarget;
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -123,6 +119,7 @@ function previewDisplayTarget(
     return {
       criterion: active.criterion,
       level: cat.level,
+      phase1: cat.phase1,
       phase2: cat.phase2,
       phase3: cat.phase3,
       actionPlanSteps: cat.actionPlanSteps,
@@ -139,6 +136,7 @@ function previewDisplayTarget(
     return {
       criterion: ch.previewCriterion,
       level: cat.level,
+      phase1: cat.phase1,
       phase2: cat.phase2,
       phase3: cat.phase3,
       actionPlanSteps: cat.actionPlanSteps,
@@ -151,6 +149,7 @@ function previewDisplayTarget(
   return {
     criterion: p.criterion,
     level: p.level,
+    phase1: p.phase1,
     phase2: p.phase2,
     phase3: p.phase3,
     actionPlanSteps: p.actionPlanSteps,
@@ -669,6 +668,7 @@ export default function App() {
       const target: PreviewEditTargetPayload = {
         criterion: category.criterion,
         level: category.level,
+        phase1: category.phase1,
         phase2: category.phase2,
         phase3: category.phase3,
         actionPlanSteps: category.actionPlanSteps,

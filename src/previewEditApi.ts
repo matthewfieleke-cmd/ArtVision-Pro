@@ -1,16 +1,12 @@
-import type { CritiqueCategory, Medium, Style } from './types';
+import type { Medium, Style } from './types';
 import { readApiJson } from './apiJson';
-import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors';
+import type { PreviewEditTarget } from '../lib/previewEditTypes.js';
 
 export type PreviewEditPayload = {
   imageDataUrl: string;
   style: Style;
   medium: Medium;
-  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'phase2' | 'phase3' | 'actionPlanSteps' | 'voiceBPlan'> & {
-    anchor?: CriterionAnchor;
-    editPlan?: CriterionEditPlan;
-    studioChangeRecommendation?: string;
-  };
+  target: PreviewEditTarget;
   requestId?: string;
 };
 

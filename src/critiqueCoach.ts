@@ -2,6 +2,7 @@ import {
   canonicalCriterionLabel,
   CRITERIA_ORDER,
 } from '../shared/criteria';
+import { phase2Text, phase3Text } from '../shared/critiquePhaseText';
 import type {
   CritiqueCategory,
   CritiqueConfidence,
@@ -18,14 +19,6 @@ const CONFIDENCE_ORDER: CritiqueConfidence[] = ['low', 'medium', 'high'];
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
-}
-
-function criticText(category: CritiqueCategory): string {
-  return category.phase2.criticsAnalysis;
-}
-
-function teacherText(category: CritiqueCategory): string {
-  return category.phase3.teacherNextSteps;
 }
 
 function ensureSentence(text: string): string {
@@ -173,7 +166,7 @@ function fallbackSimpleRead(categories: CritiqueCategory[]): CritiqueSimpleFeedb
   const strongest = [...categories].sort((a, b) => levelRank(b.level) - levelRank(a.level));
   const keep = strongest[0] ?? categories[0];
   const planPairs = sorted
-    .map((cat) => ({ cat, plan: teacherText(cat).trim() }))
+    .map((cat) => ({ cat, plan: phase3Text(cat).trim() }))
     .filter((x): x is { cat: CritiqueCategory; plan: string } => Boolean(x.plan && x.plan.length > 0))
     .slice(0, 5);
   const strengthCats = strongest
@@ -193,7 +186,7 @@ function fallbackSimpleRead(categories: CritiqueCategory[]): CritiqueSimpleFeedb
         'The capture already suggests at least one passage worth building around while you address weaker structure elsewhere.';
 
   const whatCouldImprove =
-    (mainIssue ? criticText(mainIssue).trim() : '') ||
+    (mainIssue ? phase2Text(mainIssue).trim() : '') ||
     'One structural area still lags the rest; use the detailed categories below to prioritize before smaller fixes.';
 
   const studioChanges: CritiqueSimpleFeedback['studioChanges'] = planPairs.map(({ cat, plan }) => ({
@@ -314,11 +307,11 @@ export function finalizeCritiqueResult(
         : undefined),
     phase3: {
       teacherNextSteps:
-        teacherText(cat) &&
-        normalizeWhitespace(teacherText(cat)).length > 0 &&
-        actionPlanReferencesAnchor(teacherText(cat), cat.anchor)
-          ? teacherText(cat)
-          : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? teacherText(cat),
+        phase3Text(cat) &&
+        normalizeWhitespace(phase3Text(cat)).length > 0 &&
+        actionPlanReferencesAnchor(phase3Text(cat), cat.anchor)
+          ? phase3Text(cat)
+          : deriveActionPlanFromSteps(cat.actionPlanSteps) ?? phase3Text(cat),
     },
   }));
   const photoQuality = options?.photoQuality ?? critique.photoQuality;
