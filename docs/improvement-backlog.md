@@ -8,12 +8,11 @@ Tracked items for future work, ordered by reliability impact.
 
 **Status: DONE** (lib/critiqueZodSchemas.ts)
 
-The same critique data shape is defined independently in four places:
+The same critique data shape was defined independently in several places. OpenAI JSON schemas for API calls now come from Zod in `lib/critiqueZodSchemas.ts`. `lib/critiqueSchemas.ts` only holds user-message field lists (`buildVoiceA/BSchemaInstruction`). Remaining duplication to watch:
 
-1. OpenAI JSON schema objects (`lib/critiqueSchemas.ts`)
-2. Stage result types (`VoiceBStageResult` in `lib/critiqueWritingStage.ts`)
-3. Server DTOs (`VoiceBPlanDTO` in `lib/critiqueTypes.ts`)
-4. Client types (`VoiceBPlan` in `src/types.ts`)
+1. Stage result types (`VoiceBStageResult` in `lib/critiqueWritingStage.ts`) vs Zod-inferred types
+2. Server DTOs (`VoiceBPlanDTO` in `lib/critiqueTypes.ts`)
+3. Client types (`VoiceBPlan` in `src/types.ts`)
 
 A single field rename requires coordinated edits across all four with no
 compile-time enforcement that the JSON schema objects match the TypeScript
