@@ -84,8 +84,6 @@ export type CritiqueCategory = {
   evidenceSignals?: string[];
   /** What is already working and should survive the next round of edits. */
   preserve?: string;
-  /** Deliberate exercise to practice the weak sub-skill outside the main piece. */
-  practiceExercise?: string;
   /** Friendly "move toward X" label for the next revision. */
   nextTarget?: string;
   /** Optional sub-skill breakdown; especially useful for local heuristic grading. */

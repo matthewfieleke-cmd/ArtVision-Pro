@@ -325,8 +325,8 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
     }
     if (
       !Array.isArray(r.visibleEvidence) ||
-      r.visibleEvidence.length < 2 ||
-      r.visibleEvidence.length > 5 ||
+      r.visibleEvidence.length < 4 ||
+      r.visibleEvidence.length > 8 ||
       r.visibleEvidence.some((v) => typeof v !== 'string')
     ) {
       throw new Error(`Invalid visibleEvidence for ${expected}`);
@@ -452,11 +452,7 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
     if (!Array.isArray(r.evidenceSignals) || r.evidenceSignals.some((v) => typeof v !== 'string')) {
       throw new Error(`Invalid evidence signals for ${expected}`);
     }
-    if (
-      typeof r.preserve !== 'string' ||
-      typeof r.practiceExercise !== 'string' ||
-      typeof r.nextTarget !== 'string'
-    ) {
+    if (typeof r.preserve !== 'string' || typeof r.nextTarget !== 'string') {
       throw new Error(`Invalid coaching metadata for ${expected}`);
     }
     const anchor = validateAnchor(r.anchor, expected);
@@ -497,7 +493,6 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
       confidence: r.confidence as 'low' | 'medium' | 'high',
       evidenceSignals: r.evidenceSignals as string[],
       preserve: r.preserve,
-      practiceExercise: r.practiceExercise,
       nextTarget: r.nextTarget,
       anchor,
       editPlan,

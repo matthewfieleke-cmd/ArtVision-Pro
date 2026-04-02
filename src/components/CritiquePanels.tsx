@@ -294,12 +294,6 @@ function CategoryCard({
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">How to improve it</p>
             <ActionPlanBlock actionPlan={category.actionPlan} />
           </div>
-          {hasRating && category.practiceExercise ? (
-            <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Practice this skill</p>
-              <p className="mt-1 text-xs leading-relaxed text-violet-950/90">{category.practiceExercise}</p>
-            </div>
-          ) : null}
           {generateButtonVisible && canGenerateAiEdits && (onGenerateAiEdit || (hasSessionPreview && onViewAiEdit)) ? (
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3">
               <button

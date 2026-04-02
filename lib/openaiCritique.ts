@@ -1,7 +1,7 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
 import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
-import { CRITIQUE_EVIDENCE_JSON_SCHEMA } from './critiqueSchemas.js';
+import { EVIDENCE_OPENAI_SCHEMA } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 import { validateCritiqueResult, validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
@@ -35,7 +35,7 @@ async function runCritiqueEvidenceStage(
       temperature: 0.15,
       response_format: {
         type: 'json_schema',
-        json_schema: CRITIQUE_EVIDENCE_JSON_SCHEMA,
+        json_schema: EVIDENCE_OPENAI_SCHEMA,
       },
       messages: [
         {

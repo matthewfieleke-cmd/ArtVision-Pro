@@ -31,7 +31,7 @@ function completionToneBlock(evidence: CritiqueEvidenceDTO): string {
 
 - Treat this as a work in progress: prioritize big-structure moves, resolving major passages, and clear next-session goals.
 - Avoid language that assumes the piece is ready to sign, frame, or submit; "final polish" should wait until structure reads resolved.
-- practiceExercise should be a short study or drill that supports the next pass on this piece, not a generic master copy unless evidence supports it.`;
+- Voice B should focus on on-canvas moves for the next pass, not off-canvas homework drills.`;
   }
   if (state === 'likely_finished') {
     return `${base}
@@ -72,7 +72,6 @@ type VoiceAStageResult = {
     confidence: 'low' | 'medium' | 'high';
     evidenceSignals: string[];
     preserve: string;
-    practiceExercise: string;
     nextTarget: string;
     subskills: Array<{ label: string; score: number; level: string }>;
   }>;
@@ -134,7 +133,7 @@ Voice:
 ${VOICE_A_COMPOSITE_EXPERTS}
 
 Your job in this stage:
-- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/feedback/confidence/evidenceSignals/preserve/practiceExercise/nextTarget/subskills.
+- Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/feedback/confidence/evidenceSignals/preserve/nextTarget/subskills.
 - Do NOT output any Voice B fields in this stage: no topPriorities, no studioChanges, no anchors, no edit plans, no voiceBPlan, no actionPlanSteps, and no actionPlan.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
@@ -158,6 +157,8 @@ Rules:
 - Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
+- Non-redundancy: categories[].feedback must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate feedback verbatim.
+- Overall prose: studioAnalysis.whatWorks vs whatCouldImprove must not duplicate each other; summary and overallSummary.analysis must add different angles, not repeat the same phrases.
 - Rating calibration (per criterion, from visible evidence only):
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
   - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains.
@@ -213,6 +214,7 @@ Rules:
 - Your usefulness comes from precision, not from forced criticism.
 - The eight criteria should usually vary; uniformity across all eight is possible but uncommon. Do not smooth everything to one level out of politeness or uncertainty.
 - Voice B tone: teacherly coaching for a motivated serious hobbyist or art student. Lead with the clearest action, then explain it plainly.
+- Voice B non-redundancy: voiceBPlan fields must not copy/paste the same sentence across currentRead, mainProblem, bestNextMove, and expectedRead—each field adds new information. actionPlan must be a tight numbered rendering of actionPlanSteps only: do not add extra steps, synonyms, or repeated junctions that are not in those steps. Do not restate Voice A’s feedback verbatim.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
   - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
@@ -245,7 +247,7 @@ Rules:
   - actionPlanSteps[].move must begin with a concrete studio verb (soften, darken, cool, group, separate, sharpen, widen, compress, quiet, warm, lose, restate) applied to a specific visual element in that passage. NEVER use "adjust elements", "enhance presence", "ensure consistency", "improve structure", "strengthen the painting's presence", "define these spatial relationships", or "unify texture" without naming what exactly to change. If you cannot name a specific brushstroke, edge, color relationship, or spatial event to change, the step is too vague.
   - actionPlanSteps[].currentRead must describe a visible fact, not a judgment. Bad: "could be more unified", "feels less necessary", "some relationships could be clearer". Better: "the green foliage patches are all the same value and chroma, flattening the depth between near and far beds."
   - Prefer one primary step and at most two secondary steps. Secondary steps must be genuinely different, not paraphrases of the same move.
-  - Make categories[].actionPlan a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in actionPlan that is not already present in those structured steps.
+  - Make categories[].actionPlan a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in actionPlan that is not already present in those structured steps. One numbered item per step—no duplicate numbered lines saying the same move.
 - Voice B actionPlan (required for all eight categories): For each category, actionPlan is the readable numbered studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
   - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and editPlan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
   - Every numbered step must answer all three questions explicitly: **where exactly**, **what exactly is wrong/right there**, and **what exactly should change or stay**. If a step could fit many paintings by swapping only the subject noun, it is too vague.

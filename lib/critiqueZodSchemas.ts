@@ -101,12 +101,17 @@ const voiceACategorySchema = z.object({
     `Voice A's quality ranking for THIS criterion only (one of eight independent axes). ${VOICE_A_SCHEMA_REMINDER}`
   ),
   feedback: z.string().describe(
-    `Voice A: 3+ sentences—this criterion's critical assessment for THIS painting only. ${VOICE_A_SCHEMA_REMINDER}`
+    `Voice A expert critics: 2–4 sentences for THIS criterion only. Ground every sentence in concrete visible detail from this criterion's visibleEvidence in the supplied evidence JSON—name motifs, junctions, colors, edges, or intervals. State the rating rationale without repeating the same fact in two sentences. ${VOICE_A_SCHEMA_REMINDER}`
   ),
   confidence: confidenceEnum,
-  evidenceSignals: z.array(z.string()).min(2).max(4),
+  evidenceSignals: z
+    .array(z.string())
+    .min(2)
+    .max(4)
+    .describe(
+      '2–4 short lines: each must distill one distinct junction or fact from this criterion’s visibleEvidence in the supplied JSON. Do not add new locations or claims that are not supported by visibleEvidence.'
+    ),
   preserve: z.string(),
-  practiceExercise: z.string(),
   nextTarget: z.string(),
   subskills: z.array(voiceASubskillSchema).min(2).max(4),
 });
@@ -163,7 +168,7 @@ export const voiceAStageResultSchema = z.object({
 const voiceBCategorySchema = z.object({
   criterion: criterionEnum,
   actionPlan: z.string().describe(
-    `Voice B for this criterion on THIS painting only. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master. Else: 1–3 steps (prefer fewer high-leverage steps over padding).`
+    `Voice B expert teachers: numbered steps only, derived strictly from actionPlanSteps—no extra sentences, no duplicate steps, no pasted Voice A wording. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master. Else: 1–3 steps.`
   ),
   actionPlanSteps: z.array(voiceBStepSchema).min(1).max(3).describe(
     'Voice B structured teaching steps for THIS criterion only. Prefer 1-3 high-leverage moves instead of filler.'
@@ -213,9 +218,9 @@ const criterionEvidenceSchema = z.object({
   criterion: criterionEnum,
   visibleEvidence: z.array(
     z.string().describe(
-      'One specific visual observation for this criterion. Must name two identifiable things and their relationship — e.g. "the white newspaper page meets the dark coat behind it at left-center with almost no value break" or "the warm yellow window glow against the cool blue-gray clapboard creates the strongest temperature contrast on the facade." NEVER write "the background could be improved" or "some edges are soft" without naming which objects/areas and what is happening between them.'
+      'One junction-level observation for this criterion. Required shape: where on the canvas (quadrant or named motif) + thing A + thing B + what happens at their meeting (value, color temp, edge, overlap, scale). Aim for 40+ characters when the image supports it. NEVER vague area praise or "some edges." Spread observations across different parts of the picture when possible.'
     )
-  ).min(2).max(5),
+  ).min(4).max(8),
   strengthRead: z.string().describe(
     'What already works for this criterion in this painting. Name the specific passage and relationship that succeeds — not "good composition" but "the diagonal of figures from lower-left to upper-right creates a clear reading path through the office."'
   ),

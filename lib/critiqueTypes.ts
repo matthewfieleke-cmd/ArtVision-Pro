@@ -50,7 +50,6 @@ export type CritiqueCategoryDTO = {
   confidence?: CritiqueConfidenceDTO;
   evidenceSignals?: string[];
   preserve?: string;
-  practiceExercise?: string;
   nextTarget?: string;
   anchor?: CriterionAnchor;
   editPlan?: CriterionEditPlan;

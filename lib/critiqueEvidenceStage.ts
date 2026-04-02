@@ -84,7 +84,7 @@ ${rubricBlock}
 ${mediumEvidenceGuardrails(medium)}
 
 For each criterion, provide:
-- visibleEvidence: 2–5 junction-level observations. Each must name TWO identifiable things in the painting and describe the specific visual relationship between them (value break, color shift, edge event, spatial overlap, alignment). NEVER write area-level generalities like "the background is well-handled" or "some transitions could be smoother." Instead: "the clerk’s white cuff against the dark ledger creates a sharp value accent that draws the eye before the face does."
+- visibleEvidence: 4–8 junction-level observations (see schema). Each must name TWO identifiable things in the painting and describe the specific visual relationship between them (value break, color shift, edge event, spatial overlap, alignment). Cover different areas of the canvas across the list when possible. NEVER write area-level generalities like "the background is well-handled" or "some transitions could be smoother." Instead: "the clerk’s white cuff against the dark ledger creates a sharp value accent that draws the eye before the face does."
 - strengthRead: name the specific passage and relationship that works for this criterion. Not "good value structure" but "the progression from the bright foreground shirts through the mid-tone desks to the dim back wall creates a clear three-plane depth stack."
 - tensionRead: name what is genuinely unresolved and WHERE. If nothing is truly unresolved, say "This criterion reads resolved at the level the painting is working at" rather than manufacturing a problem. Forced tensions produce bad downstream advice.
 - preserve: name the specific relationship that must survive revision—the passage and the visual event, not an abstract quality.

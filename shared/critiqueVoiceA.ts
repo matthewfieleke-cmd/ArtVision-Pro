@@ -16,6 +16,11 @@ Junction-level specificity (required for every visibleEvidence entry):
 - Name the relationship: where X meets Y, what happens at that junction (value break, color shift, edge type, overlap, alignment, spacing).
 - Bad evidence: “figures in the foreground”, “some edges are soft”, “the color palette is harmonious”, “the composition is balanced.”
 - Good evidence: “the seated man’s white shirt against the dark desk creates the room’s strongest value break”, “the two standing figures at right share the same middle value, flattening their overlap”, “the warm wood desk tone cools abruptly where it meets the gray floor, marking the spatial jump.”
+
+Density and layout (required):
+- For every criterion you must record several distinct junction observations (see schema minimum count). Spread them across the canvas where possible: top / middle / bottom, left / center / right, foreground vs background, or major figure vs ground—so the evidence map is spatially useful, not one zone repeated.
+- Prefer observations that combine **where** (quadrant or named motif), **what meets what**, and **what happens** (value, color temperature, edge, overlap, scale). When you can see it clearly, note approximate relative scale (e.g. thumb-sized, head-sized, full lower third).
+- Optional when clearly visible: suggest a **degree of change** in painter terms (e.g. “about half a value step”, “one temperature step cooler”, “slightly sharper contour”)—still observation-only, not a prescription.
 `.trim();
 
 /**

@@ -79,12 +79,12 @@ export const CRITIQUE_EVIDENCE_JSON_SCHEMA = {
             criterion: { type: 'string', enum: [...CRITERIA_ORDER] },
             visibleEvidence: {
               type: 'array',
-              minItems: 2,
-              maxItems: 5,
+              minItems: 4,
+              maxItems: 8,
               items: {
                 type: 'string',
                 description:
-                  'One specific visual observation: name two identifiable things and their relationship (e.g. "the white newspaper meets the dark coat behind with almost no value break"). Never write "some edges are soft" without naming which objects and what happens between them.',
+                  'Junction observation: where on the canvas + two identifiable things + relationship (value, color temp, edge, overlap). Spread across the picture across the list when possible.',
               },
             },
             strengthRead: {
@@ -248,7 +248,6 @@ export const CRITIQUE_JSON_SCHEMA = {
             'confidence',
             'evidenceSignals',
             'preserve',
-            'practiceExercise',
             'nextTarget',
             'anchor',
             'editPlan',
@@ -363,7 +362,6 @@ export const CRITIQUE_JSON_SCHEMA = {
               items: { type: 'string' },
             },
             preserve: { type: 'string' },
-            practiceExercise: { type: 'string' },
             nextTarget: { type: 'string' },
             anchor: {
               type: 'object',
@@ -503,7 +501,6 @@ export const VOICE_A_CRITIQUE_JSON_SCHEMA = {
             'confidence',
             'evidenceSignals',
             'preserve',
-            'practiceExercise',
             'nextTarget',
             'subskills',
           ],
@@ -515,8 +512,6 @@ export const VOICE_A_CRITIQUE_JSON_SCHEMA = {
             evidenceSignals:
               CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.evidenceSignals,
             preserve: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.preserve,
-            practiceExercise:
-              CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.practiceExercise,
             nextTarget: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.nextTarget,
             subskills: CRITIQUE_JSON_SCHEMA.schema.properties.categories.items.properties.subskills,
           },
@@ -594,7 +589,6 @@ For each criterion:
 - confidence
 - evidenceSignals
 - preserve
-- practiceExercise
 - nextTarget
 - anchor: { areaSummary, evidencePointer, region } — same exact passage used by feedback, actionPlan, overlay, and edit plan
 - editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability } — machine-readable and aligned to anchor
@@ -618,7 +612,6 @@ For each criterion:
 - confidence
 - evidenceSignals
 - preserve
-- practiceExercise
 - nextTarget
 - subskills`;
 }

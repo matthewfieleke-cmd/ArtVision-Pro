@@ -262,7 +262,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'high',
         evidenceSignals: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
         preserve: 'Keep the window strip and the shirt-to-wall contrast.',
-        practiceExercise: 'Do two thumbnail studies of the chair against the figure.',
         nextTarget: 'Push composition and shape structure toward Master.',
         anchor: {
           areaSummary: 'the foreground chair back',
@@ -292,7 +291,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'medium',
         evidenceSignals: ['The window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
         preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
-        practiceExercise: 'Squint studies of the room in 3 values.',
         nextTarget: 'Push value and light structure toward Master.',
         anchor: {
           areaSummary: 'the left window strip',
@@ -320,7 +318,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'medium',
         evidenceSignals: ['The floor reads slightly warmer than the wall.', 'Most passages stay within a muted drawing palette.'],
         preserve: 'Keep the restrained palette world.',
-        practiceExercise: 'Do a graphite temperature map using only value notation.',
         nextTarget: 'Push color relationships toward Master.',
         anchor: {
           areaSummary: 'the floor-to-wall transition at lower left',
@@ -348,7 +345,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'medium',
         evidenceSignals: ['The seated figure tilts back convincingly.', 'The table legs sit on the floor plane with readable angle shifts.'],
         preserve: 'Preserve the figure tilt and the table-leg spacing.',
-        practiceExercise: 'Quick line studies of figure plus foreground obstruction.',
         nextTarget: 'Push drawing, proportion, and spatial form toward Master.',
         anchor: {
           areaSummary: 'the seated figure and side table',
@@ -378,7 +374,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'high',
         evidenceSignals: ['The chair bars cross in front of the figure.', 'The head and shirt are the intended focal passage.'],
         preserve: 'Preserve the outer chair silhouette and the head-to-shirt contrast.',
-        practiceExercise: 'Do a hard/soft edge chart from the chair against the figure.',
         nextTarget: 'Push edge and focus control toward Advanced.',
         anchor: {
           areaSummary: 'the foreground chair back',
@@ -406,7 +401,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'medium',
         evidenceSignals: ['The wall is built with broad, even hatching.', 'The floor uses directional strokes distinct from the wall.'],
         preserve: 'Preserve the distinct mark families between wall and floor.',
-        practiceExercise: 'One-page mark-family study from the room.',
         nextTarget: 'Push surface and medium handling toward Master.',
         anchor: {
           areaSummary: 'the wall and floor hatching',
@@ -434,7 +428,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'medium',
         evidenceSignals: ['The chair obstruction and figure belong to the same pictorial problem.', 'The room stays quiet and compressed throughout.'],
         preserve: 'Preserve the quiet compression of the room and the obstructed figure setup.',
-        practiceExercise: 'Thumbnail studies of obstruction as intent.',
         nextTarget: 'Push intent and necessity toward Master.',
         anchor: {
           areaSummary: 'the blocked view of the seated figure through the chair',
@@ -462,7 +455,6 @@ function testCritiqueGuardrails(): void {
         confidence: 'medium',
         evidenceSignals: ['The seated figure reads as inward and absorbed.', 'The viewpoint from behind the chair feels deliberate.'],
         preserve: 'Preserve the figure\'s inwardness and the obstructed viewpoint.',
-        practiceExercise: 'Short studies of viewpoint and mood through obstruction.',
         nextTarget: 'Push presence, point of view, and human force toward Master.',
         anchor: {
           areaSummary: 'the seated figure\'s head and upper torso',
@@ -712,7 +704,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
       criterionEvidence: [
         {
           criterion: 'Intent and necessity',
-          visibleEvidence: ['The chair obstruction and figure belong to one interior problem.', 'The room stays quiet and compressed.'],
+          visibleEvidence: [
+            'The chair obstruction and figure belong to one interior problem.',
+            'The room stays quiet and compressed.',
+            'The left window strip against the dim wall reads as the clearest light anchor.',
+            'The seated figure’s posture tilts away from the viewer toward the table.',
+          ],
           strengthRead: 'The obstruction feels intentional.',
           tensionRead: 'A few accents compete with the central inwardness.',
           preserve: 'Keep the obstruction logic.',
@@ -720,7 +717,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Composition and shape structure',
-          visibleEvidence: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
+          visibleEvidence: [
+            'The chair back crosses the figure in the foreground.',
+            'The left window strip is the clearest light shape.',
+            'The table edge in the lower third brackets the seated figure’s space.',
+            'The dark wall behind the head compresses the figure into a vertical band.',
+          ],
           strengthRead: 'The room has a strong scaffold.',
           tensionRead: 'The chair bars interrupt the route to the figure.',
           preserve: 'Keep the window strip and shirt contrast.',
@@ -728,7 +730,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Value and light structure',
-          visibleEvidence: ['The left window strip is the clearest light shape.', 'The shirt sits against a darker wall.'],
+          visibleEvidence: [
+            'The left window strip is the clearest light shape.',
+            'The shirt sits against a darker wall.',
+            'The floor plane reads a step darker than the shirt but lighter than the rear wall.',
+            'The chair interior bars hold a mid-dark value close to the shadowed wall.',
+          ],
           strengthRead: 'The main light-dark grouping is readable.',
           tensionRead: 'Some compression remains in secondary passages.',
           preserve: 'Keep the main window-to-shirt grouping.',
@@ -736,7 +743,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Color relationships',
-          visibleEvidence: ['The floor reads slightly warmer than the wall.', 'Most passages stay within a muted palette.'],
+          visibleEvidence: [
+            'The floor reads slightly warmer than the wall.',
+            'Most passages stay within a muted palette.',
+            'The window’s cool light contrasts with the warm wood floor strip.',
+            'The shirt’s neutral sits between the cooler window and warmer floor.',
+          ],
           strengthRead: 'The palette holds together.',
           tensionRead: 'The floor/wall turn could separate a little more cleanly.',
           preserve: 'Keep the muted palette world.',
@@ -744,7 +756,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Drawing, proportion, and spatial form',
-          visibleEvidence: ['The seated figure tilts back convincingly.', 'The table legs sit on the floor plane.'],
+          visibleEvidence: [
+            'The seated figure tilts back convincingly.',
+            'The table legs sit on the floor plane.',
+            'The chair legs align with the floor perspective toward the back corner.',
+            'The tabletop’s near edge parallels the picture plane while the far edge tucks under.',
+          ],
           strengthRead: 'The room drawing is persuasive.',
           tensionRead: 'The obstruction complicates some local reads.',
           preserve: 'Keep the figure tilt and table-leg spacing.',
@@ -752,7 +769,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Edge and focus control',
-          visibleEvidence: ['The chair bars cross in front of the figure.', 'The head and shirt are the intended focal passage.'],
+          visibleEvidence: [
+            'The chair bars cross in front of the figure.',
+            'The head and shirt are the intended focal passage.',
+            'The outer chair silhouette stays sharper than the interior slats.',
+            'The window mullions stay crisp against the bright pane.',
+          ],
           strengthRead: 'The focal passage is evident.',
           tensionRead: 'The interior bars still compete with the face.',
           preserve: 'Keep the outer chair silhouette and head-to-shirt contrast.',
@@ -760,7 +782,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Surface and medium handling',
-          visibleEvidence: ['The wall is built with broad, even hatching.', 'The floor uses directional strokes distinct from the wall.'],
+          visibleEvidence: [
+            'The wall is built with broad, even hatching.',
+            'The floor uses directional strokes distinct from the wall.',
+            'The chair back shows tighter linear marks than the wall field.',
+            'The figure’s shirt uses smoother value laying than the hatched wall.',
+          ],
           strengthRead: 'The mark economy is disciplined.',
           tensionRead: 'Some transitions could be integrated more subtly.',
           preserve: 'Keep the wall-floor mark-family distinction.',
@@ -768,7 +795,12 @@ function testWritingPromptDemandsConcreteAnchors(): void {
         },
         {
           criterion: 'Presence, point of view, and human force',
-          visibleEvidence: ['The seated figure reads as inward and absorbed.', 'The viewpoint from behind the chair feels deliberate.'],
+          visibleEvidence: [
+            'The seated figure reads as inward and absorbed.',
+            'The viewpoint from behind the chair feels deliberate.',
+            'The figure’s gaze aims down toward the table, not at the viewer.',
+            'The chair’s bulk frames the figure like a partial screen.',
+          ],
           strengthRead: 'The room has real inward pressure.',
           tensionRead: 'A few local accents interrupt that quiet pressure.',
           preserve: 'Keep the inwardness and obstructed viewpoint.',
@@ -928,7 +960,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'medium',
         evidenceSignals: ['The chair obstruction and figure belong to the same pictorial problem.'],
         preserve: 'Preserve the quiet compression of the room.',
-        practiceExercise: 'Thumbnail studies of obstruction as intent.',
         nextTarget: 'Push intent and necessity toward Master.',
         anchor: {
           areaSummary: 'the blocked view of the seated figure through the chair',
@@ -984,7 +1015,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'high',
         evidenceSignals: ['The chair back crosses the figure in the foreground.', 'The left window strip is the clearest light shape.'],
         preserve: 'Keep the window strip and the shirt-to-wall contrast.',
-        practiceExercise: 'Do two thumbnail studies of the chair against the figure.',
         nextTarget: 'Push composition and shape structure toward Master.',
         anchor: {
           areaSummary: 'the foreground chair back',
@@ -1032,7 +1062,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'medium',
         evidenceSignals: ['The window strip is the clearest light shape.'],
         preserve: 'Preserve the main light-dark grouping across window, shirt, and wall.',
-        practiceExercise: 'Squint studies of the room in 3 values.',
         nextTarget: 'Push value and light structure toward Master.',
         anchor: {
           areaSummary: 'the left window strip',
@@ -1080,7 +1109,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'medium',
         evidenceSignals: ['The floor reads slightly warmer than the wall.'],
         preserve: 'Keep the restrained palette world.',
-        practiceExercise: 'Do a graphite temperature map using only value notation.',
         nextTarget: 'Push color relationships toward Master.',
         anchor: {
           areaSummary: 'the floor-to-wall transition at lower left',
@@ -1128,7 +1156,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'medium',
         evidenceSignals: ['The seated figure tilts back convincingly.'],
         preserve: 'Preserve the figure tilt and the table-leg spacing.',
-        practiceExercise: 'Quick line studies of figure plus foreground obstruction.',
         nextTarget: 'Push drawing, proportion, and spatial form toward Master.',
         anchor: {
           areaSummary: 'the seated figure and side table',
@@ -1176,7 +1203,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'high',
         evidenceSignals: ['The chair bars cross in front of the figure.'],
         preserve: 'Preserve the outer chair silhouette and the head-to-shirt contrast.',
-        practiceExercise: 'Do a hard/soft edge chart from the chair against the figure.',
         nextTarget: 'Push edge and focus control toward Advanced.',
         anchor: {
           areaSummary: 'the foreground chair back',
@@ -1220,7 +1246,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'medium',
         evidenceSignals: ['The wall is built with broad, even hatching.'],
         preserve: 'Preserve the distinct mark families between wall and floor.',
-        practiceExercise: 'One-page mark-family study from the room.',
         nextTarget: 'Push surface and medium handling toward Master.',
         anchor: {
           areaSummary: 'the wall and floor hatching',
@@ -1264,7 +1289,6 @@ function testStructuredVoiceBPlanFlow(): void {
         confidence: 'medium',
         evidenceSignals: ['The seated figure reads as inward and absorbed.'],
         preserve: 'Preserve the figure’s inwardness and the obstructed viewpoint.',
-        practiceExercise: 'Short studies of viewpoint and mood through obstruction.',
         nextTarget: 'Push presence, point of view, and human force toward Master.',
         anchor: {
           areaSummary: 'the seated figure’s head and upper torso',
@@ -1389,7 +1413,6 @@ function testZodSchemaRoundTrip(): void {
     confidence: 'medium',
     evidenceSignals: ['The chair bars cross the figure.', 'The head is the intended focal passage.'],
     preserve: 'Preserve the outer silhouette.',
-    practiceExercise: 'Do a hard/soft edge chart.',
     nextTarget: `Push ${criterion.toLowerCase()} toward Advanced.`,
     anchor: mockAnchor,
     editPlan: mockEditPlan,
