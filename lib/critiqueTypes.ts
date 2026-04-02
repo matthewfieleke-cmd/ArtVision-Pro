@@ -1,110 +1,34 @@
-import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
-import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
+import type {
+  CompletionRead,
+  CritiqueCategory,
+  CritiqueConfidence,
+  CritiqueResult,
+  CritiqueSimpleFeedback,
+  OverallSummaryCard,
+  PhotoQualityAssessment,
+  StudioAnalysis,
+  StudioChange,
+  SuggestedTitle,
+  SuggestedTitleCategory,
+  VoiceBPlan,
+  VoiceBStep,
+  WorkCompletionState,
+} from '../shared/critiqueContract.js';
 
-export type CritiqueConfidenceDTO = 'low' | 'medium' | 'high';
-
-/** Whether the work reads as still in progress vs presentation-ready (from vision evidence or local heuristics). */
-export type WorkCompletionStateDTO = 'unfinished' | 'likely_finished' | 'uncertain';
-
-export type CompletionReadDTO = {
-  state: WorkCompletionStateDTO;
-  confidence: CritiqueConfidenceDTO;
-  /** Short visible cues supporting the read (areas, substrate, finish variation). */
-  cues: string[];
-  /** One sentence: why it reads unfinished, finished, or uncertain. */
-  rationale: string;
-};
-
-export type PhotoQualityAssessmentDTO = {
-  level: 'poor' | 'fair' | 'good';
-  summary: string;
-  issues: string[];
-  tips: string[];
-};
-
-export type VoiceBStepDTO = {
-  area: string;
-  currentRead: string;
-  move: string;
-  expectedRead: string;
-  preserve?: string;
-  priority: 'primary' | 'secondary';
-};
-
-export type VoiceBPlanDTO = {
-  currentRead: string;
-  mainProblem?: string;
-  mainStrength?: string;
-  bestNextMove: string;
-  optionalSecondMove?: string;
-  avoidDoing?: string;
-  expectedRead: string;
-  storyIfRelevant?: string;
-};
-
-export type CritiqueCategoryDTO = {
-  criterion: CriterionLabel;
-  level?: RatingLevelLabel;
-  visualInventory: string;
-  feedback: string;
-  actionPlan: string;
-  confidence?: CritiqueConfidenceDTO;
-  evidenceSignals?: string[];
-  preserve?: string;
-  nextTarget?: string;
-  anchor?: CriterionAnchor;
-  editPlan?: CriterionEditPlan;
-  voiceBPlan?: VoiceBPlanDTO;
-  actionPlanSteps?: VoiceBStepDTO[];
-  subskills?: Array<{
-    label: string;
-    score: number;
-    level: RatingLevelLabel;
-  }>;
-};
-
-export type StudioAnalysisDTO = {
-  whatWorks: string;
-  whatCouldImprove: string;
-};
-
-export type StudioChangeDTO = {
-  text: string;
-  previewCriterion: CriterionLabel;
-};
-
-export type CritiqueSimpleFeedbackDTO = {
-  studioAnalysis: StudioAnalysisDTO;
-  studioChanges: StudioChangeDTO[];
-};
-
-export type OverallSummaryCardDTO = {
-  analysis: string;
-  topPriorities: string[];
-};
-
-export type SuggestedTitleCategoryDTO = 'formalist' | 'tactile' | 'intent';
-
-export type SuggestedTitleDTO = {
-  category: SuggestedTitleCategoryDTO;
-  title: string;
-  rationale: string;
-};
-
-export type CritiqueResultDTO = {
-  categories: CritiqueCategoryDTO[];
-  summary: string;
-  overallSummary?: OverallSummaryCardDTO;
-  simpleFeedback?: CritiqueSimpleFeedbackDTO;
-  comparisonNote?: string;
-  paintingTitle?: string;
-  /** Categorized title suggestions with rationales (Formalist / Tactile / Intent). */
-  suggestedPaintingTitles?: SuggestedTitleDTO[];
-  analysisSource?: 'api';
-  overallConfidence?: CritiqueConfidenceDTO;
-  photoQuality?: PhotoQualityAssessmentDTO;
-  completionRead?: CompletionReadDTO;
-};
+export type CritiqueConfidenceDTO = CritiqueConfidence;
+export type WorkCompletionStateDTO = WorkCompletionState;
+export type CompletionReadDTO = CompletionRead;
+export type PhotoQualityAssessmentDTO = PhotoQualityAssessment;
+export type VoiceBStepDTO = VoiceBStep;
+export type VoiceBPlanDTO = VoiceBPlan;
+export type CritiqueCategoryDTO = CritiqueCategory;
+export type StudioAnalysisDTO = StudioAnalysis;
+export type StudioChangeDTO = StudioChange;
+export type CritiqueSimpleFeedbackDTO = CritiqueSimpleFeedback;
+export type OverallSummaryCardDTO = OverallSummaryCard;
+export type SuggestedTitleCategoryDTO = SuggestedTitleCategory;
+export type SuggestedTitleDTO = SuggestedTitle;
+export type CritiqueResultDTO = CritiqueResult;
 
 export type CritiqueRequestBody = {
   style: string;

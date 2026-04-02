@@ -1,6 +1,18 @@
 import { ARTISTS_BY_STYLE } from '../shared/artists';
 import { CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria';
-import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors';
+import type { CritiqueResult as SharedCritiqueResult } from '../shared/critiqueContract';
+export type {
+  CompletionRead,
+  CritiqueCategory,
+  CritiqueConfidence,
+  CritiqueSimpleFeedback,
+  CritiqueSubskill,
+  OverallSummaryCard,
+  PhotoQualityAssessment,
+  SuggestedTitle,
+  VoiceBPlan,
+  WorkCompletionState,
+} from '../shared/critiqueContract';
 
 export const STYLES = [
   'Realism',
@@ -28,73 +40,7 @@ export { RATING_LEVELS };
 
 export type RatingLevel = (typeof RATING_LEVELS)[number];
 
-export type CritiqueConfidence = 'low' | 'medium' | 'high';
-
-/** Whether the work reads as still in progress vs presentation-ready. */
-export type WorkCompletionState = 'unfinished' | 'likely_finished' | 'uncertain';
-
-export type CompletionRead = {
-  state: WorkCompletionState;
-  confidence: CritiqueConfidence;
-  cues: string[];
-  rationale: string;
-};
-
-export type PhotoQualityAssessment = {
-  level: 'poor' | 'fair' | 'good';
-  summary: string;
-  issues: string[];
-  tips: string[];
-};
-
-export type CritiqueSubskill = {
-  label: string;
-  /** Normalized 0-1 local estimate or API-provided sub-score. */
-  score: number;
-  level: RatingLevel;
-};
-
-export type VoiceBPlanStep = {
-  area: string;
-  currentRead: string;
-  move: string;
-  expectedRead: string;
-  preserve?: string;
-  priority?: 'primary' | 'secondary';
-};
-
-export type VoiceBPlan = {
-  currentRead: string;
-  mainProblem?: string;
-  mainStrength?: string;
-  bestNextMove: string;
-  expectedRead: string;
-  storyIfRelevant?: string;
-};
-
-export type CritiqueCategory = {
-  criterion: Criterion;
-  level?: RatingLevel;
-  /** Phase 1: objective visual extraction anchored to named passages or canvas regions. */
-  visualInventory: string;
-  feedback: string;
-  actionPlan: string;
-  actionPlanSteps?: VoiceBPlanStep[];
-  voiceBPlan?: VoiceBPlan;
-  confidence?: CritiqueConfidence;
-  /** Short observable reasons behind the grade; useful for quick review. */
-  evidenceSignals?: string[];
-  /** What is already working and should survive the next round of edits. */
-  preserve?: string;
-  /** Friendly "move toward X" label for the next revision. */
-  nextTarget?: string;
-  /** Optional sub-skill breakdown; especially useful for local heuristic grading. */
-  subskills?: CritiqueSubskill[];
-  /** Shared anchor used by Voice A / Voice B / overlay / AI edit. */
-  anchor?: CriterionAnchor;
-  /** Exact machine-readable edit instructions for the preview system. */
-  editPlan?: CriterionEditPlan;
-};
+export type VoiceBPlanStep = import('../shared/critiqueContract').VoiceBStep;
 
 /** Voice A: critical analysis (composite critic voice). */
 export type StudioAnalysis = {
@@ -108,45 +54,11 @@ export type StudioChange = {
   previewCriterion: Criterion;
 };
 
-export type CritiqueSimpleFeedback = {
-  studioAnalysis: StudioAnalysis;
-  /** Voice B: 2–5 specific changes for this painting only. */
-  studioChanges: StudioChange[];
-};
+export type SuggestedTitleCategory = import('../shared/critiqueContract').SuggestedTitle['category'];
 
-export type OverallSummaryCard = {
-  analysis: string;
-  topPriorities: string[];
-};
-
-export type SuggestedTitleCategory = 'formalist' | 'tactile' | 'intent';
-
-export type SuggestedTitle = {
-  category: SuggestedTitleCategory;
-  title: string;
-  rationale: string;
-};
-
-export type CritiqueResult = {
-  categories: CritiqueCategory[];
-  summary: string;
-  overallSummary?: OverallSummaryCard;
+export type CritiqueResult = Omit<SharedCritiqueResult, 'simpleFeedback'> & {
   /** Simple top-level studio feedback shown before the detailed criterion breakdown. */
-  simple?: CritiqueSimpleFeedback;
-  /** When comparing to a prior version */
-  comparisonNote?: string;
-  /** Optional title the artist gave this work for this critique */
-  paintingTitle?: string;
-  /** Categorized title suggestions with rationales (Formalist / Tactile / Intent). */
-  suggestedPaintingTitles?: SuggestedTitle[];
-  /** @deprecated Plain string titles from older saves; migrated into SuggestedTitle[] on load. */
-  suggestedPaintingTitlesLegacy?: string[];
-  /** Whether this critique came from the API vision model or local heuristics. */
-  analysisSource?: 'api';
-  overallConfidence?: CritiqueConfidence;
-  photoQuality?: PhotoQualityAssessment;
-  /** Read of whether the piece looks in progress vs finished; steers tone of feedback. */
-  completionRead?: CompletionRead;
+  simple?: import('../shared/critiqueContract').CritiqueSimpleFeedback;
 };
 
 /** AI illustrative edit; pairs with the critique photo for blend compare. */
