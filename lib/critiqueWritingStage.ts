@@ -386,6 +386,20 @@ function orderedVoiceBCategories(
   });
 }
 
+function normalizeVoiceBCategoryAnchors(category: VoiceBCategoryResult): VoiceBCategoryResult {
+  const anchorArea = category.anchor.areaSummary;
+  return {
+    ...category,
+    actionPlanSteps: category.actionPlanSteps.map((step, index) =>
+      index === 0 ? { ...step, area: anchorArea } : step
+    ),
+    editPlan: {
+      ...category.editPlan,
+      targetArea: anchorArea,
+    },
+  };
+}
+
 function voiceALevelForCriterion(
   voiceA: VoiceAStageResult,
   criterion: CriterionLabel
@@ -535,6 +549,11 @@ ${criterionList}
 Level-locked rules for this pass:
 ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 
+Anchor alignment rules for this pass:
+- categories[].anchor.areaSummary is the canonical label for the chosen passage.
+- categories[].actionPlanSteps[0].area MUST repeat categories[].anchor.areaSummary verbatim.
+- categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
+
 Return ONLY the categories array for those criteria in that exact order.
 Do NOT return overallSummary or studioChanges in this pass. Those are handled separately after the per-criterion teaching plans are fixed.`;
 }
@@ -548,7 +567,7 @@ function buildVoiceBCategoryPassUserPrompt(
   const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
   const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].actionPlanSteps[0].area must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.targetArea must repeat categories[].anchor.areaSummary verbatim.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -594,6 +613,11 @@ function buildVoiceBRepairNote(
       detail.includes('bestNextMove') ||
       detail.includes('intendedChange')
   );
+  const failedAnchorAlignmentFields = details.filter(
+    (detail) =>
+      detail.includes('targetArea does not match the anchored passage') ||
+      detail.includes('actionPlanSteps[0].area does not match the anchored passage')
+  );
   const fieldInstruction =
     failedLeadVerbFields.length > 0
       ? `Critical field fix for ${criteria.join(', ')}:
@@ -602,10 +626,19 @@ function buildVoiceBRepairNote(
 - For Master criteria, begin with a preserve verb from that list.
 - Do not start those fields with clarify, define, strengthen, improve, maintain, enhance, adjust, refine, or any synonym outside the allowed list.`
       : '';
+  const anchorAlignmentInstruction =
+    failedAnchorAlignmentFields.length > 0
+      ? `Critical anchor alignment fix for ${criteria.join(', ')}:
+- categories[].anchor.areaSummary is the canonical passage label.
+- categories[].actionPlanSteps[0].area MUST repeat categories[].anchor.areaSummary verbatim.
+- categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
+- Do not paraphrase those two fields with nearby synonyms or alternate names.`
+      : '';
   return `${prefix}
 ${details.map((detail) => `- ${detail}`).join('\n')}
 ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 ${fieldInstruction}
+${anchorAlignmentInstruction}
 Regenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
 
@@ -750,11 +783,12 @@ export async function runCritiqueVoiceBStage(
             details: [parsed.error.message],
           });
         }
+        const normalizedBatchCategories = parsed.data.categories.map(normalizeVoiceBCategoryAnchors);
         const combined = validateVoiceBStageOutput(
           {
             overallSummary: { topPriorities: [] },
             studioChanges: [],
-            categories: [...acceptedCategories, ...parsed.data.categories],
+            categories: [...acceptedCategories, ...normalizedBatchCategories],
           } as VoiceBStageResult,
           voiceA,
           evidence
