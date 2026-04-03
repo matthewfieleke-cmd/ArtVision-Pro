@@ -9,6 +9,7 @@ import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { splitNumberedSteps } from '../lib/numberedSteps.ts';
 import { buildHighDetailImageMessage } from '../lib/openaiVisionContent.js';
+import { buildEvidenceStagePrompt } from '../lib/critiqueEvidenceStage.js';
 import { migrateLegacySimpleFeedback, validateCritiqueResult } from '../lib/critiqueValidation.js';
 import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
@@ -916,6 +917,30 @@ function testWritingPromptDemandsConcreteAnchors(): void {
   assert.match(prompt, /Make categories\[\]\.phase3\.teacherNextSteps a readable numbered rendering of categories\[\]\.actionPlanSteps/);
 }
 
+function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
+  const prompt = buildEvidenceStagePrompt('Realism', 'Oil on Canvas');
+  assert.match(
+    prompt,
+    /Anchor-to-evidence alignment rule: for EACH criterion, at least one visibleEvidence line must explicitly reuse the same concrete nouns from the anchor/
+  );
+  assert.match(
+    prompt,
+    /\*\*Surface and medium handling:\*\* Name \*\*actual\*\* mark behavior .* The anchor must STILL name one locatable mark-bearing passage or boundary in the painting, not a medium label\./
+  );
+  assert.match(
+    prompt,
+    /Bad anchors: "brushwork", "paint handling", "surface quality", "the paint surface"\./
+  );
+  assert.match(
+    prompt,
+    /Better anchors: "the wall hatching where it meets the smoother shirt passage", "the dry scumble across the cheek turning into the green shadow under the eye", "the loaded highlight stroke on the vase rim against the dark table\."/
+  );
+  assert.match(
+    prompt,
+    /visibleEvidence must support the anchor directly: at least one line must name that same passage again with the same concrete nouns/
+  );
+}
+
 function testPreviewEditPromptAlignment(): void {
   const prompt = buildEditPrompt({
     imageDataUrl: 'data:image/png;base64,abc',
@@ -1656,6 +1681,7 @@ async function main(): Promise<void> {
   await testApiHelpers();
   testCritiqueGuardrails();
   testCriterionBandRubric();
+  testEvidencePromptDemandsConcreteSurfaceAnchors();
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
   testStructuredVoiceBPlanFlow();

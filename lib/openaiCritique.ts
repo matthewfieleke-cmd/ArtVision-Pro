@@ -96,6 +96,13 @@ async function runCritiqueEvidenceStage(
 const MAX_STAGE_ATTEMPTS = 3;
 
 function buildEvidenceRepairNote(error: unknown): string {
+  const details = errorDetails(error);
+  const surfaceAnchorFailure = details.some((detail) =>
+    /Invalid evidence anchor for Surface and medium handling|Visible evidence does not support anchor for Surface and medium handling/.test(
+      detail
+    )
+  );
+
   return `Previous evidence attempt failed: ${errorMessage(error)}\n${errorDetails(error)
     .map((detail) => `- ${detail}`)
     .join('\n')}\nRegenerate the full evidence JSON. Use one concrete anchor per criterion, keep every claim visible, and do not change the schema.
@@ -103,7 +110,14 @@ function buildEvidenceRepairNote(error: unknown): string {
 Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
-- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.`;
+- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.${surfaceAnchorFailure
+    ? `
+
+Critical repair for Surface and medium handling:
+- Do NOT use anchors like "brushwork", "paint handling", "surface quality", or any painting-wide surface label.
+- Choose one locatable mark-bearing passage instead, such as a hatch field against a smoother shirt passage, a loaded highlight stroke against a darker rim, or a dry scumble crossing a shadow.
+- At least one visibleEvidence line for Surface and medium handling must repeat the same concrete nouns from that anchor and then describe the mark behavior visible there.`
+    : ''}`;
 }
 
 async function runCritiqueEvidenceStageWithRetries(
