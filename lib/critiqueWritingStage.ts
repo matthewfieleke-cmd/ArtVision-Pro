@@ -585,12 +585,10 @@ export async function runCritiqueVoiceBStage(
   const acceptedCategories: VoiceBCategoryResult[] = [];
   const criterionBatches = chunkCriteria(CRITERIA_ORDER, VOICE_B_CRITERIA_PER_PASS);
 
-  for (const criteria of criterionBatches) {
+  for (const [batchIndex, criteria] of criterionBatches.entries()) {
     const batchSchema = createVoiceBCategoryPassSchema(criteria);
     const batchOpenAiSchema = toOpenAIJsonSchema(
-      `painting_critique_voice_b_${criteria
-        .map((criterion) => criterion.toLowerCase().replace(/[^\w]+/g, '_'))
-        .join('_')}`,
+      `painting_critique_vb_batch_${batchIndex + 1}`,
       batchSchema
     );
     let repairNote: string | undefined;
