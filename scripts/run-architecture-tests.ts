@@ -10,6 +10,7 @@ import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { splitNumberedSteps } from '../lib/numberedSteps.ts';
 import { buildHighDetailImageMessage } from '../lib/openaiVisionContent.js';
 import { buildEvidenceStagePrompt } from '../lib/critiqueEvidenceStage.js';
+import { buildEvidenceRepairNote } from '../lib/openaiCritique.ts';
 import { migrateLegacySimpleFeedback, validateCritiqueResult } from '../lib/critiqueValidation.js';
 import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
@@ -953,6 +954,24 @@ function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
   );
 }
 
+function testEvidenceRepairNoteDemandsAnchorSupport(): void {
+  const repair = buildEvidenceRepairNote(
+    new Error('Visible evidence does not support anchor for Composition and shape structure')
+  );
+  assert.match(
+    repair,
+    /Critical anchor-support fix for Composition and shape structure:/
+  );
+  assert.match(
+    repair,
+    /at least one visibleEvidence line MUST repeat the same concrete nouns from the anchor/
+  );
+  assert.match(
+    repair,
+    /If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again/
+  );
+}
+
 function testValidationErrorDetailsAreHumanized(): void {
   const normalized = normalizeCritiqueRequestError(
     createCritiqueRequestError({
@@ -1758,6 +1777,7 @@ async function main(): Promise<void> {
   testCritiqueGuardrails();
   testCriterionBandRubric();
   testEvidencePromptDemandsConcreteSurfaceAnchors();
+  testEvidenceRepairNoteDemandsAnchorSupport();
   testValidationErrorDetailsAreHumanized();
   testDebugLogPayloadSanitization();
   testWritingPromptDemandsConcreteAnchors();

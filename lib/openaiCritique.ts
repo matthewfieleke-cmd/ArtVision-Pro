@@ -95,11 +95,18 @@ async function runCritiqueEvidenceStage(
 
 const MAX_STAGE_ATTEMPTS = 3;
 
-function buildEvidenceRepairNote(error: unknown): string {
+export function buildEvidenceRepairNote(error: unknown): string {
   const details = errorDetails(error);
   const surfaceAnchorFailure = details.some((detail) =>
     /Invalid evidence anchor for Surface and medium handling|Visible evidence does not support anchor for Surface and medium handling/.test(
       detail
+    )
+  );
+  const unsupportedAnchorCriteria = Array.from(
+    new Set(
+      details
+        .map((detail) => detail.match(/^Visible evidence does not support anchor for (.+)$/)?.[1]?.trim())
+        .filter((criterion): criterion is string => Boolean(criterion))
     )
   );
 
@@ -110,7 +117,14 @@ function buildEvidenceRepairNote(error: unknown): string {
 Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
-- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.${surfaceAnchorFailure
+- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.${unsupportedAnchorCriteria.length > 0
+    ? `
+
+Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
+- For each listed criterion, at least one visibleEvidence line MUST repeat the same concrete nouns from the anchor and then describe what is visibly happening in that exact passage.
+- Do not anchor to one relationship and then list only nearby but differently named passages.
+- If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again using the same objects or zones.`
+    : ''}${surfaceAnchorFailure
     ? `
 
 Critical repair for Surface and medium handling:
