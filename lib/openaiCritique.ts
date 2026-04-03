@@ -214,7 +214,9 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     },
   };
 
-  if (critiqueNeedsFreshEvidenceRead(withCompletion)) {
+  const guarded = applyCritiqueGuardrails(withCompletion);
+
+  if (critiqueNeedsFreshEvidenceRead(guarded)) {
     throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
       stage: 'final',
       details: [
@@ -224,9 +226,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  const validated = applyCritiqueGuardrails(withCompletion);
-  assertCritiqueQualityGate(validated);
+  assertCritiqueQualityGate(guarded);
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
-  return trimmedTitle ? { ...validated, paintingTitle: trimmedTitle } : validated;
+  return trimmedTitle ? { ...guarded, paintingTitle: trimmedTitle } : guarded;
 }

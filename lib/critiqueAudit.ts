@@ -230,28 +230,72 @@ function structuredFieldsAreConcrete(category: CritiqueResultDTO['categories'][n
   return true;
 }
 
-function fallbackVoiceBStep(
-  category: CritiqueResultDTO['categories'][number],
-  index: number
-): string {
-  if (!structuredFieldsAreConcrete(category)) {
-    const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
-    const existingSteps = splitNumberedSteps(phase3Text(category));
-    const reusable = existingSteps.find((step) => normalizeWhitespace(step).length > 0 && !isVagueVoiceBText(step));
-    if (reusable) return `${index + 1}. ${ensureTrailingPeriod(reusable)}`;
-    return `${index + 1}. Keep the strongest relationship in ${area} intact and make only one clearly local revision there.`;
+function firstUsableStructuredPhrase(...candidates: Array<string | undefined>): string {
+  for (const candidate of candidates) {
+    const normalized = concretePhrase(candidate ?? '');
+    if (!normalized) continue;
+    if (
+      /\b(more depth|better narrative|improve realism|enhanced clarity|more cohesive|more integrated|needs more structure|feels unresolved)\b/i.test(
+        normalized
+      )
+    ) {
+      continue;
+    }
+    if (isVagueVoiceBText(normalized)) continue;
+    return normalized;
   }
-  const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
-  const issue =
-    concretePhrase(category.editPlan?.issue ?? '') ||
-    concretePhrase(category.anchor?.evidencePointer ?? '') ||
-    'the current relationship still reads too generically';
-  const move =
-    concretePhrase(category.editPlan?.intendedChange ?? '') ||
-    'make one clearer directional adjustment there';
-  const outcome =
-    concretePhrase(category.editPlan?.expectedOutcome ?? '') ||
-    'the passage reads with more deliberate control';
+  return '';
+}
+
+function bestAnchoredArea(category: CritiqueResultDTO['categories'][number]): string {
+  const candidates = [
+    category.anchor?.areaSummary,
+    category.editPlan?.targetArea,
+    category.actionPlanSteps?.[0]?.area,
+  ]
+    .map((candidate) => normalizeWhitespace(candidate ?? ''))
+    .filter(Boolean);
+  const concrete = candidates.find((candidate) => !looksConceptualLabel(candidate));
+  return concrete ?? candidates[0] ?? category.criterion.toLowerCase();
+}
+
+function bestAnchoredIssue(category: CritiqueResultDTO['categories'][number]): string {
+  return (
+    firstUsableStructuredPhrase(
+      category.editPlan?.issue,
+      category.actionPlanSteps?.[0]?.currentRead,
+      category.voiceBPlan?.currentRead,
+      category.anchor?.evidencePointer,
+      firstSentence(phase2Text(category))
+    ) || 'the current relationship still needs a more deliberate read'
+  );
+}
+
+function bestAnchoredMove(category: CritiqueResultDTO['categories'][number]): string {
+  return (
+    firstUsableStructuredPhrase(
+      category.editPlan?.intendedChange,
+      category.actionPlanSteps?.[0]?.move,
+      category.voiceBPlan?.bestNextMove
+    ) || 'make one clearer directional adjustment there'
+  );
+}
+
+function bestAnchoredOutcome(category: CritiqueResultDTO['categories'][number]): string {
+  return (
+    firstUsableStructuredPhrase(
+      category.editPlan?.expectedOutcome,
+      category.actionPlanSteps?.[0]?.expectedRead,
+      category.voiceBPlan?.expectedRead
+    ) || 'the passage reads with more deliberate control'
+  );
+}
+
+function fallbackVoiceBStep(category: CritiqueResultDTO['categories'][number], index: number): string {
+  const area = bestAnchoredArea(category);
+  const issue = bestAnchoredIssue(category);
+  const move = bestAnchoredMove(category);
+  const outcome = bestAnchoredOutcome(category);
   return `${index + 1}. In ${area}, ${issue}—${move} so that ${outcome}.`;
 }
 
@@ -260,9 +304,6 @@ function rewriteActionPlanFromStructuredFields(
 ): string {
   if (category.level === 'Master') return phase3Text(category);
   const existingSteps = splitNumberedSteps(phase3Text(category));
-  if (!structuredFieldsAreConcrete(category) && existingSteps.length > 0) {
-    return existingSteps.map((step, index) => `${index + 1}. ${ensureTrailingPeriod(step)}`).join('\n');
-  }
   const steps: string[] = [];
   const usedNormalizedSteps = new Set<string>();
   for (let i = 0; i < existingSteps.length; i++) {
@@ -294,22 +335,15 @@ function rewriteStudioChangeFromStructuredFields(
   category: CritiqueResultDTO['categories'][number],
   existingText?: string
 ): string {
-  if (!structuredFieldsAreConcrete(category)) {
-    return existingText && normalizeWhitespace(existingText).length > 0
-      ? existingText
-      : `Keep the strongest visible relationship in ${category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase()} intact before making any revision on this criterion.`;
-  }
-  const area = category.anchor?.areaSummary?.trim() || category.editPlan?.targetArea?.trim() || 'the anchored passage';
-  const issue =
-    concretePhrase(category.editPlan?.issue ?? '') ||
-    concretePhrase(category.anchor?.evidencePointer ?? '') ||
-    'the current passage still needs a more deliberate read';
-  const move =
-    concretePhrase(category.editPlan?.intendedChange ?? '') ||
-    'make one clearer adjustment there';
+  const area = bestAnchoredArea(category);
+  const issue = bestAnchoredIssue(category);
+  const move = bestAnchoredMove(category);
   const outcome =
-    concretePhrase(category.editPlan?.expectedOutcome ?? '') ||
-    'the painting reads more clearly afterward';
+    firstUsableStructuredPhrase(
+      category.editPlan?.expectedOutcome,
+      category.actionPlanSteps?.[0]?.expectedRead,
+      category.voiceBPlan?.expectedRead
+    ) || 'the painting reads more clearly afterward';
 
   if (
     existingText &&
@@ -320,6 +354,38 @@ function rewriteStudioChangeFromStructuredFields(
   }
 
   return `In ${area}, ${issue}—${move} so that ${outcome}.`;
+}
+
+function rewriteCriticAnalysisFromAnchor(
+  category: CritiqueResultDTO['categories'][number]
+): string {
+  const existing = phase2Text(category);
+  if (anchoredCategoryMatchesText(existing, category)) return existing;
+  const area = bestAnchoredArea(category);
+  const pointer =
+    firstUsableStructuredPhrase(
+      category.anchor?.evidencePointer,
+      category.editPlan?.issue,
+      category.actionPlanSteps?.[0]?.currentRead
+    ) || `the visible relationships in ${area}`;
+  const issue = bestAnchoredIssue(category);
+  return `In ${area}, ${pointer}. ${sentenceCase(issue)}.`;
+}
+
+function stabilizeCriticAnchorReferences(critique: CritiqueResultDTO): CritiqueResultDTO {
+  let changed = false;
+  const categories = critique.categories.map((category) => {
+    const rewritten = rewriteCriticAnalysisFromAnchor(category);
+    if (rewritten === phase2Text(category)) return category;
+    changed = true;
+    return {
+      ...category,
+      phase2: {
+        criticsAnalysis: rewritten,
+      },
+    };
+  });
+  return changed ? { ...critique, categories } : critique;
 }
 
 function hybridizeVoiceBFromStructuredFields(critique: CritiqueResultDTO): CritiqueResultDTO {
@@ -517,15 +583,15 @@ function isPreservationOnlyPlan(actionPlan: string): boolean {
 }
 
 function buildImprovementFallback(cat: CritiqueResultDTO['categories'][number]): string {
-  const area = cat.anchor?.areaSummary?.trim() || 'the passage described in your feedback above';
+  const area = bestAnchoredArea(cat);
   const nextBand =
     cat.level === 'Beginner'
       ? 'Intermediate'
       : cat.level === 'Intermediate'
         ? 'Advanced'
         : 'Master';
-  const issue = concretePhrase(cat.editPlan?.issue ?? cat.anchor?.evidencePointer ?? '');
-  const move = concretePhrase(cat.editPlan?.intendedChange ?? '');
+  const issue = bestAnchoredIssue(cat);
+  const move = bestAnchoredMove(cat);
   if (issue && move) {
     return `1. In ${area}, ${issue}\u2014${move} to push this criterion toward ${nextBand}.`;
   }
@@ -670,10 +736,14 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
         : critique.simpleFeedback,
     };
     return hybridizeVoiceBFromStructuredFields(
-      rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(adjusted))
+      stabilizeCriticAnchorReferences(
+        rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(adjusted))
+      )
     );
   }
   return hybridizeVoiceBFromStructuredFields(
-    rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(critique))
+    stabilizeCriticAnchorReferences(
+      rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(critique))
+    )
   );
 }
