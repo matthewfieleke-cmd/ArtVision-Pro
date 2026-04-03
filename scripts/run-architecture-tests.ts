@@ -1004,6 +1004,27 @@ function testValidationErrorDetailsAreHumanized(): void {
   ]);
 }
 
+function testDebugLogPayloadSanitization(): void {
+  const stringifySafe = (value: unknown): string => {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+  const truncateForLog = (value: unknown, maxLength: number = 320): string => {
+    const text = typeof value === 'string' ? value : stringifySafe(value);
+    return text.length <= maxLength ? text : `${text.slice(0, maxLength)}…`;
+  };
+
+  const circular: { name: string; self?: unknown } = { name: 'circular' };
+  circular.self = circular;
+  assert.equal(truncateForLog(circular), '[object Object]');
+
+  const longText = 'x'.repeat(400);
+  assert.equal(truncateForLog(longText, 10), `${'x'.repeat(10)}…`);
+}
+
 function testPreviewEditPromptAlignment(): void {
   const prompt = buildEditPrompt({
     imageDataUrl: 'data:image/png;base64,abc',
@@ -1738,6 +1759,7 @@ async function main(): Promise<void> {
   testCriterionBandRubric();
   testEvidencePromptDemandsConcreteSurfaceAnchors();
   testValidationErrorDetailsAreHumanized();
+  testDebugLogPayloadSanitization();
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
   testStructuredVoiceBPlanFlow();
