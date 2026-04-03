@@ -387,13 +387,32 @@ function orderedVoiceBCategories(
   });
 }
 
-function groundedVoiceBIssue(
+function groundedVoiceBCurrentRead(
   category: VoiceBCategoryResult,
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): string {
   const candidates = [
-    category.editPlan.issue,
     category.actionPlanSteps[0]?.currentRead,
+    category.voiceBPlan.currentRead,
+    category.anchor.evidencePointer,
+    category.editPlan.issue,
+  ];
+  return (
+    candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
+    ) ?? category.actionPlanSteps[0]?.currentRead ?? category.voiceBPlan.currentRead
+  );
+}
+
+function groundedVoiceBIssue(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+): string {
+  const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
+  const candidates = [
+    category.editPlan.issue,
+    groundedCurrentRead,
     category.voiceBPlan.currentRead,
     category.anchor.evidencePointer,
   ];
@@ -410,11 +429,16 @@ function normalizeVoiceBCategoryGrounding(
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): VoiceBCategoryResult {
   const anchorArea = category.anchor.areaSummary;
+  const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
   return {
     ...category,
     actionPlanSteps: category.actionPlanSteps.map((step, index) =>
-      index === 0 ? { ...step, area: anchorArea } : step
+      index === 0 ? { ...step, area: anchorArea, currentRead: groundedCurrentRead } : step
     ),
+    voiceBPlan: {
+      ...category.voiceBPlan,
+      currentRead: groundedCurrentRead,
+    },
     editPlan: {
       ...category.editPlan,
       issue: groundedVoiceBIssue(category, criterionEvidence),
@@ -575,6 +599,7 @@ ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 Anchor alignment rules for this pass:
 - categories[].anchor.areaSummary is the canonical label for the chosen passage.
 - categories[].actionPlanSteps[0].area MUST repeat categories[].anchor.areaSummary verbatim.
+- categories[].actionPlanSteps[0].currentRead MUST restate the same concrete visible fact as categories[].anchor.evidencePointer or categories[].voiceBPlan.currentRead.
 - categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
 - categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that anchored passage.
 
@@ -591,7 +616,7 @@ function buildVoiceBCategoryPassUserPrompt(
   const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
   const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].actionPlanSteps[0].area must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.targetArea must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that passage, not a more abstract summary.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].actionPlanSteps[0].area must repeat categories[].anchor.areaSummary verbatim.\n- categories[].actionPlanSteps[0].currentRead must restate the same concrete visible fact as categories[].anchor.evidencePointer or categories[].voiceBPlan.currentRead, not a more abstract summary.\n- categories[].editPlan.targetArea must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that passage, not a more abstract summary.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -633,7 +658,7 @@ function buildVoiceBRepairNote(
   const details = errorDetails(error);
   const failedLeadVerbFields = details.filter(
     (detail) =>
-      detail.includes('actionPlanSteps') ||
+      detail.includes('actionPlanSteps[0].move') ||
       detail.includes('bestNextMove') ||
       detail.includes('intendedChange')
   );
@@ -644,6 +669,9 @@ function buildVoiceBRepairNote(
   );
   const failedIssueGroundingFields = details.filter((detail) =>
     detail.includes('editPlan.issue is not traceable to visibleEvidence')
+  );
+  const failedCurrentReadGroundingFields = details.filter((detail) =>
+    detail.includes('actionPlanSteps[0].currentRead is not traceable to visibleEvidence')
   );
   const fieldInstruction =
     failedLeadVerbFields.length > 0
@@ -668,12 +696,20 @@ function buildVoiceBRepairNote(
 - Reuse the same concrete visible fact already stated in categories[].actionPlanSteps[0].currentRead instead of summarizing it into abstract diagnosis language.
 - Do not rewrite that field as "needs more structure", "feels unresolved", or any other location-free summary.`
       : '';
+  const currentReadGroundingInstruction =
+    failedCurrentReadGroundingFields.length > 0
+      ? `Critical currentRead grounding fix for ${criteria.join(', ')}:
+- categories[].actionPlanSteps[0].currentRead MUST stay traceable to visibleEvidence in the same anchored passage.
+- Reuse the same concrete visible fact already stated in categories[].anchor.evidencePointer or categories[].voiceBPlan.currentRead instead of summarizing it into abstract diagnosis language.
+- Do not rewrite that field as "feels unresolved", "could be more unified", or any other judgment-only summary.`
+      : '';
   return `${prefix}
 ${details.map((detail) => `- ${detail}`).join('\n')}
 ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 ${fieldInstruction}
 ${anchorAlignmentInstruction}
 ${issueGroundingInstruction}
+${currentReadGroundingInstruction}
 Regenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
 
