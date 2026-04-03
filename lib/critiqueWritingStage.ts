@@ -319,7 +319,9 @@ Return JSON only matching the schema.`;
 const VOICE_A_MAX_TOKENS = 4800;
 const VOICE_B_MAX_TOKENS = 7200;
 const MAX_STAGE_ATTEMPTS = 3;
-const VOICE_B_CRITERIA_PER_PASS = 2;
+const VOICE_B_CRITERIA_PER_PASS = 1;
+const VOICE_B_ALLOWED_LEAD_VERBS =
+  'soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, preserve, keep, protect, leave, hold';
 
 type VoiceBCategoryResult = VoiceBStageResult['categories'][number];
 
@@ -468,6 +470,32 @@ function buildVoiceBSummaryPassUserPrompt(
 
 function buildRepairNote(prefix: string, error: unknown): string {
   return `${prefix}\n${errorDetails(error).map((detail) => `- ${detail}`).join('\n')}\nRegenerate the full JSON and fix every listed failure without changing the response shape.`;
+}
+
+function buildVoiceBRepairNote(
+  prefix: string,
+  error: unknown,
+  criteria: readonly CriterionLabel[]
+): string {
+  const details = errorDetails(error);
+  const failedLeadVerbFields = details.filter(
+    (detail) =>
+      detail.includes('actionPlanSteps') ||
+      detail.includes('bestNextMove') ||
+      detail.includes('intendedChange')
+  );
+  const fieldInstruction =
+    failedLeadVerbFields.length > 0
+      ? `Critical field fix for ${criteria.join(', ')}:
+- categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange MUST begin with exactly one of these verbs: ${VOICE_B_ALLOWED_LEAD_VERBS}.
+- For non-Master criteria, begin with a true CHANGE verb from that list.
+- For Master criteria, begin with a preserve verb from that list.
+- Do not start those fields with clarify, define, strengthen, improve, maintain, enhance, adjust, refine, or any synonym outside the allowed list.`
+      : '';
+  return `${prefix}
+${details.map((detail) => `- ${detail}`).join('\n')}
+${fieldInstruction}
+Regenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
 
 async function runSchemaStage(
@@ -633,9 +661,10 @@ export async function runCritiqueVoiceBStage(
             cause: error,
           });
         }
-        repairNote = buildRepairNote(
+        repairNote = buildVoiceBRepairNote(
           `Previous Voice B attempt failed for criteria: ${criteria.join(', ')}. ${errorMessage(error)}`,
-          error
+          error,
+          criteria
         );
       }
     }
