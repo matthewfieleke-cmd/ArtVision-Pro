@@ -322,6 +322,11 @@ const MAX_STAGE_ATTEMPTS = 3;
 const VOICE_B_CRITERIA_PER_PASS = 1;
 const VOICE_B_ALLOWED_LEAD_VERBS =
   'soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, preserve, keep, protect, leave, hold';
+const VOICE_B_CHANGE_VERB_PATTERN =
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break)\b/i;
+const VOICE_B_PRESERVE_VERB_PATTERN =
+  /^\s*(preserve|keep|protect|leave|hold)\b/i;
+const VOICE_B_DONT_CHANGE_PATTERN = /^\s*(?:1\.\s*)?don['’]t change a thing\./i;
 
 type VoiceBCategoryResult = VoiceBStageResult['categories'][number];
 
@@ -381,11 +386,111 @@ function orderedVoiceBCategories(
   });
 }
 
-function createVoiceBCategoryPassSchema(criteria: readonly CriterionLabel[]) {
+function voiceALevelForCriterion(
+  voiceA: VoiceAStageResult,
+  criterion: CriterionLabel
+): VoiceAStageResult['categories'][number]['level'] {
+  const match = voiceA.categories.find((category) => category.criterion === criterion);
+  if (!match) throw new Error(`Voice A category missing: ${criterion}`);
+  return match.level;
+}
+
+function buildVoiceBLevelRuleBlock(
+  voiceA: VoiceAStageResult,
+  criteria: readonly CriterionLabel[]
+): string {
+  return criteria
+    .map((criterion) => {
+      const level = voiceALevelForCriterion(voiceA, criterion);
+      if (level === 'Master') {
+        return `- ${criterion}: Voice A fixed level is Master. This criterion MUST use preserve-only guidance. categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange must begin with preserve, keep, protect, leave, or hold. categories[].phase3.teacherNextSteps may begin with "Don't change a thing."`;
+      }
+      return `- ${criterion}: Voice A fixed level is ${level}. This criterion is NOT Master. Do NOT use "Don't change a thing." anywhere. categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange must begin with a true CHANGE verb from this list: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break. Preserve-only wording is forbidden for this criterion.`;
+    })
+    .join('\n');
+}
+
+function createVoiceBCategoryPassSchema(
+  criteria: readonly CriterionLabel[],
+  voiceA: VoiceAStageResult
+) {
+  const levelsByCriterion = new Map(
+    criteria.map((criterion) => [criterion, voiceALevelForCriterion(voiceA, criterion)] as const)
+  );
   const criterionSubsetEnum = z.enum(criteria as [CriterionLabel, ...CriterionLabel[]]);
-  const categorySchema = voiceBCategorySchema.extend({
-    criterion: criterionSubsetEnum,
-  });
+  const categorySchema = voiceBCategorySchema
+    .extend({
+      criterion: criterionSubsetEnum,
+    })
+    .superRefine((category, ctx) => {
+      const level = levelsByCriterion.get(category.criterion);
+      if (!level) return;
+      const stepMove = category.actionPlanSteps[0]?.move ?? '';
+      const bestNextMove = category.voiceBPlan.bestNextMove;
+      const intendedChange = category.editPlan.intendedChange;
+      const teacherNextSteps = category.phase3.teacherNextSteps;
+
+      if (level === 'Master') {
+        if (!VOICE_B_DONT_CHANGE_PATTERN.test(teacherNextSteps)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['phase3', 'teacherNextSteps'],
+            message: `${category.criterion}: Master guidance must begin with "Don't change a thing."`,
+          });
+        }
+        if (!VOICE_B_PRESERVE_VERB_PATTERN.test(stepMove)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['actionPlanSteps', 0, 'move'],
+            message: `${category.criterion}: Master actionPlanSteps[0].move must be preserve-only.`,
+          });
+        }
+        if (!VOICE_B_PRESERVE_VERB_PATTERN.test(bestNextMove)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['voiceBPlan', 'bestNextMove'],
+            message: `${category.criterion}: Master voiceBPlan.bestNextMove must be preserve-only.`,
+          });
+        }
+        if (!VOICE_B_PRESERVE_VERB_PATTERN.test(intendedChange)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['editPlan', 'intendedChange'],
+            message: `${category.criterion}: Master editPlan.intendedChange must be preserve-only.`,
+          });
+        }
+        return;
+      }
+
+      if (VOICE_B_DONT_CHANGE_PATTERN.test(teacherNextSteps)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['phase3', 'teacherNextSteps'],
+          message: `${category.criterion}: non-Master guidance cannot use "Don't change a thing."`,
+        });
+      }
+      if (!VOICE_B_CHANGE_VERB_PATTERN.test(stepMove)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['actionPlanSteps', 0, 'move'],
+          message: `${category.criterion}: non-Master actionPlanSteps[0].move must be a true change instruction.`,
+        });
+      }
+      if (!VOICE_B_CHANGE_VERB_PATTERN.test(bestNextMove)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['voiceBPlan', 'bestNextMove'],
+          message: `${category.criterion}: non-Master voiceBPlan.bestNextMove must be a true change instruction.`,
+        });
+      }
+      if (!VOICE_B_CHANGE_VERB_PATTERN.test(intendedChange)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['editPlan', 'intendedChange'],
+          message: `${category.criterion}: non-Master editPlan.intendedChange must be a true change instruction.`,
+        });
+      }
+    });
   return z.object({
     categories: z.array(categorySchema).length(criteria.length),
   });
@@ -417,6 +522,7 @@ function buildVoiceBCategoryPassPrompt(
   style: string,
   medium: string,
   evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult,
   criteria: readonly CriterionLabel[],
   calibration?: CritiqueCalibrationDTO
 ): string {
@@ -425,6 +531,9 @@ function buildVoiceBCategoryPassPrompt(
 
 This Voice B pass is limited to these criteria only, in this exact order:
 ${criterionList}
+
+Level-locked rules for this pass:
+${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 
 Return ONLY the categories array for those criteria in that exact order.
 Do NOT return overallSummary or studioChanges in this pass. Those are handled separately after the per-criterion teaching plans are fixed.`;
@@ -439,7 +548,7 @@ function buildVoiceBCategoryPassUserPrompt(
   const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
   const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -475,6 +584,7 @@ function buildRepairNote(prefix: string, error: unknown): string {
 function buildVoiceBRepairNote(
   prefix: string,
   error: unknown,
+  voiceA: VoiceAStageResult,
   criteria: readonly CriterionLabel[]
 ): string {
   const details = errorDetails(error);
@@ -494,6 +604,7 @@ function buildVoiceBRepairNote(
       : '';
   return `${prefix}
 ${details.map((detail) => `- ${detail}`).join('\n')}
+${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 ${fieldInstruction}
 Regenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
@@ -614,7 +725,7 @@ export async function runCritiqueVoiceBStage(
   const criterionBatches = chunkCriteria(CRITERIA_ORDER, VOICE_B_CRITERIA_PER_PASS);
 
   for (const [batchIndex, criteria] of criterionBatches.entries()) {
-    const batchSchema = createVoiceBCategoryPassSchema(criteria);
+    const batchSchema = createVoiceBCategoryPassSchema(criteria, voiceA);
     const batchOpenAiSchema = toOpenAIJsonSchema(
       `painting_critique_vb_batch_${batchIndex + 1}`,
       batchSchema
@@ -627,7 +738,7 @@ export async function runCritiqueVoiceBStage(
         const raw = await runSchemaStage(
           apiKey,
           model,
-          buildVoiceBCategoryPassPrompt(style, body.medium, evidence, criteria, calibration),
+          buildVoiceBCategoryPassPrompt(style, body.medium, evidence, voiceA, criteria, calibration),
           buildVoiceBCategoryPassUserPrompt(evidence, voiceA, criteria, repairNote),
           batchOpenAiSchema,
           VOICE_B_MAX_TOKENS
@@ -664,6 +775,7 @@ export async function runCritiqueVoiceBStage(
         repairNote = buildVoiceBRepairNote(
           `Previous Voice B attempt failed for criteria: ${criteria.join(', ')}. ${errorMessage(error)}`,
           error,
+          voiceA,
           criteria
         );
       }
