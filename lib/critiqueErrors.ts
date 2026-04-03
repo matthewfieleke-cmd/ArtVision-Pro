@@ -13,7 +13,7 @@ function joinDetails(details?: string[]): string {
 export class CritiquePipelineError extends Error {
   readonly stage: CritiqueStageName;
   readonly details: string[];
-  override cause?: unknown;
+  cause?: unknown;
 
   constructor(message: string, options: CritiqueErrorOptions) {
     super(`${message}${joinDetails(options.details)}`);

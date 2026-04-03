@@ -1,5 +1,10 @@
 import type { Style } from './types';
 import { readApiJson } from './apiJson';
+import {
+  createCritiqueRequestError,
+  normalizeCritiqueRequestError,
+} from './critiqueRequestError';
+import { isAbortError } from './analysisKeepAlive';
 
 export type ClassifyStyleResponse = {
   style: Style;
@@ -14,16 +19,35 @@ function classifyUrl(): string {
   return `${prefix}/api/classify-style`;
 }
 
-export async function fetchClassifyStyleFromApi(imageDataUrl: string): Promise<ClassifyStyleResponse> {
-  const res = await fetch(classifyUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageDataUrl }),
-  });
-  const data = await readApiJson<{ error?: string; style?: Style; rationale?: string }>(res);
-  if (!res.ok) {
-    throw new Error(data.error ?? `API ${res.status}`);
+export async function fetchClassifyStyleFromApi(
+  imageDataUrl: string,
+  signal?: AbortSignal
+): Promise<ClassifyStyleResponse> {
+  try {
+    const res = await fetch(classifyUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageDataUrl }),
+      signal,
+    });
+    const data = await readApiJson<{ error?: string; style?: Style; rationale?: string }>(res);
+    if (!res.ok) {
+      throw createCritiqueRequestError({
+        operation: 'classify',
+        status: res.status,
+        technicalMessage: data.error ?? `API ${res.status}`,
+      });
+    }
+    if (!data.style || !data.rationale) {
+      throw createCritiqueRequestError({
+        operation: 'classify',
+        kind: 'invalid_response',
+        technicalMessage: 'Invalid response',
+      });
+    }
+    return { style: data.style, rationale: data.rationale };
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    throw normalizeCritiqueRequestError(error, 'classify');
   }
-  if (!data.style || !data.rationale) throw new Error('Invalid response');
-  return { style: data.style, rationale: data.rationale };
 }

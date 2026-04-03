@@ -1,6 +1,11 @@
 import type { CritiqueResult, Medium, Style } from './types';
 import { readApiJson } from './apiJson';
 import { finalizeCritiqueResult, migrateCritiqueSimpleFeedback } from './critiqueCoach';
+import {
+  createCritiqueRequestError,
+  normalizeCritiqueRequestError,
+} from './critiqueRequestError';
+import { isAbortError } from './analysisKeepAlive';
 
 type CritiqueRequestBody = {
   style: Style;
@@ -29,30 +34,48 @@ function critiqueUrl(): string {
  * Calls the serverless critique endpoint when available. Throws on HTTP/network errors.
  */
 export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<CritiqueResult> {
-  const { signal, ...jsonBody } = body;
-  const res = await fetch(critiqueUrl(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(jsonBody),
-    signal,
-  });
-  const data = await readApiJson<{ error?: string } | CritiqueResult>(res);
-  if (!res.ok) {
-    throw new Error(typeof data === 'object' && data && 'error' in data && data.error ? String(data.error) : `API ${res.status}`);
+  try {
+    const { signal, ...jsonBody } = body;
+    const res = await fetch(critiqueUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jsonBody),
+      signal,
+    });
+    const data = await readApiJson<{ error?: string } | CritiqueResult>(res);
+    if (!res.ok) {
+      throw createCritiqueRequestError({
+        operation: 'critique',
+        status: res.status,
+        technicalMessage:
+          typeof data === 'object' && data && 'error' in data && data.error
+            ? String(data.error)
+            : `API ${res.status}`,
+      });
+    }
+    if ('error' in data && data.error) {
+      throw createCritiqueRequestError({
+        operation: 'critique',
+        status: res.status,
+        technicalMessage: String(data.error),
+      });
+    }
+    const critique = data as CritiqueResult & {
+      simpleFeedback?: CritiqueResult['simple'];
+    };
+    const normalized: CritiqueResult = {
+      ...critique,
+      ...(critique.simpleFeedback
+        ? {
+            simple: migrateCritiqueSimpleFeedback(critique.simpleFeedback) ?? critique.simpleFeedback,
+          }
+        : {}),
+    };
+    return finalizeCritiqueResult(normalized, {
+      photoQuality: normalized.photoQuality,
+    });
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    throw normalizeCritiqueRequestError(error, 'critique');
   }
-  if ('error' in data && data.error) throw new Error(String(data.error));
-  const critique = data as CritiqueResult & {
-    simpleFeedback?: CritiqueResult['simple'];
-  };
-  const normalized: CritiqueResult = {
-    ...critique,
-    ...(critique.simpleFeedback
-      ? {
-          simple: migrateCritiqueSimpleFeedback(critique.simpleFeedback) ?? critique.simpleFeedback,
-        }
-      : {}),
-  };
-  return finalizeCritiqueResult(normalized, {
-    photoQuality: normalized.photoQuality,
-  });
 }

@@ -191,6 +191,7 @@ export function applyDetectedStyle(
 export function clearClassifySource(flow: SetupFlow): SetupFlow {
   return {
     ...flow,
+    styleClassifyMeta: undefined,
     mediumClassifyMeta: undefined,
     classifySourceImageDataUrl: undefined,
   };

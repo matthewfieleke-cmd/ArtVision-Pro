@@ -53,9 +53,14 @@ import {
 } from './critiqueFlow';
 import { compressDataUrl, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
+import { useCritiqueAsyncState } from './hooks/useCritiqueAsyncState';
 import { useIsDesktop } from './hooks/useIsDesktop';
 import { usePreviewState } from './hooks/usePreviewState';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
+import {
+  createCritiqueRequestError,
+  normalizeCritiqueRequestError,
+} from './critiqueRequestError';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
@@ -169,27 +174,50 @@ export default function App() {
   pendingCropRef.current = pendingCrop;
   const flowRef = useRef(flow);
   flowRef.current = flow;
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-  const [classifyBusy, setClassifyBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const {
+    asyncState,
+    clearAsyncState,
+    failRequest,
+    finishRequest,
+    noteAnalysisRetry,
+    startAnalysis,
+    startClassify,
+  } = useCritiqueAsyncState();
   const { preview, resetPreview, startPreviewLoading, completePreview, failPreview, selectEdit, openCompare, closeCompare } = usePreviewState();
-  const [analysisRetryNotice, setAnalysisRetryNotice] = useState(false);
   const [titleAppliedToast, setTitleAppliedToast] = useState(false);
   const titleToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const analysisAbortRef = useRef<AbortController | null>(null);
+  const classifyAbortRef = useRef<AbortController | null>(null);
   const analysisHiddenAtRef = useRef<number | null>(null);
   const analysisRetryUsedRef = useRef(false);
   /** True only when abort() was triggered from the visibility resume path (eligible for one API retry). */
   const analysisVisibilityAbortRef = useRef(false);
   const analysisWakeRef = useRef<WakeLockHandle | null>(null);
   const analysisRunTokenRef = useRef(0);
+  const classifyRunTokenRef = useRef(0);
+  const imageSelectionTokenRef = useRef(0);
+  const lastAutoSaveSigRef = useRef<string | null>(null);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
 
   const flowScrollRef = useRef<HTMLDivElement>(null);
   const hadFlowRef = useRef(false);
+  const requestError = asyncState.status === 'error' ? asyncState.error : null;
+  const classifyBusy = asyncState.status === 'classifying';
+  const analysisRetryNotice =
+    asyncState.status === 'analyzing' ? asyncState.retryNotice : false;
+
+  const invalidateImageSelections = useCallback(() => {
+    imageSelectionTokenRef.current += 1;
+  }, []);
+
+  const clearPendingCrop = useCallback(() => {
+    pendingCropRef.current = null;
+    setPendingCrop(null);
+  }, []);
 
   /** Mobile: main tabs scroll with the window — reset when switching tab (not in critique flow). */
   useLayoutEffect(() => {
@@ -218,7 +246,7 @@ export default function App() {
     const returnView = consumeReturnViewIntent();
     if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
       setFlow(returnView.flow);
-      setAnalyzeError(null);
+      clearAsyncState();
       closeCompare();
       return;
     }
@@ -230,7 +258,7 @@ export default function App() {
     }
     const intent = consumeReturnTabIntent();
     if (intent === 'benchmarks') setTab('benchmarks');
-  }, [location.pathname, location.key, closeCompare, setStudioSelectedId]);
+  }, [location.pathname, location.key, clearAsyncState, closeCompare, setStudioSelectedId]);
 
   const cancelAnalysisKeepAlive = useCallback(() => {
     analysisRunTokenRef.current += 1;
@@ -241,50 +269,59 @@ export default function App() {
     analysisHiddenAtRef.current = null;
     analysisRetryUsedRef.current = false;
     analysisVisibilityAbortRef.current = false;
-    setAnalysisRetryNotice(false);
   }, []);
+
+  const cancelClassifyRequest = useCallback(() => {
+    classifyRunTokenRef.current += 1;
+    classifyAbortRef.current?.abort();
+    classifyAbortRef.current = null;
+  }, []);
+
+  const resetTransientFlowState = useCallback(() => {
+    cancelAnalysisKeepAlive();
+    cancelClassifyRequest();
+    invalidateImageSelections();
+    clearPendingCrop();
+    clearAsyncState();
+    lastAutoSaveSigRef.current = null;
+    resetPreview();
+  }, [
+    cancelAnalysisKeepAlive,
+    cancelClassifyRequest,
+    clearAsyncState,
+    clearPendingCrop,
+    invalidateImageSelections,
+    resetPreview,
+  ]);
 
   const closeFlow = useCallback(() => {
     clearReturnViewIntent();
     stopCamera();
-    cancelAnalysisKeepAlive();
-    setPendingCrop(null);
+    resetTransientFlowState();
     setFlow(null);
-    setAnalyzeError(null);
-    setClassifyBusy(false);
-    resetPreview();
-  }, [stopCamera, cancelAnalysisKeepAlive, resetPreview]);
+  }, [resetTransientFlowState, stopCamera]);
 
   const goHome = useCallback(() => {
     clearReturnViewIntent();
     advanceDailyMasterpieceIndex();
     stopCamera();
-    cancelAnalysisKeepAlive();
-    setPendingCrop(null);
+    resetTransientFlowState();
     setFlow(null);
-    setAnalyzeError(null);
-    setClassifyBusy(false);
-    resetPreview();
     setTab('home');
-  }, [stopCamera, cancelAnalysisKeepAlive, resetPreview]);
+  }, [resetTransientFlowState, stopCamera]);
 
   const startNewCritique = useCallback(() => {
-    cancelAnalysisKeepAlive();
-    setAnalyzeError(null);
-    setClassifyBusy(false);
-    resetPreview();
+    stopCamera();
+    resetTransientFlowState();
     setFlow(createNewFlow());
-  }, [cancelAnalysisKeepAlive, resetPreview]);
+  }, [resetTransientFlowState, stopCamera]);
 
   const startResubmit = useCallback((p: SavedPainting) => {
-    cancelAnalysisKeepAlive();
-    setAnalyzeError(null);
-    setClassifyBusy(false);
-    resetPreview();
     stopCamera();
+    resetTransientFlowState();
     setFlow(createResubmitFlow(p));
     setTab('studio');
-  }, [stopCamera, cancelAnalysisKeepAlive, resetPreview]);
+  }, [resetTransientFlowState, stopCamera]);
 
   useEffect(() => {
     if (flow?.step === 'capture' && !isDesktop) {
@@ -300,9 +337,13 @@ export default function App() {
     if (!f.style || !f.medium) return;
     const startedFlow = beginAnalysis(f, rawDataUrl);
     if (!startedFlow) return;
+    cancelClassifyRequest();
+    invalidateImageSelections();
+    clearPendingCrop();
     const runId = ++analysisRunTokenRef.current;
-    setAnalyzeError(null);
-    setAnalysisRetryNotice(false);
+    startAnalysis();
+    lastAutoSaveSigRef.current = null;
+    resetPreview();
     setFlow(startedFlow);
 
     analysisAbortRef.current?.abort();
@@ -372,7 +413,7 @@ export default function App() {
         if (isAbortError(err) && visibilityRetryable()) {
           analysisVisibilityAbortRef.current = false;
           analysisRetryUsedRef.current = true;
-          setAnalysisRetryNotice(true);
+          noteAnalysisRetry();
           const ac2 = new AbortController();
           analysisAbortRef.current = ac2;
           critique = await attemptApi(ac2.signal);
@@ -383,11 +424,11 @@ export default function App() {
 
       if (runId !== analysisRunTokenRef.current) return;
 
-      resetPreview();
+      finishRequest();
       setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource: 'api' }));
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
-      setAnalyzeError(e instanceof Error ? e.message : 'Analysis failed');
+      failRequest(normalizeCritiqueRequestError(e, 'critique'));
       setFlow(recoverFromAnalysisError(startedFlow));
     } finally {
       if (runId === analysisRunTokenRef.current) {
@@ -395,7 +436,16 @@ export default function App() {
       }
       releaseWakeIfCurrent();
     }
-  }, [resetPreview]);
+  }, [
+    cancelClassifyRequest,
+    clearPendingCrop,
+    failRequest,
+    finishRequest,
+    invalidateImageSelections,
+    noteAnalysisRetry,
+    resetPreview,
+    startAnalysis,
+  ]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -426,14 +476,24 @@ export default function App() {
   }, []);
 
   const runClassifyStyle = useCallback(async (rawDataUrl: string) => {
-    setClassifyBusy(true);
-    setAnalyzeError(null);
+    const current = flowRef.current;
+    if (!current || current.step !== 'setup' || current.styleMode !== 'auto') return;
+    const runId = ++classifyRunTokenRef.current;
+    classifyAbortRef.current?.abort();
+    const ac = new AbortController();
+    classifyAbortRef.current = ac;
+    startClassify();
     try {
       const compressed = await compressDataUrl(rawDataUrl);
+      if (runId !== classifyRunTokenRef.current) return;
       const [styleRead, mediumRead] = await Promise.all([
-        fetchClassifyStyleFromApi(compressed),
-        fetchClassifyMediumFromApi(compressed).catch(() => null),
+        fetchClassifyStyleFromApi(compressed, ac.signal),
+        fetchClassifyMediumFromApi(compressed, ac.signal).catch((error) => {
+          if (isAbortError(error)) throw error;
+          return null;
+        }),
       ]);
+      if (runId !== classifyRunTokenRef.current) return;
       const style: Style = styleRead.style;
       const styleRationale: string = styleRead.rationale;
       const styleSource: 'api' | 'local' = 'api';
@@ -442,7 +502,13 @@ export default function App() {
       const mediumSource: 'api' | 'local' | undefined = mediumRead ? 'api' : undefined;
 
       setFlow((cur) => {
-        if (cur?.step !== 'setup') return cur;
+        if (
+          runId !== classifyRunTokenRef.current ||
+          cur?.step !== 'setup' ||
+          cur.styleMode !== 'auto'
+        ) {
+          return cur;
+        }
         return applyDetectedStyle(cur, {
           style,
           rationale: styleRationale,
@@ -457,32 +523,42 @@ export default function App() {
             : {}),
         });
       });
+      finishRequest();
     } catch (e) {
-      setAnalyzeError(e instanceof Error ? e.message : 'Could not detect style');
+      if (isAbortError(e)) return;
+      if (runId !== classifyRunTokenRef.current) return;
+      failRequest(normalizeCritiqueRequestError(e, 'classify'));
     } finally {
-      setClassifyBusy(false);
+      if (runId === classifyRunTokenRef.current) {
+        classifyAbortRef.current = null;
+      }
     }
-  }, []);
+  }, [failRequest, finishRequest, startClassify]);
 
   const openCropperForImage = useCallback(
     (imageSrc: string, source: CropSource) => {
       const current = flowRef.current;
       if (!current) return;
       stopCamera();
-      setAnalyzeError(null);
-      setPendingCrop({ imageSrc, source, action: 'analyze' });
+      clearAsyncState();
+      const nextCrop = { imageSrc, source, action: 'analyze' } as const;
+      pendingCropRef.current = nextCrop;
+      setPendingCrop(nextCrop);
       if (current.step === 'setup') {
         const capture = enterCapture(current);
         if (capture) setFlow(capture);
       }
     },
-    [stopCamera]
+    [clearAsyncState, stopCamera]
   );
 
   const onCropConfirm = useCallback(
     async (croppedImage: string) => {
-      const action = pendingCropRef.current?.action ?? 'analyze';
+      const pending = pendingCropRef.current;
+      if (!pending) return;
+      pendingCropRef.current = null;
       setPendingCrop(null);
+      const action = pending.action;
       if (action === 'classify') {
         await runClassifyStyle(croppedImage);
       } else {
@@ -493,16 +569,18 @@ export default function App() {
   );
 
   const onCropCancel = useCallback(() => {
-    setPendingCrop(null);
-  }, []);
+    clearPendingCrop();
+  }, [clearPendingCrop]);
 
   const onPickFile = useCallback(
     async (file: File | null, source: CropSource = 'gallery') => {
-      if (!file || !flow) return;
+      if (!file || !flowRef.current) return;
+      const token = ++imageSelectionTokenRef.current;
       const url = await fileToDataUrl(file);
+      if (token !== imageSelectionTokenRef.current) return;
       openCropperForImage(url, source);
     },
-    [flow, openCropperForImage]
+    [openCropperForImage]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -524,25 +602,35 @@ export default function App() {
 
   const onPickFileForClassify = useCallback(
     async (file: File | null) => {
-      if (!file || !flowRef.current || flowRef.current.step !== 'setup') return;
-      setAnalyzeError(null);
+      const current = flowRef.current;
+      if (!file || !current || current.step !== 'setup' || current.styleMode !== 'auto') return;
+      clearAsyncState();
+      const token = ++imageSelectionTokenRef.current;
       const url = await fileToDataUrl(file);
+      if (token !== imageSelectionTokenRef.current) return;
       stopCamera();
-      setPendingCrop({ imageSrc: url, source: 'gallery', action: 'classify' });
+      const nextCrop = { imageSrc: url, source: 'gallery', action: 'classify' } as const;
+      pendingCropRef.current = nextCrop;
+      setPendingCrop(nextCrop);
     },
-    [stopCamera]
+    [clearAsyncState, stopCamera]
   );
 
   const onShutter = useCallback(async () => {
     const shot = captureFrame();
     if (!shot) {
-      setAnalyzeError('Could not read from camera. Try upload.');
+      failRequest(
+        createCritiqueRequestError({
+          operation: 'critique',
+          kind: 'unknown',
+          technicalMessage: 'Could not read from camera. Try upload.',
+          userMessage: 'Could not read from camera. Try upload.',
+        })
+      );
       return;
     }
     openCropperForImage(shot, 'live-camera');
-  }, [captureFrame, openCropperForImage]);
-
-  const lastAutoSaveSigRef = useRef<string | null>(null);
+  }, [captureFrame, failRequest, openCropperForImage]);
 
   /** When preview finishes for a work already in Studio, persist (merge previews into last version) without leaving results. */
   useEffect(() => {
@@ -581,6 +669,22 @@ export default function App() {
         flow.style &&
         flow.medium
     );
+
+  const requestErrorNotice = requestError ? (
+    <div
+      className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-800"
+      role="alert"
+    >
+      <p className="font-medium">{requestError.message}</p>
+      {requestError.retryable ? (
+        <p className="mt-1 text-xs leading-relaxed text-red-700">
+          {requestError.operation === 'classify'
+            ? 'Try another upload, or switch to manual style selection.'
+            : 'You can retry with the same image or choose a different photo.'}
+        </p>
+      ) : null}
+    </div>
+  ) : null;
 
   const previewTarget = useMemo(
     () => (flow ? previewDisplayTarget(flow, preview.activeEditId) : null),
@@ -879,13 +983,17 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
+                  clearAsyncState();
                   if (flow.step === 'setup') closeFlow();
                   else if (flow.step === 'capture') {
+                    cancelClassifyRequest();
                     const previousFlow = backFromCapture(flow);
                     if (!previousFlow) closeFlow();
                     else setFlow(previousFlow);
                   } else if (flow.step === 'results') {
                     clearReturnViewIntent();
+                    lastAutoSaveSigRef.current = null;
+                    resetPreview();
                     setFlow(backFromResults(flow));
                   } else closeFlow();
                 }}
@@ -924,7 +1032,11 @@ export default function App() {
                     <div className="flex gap-1 rounded-xl bg-slate-100/90 p-1">
                       <button
                         type="button"
-                        onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToManualStyle(f) : f))}
+                        onClick={() => {
+                          cancelClassifyRequest();
+                          clearAsyncState();
+                          setFlow((f) => (f?.step === 'setup' ? switchToManualStyle(f) : f));
+                        }}
                         className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
                           flow.styleMode === 'manual'
                             ? 'bg-white text-slate-900 shadow-sm'
@@ -935,7 +1047,10 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFlow((f) => (f?.step === 'setup' ? switchToAutoStyle(f) : f))}
+                        onClick={() => {
+                          clearAsyncState();
+                          setFlow((f) => (f?.step === 'setup' ? switchToAutoStyle(f) : f));
+                        }}
                         className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${
                           flow.styleMode === 'auto'
                             ? 'bg-white text-violet-700 shadow-sm'
@@ -1020,7 +1135,10 @@ export default function App() {
                       <button
                         key={s}
                         type="button"
-                        onClick={() => setFlow((f) => (f?.step === 'setup' ? chooseStyle(f, s) : f))}
+                        onClick={() => {
+                          clearAsyncState();
+                          setFlow((f) => (f?.step === 'setup' ? chooseStyle(f, s) : f));
+                        }}
                         className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
                           flow.style === s
                             ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
@@ -1040,7 +1158,10 @@ export default function App() {
                       <button
                         key={m}
                         type="button"
-                        onClick={() => setFlow((f) => (f?.step === 'setup' ? chooseMedium(f, m) : f))}
+                        onClick={() => {
+                          clearAsyncState();
+                          setFlow((f) => (f?.step === 'setup' ? chooseMedium(f, m) : f));
+                        }}
                         className={`rounded-2xl border px-3 py-3.5 text-left text-sm font-semibold transition ${
                           flow.medium === m
                             ? 'border-violet-500 bg-violet-50 text-violet-900 ring-2 ring-violet-500/20'
@@ -1072,6 +1193,8 @@ export default function App() {
                   </p>
                 </div>
 
+                {requestErrorNotice}
+
                 {canRunCritiqueFromClassifyUpload ? (
                   <div className={postAutoClassifySetup ? '' : 'space-y-2'}>
                     <button
@@ -1087,13 +1210,15 @@ export default function App() {
                     {!postAutoClassifySetup ? (
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          cancelClassifyRequest();
+                          clearAsyncState();
                           setFlow((f) => {
                             if (f?.step !== 'setup') return f;
                             const cleared = clearClassifySource(f);
                             return enterCapture(cleared) ?? f;
-                          })
-                        }
+                          });
+                        }}
                         className="w-full rounded-2xl border border-slate-200 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                       >
                         {isDesktop ? 'Upload a different photo' : 'Use camera or a different photo'}
@@ -1104,7 +1229,11 @@ export default function App() {
                   <button
                     type="button"
                     disabled={flow.step !== 'setup' ? true : !canContinueFromSetup(flow, classifyBusy)}
-                    onClick={() => setFlow((f) => (f?.step === 'setup' ? enterCapture(f) ?? f : f))}
+                    onClick={() => {
+                      cancelClassifyRequest();
+                      clearAsyncState();
+                      setFlow((f) => (f?.step === 'setup' ? enterCapture(f) ?? f : f));
+                    }}
                     className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition enabled:active:scale-[0.99] disabled:opacity-35"
                   >
                     {isDesktop ? 'Continue to upload' : 'Continue to capture'}
@@ -1199,9 +1328,7 @@ export default function App() {
                   </>
                 )}
 
-                {analyzeError ? (
-                  <p className="text-center text-sm text-red-600">{analyzeError}</p>
-                ) : null}
+                {requestErrorNotice}
 
                 {!isDesktop && (
                   <div
