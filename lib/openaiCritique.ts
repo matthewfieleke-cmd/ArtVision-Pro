@@ -20,6 +20,60 @@ import { assertCritiqueQualityGate } from './critiqueEval.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 
+function summarizeRawForLog(raw: unknown): string {
+  try {
+    const serialized = JSON.stringify(raw);
+    if (!serialized) return '[unserializable raw payload]';
+    return serialized.length > 4000 ? `${serialized.slice(0, 4000)}…[truncated]` : serialized;
+  } catch {
+    return '[unserializable raw payload]';
+  }
+}
+
+function extractCriterionEvidencePreview(raw: unknown): Array<{
+  criterion: string;
+  anchor?: string;
+  visibleEvidencePreview?: string[];
+}> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const criterionEvidence = (raw as { criterionEvidence?: unknown }).criterionEvidence;
+  if (!Array.isArray(criterionEvidence)) return undefined;
+  return criterionEvidence
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => ({
+      criterion: typeof entry.criterion === 'string' ? entry.criterion : '[missing criterion]',
+      ...(typeof entry.anchor === 'string' ? { anchor: entry.anchor } : {}),
+      ...(Array.isArray(entry.visibleEvidence)
+        ? {
+            visibleEvidencePreview: entry.visibleEvidence
+              .filter((line): line is string => typeof line === 'string')
+              .slice(0, 3),
+          }
+        : {}),
+    }));
+}
+
+function logEvidenceAttemptFailure(
+  context: { attempt: number; repairNote?: string },
+  error: unknown,
+  raw?: unknown
+): void {
+  const payload = {
+    stage: 'evidence',
+    attempt: context.attempt,
+    error: errorMessage(error),
+    details: errorDetails(error),
+    ...(context.repairNote ? { repairNotePreview: context.repairNote.slice(0, 1200) } : {}),
+    ...(raw !== undefined
+      ? {
+          rawPreview: summarizeRawForLog(raw),
+          criterionEvidencePreview: extractCriterionEvidencePreview(raw),
+        }
+      : {}),
+  };
+  console.error('[critique evidence attempt failed]', payload);
+}
+
 async function runCritiqueEvidenceStage(
   apiKey: string,
   args: {
@@ -77,15 +131,39 @@ async function runCritiqueEvidenceStage(
   if (!text || typeof text !== 'string') throw new Error('Empty model response');
 
   try {
-    return validateEvidenceResult(JSON.parse(text));
+    const raw = JSON.parse(text);
+    return validateEvidenceResult(raw);
   } catch (error) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      raw = text;
+    }
     if (error instanceof Error && error.message !== 'Model returned invalid evidence JSON') {
+      logEvidenceAttemptFailure(
+        { attempt: 0, repairNote: args.repairNote },
+        new CritiqueValidationError('Evidence stage validation failed.', {
+          stage: 'evidence',
+          details: [error.message],
+          cause: error,
+        }),
+        raw
+      );
       throw new CritiqueValidationError('Evidence stage validation failed.', {
         stage: 'evidence',
         details: [error.message],
         cause: error,
       });
     }
+    logEvidenceAttemptFailure(
+      { attempt: 0, repairNote: args.repairNote },
+      new CritiqueValidationError('Model returned invalid evidence JSON', {
+        stage: 'evidence',
+        cause: error,
+      }),
+      raw
+    );
     throw new CritiqueValidationError('Model returned invalid evidence JSON', {
       stage: 'evidence',
       cause: error,
@@ -154,6 +232,9 @@ async function runCritiqueEvidenceStageWithRetries(
       });
     } catch (error) {
       lastError = error;
+      if (!(error instanceof CritiqueValidationError)) {
+        logEvidenceAttemptFailure({ attempt, repairNote }, error);
+      }
       if (attempt === MAX_STAGE_ATTEMPTS) {
         throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', attempt, {
           stage: 'evidence',
