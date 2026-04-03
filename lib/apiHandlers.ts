@@ -1,5 +1,10 @@
 import type { CritiqueRequestBody } from './critiqueTypes.js';
 import type { PreviewEditRequestBody } from './previewEditTypes.js';
+import {
+  CritiquePipelineError,
+  type CritiquePipelineErrorPayload,
+  serializeCritiquePipelineError,
+} from './critiqueErrors.js';
 import { runOpenAIClassifyMedium } from './openaiClassifyMedium.js';
 import { runOpenAIClassifyStyle } from './openaiClassifyStyle.js';
 import { runOpenAICritique } from './openaiCritique.js';
@@ -8,7 +13,10 @@ import { runPreviewEditWithDedup } from './previewEditJobStore.js';
 
 export type ApiResult =
   | { status: 200; body: unknown }
-  | { status: 400 | 404 | 405 | 500 | 503; body: { error: string } };
+  | {
+      status: 400 | 404 | 405 | 500 | 503;
+      body: { error: string } | CritiquePipelineErrorPayload;
+    };
 
 export function applyCorsHeaders(
   setHeader: (name: string, value: string) => void,
@@ -109,6 +117,13 @@ export async function handleApiRequest(args: {
           : route === 'classify-medium'
             ? 'Medium classification failed'
           : 'Classification failed';
+    if (route === 'critique' && error instanceof CritiquePipelineError) {
+      console.error('[critique pipeline error]', serializeCritiquePipelineError(error));
+      return {
+        status: 500,
+        body: serializeCritiquePipelineError(error),
+      };
+    }
     return {
       status: 500,
       body: { error: error instanceof Error ? error.message : defaultMessage },

@@ -1,5 +1,7 @@
 import {
   CritiqueGroundingError,
+  type CritiquePipelineErrorPayload,
+  type CritiqueStageName,
   CritiqueRetryExhaustedError,
   CritiqueRuntimeEvalError,
   CritiqueValidationError,
@@ -26,6 +28,10 @@ type CreateCritiqueRequestErrorArgs = {
   status?: number;
   userMessage?: string;
   retryable?: boolean;
+  stage?: CritiqueStageName;
+  details?: string[];
+  attempts?: number;
+  backendErrorName?: string;
 };
 
 export class CritiqueRequestError extends Error {
@@ -34,6 +40,10 @@ export class CritiqueRequestError extends Error {
   readonly technicalMessage: string;
   readonly retryable: boolean;
   readonly status?: number;
+  readonly stage?: CritiqueStageName;
+  readonly details: string[];
+  readonly attempts?: number;
+  readonly backendErrorName?: string;
 
   constructor(args: {
     operation: CritiqueRequestOperation;
@@ -42,6 +52,10 @@ export class CritiqueRequestError extends Error {
     message: string;
     retryable: boolean;
     status?: number;
+    stage?: CritiqueStageName;
+    details?: string[];
+    attempts?: number;
+    backendErrorName?: string;
   }) {
     super(args.message);
     this.name = 'CritiqueRequestError';
@@ -50,6 +64,10 @@ export class CritiqueRequestError extends Error {
     this.technicalMessage = args.technicalMessage;
     this.retryable = args.retryable;
     this.status = args.status;
+    this.stage = args.stage;
+    this.details = args.details ?? [];
+    this.attempts = args.attempts;
+    this.backendErrorName = args.backendErrorName;
   }
 }
 
@@ -100,6 +118,23 @@ function inferKind(message: string, status?: number): CritiqueRequestErrorKind {
   return 'unknown';
 }
 
+function inferKindFromBackendErrorName(
+  backendErrorName: string | undefined
+): CritiqueRequestErrorKind | undefined {
+  switch (backendErrorName) {
+    case 'CritiqueValidationError':
+      return 'validation';
+    case 'CritiqueGroundingError':
+      return 'grounding';
+    case 'CritiqueRuntimeEvalError':
+      return 'runtime_eval';
+    case 'CritiqueRetryExhaustedError':
+      return 'retry_exhausted';
+    default:
+      return undefined;
+  }
+}
+
 function defaultUserMessage(
   kind: CritiqueRequestErrorKind,
   operation: CritiqueRequestOperation
@@ -145,7 +180,10 @@ export function createCritiqueRequestError(
   args: CreateCritiqueRequestErrorArgs
 ): CritiqueRequestError {
   const technicalMessage = args.technicalMessage?.trim() || 'Unknown request failure';
-  const kind = args.kind ?? inferKind(technicalMessage, args.status);
+  const kind =
+    args.kind ??
+    inferKindFromBackendErrorName(args.backendErrorName) ??
+    inferKind(technicalMessage, args.status);
   return new CritiqueRequestError({
     operation: args.operation,
     kind,
@@ -153,7 +191,29 @@ export function createCritiqueRequestError(
     message: args.userMessage ?? defaultUserMessage(kind, args.operation),
     retryable: args.retryable ?? defaultRetryable(kind),
     status: args.status,
+    stage: args.stage,
+    details: args.details,
+    attempts: args.attempts,
+    backendErrorName: args.backendErrorName,
   });
+}
+
+export function isCritiquePipelineErrorPayload(
+  value: unknown
+): value is CritiquePipelineErrorPayload {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<CritiquePipelineErrorPayload>;
+  return (
+    typeof candidate.error === 'string' &&
+    typeof candidate.errorName === 'string' &&
+    (candidate.stage === 'evidence' ||
+      candidate.stage === 'voice_a' ||
+      candidate.stage === 'voice_b' ||
+      candidate.stage === 'final') &&
+    Array.isArray(candidate.details) &&
+    candidate.details.every((detail) => typeof detail === 'string') &&
+    (candidate.attempts === undefined || typeof candidate.attempts === 'number')
+  );
 }
 
 export function normalizeCritiqueRequestError(
@@ -167,6 +227,9 @@ export function normalizeCritiqueRequestError(
       operation,
       kind: 'validation',
       technicalMessage: error.message,
+      stage: error.stage,
+      details: error.details,
+      backendErrorName: error.name,
     });
   }
 
@@ -175,6 +238,9 @@ export function normalizeCritiqueRequestError(
       operation,
       kind: 'grounding',
       technicalMessage: error.message,
+      stage: error.stage,
+      details: error.details,
+      backendErrorName: error.name,
     });
   }
 
@@ -183,6 +249,9 @@ export function normalizeCritiqueRequestError(
       operation,
       kind: 'runtime_eval',
       technicalMessage: error.message,
+      stage: error.stage,
+      details: error.details,
+      backendErrorName: error.name,
     });
   }
 
@@ -191,6 +260,10 @@ export function normalizeCritiqueRequestError(
       operation,
       kind: 'retry_exhausted',
       technicalMessage: error.message,
+      stage: error.stage,
+      details: error.details,
+      attempts: error.attempts,
+      backendErrorName: error.name,
     });
   }
 

@@ -1,5 +1,13 @@
 export type CritiqueStageName = 'evidence' | 'voice_a' | 'voice_b' | 'final';
 
+export type CritiquePipelineErrorPayload = {
+  error: string;
+  errorName: string;
+  stage: CritiqueStageName;
+  details: string[];
+  attempts?: number;
+};
+
 type CritiqueErrorOptions = {
   stage: CritiqueStageName;
   details?: string[];
@@ -57,6 +65,18 @@ export class CritiqueRetryExhaustedError extends CritiquePipelineError {
     this.name = 'CritiqueRetryExhaustedError';
     this.attempts = attempts;
   }
+}
+
+export function serializeCritiquePipelineError(
+  error: CritiquePipelineError
+): CritiquePipelineErrorPayload {
+  return {
+    error: error.message,
+    errorName: error.name,
+    stage: error.stage,
+    details: error.details,
+    ...(error instanceof CritiqueRetryExhaustedError ? { attempts: error.attempts } : {}),
+  };
 }
 
 export function errorMessage(error: unknown): string {

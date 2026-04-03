@@ -110,6 +110,21 @@ function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCateg
   return categories.reduce((a, b) => (safeRank(a) <= safeRank(b) ? a : b));
 }
 
+function critiqueStageLabel(stage: 'evidence' | 'voice_a' | 'voice_b' | 'final' | undefined): string | null {
+  switch (stage) {
+    case 'evidence':
+      return 'Evidence extraction';
+    case 'voice_a':
+      return 'Voice A critic analysis';
+    case 'voice_b':
+      return 'Voice B teaching plan';
+    case 'final':
+      return 'Final quality gate';
+    default:
+      return null;
+  }
+}
+
 function previewDisplayTarget(
   flow: CritiqueFlow,
   activePreviewEditId: string | null
@@ -685,6 +700,19 @@ export default function App() {
       role="alert"
     >
       <p className="font-medium">{requestError.message}</p>
+      {requestError.operation === 'critique' && requestError.stage ? (
+        <p className="mt-1 text-xs leading-relaxed text-red-700">
+          Failed stage: {critiqueStageLabel(requestError.stage) ?? requestError.stage}
+          {requestError.attempts ? ` after ${requestError.attempts} attempts` : ''}.
+        </p>
+      ) : null}
+      {requestError.details.length > 0 ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-700">
+          {requestError.details.slice(0, 3).map((detail, index) => (
+            <li key={`${index}-${detail}`}>{detail}</li>
+          ))}
+        </ul>
+      ) : null}
       {requestError.retryable ? (
         <p className="mt-1 text-xs leading-relaxed text-red-700">
           {requestError.operation === 'classify'

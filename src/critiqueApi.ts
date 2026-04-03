@@ -1,8 +1,10 @@
 import type { CritiqueResult, Medium, Style } from './types';
 import { readApiJson } from './apiJson';
 import { finalizeCritiqueResult, migrateCritiqueSimpleFeedback } from './critiqueCoach';
+import type { CritiquePipelineErrorPayload } from '../lib/critiqueErrors.js';
 import {
   createCritiqueRequestError,
+  isCritiquePipelineErrorPayload,
   normalizeCritiqueRequestError,
 } from './critiqueRequestError';
 import { isAbortError } from './analysisKeepAlive';
@@ -42,8 +44,21 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
       body: JSON.stringify(jsonBody),
       signal,
     });
-    const data = await readApiJson<{ error?: string } | CritiqueResult>(res);
+    const data = await readApiJson<
+      { error?: string } | CritiquePipelineErrorPayload | CritiqueResult
+    >(res);
     if (!res.ok) {
+      if (isCritiquePipelineErrorPayload(data)) {
+        throw createCritiqueRequestError({
+          operation: 'critique',
+          status: res.status,
+          technicalMessage: data.error,
+          stage: data.stage,
+          details: data.details,
+          attempts: data.attempts,
+          backendErrorName: data.errorName,
+        });
+      }
       throw createCritiqueRequestError({
         operation: 'critique',
         status: res.status,
