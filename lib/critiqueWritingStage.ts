@@ -553,7 +553,11 @@ function createVoiceBCategoryPassSchema(
       });
       if (!result.success) {
         for (const issue of result.error.issues) {
-          ctx.addIssue(issue);
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: issue.message,
+            path: issue.path,
+          });
         }
         return z.NEVER;
       }
