@@ -151,7 +151,10 @@ function isConcreteAnchor(text: string): boolean {
   return contentTokens(normalized).length >= 2;
 }
 
-function tracesToVisibleEvidence(text: string, evidence: CritiqueEvidenceDTO['criterionEvidence'][number]): boolean {
+export function tracesToVisibleEvidence(
+  text: string,
+  evidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+): boolean {
   if (!normalizeWhitespace(text)) return false;
   if (sharesConcreteLanguage(text, evidence.anchor, 2)) return true;
   return evidence.visibleEvidence.some((line) => sharesConcreteLanguage(text, line, 2));

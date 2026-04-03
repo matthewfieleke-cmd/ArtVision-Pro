@@ -26,6 +26,7 @@ import {
   toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
 import {
+  tracesToVisibleEvidence,
   validateCritiqueGrounding,
   validateCritiqueResult,
   type CritiqueEvidenceDTO,
@@ -386,7 +387,28 @@ function orderedVoiceBCategories(
   });
 }
 
-function normalizeVoiceBCategoryAnchors(category: VoiceBCategoryResult): VoiceBCategoryResult {
+function groundedVoiceBIssue(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+): string {
+  const candidates = [
+    category.editPlan.issue,
+    category.actionPlanSteps[0]?.currentRead,
+    category.voiceBPlan.currentRead,
+    category.anchor.evidencePointer,
+  ];
+  return (
+    candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
+    ) ?? category.editPlan.issue
+  );
+}
+
+function normalizeVoiceBCategoryGrounding(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+): VoiceBCategoryResult {
   const anchorArea = category.anchor.areaSummary;
   return {
     ...category,
@@ -395,6 +417,7 @@ function normalizeVoiceBCategoryAnchors(category: VoiceBCategoryResult): VoiceBC
     ),
     editPlan: {
       ...category.editPlan,
+      issue: groundedVoiceBIssue(category, criterionEvidence),
       targetArea: anchorArea,
     },
   };
@@ -553,6 +576,7 @@ Anchor alignment rules for this pass:
 - categories[].anchor.areaSummary is the canonical label for the chosen passage.
 - categories[].actionPlanSteps[0].area MUST repeat categories[].anchor.areaSummary verbatim.
 - categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
+- categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that anchored passage.
 
 Return ONLY the categories array for those criteria in that exact order.
 Do NOT return overallSummary or studioChanges in this pass. Those are handled separately after the per-criterion teaching plans are fixed.`;
@@ -567,7 +591,7 @@ function buildVoiceBCategoryPassUserPrompt(
   const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
   const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].actionPlanSteps[0].area must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.targetArea must repeat categories[].anchor.areaSummary verbatim.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].actionPlanSteps[0].area must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.targetArea must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that passage, not a more abstract summary.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -618,6 +642,9 @@ function buildVoiceBRepairNote(
       detail.includes('targetArea does not match the anchored passage') ||
       detail.includes('actionPlanSteps[0].area does not match the anchored passage')
   );
+  const failedIssueGroundingFields = details.filter((detail) =>
+    detail.includes('editPlan.issue is not traceable to visibleEvidence')
+  );
   const fieldInstruction =
     failedLeadVerbFields.length > 0
       ? `Critical field fix for ${criteria.join(', ')}:
@@ -634,11 +661,19 @@ function buildVoiceBRepairNote(
 - categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
 - Do not paraphrase those two fields with nearby synonyms or alternate names.`
       : '';
+  const issueGroundingInstruction =
+    failedIssueGroundingFields.length > 0
+      ? `Critical issue grounding fix for ${criteria.join(', ')}:
+- categories[].editPlan.issue MUST stay traceable to visibleEvidence in the same anchored passage.
+- Reuse the same concrete visible fact already stated in categories[].actionPlanSteps[0].currentRead instead of summarizing it into abstract diagnosis language.
+- Do not rewrite that field as "needs more structure", "feels unresolved", or any other location-free summary.`
+      : '';
   return `${prefix}
 ${details.map((detail) => `- ${detail}`).join('\n')}
 ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 ${fieldInstruction}
 ${anchorAlignmentInstruction}
+${issueGroundingInstruction}
 Regenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
 
@@ -783,7 +818,15 @@ export async function runCritiqueVoiceBStage(
             details: [parsed.error.message],
           });
         }
-        const normalizedBatchCategories = parsed.data.categories.map(normalizeVoiceBCategoryAnchors);
+        const normalizedBatchCategories = parsed.data.categories.map((category) => {
+          const criterionEvidence = evidence.criterionEvidence.find(
+            (entry) => entry.criterion === category.criterion
+          );
+          if (!criterionEvidence) {
+            throw new Error(`Voice B evidence missing for criterion: ${category.criterion}`);
+          }
+          return normalizeVoiceBCategoryGrounding(category, criterionEvidence);
+        });
         const combined = validateVoiceBStageOutput(
           {
             overallSummary: { topPriorities: [] },
