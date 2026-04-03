@@ -18,6 +18,8 @@ import {
 } from './critiqueErrors.js';
 import { assertCritiqueQualityGate } from './critiqueEval.js';
 
+const EVIDENCE_MAX_TOKENS = 3600;
+
 async function runCritiqueEvidenceStage(
   apiKey: string,
   args: {
@@ -37,6 +39,7 @@ async function runCritiqueEvidenceStage(
     body: JSON.stringify({
       model: args.model,
       temperature: 0.15,
+      max_tokens: EVIDENCE_MAX_TOKENS,
       response_format: {
         type: 'json_schema',
         json_schema: EVIDENCE_OPENAI_SCHEMA,

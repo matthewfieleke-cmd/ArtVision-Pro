@@ -312,8 +312,8 @@ Anti-pattern examples:
 Return JSON only matching the schema.`;
 }
 
-const VOICE_A_MAX_TOKENS = 3200;
-const VOICE_B_MAX_TOKENS = 4800;
+const VOICE_A_MAX_TOKENS = 4800;
+const VOICE_B_MAX_TOKENS = 7200;
 const MAX_STAGE_ATTEMPTS = 3;
 
 function buildVoiceAUserPrompt(evidence: CritiqueEvidenceDTO, repairNote?: string): string {

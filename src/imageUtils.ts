@@ -26,6 +26,15 @@ export function compressDataUrl(
   });
 }
 
+/** Critique/classification payloads need much more visible detail than stored thumbnails. */
+export function compressDataUrlForApi(
+  dataUrl: string,
+  maxWidth = 1800,
+  quality = 0.92
+): Promise<string> {
+  return compressDataUrl(dataUrl, maxWidth, quality);
+}
+
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();

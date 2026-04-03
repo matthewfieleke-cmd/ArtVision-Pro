@@ -226,6 +226,7 @@ export function beginAnalysis(flow: SetupFlow | CaptureFlow, imageDataUrl: strin
       ...flow,
       step: 'analyzing',
       imageDataUrl,
+      originalImageDataUrl: imageDataUrl,
     };
   }
   if (!flow.style || !flow.medium) return null;
@@ -236,6 +237,7 @@ export function beginAnalysis(flow: SetupFlow | CaptureFlow, imageDataUrl: strin
     style: flow.style,
     medium: flow.medium,
     imageDataUrl,
+    originalImageDataUrl: imageDataUrl,
   };
 }
 

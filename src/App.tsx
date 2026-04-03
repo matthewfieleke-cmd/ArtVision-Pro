@@ -51,7 +51,7 @@ import {
   updateWorkingTitle,
   type CritiqueFlow,
 } from './critiqueFlow';
-import { compressDataUrl, fileToDataUrl } from './imageUtils';
+import { compressDataUrl, compressDataUrlForApi, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { useCritiqueAsyncState } from './hooks/useCritiqueAsyncState';
 import { useIsDesktop } from './hooks/useIsDesktop';
@@ -369,7 +369,10 @@ export default function App() {
     };
 
     try {
-      const compressed = await compressDataUrl(rawDataUrl);
+      const [compressedForApi, compressedForStorage] = await Promise.all([
+        compressDataUrlForApi(rawDataUrl),
+        compressDataUrl(rawDataUrl),
+      ]);
       const prev =
         f.mode === 'resubmit' && f.targetPainting
           ? f.targetPainting.versions[f.targetPainting.versions.length - 1]
@@ -378,7 +381,7 @@ export default function App() {
       const prevPayload =
         prev
           ? {
-              imageDataUrl: await compressDataUrl(prev.imageDataUrl),
+              imageDataUrl: await compressDataUrlForApi(prev.imageDataUrl),
               critique: prev.critique,
             }
           : undefined;
@@ -389,7 +392,7 @@ export default function App() {
       const apiBody = {
         style: f.style,
         medium: f.medium,
-        imageDataUrl: compressed,
+        imageDataUrl: compressedForApi,
         ...(titleArg ? { paintingTitle: titleArg } : {}),
         ...(prevPayload
           ? {
@@ -425,7 +428,13 @@ export default function App() {
       if (runId !== analysisRunTokenRef.current) return;
 
       finishRequest();
-      setFlow(completeAnalysis(startedFlow, { imageDataUrl: compressed, critique, critiqueSource: 'api' }));
+      setFlow(
+        completeAnalysis(startedFlow, {
+          imageDataUrl: compressedForStorage,
+          critique,
+          critiqueSource: 'api',
+        })
+      );
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
       failRequest(normalizeCritiqueRequestError(e, 'critique'));
@@ -484,7 +493,7 @@ export default function App() {
     classifyAbortRef.current = ac;
     startClassify();
     try {
-      const compressed = await compressDataUrl(rawDataUrl);
+      const compressed = await compressDataUrlForApi(rawDataUrl);
       if (runId !== classifyRunTokenRef.current) return;
       const [styleRead, mediumRead] = await Promise.all([
         fetchClassifyStyleFromApi(compressed, ac.signal),
