@@ -18,6 +18,10 @@ import {
   resolveApiRoute,
 } from '../lib/apiHandlers.js';
 import {
+  createCritiqueRequestError,
+  normalizeCritiqueRequestError,
+} from '../src/critiqueRequestError.ts';
+import {
   backFromCapture,
   backFromResults,
   beginAnalysis,
@@ -949,6 +953,57 @@ function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
   );
 }
 
+function testValidationErrorDetailsAreHumanized(): void {
+  const normalized = normalizeCritiqueRequestError(
+    createCritiqueRequestError({
+      operation: 'critique',
+      kind: 'validation',
+      technicalMessage: 'Voice B schema validation failed.',
+      stage: 'voice_b',
+      details: [
+        '[{"origin":"string","code":"invalid_format","format":"regex","path":["categories",0,"actionPlanSteps",0,"move"],"message":"Invalid string: must match pattern /^\\\\s*(soften|group|separate|darken|quiet)/"}]',
+        'Composition and shape structure: non-Master actionPlanSteps[0].move must be a true change instruction.',
+      ],
+      backendErrorName: 'CritiqueValidationError',
+    }),
+    'critique'
+  );
+  assert.equal(normalized.kind, 'validation');
+  const renderedDetails = normalized.details.map((detail) => {
+    const trimmed = detail.trim();
+    if (!trimmed) return 'The critique response did not pass validation.';
+    if (trimmed.startsWith('[{') || trimmed.startsWith('[')) {
+      if (
+        trimmed.includes('actionPlanSteps[0].move') ||
+        (trimmed.includes('"path":["categories",0,"actionPlanSteps",0,"move"]') &&
+          trimmed.includes('"invalid_format"'))
+      ) {
+        return 'The teaching-plan move was not a concrete change instruction for that criterion.';
+      }
+      if (
+        trimmed.includes('bestNextMove') ||
+        (trimmed.includes('"path":["categories",0,"voiceBPlan","bestNextMove"]') &&
+          trimmed.includes('"invalid_format"'))
+      ) {
+        return 'The teaching-plan next move was not a concrete change instruction for that criterion.';
+      }
+      if (
+        trimmed.includes('intendedChange') ||
+        (trimmed.includes('"path":["categories",0,"editPlan","intendedChange"]') &&
+          trimmed.includes('"invalid_format"'))
+      ) {
+        return 'The edit plan did not specify a concrete change instruction for that criterion.';
+      }
+      return 'The critique response did not match the required schema.';
+    }
+    return trimmed;
+  });
+  assert.deepEqual(renderedDetails, [
+    'The teaching-plan move was not a concrete change instruction for that criterion.',
+    'Composition and shape structure: non-Master actionPlanSteps[0].move must be a true change instruction.',
+  ]);
+}
+
 function testPreviewEditPromptAlignment(): void {
   const prompt = buildEditPrompt({
     imageDataUrl: 'data:image/png;base64,abc',
@@ -1682,6 +1737,7 @@ async function main(): Promise<void> {
   testCritiqueGuardrails();
   testCriterionBandRubric();
   testEvidencePromptDemandsConcreteSurfaceAnchors();
+  testValidationErrorDetailsAreHumanized();
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
   testStructuredVoiceBPlanFlow();

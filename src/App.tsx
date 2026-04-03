@@ -125,6 +125,36 @@ function critiqueStageLabel(stage: 'evidence' | 'voice_a' | 'voice_b' | 'final' 
   }
 }
 
+function formatRequestErrorDetail(detail: string): string {
+  const trimmed = detail.trim();
+  if (!trimmed) return 'The critique response did not pass validation.';
+  if (trimmed.startsWith('[{') || trimmed.startsWith('[')) {
+    if (
+      trimmed.includes('actionPlanSteps[0].move') ||
+      (trimmed.includes('"path":["categories",0,"actionPlanSteps",0,"move"]') &&
+        trimmed.includes('"invalid_format"'))
+    ) {
+      return 'The teaching-plan move was not a concrete change instruction for that criterion.';
+    }
+    if (
+      trimmed.includes('bestNextMove') ||
+      (trimmed.includes('"path":["categories",0,"voiceBPlan","bestNextMove"]') &&
+        trimmed.includes('"invalid_format"'))
+    ) {
+      return 'The teaching-plan next move was not a concrete change instruction for that criterion.';
+    }
+    if (
+      trimmed.includes('intendedChange') ||
+      (trimmed.includes('"path":["categories",0,"editPlan","intendedChange"]') &&
+        trimmed.includes('"invalid_format"'))
+    ) {
+      return 'The edit plan did not specify a concrete change instruction for that criterion.';
+    }
+    return 'The critique response did not match the required schema.';
+  }
+  return trimmed;
+}
+
 function previewDisplayTarget(
   flow: CritiqueFlow,
   activePreviewEditId: string | null
@@ -708,9 +738,10 @@ export default function App() {
       ) : null}
       {requestError.details.length > 0 ? (
         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-700">
-          {requestError.details.slice(0, 3).map((detail, index) => (
-            <li key={`${index}-${detail}`}>{detail}</li>
-          ))}
+          {requestError.details.slice(0, 3).map((detail, index) => {
+            const formatted = formatRequestErrorDetail(detail);
+            return <li key={`${index}-${formatted}`}>{formatted}</li>;
+          })}
         </ul>
       ) : null}
       {requestError.retryable ? (

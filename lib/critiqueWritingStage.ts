@@ -17,10 +17,14 @@ import {
 } from './critiquePhasePromptBlocks.js';
 import {
   VOICE_A_OPENAI_SCHEMA,
+  anchorSchema,
+  editPlanSchema,
   studioChangeSchema,
   type VoiceAStageResult,
   type VoiceBStageResult,
   voiceBCategorySchema,
+  voiceBPlanSchema,
+  voiceBStepSchema,
   voiceAStageResultSchema,
   voiceBStageResultSchema,
   toOpenAIJsonSchema,
@@ -42,6 +46,19 @@ import {
   errorMessage,
 } from './critiqueErrors.js';
 import { assertCritiqueQualityGate } from './critiqueEval.js';
+
+function summarizeZodIssues(error: z.ZodError): string[] {
+  return error.issues.slice(0, 8).map((issue) => {
+    const path =
+      issue.path.length > 0
+        ? issue.path
+            .map((segment) => (typeof segment === 'number' ? `[${segment}]` : String(segment)))
+            .join('.')
+            .replace(/\.\[/g, '[')
+        : 'root';
+    return `${path}: ${issue.message}`;
+  });
+}
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -479,9 +496,62 @@ function createVoiceBCategoryPassSchema(
     criteria.map((criterion) => [criterion, voiceALevelForCriterion(voiceA, criterion)] as const)
   );
   const criterionSubsetEnum = z.enum(criteria as [CriterionLabel, ...CriterionLabel[]]);
+  const changeVerbRegex = new RegExp(VOICE_B_CHANGE_VERB_PATTERN.source, 'i');
+  const preserveVerbRegex = new RegExp(VOICE_B_PRESERVE_VERB_PATTERN.source, 'i');
+  const masterStepSchema = voiceBStepSchema.extend({
+    move: z.string().min(12).regex(preserveVerbRegex),
+  });
+  const nonMasterStepSchema = voiceBStepSchema.extend({
+    move: z.string().min(12).regex(changeVerbRegex),
+  });
+  const masterVoiceBPlanSchema = voiceBPlanSchema.extend({
+    bestNextMove: z.string().min(12).regex(preserveVerbRegex),
+  });
+  const nonMasterVoiceBPlanSchema = voiceBPlanSchema.extend({
+    bestNextMove: z.string().min(12).regex(changeVerbRegex),
+  });
+  const masterEditPlanSchema = editPlanSchema.extend({
+    intendedChange: z.string().min(12).regex(preserveVerbRegex),
+  });
+  const nonMasterEditPlanSchema = editPlanSchema.extend({
+    intendedChange: z.string().min(12).regex(changeVerbRegex),
+  });
   const categorySchema = voiceBCategorySchema
     .extend({
       criterion: criterionSubsetEnum,
+    })
+    .transform((category, ctx) => {
+      const level = levelsByCriterion.get(category.criterion);
+      if (!level) return category;
+
+      const branchSchema =
+        level === 'Master'
+          ? z.object({
+              actionPlanSteps: z.array(masterStepSchema).length(1),
+              voiceBPlan: masterVoiceBPlanSchema,
+              anchor: anchorSchema,
+              editPlan: masterEditPlanSchema,
+            })
+          : z.object({
+              actionPlanSteps: z.array(nonMasterStepSchema).length(1),
+              voiceBPlan: nonMasterVoiceBPlanSchema,
+              anchor: anchorSchema,
+              editPlan: nonMasterEditPlanSchema,
+            });
+
+      const result = branchSchema.safeParse({
+        actionPlanSteps: category.actionPlanSteps,
+        voiceBPlan: category.voiceBPlan,
+        anchor: category.anchor,
+        editPlan: category.editPlan,
+      });
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          ctx.addIssue(issue);
+        }
+        return z.NEVER;
+      }
+      return category;
     })
     .superRefine((category, ctx) => {
       const level = levelsByCriterion.get(category.criterion);
