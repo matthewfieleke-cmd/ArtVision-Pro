@@ -1,4 +1,9 @@
-import { canonicalCriterionLabel, CRITERIA_ORDER, RATING_LEVELS } from '../shared/criteria.js';
+import {
+  canonicalCriterionLabel,
+  CRITERIA_ORDER,
+  RATING_LEVELS,
+  type CriterionLabel,
+} from '../shared/criteria.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 import type {
   CritiqueResultDTO,
@@ -6,6 +11,14 @@ import type {
   StudioChangeDTO,
   SuggestedTitleDTO,
 } from './critiqueTypes.js';
+import {
+  CritiqueGroundingError,
+  CritiqueValidationError,
+} from './critiqueErrors.js';
+import type {
+  VoiceAStageResult,
+  VoiceBStageResult,
+} from './critiqueZodSchemas.js';
 
 export type CritiqueEvidenceDTO = {
   intentHypothesis: string;
@@ -25,6 +38,7 @@ export type CritiqueEvidenceDTO = {
   comparisonObservations: string[];
   criterionEvidence: Array<{
     criterion: (typeof CRITERIA_ORDER)[number];
+    anchor: string;
     visibleEvidence: string[];
     strengthRead: string;
     tensionRead: string;
@@ -32,6 +46,153 @@ export type CritiqueEvidenceDTO = {
     confidence: 'low' | 'medium' | 'high';
   }>;
 };
+
+const GENERIC_TEACHER_PATTERNS = [
+  /\bimprove composition\b/i,
+  /\bpush the contrast\b/i,
+  /\bincrease contrast\b/i,
+  /\brefine edges\b/i,
+  /\bimprove spatial clarity\b/i,
+  /\badd more depth\b/i,
+  /\benhance focus\b/i,
+  /\bstronger focal point\b/i,
+  /\bdevelop the\b/i,
+  /\bexplore\b/i,
+  /\bcontinue to\b/i,
+  /\bexperiment with\b/i,
+  /\bmake it more dynamic\b/i,
+];
+
+const GENERIC_ANCHOR_PATTERNS = [
+  /\bthe background\b/i,
+  /\bthe foreground\b/i,
+  /\bleft side of the painting\b/i,
+  /\bright side of the painting\b/i,
+  /\bcenter of the painting\b/i,
+  /\bthe painting overall\b/i,
+  /\bcomposition overall\b/i,
+  /\barrangement of elements\b/i,
+  /\bspatial relationships\b/i,
+  /\bcompositional flow\b/i,
+];
+
+const CHANGE_VERB_LEAD =
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break)\b/i;
+const PRESERVE_VERB_LEAD =
+  /^\s*(preserve|keep|protect|leave|hold|maintain|continue)\b/i;
+const DONT_CHANGE_LEAD = /^\s*(?:1\.\s*)?don['’]t change a thing\./i;
+const STOPWORDS = new Set([
+  'about',
+  'across',
+  'after',
+  'around',
+  'artist',
+  'because',
+  'before',
+  'behind',
+  'between',
+  'canvas',
+  'could',
+  'figure',
+  'from',
+  'into',
+  'left',
+  'main',
+  'near',
+  'over',
+  'painting',
+  'passage',
+  'right',
+  'same',
+  'should',
+  'some',
+  'that',
+  'their',
+  'there',
+  'these',
+  'this',
+  'through',
+  'toward',
+  'under',
+  'with',
+]);
+
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeForComparison(text: string): string {
+  return normalizeWhitespace(text).toLowerCase().replace(/[^\w\s]/g, ' ');
+}
+
+function contentTokens(text: string): string[] {
+  return Array.from(
+    new Set(
+      normalizeForComparison(text)
+        .split(/\s+/)
+        .filter((token) => token.length >= 4 && !STOPWORDS.has(token))
+    )
+  );
+}
+
+function sharedTokenCount(a: string, b: string): number {
+  const bTokens = new Set(contentTokens(b));
+  return contentTokens(a).filter((token) => bTokens.has(token)).length;
+}
+
+function sharesConcreteLanguage(a: string, b: string, minimum: number = 2): boolean {
+  return sharedTokenCount(a, b) >= minimum;
+}
+
+function isConcreteAnchor(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (normalized.length < 8) return false;
+  if (GENERIC_ANCHOR_PATTERNS.some((pattern) => pattern.test(normalized))) return false;
+  return contentTokens(normalized).length >= 2;
+}
+
+function tracesToVisibleEvidence(text: string, evidence: CritiqueEvidenceDTO['criterionEvidence'][number]): boolean {
+  if (!normalizeWhitespace(text)) return false;
+  if (sharesConcreteLanguage(text, evidence.anchor, 2)) return true;
+  return evidence.visibleEvidence.some((line) => sharesConcreteLanguage(text, line, 2));
+}
+
+function tokenOverlapRatio(a: string, b: string): number {
+  const aTokens = contentTokens(a);
+  const bTokens = contentTokens(b);
+  if (aTokens.length === 0 || bTokens.length === 0) return 0;
+  const bSet = new Set(bTokens);
+  const matches = aTokens.filter((token) => bSet.has(token)).length;
+  return matches / Math.max(aTokens.length, bTokens.length);
+}
+
+function sameAdvice(a: string, b: string): boolean {
+  const normalizedA = normalizeWhitespace(a).toLowerCase();
+  const normalizedB = normalizeWhitespace(b).toLowerCase();
+  if (!normalizedA || !normalizedB) return false;
+  if (normalizedA === normalizedB) return true;
+  return tokenOverlapRatio(normalizedA, normalizedB) >= 0.72;
+}
+
+function isGenericTeacherText(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return true;
+  return GENERIC_TEACHER_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function evidenceForCriterion(
+  evidence: CritiqueEvidenceDTO,
+  criterion: CriterionLabel
+): CritiqueEvidenceDTO['criterionEvidence'][number] {
+  const match = evidence.criterionEvidence.find((entry) => entry.criterion === criterion);
+  if (!match) {
+    throw new CritiqueGroundingError(`Missing evidence for ${criterion}`, {
+      stage: 'final',
+      details: [`No evidence entry was found for ${criterion}.`],
+    });
+  }
+  return match;
+}
 
 function isNormalizedNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
@@ -64,9 +225,17 @@ function validateAnchor(raw: unknown, criterion: (typeof CRITERIA_ORDER)[number]
   ) {
     throw new Error(`Invalid anchor region for ${criterion}`);
   }
+  const areaSummary = o.areaSummary.trim();
+  const evidencePointer = o.evidencePointer.trim();
+  if (!isConcreteAnchor(areaSummary)) {
+    throw new Error(`Anchor area is too generic for ${criterion}`);
+  }
+  if (!isConcreteAnchor(evidencePointer)) {
+    throw new Error(`Anchor evidence pointer is too generic for ${criterion}`);
+  }
   return {
-    areaSummary: o.areaSummary.trim(),
-    evidencePointer: o.evidencePointer.trim(),
+    areaSummary,
+    evidencePointer,
     region: {
       x: r.x as number,
       y: r.y as number,
@@ -90,12 +259,23 @@ function validateEditPlan(raw: unknown, criterion: (typeof CRITERIA_ORDER)[numbe
   ) {
     throw new Error(`Invalid edit plan fields for ${criterion}`);
   }
+  const targetArea = o.targetArea.trim();
+  const preserveArea = o.preserveArea.trim();
+  const issue = o.issue.trim();
+  const intendedChange = o.intendedChange.trim();
+  const expectedOutcome = o.expectedOutcome.trim();
+  if (!isConcreteAnchor(targetArea) || !isConcreteAnchor(preserveArea)) {
+    throw new Error(`Edit plan areas are too generic for ${criterion}`);
+  }
+  if (issue.length < 12 || expectedOutcome.length < 12) {
+    throw new Error(`Edit plan detail is too thin for ${criterion}`);
+  }
   return {
-    targetArea: o.targetArea.trim(),
-    preserveArea: o.preserveArea.trim(),
-    issue: o.issue.trim(),
-    intendedChange: o.intendedChange.trim(),
-    expectedOutcome: o.expectedOutcome.trim(),
+    targetArea,
+    preserveArea,
+    issue,
+    intendedChange,
+    expectedOutcome,
     editability: o.editability as 'yes' | 'no',
   };
 }
@@ -123,7 +303,7 @@ function validateVoiceBPlan(raw: unknown, criterion: (typeof CRITERIA_ORDER)[num
 }
 
 function validateVoiceBSteps(raw: unknown, criterion: (typeof CRITERIA_ORDER)[number]) {
-  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 3) {
+  if (!Array.isArray(raw) || raw.length !== 1) {
     throw new Error(`Invalid Voice B steps for ${criterion}`);
   }
   return raw.map((entry) => {
@@ -137,15 +317,25 @@ function validateVoiceBSteps(raw: unknown, criterion: (typeof CRITERIA_ORDER)[nu
     ) {
       throw new Error(`Invalid Voice B step fields for ${criterion}`);
     }
+    const area = o.area.trim();
+    const currentRead = o.currentRead.trim();
+    const move = o.move.trim();
+    const expectedRead = o.expectedRead.trim();
+    if (!isConcreteAnchor(area)) {
+      throw new Error(`Voice B step area is too generic for ${criterion}`);
+    }
+    if (o.priority !== 'primary') {
+      throw new Error(`Voice B step priority must be primary for ${criterion}`);
+    }
     return {
-      area: o.area.trim(),
-      currentRead: o.currentRead.trim(),
-      move: o.move.trim(),
-      expectedRead: o.expectedRead.trim(),
+      area,
+      currentRead,
+      move,
+      expectedRead,
       ...(typeof o.preserve === 'string' && o.preserve.trim().length > 0
         ? { preserve: o.preserve.trim() }
         : {}),
-      priority: (o.priority === 'secondary' ? 'secondary' : 'primary') as 'primary' | 'secondary',
+      priority: 'primary' as const,
     };
   });
 }
@@ -324,6 +514,7 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
       throw new Error(`Invalid evidence criterion at index ${i}`);
     }
     if (
+      typeof r.anchor !== 'string' ||
       !Array.isArray(r.visibleEvidence) ||
       r.visibleEvidence.length < 4 ||
       r.visibleEvidence.length > 8 ||
@@ -340,8 +531,16 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
     ) {
       throw new Error(`Invalid evidence fields for ${expected}`);
     }
+    const anchor = r.anchor.trim();
+    if (!isConcreteAnchor(anchor)) {
+      throw new Error(`Invalid evidence anchor for ${expected}`);
+    }
+    if (!r.visibleEvidence.some((line) => sharesConcreteLanguage(line, anchor, 2))) {
+      throw new Error(`Visible evidence does not support anchor for ${expected}`);
+    }
     return {
       criterion: expected,
+      anchor,
       visibleEvidence: r.visibleEvidence as string[],
       strengthRead: r.strengthRead,
       tensionRead: r.tensionRead,
@@ -368,6 +567,221 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
     comparisonObservations: o.comparisonObservations as string[],
     criterionEvidence: normalized,
   };
+}
+
+function countTraceableCriteria(text: string, evidence: CritiqueEvidenceDTO): number {
+  return evidence.criterionEvidence.filter((entry) => tracesToVisibleEvidence(text, entry)).length;
+}
+
+export function validateVoiceAStageOutput(
+  voiceA: VoiceAStageResult,
+  evidence: CritiqueEvidenceDTO
+): VoiceAStageResult {
+  const details: string[] = [];
+
+  if (countTraceableCriteria(voiceA.summary, evidence) < 1) {
+    details.push('Voice A summary is not traceable to any evidence anchor.');
+  }
+  if (countTraceableCriteria(voiceA.overallSummary.analysis, evidence) < 2) {
+    details.push('Voice A overall summary is not grounded in at least two criterion anchors.');
+  }
+  if (countTraceableCriteria(voiceA.studioAnalysis.whatWorks, evidence) < 1) {
+    details.push('Voice A whatWorks paragraph is not grounded in visible evidence.');
+  }
+  if (countTraceableCriteria(voiceA.studioAnalysis.whatCouldImprove, evidence) < 1) {
+    details.push('Voice A whatCouldImprove paragraph is not grounded in visible evidence.');
+  }
+
+  for (const category of voiceA.categories) {
+    const criterion = category.criterion as CriterionLabel;
+    const criterionEvidence = evidenceForCriterion(evidence, criterion);
+    if (!tracesToVisibleEvidence(category.phase1.visualInventory, criterionEvidence)) {
+      details.push(`${criterion}: phase1.visualInventory drifted from the evidence anchor.`);
+    }
+    if (!tracesToVisibleEvidence(category.phase2.criticsAnalysis, criterionEvidence)) {
+      details.push(`${criterion}: phase2.criticsAnalysis is not traceable to visibleEvidence.`);
+    }
+    if (!category.evidenceSignals.every((signal) => tracesToVisibleEvidence(signal, criterionEvidence))) {
+      details.push(`${criterion}: one or more evidenceSignals are not traceable to visibleEvidence.`);
+    }
+    if (category.evidenceSignals.some((signal) => normalizeWhitespace(signal).length < 12)) {
+      details.push(`${criterion}: one or more evidenceSignals are too short to be trustworthy.`);
+    }
+    if (category.level === 'Master' && evidence.photoQualityRead.level !== 'good') {
+      details.push(`${criterion}: Master is blocked because photo quality is not good.`);
+    }
+    if (category.level === 'Master' && evidence.completionRead.state !== 'likely_finished') {
+      details.push(`${criterion}: Master is blocked because the work does not read as likely_finished.`);
+    }
+  }
+
+  if (details.length > 0) {
+    throw new CritiqueGroundingError('Voice A output failed grounding validation.', {
+      stage: 'voice_a',
+      details,
+    });
+  }
+  return voiceA;
+}
+
+export function validateVoiceBStageOutput(
+  voiceB: VoiceBStageResult,
+  voiceA: VoiceAStageResult,
+  evidence: CritiqueEvidenceDTO
+): VoiceBStageResult {
+  const details: string[] = [];
+  const levelsByCriterion = new Map(voiceA.categories.map((category) => [category.criterion, category.level] as const));
+
+  for (const category of voiceB.categories) {
+    const criterion = category.criterion as CriterionLabel;
+    const criterionEvidence = evidenceForCriterion(evidence, criterion);
+    const level = levelsByCriterion.get(criterion);
+    const step = category.actionPlanSteps[0];
+
+    if (!sharesConcreteLanguage(category.anchor.areaSummary, criterionEvidence.anchor, 2)) {
+      details.push(`${criterion}: anchor.areaSummary drifted from the evidence-stage anchor.`);
+    }
+    if (!tracesToVisibleEvidence(category.anchor.evidencePointer, criterionEvidence)) {
+      details.push(`${criterion}: anchor.evidencePointer is not traceable to visibleEvidence.`);
+    }
+    if (!tracesToVisibleEvidence(category.phase3.teacherNextSteps, criterionEvidence)) {
+      details.push(`${criterion}: teacherNextSteps is not traceable to the evidence anchor.`);
+    }
+    if (!tracesToVisibleEvidence(step.area, criterionEvidence)) {
+      details.push(`${criterion}: actionPlanSteps[0].area drifted from the evidence anchor.`);
+    }
+    if (!tracesToVisibleEvidence(step.currentRead, criterionEvidence)) {
+      details.push(`${criterion}: actionPlanSteps[0].currentRead is not traceable to visibleEvidence.`);
+    }
+    if (!tracesToVisibleEvidence(category.editPlan.issue, criterionEvidence)) {
+      details.push(`${criterion}: editPlan.issue is not traceable to visibleEvidence.`);
+    }
+    if (!sharesConcreteLanguage(category.editPlan.targetArea, category.anchor.areaSummary, 2)) {
+      details.push(`${criterion}: editPlan.targetArea does not match the anchored passage.`);
+    }
+    if (!sharesConcreteLanguage(step.area, category.anchor.areaSummary, 2)) {
+      details.push(`${criterion}: actionPlanSteps[0].area does not match the anchored passage.`);
+    }
+    if (isGenericTeacherText(category.phase3.teacherNextSteps)) {
+      details.push(`${criterion}: teacherNextSteps still contains generic coaching.`);
+    }
+    if (isGenericTeacherText(step.move) || isGenericTeacherText(category.voiceBPlan.bestNextMove)) {
+      details.push(`${criterion}: the main teaching move is still generic.`);
+    }
+
+    if (level === 'Master') {
+      if (!DONT_CHANGE_LEAD.test(category.phase3.teacherNextSteps)) {
+        details.push(`${criterion}: Master guidance must begin with "Don't change a thing."`);
+      }
+      if (!PRESERVE_VERB_LEAD.test(step.move)) {
+        details.push(`${criterion}: Master actionPlanSteps[0].move must be preserve-only.`);
+      }
+      if (!PRESERVE_VERB_LEAD.test(category.voiceBPlan.bestNextMove)) {
+        details.push(`${criterion}: Master voiceBPlan.bestNextMove must be preserve-only.`);
+      }
+      if (!PRESERVE_VERB_LEAD.test(category.editPlan.intendedChange)) {
+        details.push(`${criterion}: Master editPlan.intendedChange must be preserve-only.`);
+      }
+      if (CHANGE_VERB_LEAD.test(step.move)) {
+        details.push(`${criterion}: Master guidance must be preserve-only, not a change instruction.`);
+      }
+      if (CHANGE_VERB_LEAD.test(category.voiceBPlan.bestNextMove)) {
+        details.push(`${criterion}: Master voiceBPlan.bestNextMove cannot be a change instruction.`);
+      }
+      if (CHANGE_VERB_LEAD.test(category.editPlan.intendedChange)) {
+        details.push(`${criterion}: Master editPlan.intendedChange cannot be a change instruction.`);
+      }
+      if (category.editPlan.editability !== 'no') {
+        details.push(`${criterion}: Master editPlan.editability must be "no".`);
+      }
+    } else {
+      if (DONT_CHANGE_LEAD.test(category.phase3.teacherNextSteps)) {
+        details.push(`${criterion}: non-Master guidance cannot use "Don't change a thing."`);
+      }
+      if (!CHANGE_VERB_LEAD.test(step.move) || PRESERVE_VERB_LEAD.test(step.move)) {
+        details.push(`${criterion}: non-Master actionPlanSteps[0].move must be a true change instruction.`);
+      }
+      if (!CHANGE_VERB_LEAD.test(category.voiceBPlan.bestNextMove) || PRESERVE_VERB_LEAD.test(category.voiceBPlan.bestNextMove)) {
+        details.push(`${criterion}: non-Master voiceBPlan.bestNextMove must be a true change instruction.`);
+      }
+      if (!CHANGE_VERB_LEAD.test(category.editPlan.intendedChange) || PRESERVE_VERB_LEAD.test(category.editPlan.intendedChange)) {
+        details.push(`${criterion}: non-Master editPlan.intendedChange must be a true change instruction.`);
+      }
+      if (category.editPlan.editability !== 'yes') {
+        details.push(`${criterion}: non-Master editPlan.editability must be "yes".`);
+      }
+    }
+  }
+
+  for (let i = 0; i < voiceB.categories.length; i++) {
+    const current = voiceB.categories[i]!;
+    for (let j = i + 1; j < voiceB.categories.length; j++) {
+      const other = voiceB.categories[j]!;
+      const currentAdvice = `${current.actionPlanSteps[0]!.area} ${current.actionPlanSteps[0]!.move} ${current.phase3.teacherNextSteps}`;
+      const otherAdvice = `${other.actionPlanSteps[0]!.area} ${other.actionPlanSteps[0]!.move} ${other.phase3.teacherNextSteps}`;
+      if (sameAdvice(currentAdvice, otherAdvice)) {
+        details.push(
+          `${current.criterion} and ${other.criterion}: teacher guidance is duplicative instead of criterion-specific.`
+        );
+      }
+    }
+  }
+
+  for (const change of voiceB.studioChanges) {
+    const previewCriterion = change.previewCriterion as CriterionLabel;
+    const criterionEvidence = evidenceForCriterion(evidence, previewCriterion);
+    if (!tracesToVisibleEvidence(change.text, criterionEvidence)) {
+      details.push(`${previewCriterion}: studioChanges text drifted from the criterion anchor.`);
+    }
+    if (isGenericTeacherText(change.text)) {
+      details.push(`${previewCriterion}: studioChanges text still uses generic advice.`);
+    }
+  }
+
+  if (details.length > 0) {
+    throw new CritiqueValidationError('Voice B output failed teaching-plan validation.', {
+      stage: 'voice_b',
+      details,
+    });
+  }
+  return voiceB;
+}
+
+export function validateCritiqueGrounding(
+  critique: CritiqueResultDTO,
+  evidence: CritiqueEvidenceDTO
+): CritiqueResultDTO {
+  const details: string[] = [];
+
+  for (const category of critique.categories) {
+    const criterionEvidence = evidenceForCriterion(evidence, category.criterion);
+    const anchor = category.anchor;
+    const editPlan = category.editPlan;
+    if (!anchor || !editPlan) {
+      details.push(`${category.criterion}: final category is missing anchor or edit plan data.`);
+      continue;
+    }
+    if (!sharesConcreteLanguage(anchor.areaSummary, criterionEvidence.anchor, 2)) {
+      details.push(`${category.criterion}: final anchor drifted from the evidence-stage anchor.`);
+    }
+    if (!tracesToVisibleEvidence(category.phase2.criticsAnalysis, criterionEvidence)) {
+      details.push(`${category.criterion}: final critic analysis is not traceable to visibleEvidence.`);
+    }
+    if (!tracesToVisibleEvidence(category.phase3.teacherNextSteps, criterionEvidence)) {
+      details.push(`${category.criterion}: final teacher guidance is not traceable to visibleEvidence.`);
+    }
+    if (!tracesToVisibleEvidence(editPlan.issue, criterionEvidence)) {
+      details.push(`${category.criterion}: final editPlan.issue is not traceable to visibleEvidence.`);
+    }
+  }
+
+  if (details.length > 0) {
+    throw new CritiqueGroundingError('Final critique failed evidence traceability validation.', {
+      stage: 'final',
+      details,
+    });
+  }
+  return critique;
 }
 
 function parseSimpleFeedback(o: Record<string, unknown>): CritiqueSimpleFeedbackDTO {

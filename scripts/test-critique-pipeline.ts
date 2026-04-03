@@ -5,19 +5,25 @@
  * pipeline and prints the raw output at each stage for inspection.
  *
  * Usage:
- *   OPENAI_API_KEY=sk-... npx tsx scripts/test-critique-pipeline.ts [image-url-or-path]
+ *   OPENAI_API_KEY=sk-... npx tsx scripts/test-critique-pipeline.ts <image-path> [style-override] [medium-override]
  *
- * If no image is provided, uses a small built-in test image.
+ * By default this mirrors the app's auto-classify flow:
+ *   1. classify style
+ *   2. classify medium
+ *   3. run critique with those detected values
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import 'dotenv/config';
+import { runOpenAIClassifyMedium } from '../lib/openaiClassifyMedium.js';
+import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.js';
 import { runOpenAICritique } from '../lib/openaiCritique.js';
 import type { CritiqueResultDTO } from '../lib/critiqueTypes.js';
 
 const PRESERVATION_LEAD = /^\s*(maintain|preserve|keep|continue|protect)\b/i;
 const VAGUE_AREA = /^(arrangement of elements|spatial arrangement|areas where|background elements|foreground figures|some (edges|areas|transitions|elements)|the (composition|overall|painting))\b/i;
-const CHANGE_VERBS = /^\s*(soften|darken|lighten|cool|warm|group|separate|sharpen|widen|narrow|compress|vary|quiet|lose|restate|simplify|refine)\b/i;
+const CHANGE_VERBS =
+  /\b(soften|darken|lighten|cool|warm|group|separate|sharpen|widen|narrow|compress|vary|quiet|lose|restate|simplify|refine|reduce|shift|bridge|thin|thicken|brighten|deepen|pull|push|clean|trim|lower|raise|spread|tighten|carve|blend|glaze|scumble|drag|feather)\b/i;
 
 function gradeStep(step: string, level: string | undefined): { grade: string; issues: string[] } {
   const issues: string[] = [];
@@ -86,7 +92,7 @@ async function main() {
 
   const imagePath = process.argv[2];
   if (!imagePath) {
-    console.error('Usage: npx tsx scripts/test-critique-pipeline.ts <image-path>');
+    console.error('Usage: npx tsx scripts/test-critique-pipeline.ts <image-path> [style-override] [medium-override]');
     console.error('  e.g. npx tsx scripts/test-critique-pipeline.ts ~/painting.jpg');
     process.exit(1);
   }
@@ -94,9 +100,32 @@ async function main() {
   const imageDataUrl = imageToDataUrl(imagePath);
   console.log(`Image loaded (${(imageDataUrl.length / 1024).toFixed(0)} KB base64)\n`);
 
-  const style = process.argv[3] || 'Realism';
-  const medium = process.argv[4] || 'Oil on Canvas';
-  console.log(`Style: ${style}, Medium: ${medium}\n`);
+  const styleOverride = process.argv[3];
+  const mediumOverride = process.argv[4];
+
+  console.log('Classifying style and medium...\n');
+
+  const [styleRead, mediumRead] = await Promise.all([
+    styleOverride
+      ? Promise.resolve({ style: styleOverride, rationale: 'Manual override supplied via CLI.' })
+      : runOpenAIClassifyStyle(apiKey, imageDataUrl),
+    mediumOverride
+      ? Promise.resolve({
+          medium: mediumOverride,
+          confidence: 'high' as const,
+          rationale: 'Manual override supplied via CLI.',
+        })
+      : runOpenAIClassifyMedium(apiKey, imageDataUrl),
+  ]);
+
+  const style = styleRead.style;
+  const medium = mediumRead.medium;
+
+  console.log(`Style: ${style}`);
+  console.log(`  Rationale: ${styleRead.rationale}`);
+  console.log(`Medium: ${medium}`);
+  console.log(`  Confidence: ${mediumRead.confidence}`);
+  console.log(`  Rationale: ${mediumRead.rationale}\n`);
   console.log('Running full critique pipeline...\n');
 
   const start = Date.now();

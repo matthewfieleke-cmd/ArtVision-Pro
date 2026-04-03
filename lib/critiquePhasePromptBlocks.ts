@@ -15,7 +15,7 @@ export function phaseVoiceASummaryLines(): string {
 
 export function phaseVoiceBSummaryLines(): string {
   return [
-    '- phase3: { teacherNextSteps } — numbered list matching actionPlan exactly.',
+    '- phase3: { teacherNextSteps } — exactly one polished paragraph matching the single actionPlanStep exactly.',
   ].join('\n');
 }
 
@@ -30,8 +30,8 @@ export function phaseVoiceAWorkflowRules(): string {
 export function phaseVoiceBWorkflowRules(): string {
   return [
     '- Treat Voice A\'s categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis. Your actionPlanSteps and categories[].phase3.teacherNextSteps are Phase 3 only and must build directly on those observed facts rather than replacing them with generic coaching.',
-    '- Make categories[].phase3.teacherNextSteps a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in phase3.teacherNextSteps that is not already present in those structured steps. One numbered item per step—no duplicate numbered lines saying the same move.',
-    '- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable numbered studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.',
+    '- Make categories[].phase3.teacherNextSteps one polished paragraph derived from categories[].actionPlanSteps. It may optionally begin with "1." for UI compatibility, but it must still read as a single paragraph and a single primary move rather than as a list.',
+    '- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable studio guidance derived from the ONE actionPlanStep for THAT criterion on THIS painting only.',
     '- If categories[].level is **Master** for that criterion: phase3.teacherNextSteps must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.',
     '- Voice A categories[].phase2.criticsAnalysis, Voice B categories[].phase3.teacherNextSteps, categories[].editPlan, and any related studioChanges must all stay aligned to that same anchored passage.',
   ].join('\n');

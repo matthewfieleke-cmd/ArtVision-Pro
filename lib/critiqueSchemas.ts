@@ -25,8 +25,8 @@ For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
 ${phaseSchemaSummaryLines()}
 - voiceBPlan: structured teacher notes for this criterion — currentRead, bestNextMove, expectedRead, plus optional mainProblem/mainStrength/avoidDoing/storyIfRelevant; fields must not duplicate the same prose
-- actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve, priority }; prefer high-leverage steps over filler
-- actionPlan: Phase 3 Teacher's Next Steps — Voice B numbered rendering of actionPlanSteps only, one numbered item per step, no extra duplicate moves. Prefer 2–3 highly specific steps when revision is warranted. Master only: may start with "Don't change a thing." then brief praise. Any other level: numbered steps grounded in evidence. Do not park Edge and Surface one band below everything else by default.
+- actionPlanSteps: exactly 1 structured Voice B step per criterion, with { area, currentRead, move, expectedRead, preserve, priority }; for non-Master criteria this must be a real on-canvas change, and for Master it must be preserve-only
+- phase3: { teacherNextSteps } — Voice B one-paragraph rendering of actionPlanSteps only, no extra duplicate moves. It may optionally start with "1." for UI compatibility, but it must still read as one polished paragraph. Master only: may start with "Don't change a thing." then brief praise. Any other level: one grounded instructional move only. Do not park Edge and Surface one band below everything else by default.
 - confidence
 - evidenceSignals: 2–4 lines, each distilling a distinct visibleEvidence line for this criterion—no new claims
 - preserve
@@ -65,9 +65,9 @@ export function buildVoiceBSchemaInstruction(): string {
 
 For each criterion:
 ${phaseVoiceBSummaryLines()}
-- actionPlanSteps: 1–3 structured Voice B steps, each with { area, currentRead, move, expectedRead, preserve, priority }
+- actionPlanSteps: exactly 1 structured Voice B step, with { area, currentRead, move, expectedRead, preserve, priority }
 - voiceBPlan: structured teacher notes for this criterion — { currentRead, mainProblem, mainStrength, bestNextMove, optionalSecondMove, avoidDoing, expectedRead, storyIfRelevant }
-- actionPlan: numbered list matching actionPlanSteps only—no extra steps or repeated moves
+- phase3: { teacherNextSteps } — one-paragraph rendering matching actionPlanSteps only—no extra steps or repeated moves
 - anchor: { areaSummary, evidencePointer, region }
 - editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability }`;
 }

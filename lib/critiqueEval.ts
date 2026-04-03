@@ -1,16 +1,61 @@
 import type { CritiqueResultDTO } from './critiqueTypes.js';
+import { CritiqueRuntimeEvalError } from './critiqueErrors.js';
 
 export type CritiqueEvalResult = {
   genericMainIssue: boolean;
   genericNextSteps: boolean;
   vagueVoiceB: boolean;
   weakEvidence: boolean;
+  weakGrounding: boolean;
+  duplicatedCoaching: boolean;
   suspiciousOverpraise: boolean;
+  blockingIssues: string[];
   notes: string[];
 };
 
 function containsAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
+}
+
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function contentTokens(text: string): string[] {
+  return Array.from(
+    new Set(
+      normalizeWhitespace(text)
+        .toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter((token) => token.length >= 4)
+    )
+  );
+}
+
+function overlapRatio(a: string, b: string): number {
+  const aTokens = contentTokens(a);
+  const bTokens = contentTokens(b);
+  if (aTokens.length === 0 || bTokens.length === 0) return 0;
+  const bSet = new Set(bTokens);
+  const matches = aTokens.filter((token) => bSet.has(token)).length;
+  return matches / Math.max(aTokens.length, bTokens.length);
+}
+
+function hasAnchorReference(
+  text: string,
+  areaSummary?: string,
+  evidencePointer?: string
+): boolean {
+  const normalized = normalizeWhitespace(text).toLowerCase();
+  if (!normalized) return false;
+  const area = normalizeWhitespace(areaSummary ?? '').toLowerCase();
+  const pointer = normalizeWhitespace(evidencePointer ?? '').toLowerCase();
+  if (area && normalized.includes(area)) return true;
+  if (pointer && normalized.includes(pointer)) return true;
+  if (area && overlapRatio(normalized, area) >= 0.35) return true;
+  if (pointer && overlapRatio(normalized, pointer) >= 0.35) return true;
+  return false;
 }
 
 export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEvalResult {
@@ -89,6 +134,23 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
       category.evidenceSignals.some((signal) => signal.trim().length < 12)
   );
 
+  const weakGrounding = critique.categories.some((category) => {
+    const teacher = category.phase3.teacherNextSteps;
+    const critic = category.phase2.criticsAnalysis;
+    return (
+      !hasAnchorReference(teacher, category.anchor?.areaSummary, category.anchor?.evidencePointer) ||
+      !hasAnchorReference(critic, category.anchor?.areaSummary, category.anchor?.evidencePointer)
+    );
+  });
+
+  const duplicatedCoaching = critique.categories.some((category, index) =>
+    critique.categories.slice(index + 1).some((other) => {
+      const currentAdvice = `${category.phase3.teacherNextSteps} ${category.actionPlanSteps?.[0]?.move ?? ''}`;
+      const otherAdvice = `${other.phase3.teacherNextSteps} ${other.actionPlanSteps?.[0]?.move ?? ''}`;
+      return overlapRatio(currentAdvice, otherAdvice) >= 0.72;
+    })
+  );
+
   const suspiciousOverpraise = Boolean(
     simple &&
       containsAny(`${worksText} ${improveText} ${critique.summary}`, [
@@ -127,6 +189,16 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
       : 'The evidence layer gives a visible basis for judgment, which makes the critique more trustworthy.'
   );
   notes.push(
+    weakGrounding
+      ? 'At least one criterion drifts away from its anchored passage, so the coaching would be hard to trust on-canvas.'
+      : 'The category-level coaching stays tied to concrete anchored passages instead of drifting into abstract advice.'
+  );
+  notes.push(
+    duplicatedCoaching
+      ? 'Two or more criteria are effectively giving the same teaching move, which weakens the eight-part rubric.'
+      : 'The criterion coaching stays distinct enough to feel like eight different levers rather than one repeated note.'
+  );
+  notes.push(
     suspiciousOverpraise
       ? 'The response appears to over-credit childlike or underdeveloped handling as if it were mature stylization; this should be treated as a calibration failure.'
       : 'There is no obvious sign that the response is mistaking novice handling for successful stylization.'
@@ -137,14 +209,34 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
       : 'Without a clear simple feedback layer, the response would be less immediately usable for the painter.'
   );
 
+  const blockingIssues: string[] = [];
+  if (weakEvidence) blockingIssues.push('The critique does not provide enough visible proof for several criteria.');
+  if (weakGrounding) blockingIssues.push('The critique drifts away from its anchored evidence passages.');
+  if (duplicatedCoaching) blockingIssues.push('The teaching advice repeats across criteria instead of staying distinct.');
+  if (genericNextSteps || vagueVoiceB) blockingIssues.push('The teaching advice is still too generic to be actionable.');
+
   return {
     genericMainIssue,
     genericNextSteps,
     vagueVoiceB,
     weakEvidence,
+    weakGrounding,
+    duplicatedCoaching,
     suspiciousOverpraise,
+    blockingIssues,
     notes,
   };
+}
+
+export function assertCritiqueQualityGate(critique: CritiqueResultDTO): CritiqueEvalResult {
+  const evaluation = evaluateCritiqueQuality(critique);
+  if (evaluation.blockingIssues.length > 0) {
+    throw new CritiqueRuntimeEvalError('Critique quality gate rejected the response.', {
+      stage: 'final',
+      details: evaluation.blockingIssues,
+    });
+  }
+  return evaluation;
 }
 
 /** Markdown lines for QA / review scripts (studioAnalysis + studioChanges). */

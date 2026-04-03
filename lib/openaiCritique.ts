@@ -7,8 +7,16 @@ import {
 } from './openaiVisionContent.js';
 import { EVIDENCE_OPENAI_SCHEMA } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
-import { validateCritiqueResult, validateEvidenceResult } from './critiqueValidation.js';
+import { validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
+import {
+  CritiqueGroundingError,
+  CritiqueRetryExhaustedError,
+  CritiqueValidationError,
+  errorDetails,
+  errorMessage,
+} from './critiqueErrors.js';
+import { assertCritiqueQualityGate } from './critiqueEval.js';
 
 async function runCritiqueEvidenceStage(
   apiKey: string,
@@ -17,6 +25,7 @@ async function runCritiqueEvidenceStage(
     style: string;
     medium: string;
     userContent: VisionUserMessagePart[];
+    repairNote?: string;
   }
 ): Promise<ReturnType<typeof validateEvidenceResult>> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -35,7 +44,9 @@ async function runCritiqueEvidenceStage(
       messages: [
         {
           role: 'system',
-          content: buildEvidenceStagePrompt(args.style, args.medium),
+          content: args.repairNote
+            ? `${buildEvidenceStagePrompt(args.style, args.medium)}\n\nCorrection required on retry:\n${args.repairNote}`
+            : buildEvidenceStagePrompt(args.style, args.medium),
         },
         {
           role: 'user',
@@ -64,9 +75,65 @@ async function runCritiqueEvidenceStage(
 
   try {
     return validateEvidenceResult(JSON.parse(text));
-  } catch {
-    throw new Error('Model returned invalid evidence JSON');
+  } catch (error) {
+    if (error instanceof Error && error.message !== 'Model returned invalid evidence JSON') {
+      throw new CritiqueValidationError('Evidence stage validation failed.', {
+        stage: 'evidence',
+        details: [error.message],
+        cause: error,
+      });
+    }
+    throw new CritiqueValidationError('Model returned invalid evidence JSON', {
+      stage: 'evidence',
+      cause: error,
+    });
   }
+}
+
+const MAX_STAGE_ATTEMPTS = 3;
+
+function buildEvidenceRepairNote(error: unknown): string {
+  return `Previous evidence attempt failed: ${errorMessage(error)}\n${errorDetails(error)
+    .map((detail) => `- ${detail}`)
+    .join('\n')}\nRegenerate the full evidence JSON. Use one concrete anchor per criterion, keep every claim visible, and do not change the schema.`;
+}
+
+async function runCritiqueEvidenceStageWithRetries(
+  apiKey: string,
+  args: {
+    model: string;
+    style: string;
+    medium: string;
+    userContent: VisionUserMessagePart[];
+  }
+): Promise<ReturnType<typeof validateEvidenceResult>> {
+  let repairNote: string | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
+    try {
+      return await runCritiqueEvidenceStage(apiKey, {
+        ...args,
+        repairNote,
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt === MAX_STAGE_ATTEMPTS) {
+        throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', attempt, {
+          stage: 'evidence',
+          details: errorDetails(error),
+          cause: error,
+        });
+      }
+      repairNote = buildEvidenceRepairNote(error);
+    }
+  }
+
+  throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
+    stage: 'evidence',
+    details: errorDetails(lastError),
+    cause: lastError,
+  });
 }
 
 export async function runOpenAICritique(
@@ -113,13 +180,13 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  let evidence = await runCritiqueEvidenceStage(apiKey, {
+  const evidence = await runCritiqueEvidenceStageWithRetries(apiKey, {
     model,
     style: body.style,
     medium: body.medium,
     userContent,
   });
-  let calibration = await runCritiqueCalibrationStage(
+  const calibration = await runCritiqueCalibrationStage(
     apiKey,
     model,
     body.style,
@@ -128,9 +195,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     userContent
   );
 
-  let parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
-  let base = validateCritiqueResult(parsed);
-  let withCompletion = {
+  const base = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
+  const withCompletion = {
     ...base,
     completionRead: {
       state: evidence.completionRead.state,
@@ -141,34 +207,17 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   };
 
   if (critiqueNeedsFreshEvidenceRead(withCompletion)) {
-    evidence = await runCritiqueEvidenceStage(apiKey, {
-      model,
-      style: body.style,
-      medium: body.medium,
-      userContent,
+    throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
+      stage: 'final',
+      details: [
+        'The final critique no longer stayed aligned to the anchored evidence passages.',
+        'A fresh retry would risk degrading silently, so the pipeline failed closed.',
+      ],
     });
-    calibration = await runCritiqueCalibrationStage(
-      apiKey,
-      model,
-      body.style,
-      body.medium,
-      evidence,
-      userContent
-    );
-    parsed = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
-    base = validateCritiqueResult(parsed);
-    withCompletion = {
-      ...base,
-      completionRead: {
-        state: evidence.completionRead.state,
-        confidence: evidence.completionRead.confidence,
-        cues: evidence.completionRead.cues,
-        rationale: evidence.completionRead.rationale,
-      },
-    };
   }
 
   const validated = applyCritiqueGuardrails(withCompletion);
+  assertCritiqueQualityGate(validated);
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   return trimmedTitle ? { ...validated, paintingTitle: trimmedTitle } : validated;

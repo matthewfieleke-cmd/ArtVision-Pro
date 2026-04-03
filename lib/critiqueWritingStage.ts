@@ -4,7 +4,7 @@ import {
   VOICE_B_COMPOSITE_TEACHERS,
 } from '../shared/critiqueVoiceA.js';
 import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
-import type { CritiqueRequestBody } from './critiqueTypes.js';
+import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 import {
   buildVoiceASchemaInstruction,
   buildVoiceBSchemaInstruction,
@@ -16,12 +16,27 @@ import {
 import {
   VOICE_A_OPENAI_SCHEMA,
   VOICE_B_OPENAI_SCHEMA,
+  type VoiceAStageResult,
+  type VoiceBStageResult,
   voiceAStageResultSchema,
   voiceBStageResultSchema,
 } from './critiqueZodSchemas.js';
-import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
+import {
+  validateCritiqueGrounding,
+  validateCritiqueResult,
+  type CritiqueEvidenceDTO,
+  validateVoiceAStageOutput,
+  validateVoiceBStageOutput,
+} from './critiqueValidation.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
+import {
+  CritiqueRetryExhaustedError,
+  CritiqueValidationError,
+  errorDetails,
+  errorMessage,
+} from './critiqueErrors.js';
+import { assertCritiqueQualityGate } from './critiqueEval.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -56,72 +71,6 @@ function formatCalibrationCaps(calibration?: CritiqueCalibrationDTO): string {
     .join('\n');
 }
 
-type VoiceAStageResult = {
-  summary: string;
-  suggestedPaintingTitles: Array<{ category: string; title: string; rationale: string }>;
-  overallSummary: { analysis: string };
-  studioAnalysis: { whatWorks: string; whatCouldImprove: string };
-  comparisonNote: string | null;
-  overallConfidence: 'low' | 'medium' | 'high';
-  photoQuality: {
-    level: 'poor' | 'fair' | 'good';
-    summary: string;
-    issues: string[];
-    tips: string[];
-  };
-  categories: Array<{
-    criterion: string;
-    level: string;
-    phase1: { visualInventory: string };
-    phase2: { criticsAnalysis: string };
-    confidence: 'low' | 'medium' | 'high';
-    evidenceSignals: string[];
-    preserve: string;
-    nextTarget: string;
-    subskills: Array<{ label: string; score: number; level: string }>;
-  }>;
-};
-
-type VoiceBStageResult = {
-  overallSummary: { topPriorities: string[] };
-  studioChanges: Array<{ text: string; previewCriterion: string }>;
-  categories: Array<{
-    criterion: string;
-    phase3: { teacherNextSteps: string };
-    actionPlanSteps: Array<{
-      area: string;
-      currentRead: string;
-      move: string;
-      expectedRead: string;
-      preserve: string;
-      priority: 'primary' | 'secondary';
-    }>;
-    voiceBPlan: {
-      currentRead: string;
-      mainProblem: string;
-      mainStrength: string;
-      bestNextMove: string;
-      optionalSecondMove: string;
-      avoidDoing: string;
-      expectedRead: string;
-      storyIfRelevant: string;
-    };
-    anchor: {
-      areaSummary: string;
-      evidencePointer: string;
-      region: { x: number; y: number; width: number; height: number };
-    };
-    editPlan: {
-      targetArea: string;
-      preserveArea: string;
-      issue: string;
-      intendedChange: string;
-      expectedOutcome: string;
-      editability: 'yes' | 'no';
-    };
-  }>;
-};
-
 function buildVoiceAPrompt(
   style: string,
   medium: string,
@@ -148,6 +97,7 @@ How Voice A drives the eight ratings (required workflow):
 - First, from the evidence alone, form Voice A’s judgment of how the painting performs in EACH of the eight criteria (composition, value, color, drawing/space, edges, surface handling, intent/necessity, presence/point of view). Think in full critical terms for each—not a single overall grade copied eight times.
 - Then assign categories[].level for each criterion: that level MUST be the formal label (Beginner / Intermediate / Advanced / Master) for Voice A’s judgment in that criterion for this painting.
 - For each criterion, decide not just what band fits, but why the work is not one band lower and not one band higher according to the rubric language above.
+- Use the declared style and medium actively when calibrating every level. A competent watercolor softness, a useful pastel vibration, or an oil drag edge is not the same thing as weak control.
 - Write studioAnalysis.whatWorks and whatCouldImprove as Voice A’s overall read, but ensure they do not contradict the per-criterion levels.
 
 ${completionToneBlock(evidence)}
@@ -161,6 +111,7 @@ ${phaseVoiceAWorkflowRules()}
 - If the evidence suggests a strong work, let the critique say the issue is modest.
 - If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
 - Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
+- The evidence JSON gives each criterion a concrete anchor passage. Stay traceable to that anchor and the listed visibleEvidence lines; do not drift to a different part of the painting.
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
 - Non-redundancy: categories[].phase1.visualInventory must stay objective and distinct from categories[].phase2.criticsAnalysis. categories[].phase2.criticsAnalysis must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate the phase2 text verbatim.
@@ -169,7 +120,7 @@ ${phaseVoiceAWorkflowRules()}
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
   - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains.
   - Advanced: strong in this criterion with only modest, selective refinement left.
-  - Master: very rare but real when deserved—museum-grade sustained control and intention in this criterion for this painting.
+  - Master: exceptionally rare and only for museum-grade sustained control and intention in this criterion for this specific style-medium combination.
 - Master gating (mandatory):
   - If photoQuality.level is not "good", no criterion may be Master.
   - If completionRead.state is not "likely_finished", no criterion may be Master.
@@ -199,12 +150,12 @@ Voice:
 ${VOICE_B_COMPOSITE_TEACHERS}
 
 Your job in this stage:
-- Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and actionPlan.
+- Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and phase3.teacherNextSteps.
 - Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
 - Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
 - Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis.
 ${phaseVoiceBWorkflowRules()}
-- For each criterion, also output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
+- For each criterion, the evidence JSON already gives you one concrete anchor passage. Stay with that same visible passage. Output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
 ${rubricBlock}
@@ -215,6 +166,7 @@ Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
 - Use the supplied Voice A JSON as the fixed diagnosis and rating context.
 - Do not invent visible claims that are not supported by the evidence.
+- Ratings must stay honest to the declared style and medium. Treat style and medium as calibration tools, not decoration.
 - Judge the painting on its own terms.
 - Do not assume every painting needs stronger focal hierarchy, more contrast, sharper edges, or more clarity.
 - If the evidence suggests a strong work, let the critique say the issue is modest.
@@ -222,10 +174,13 @@ Rules:
 - Your usefulness comes from precision, not from forced criticism.
 - The eight criteria should usually vary; uniformity across all eight is possible but uncommon. Do not smooth everything to one level out of politeness or uncertainty.
 - Voice B tone: teacherly coaching for a motivated serious hobbyist or art student. Lead with the clearest action, then explain it plainly.
-- Voice B non-redundancy: voiceBPlan fields must not copy/paste the same sentence across currentRead, mainProblem, bestNextMove, and expectedRead—each field adds new information. actionPlan must be a tight numbered rendering of actionPlanSteps only: do not add extra steps, synonyms, or repeated junctions that are not in those steps. Do not restate Voice A’s feedback verbatim.
+- For every non-Master criterion, there is exactly ONE primary move. Return one actionPlanStep only, and make phase3.teacherNextSteps read as one polished paragraph about that one move.
+- For every Master criterion, give preserve-only guidance. Praise the exact visible relationship that is already exceptional and provide ZERO improvement instructions.
+- Distinctness is mandatory across the full eight-criterion set: do not recycle the same move, the same wording, or the same anchored passage across multiple criteria unless the painting truly makes that unavoidable.
+- Voice B non-redundancy: voiceBPlan fields must not copy/paste the same sentence across currentRead, mainProblem, bestNextMove, and expectedRead—each field adds new information. phase3.teacherNextSteps must be a tight rendering of actionPlanSteps only: do not add extra steps, synonyms, or repeated junctions that are not in those steps. Do not restate Voice A’s feedback verbatim.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
-  - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
+  - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "push the contrast," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
   - If the work is strong, keep the advice modest and local; do not turn a small issue into a full repaint.
 - Calibration warning:
   - Do not mistake childlike, rudimentary, or clearly underdeveloped work for successful Expressionism or Abstract Art just because it is simplified, distorted, bold, or high-contrast.
@@ -234,7 +189,7 @@ Rules:
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
   - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains. Do not use Intermediate as a polite default for weak or naive work; if fundamentals in this criterion are still shaky, that criterion is Beginner.
   - Advanced: strong in this criterion with only modest, selective refinement left—little substantive development still required; issues are small and localized.
-  - Master: very rare but real when deserved—museum-grade sustained control and intention in this criterion for this painting; reserve for evidence of exceptional, unified mastery (not "pretty good").
+  - Master: exceptionally rare and only when the visible evidence shows museum-grade sustained control and intention in this criterion for this specific style-medium combination; reserve it for truly extraordinary passages, not "pretty good."
 - Master gating (mandatory):
   - If photoQuality.level is not "good", no criterion may be Master.
   - If completionRead.state is not "likely_finished", no criterion may be Master.
@@ -249,25 +204,26 @@ Rules:
   - topPriorities = 1 or 2 Voice B lines only, each beginning with the primary action and naming a visible passage from this painting.
 - Voice B planning structure (required for all eight categories): First create categories[].voiceBPlan and categories[].actionPlanSteps for THAT criterion on THIS painting only.
   - categories[].voiceBPlan is Voice B's teacher note to self for the anchored passage: what it is doing now, what the main problem/strength is, what the best next move is, what should be preserved or avoided, and what the passage should read like afterward.
-  - categories[].actionPlanSteps must contain 1-3 high-leverage steps only. Do not invent filler just to reach a quota. If one move is genuinely enough for this criterion, return one step. If two moves are enough, return two. Use three only when the painting truly needs three distinct moves.
-  - Every actionPlanStep must answer: where exactly, what is happening there now, what exact move to make, and what should read differently afterward.
+  - categories[].actionPlanSteps must contain exactly 1 high-leverage step. That one step is the primary move for the criterion.
+  - The one actionPlanStep must answer: where exactly, what is happening there now, what exact move to make, and what should read differently afterward.
   - actionPlanSteps[].area must name a **visible, locatable passage** in THIS painting—a physical thing the artist can point to (a pot, a path edge, a cluster of flowers, a shadow junction, a contour). NEVER fill area with abstract design language: "arrangement of elements", "spatial relationships", "areas where energy is evident", "the compositional flow", or "elements" by itself. If the criterion is conceptual (Intent, Presence), still locate it in a physical passage—e.g. "the red path pulling the eye toward the shed" rather than "the arrangement of elements."
   - actionPlanSteps[].move must begin with a concrete studio verb (soften, darken, cool, group, separate, sharpen, widen, compress, quiet, warm, lose, restate) applied to a specific visual element in that passage. NEVER use "adjust elements", "enhance presence", "ensure consistency", "improve structure", "strengthen the painting's presence", "define these spatial relationships", or "unify texture" without naming what exactly to change. If you cannot name a specific brushstroke, edge, color relationship, or spatial event to change, the step is too vague.
   - actionPlanSteps[].currentRead must describe a visible fact, not a judgment. Bad: "could be more unified", "feels less necessary", "some relationships could be clearer". Better: "the green foliage patches are all the same value and chroma, flattening the depth between near and far beds."
-  - Prefer one primary step and at most two secondary steps. Secondary steps must be genuinely different, not paraphrases of the same move.
-  - Make categories[].phase3.teacherNextSteps a readable numbered rendering of categories[].actionPlanSteps. Do not invent extra meaning in phase3.teacherNextSteps that is not already present in those structured steps. One numbered item per step—no duplicate numbered lines saying the same move.
-- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable numbered studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
+  - Set actionPlanSteps[0].priority to "primary".
+  - Make categories[].phase3.teacherNextSteps a readable polished paragraph rendering of categories[].actionPlanSteps. It may optionally begin with "1." for UI compatibility, but it must still be one paragraph and one primary move only.
+- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
   - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and editPlan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
   - Every numbered step must answer all three questions explicitly: **where exactly**, **what exactly is wrong/right there**, and **what exactly should change or stay**. If a step could fit many paintings by swapping only the subject noun, it is too vague.
   - Do not use abstract placeholders such as "certain edges", "small details", "the story", "color transitions", "focal area", "more realism", or "more depth" unless the same sentence names the exact edge, exact detail, exact story beat, exact color junction, or exact focal passage in THIS painting.
   - If you mention a narrative or story, say what that story or dramatic situation appears to be in this painting and which visible passages carry it; do not refer to "the story" generically.
   - If you mention preserving a strength, say exactly what to preserve and why it matters: e.g. keep X contrast, keep Y diagonal, keep Z edge around the eyes—not "maintain the focus" in the abstract.
-  - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for numbered improvement steps—Advanced still needs concrete moves toward Master.
-  - **Equally critical — no preservation masquerading as improvement:** For any criterion below Master, the actionPlan and actionPlanSteps must contain at least one genuine CHANGE instruction—something the artist would physically alter on the canvas. Steps that begin with "Maintain", "Preserve", "Keep", "Continue", or "Protect" are preservation steps, NOT improvement steps. Preservation is allowed as a secondary step or as part of a step that also names a change, but it must NEVER be the only advice for a non-Master criterion. If a criterion is Advanced, there is still a real gap between Advanced and Master—name the specific move that would close it rather than telling the artist to keep doing what they are doing.
+  - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for a real improvement move.
+  - **Equally critical — no preservation masquerading as improvement:** For any criterion below Master, phase3.teacherNextSteps and actionPlanSteps must contain one genuine CHANGE instruction—something the artist would physically alter on the canvas. Steps that begin with "Maintain", "Preserve", "Keep", "Continue", or "Protect" are preservation steps, NOT improvement steps.
   - If categories[].level is **Master** for that criterion: phase3.teacherNextSteps must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
-  - If level is **Beginner**: usually 1-3 specific steps that would realistically move this criterion toward **Intermediate**. Use more than one step only if each step names a different useful move on this image.
-  - If level is **Intermediate**: usually 1-3 specific steps aimed at moving toward **Advanced**.
-  - If level is **Advanced**: usually 1-2 specific steps aimed at moving toward **Master**. These must name a real refinement, not just praise. Even a strong painting has a next move—name it. Example for a watercolor: "Vary the wash density in the upper sky from left to right so the dark-to-medium gradient reads less uniform." Example for an oil: "Cool the shadow under the porch roof by one step so the warm window glow separates more from the shadow."
+  - If categories[].level is **Master** for that criterion, the structured fields must also be preserve-only: categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange must begin with "Preserve", "Keep", "Protect", "Leave", or "Hold".
+  - If level is **Beginner**: the one move should realistically push this criterion toward **Intermediate**.
+  - If level is **Intermediate**: the one move should realistically push this criterion toward **Advanced**.
+  - If level is **Advanced**: the one move should be a real refinement toward **Master**, not praise disguised as advice.
   Steps must cite where on the painting (same identifiability rules as studioChanges). No generic studio drills unrelated to this image, and no repeated restatements of the same move.
 - **Avoid lazy pairing:** Do not default **Edge and focus control** and **Surface and medium handling** to the same band (e.g. both Intermediate) just because a photo is imperfect. If evidence for edges/mark-making genuinely matches the same band as composition, value, and color, say why in that criterion’s feedback; otherwise rate each axis on its own integrated evidence. JPEG mush affects photoQuality confidence, not an automatic two-notch drop on every execution criterion.
 - Shared anchor rules (required for every criterion):
@@ -358,6 +314,27 @@ Return JSON only matching the schema.`;
 
 const VOICE_A_MAX_TOKENS = 3200;
 const VOICE_B_MAX_TOKENS = 4800;
+const MAX_STAGE_ATTEMPTS = 3;
+
+function buildVoiceAUserPrompt(evidence: CritiqueEvidenceDTO, repairNote?: string): string {
+  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildVoiceASchemaInstruction()}`;
+  if (!repairNote) return base;
+  return `${base}\n\nCorrection required on retry:\n${repairNote}`;
+}
+
+function buildVoiceBUserPrompt(
+  evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult,
+  repairNote?: string
+): string {
+  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\n${buildVoiceBSchemaInstruction()}`;
+  if (!repairNote) return base;
+  return `${base}\n\nCorrection required on retry:\n${repairNote}`;
+}
+
+function buildRepairNote(prefix: string, error: unknown): string {
+  return `${prefix}\n${errorDetails(error).map((detail) => `- ${detail}`).join('\n')}\nRegenerate the full JSON and fix every listed failure without changing the response shape.`;
+}
 
 async function runSchemaStage(
   apiKey: string,
@@ -419,19 +396,47 @@ export async function runCritiqueVoiceAStage(
   evidence: CritiqueEvidenceDTO,
   calibration?: CritiqueCalibrationDTO
 ): Promise<VoiceAStageResult> {
-  const raw = await runSchemaStage(
-    apiKey,
-    model,
-    buildVoiceAPrompt(style, body.medium, evidence, calibration),
-    `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildVoiceASchemaInstruction()}`,
-    VOICE_A_OPENAI_SCHEMA
-  );
-  const parsed = voiceAStageResultSchema.safeParse(raw);
-  if (!parsed.success) {
-    console.error('Voice A Zod validation failed:', parsed.error.message);
-    return raw as VoiceAStageResult;
+  let repairNote: string | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
+    try {
+      const raw = await runSchemaStage(
+        apiKey,
+        model,
+        buildVoiceAPrompt(style, body.medium, evidence, calibration),
+        buildVoiceAUserPrompt(evidence, repairNote),
+        VOICE_A_OPENAI_SCHEMA
+      );
+      const parsed = voiceAStageResultSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new CritiqueValidationError('Voice A schema validation failed.', {
+          stage: 'voice_a',
+          details: [parsed.error.message],
+        });
+      }
+      return validateVoiceAStageOutput(parsed.data as VoiceAStageResult, evidence);
+    } catch (error) {
+      lastError = error;
+      if (attempt === MAX_STAGE_ATTEMPTS) {
+        throw new CritiqueRetryExhaustedError('Voice A stage exhausted retries.', attempt, {
+          stage: 'voice_a',
+          details: errorDetails(error),
+          cause: error,
+        });
+      }
+      repairNote = buildRepairNote(
+        `Previous Voice A attempt failed: ${errorMessage(error)}`,
+        error
+      );
+    }
   }
-  return parsed.data as VoiceAStageResult;
+
+  throw new CritiqueRetryExhaustedError('Voice A stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
+    stage: 'voice_a',
+    details: errorDetails(lastError),
+    cause: lastError,
+  });
 }
 
 export async function runCritiqueVoiceBStage(
@@ -441,25 +446,31 @@ export async function runCritiqueVoiceBStage(
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
   voiceA: VoiceAStageResult,
-  calibration?: CritiqueCalibrationDTO
+  calibration?: CritiqueCalibrationDTO,
+  repairNote?: string
 ): Promise<VoiceBStageResult> {
   const raw = await runSchemaStage(
     apiKey,
     model,
     buildWritingPrompt(style, body.medium, evidence, calibration),
-    `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\n${buildVoiceBSchemaInstruction()}`,
+    buildVoiceBUserPrompt(evidence, voiceA, repairNote),
     VOICE_B_OPENAI_SCHEMA,
     VOICE_B_MAX_TOKENS
   );
   const parsed = voiceBStageResultSchema.safeParse(raw);
   if (!parsed.success) {
-    console.error('Voice B Zod validation failed:', parsed.error.message);
-    return raw as VoiceBStageResult;
+    throw new CritiqueValidationError('Voice B schema validation failed.', {
+      stage: 'voice_b',
+      details: [parsed.error.message],
+    });
   }
-  return parsed.data as VoiceBStageResult;
+  return validateVoiceBStageOutput(parsed.data as VoiceBStageResult, voiceA, evidence);
 }
 
-function mergeVoiceStages(voiceA: VoiceAStageResult, voiceB: VoiceBStageResult): unknown {
+function mergeVoiceStages(
+  voiceA: VoiceAStageResult,
+  voiceB: VoiceBStageResult
+): unknown {
   const voiceBCategories = new Map(voiceB.categories.map((category) => [category.criterion, category] as const));
   return {
     summary: voiceA.summary,
@@ -499,8 +510,46 @@ export async function runCritiqueWritingStage(
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
   calibration?: CritiqueCalibrationDTO
-): Promise<unknown> {
+): Promise<CritiqueResultDTO> {
   const voiceA = await runCritiqueVoiceAStage(apiKey, model, style, body, evidence, calibration);
-  const voiceB = await runCritiqueVoiceBStage(apiKey, model, style, body, evidence, voiceA, calibration);
-  return mergeVoiceStages(voiceA, voiceB);
+  let repairNote: string | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
+    try {
+      const voiceB = await runCritiqueVoiceBStage(
+        apiKey,
+        model,
+        style,
+        body,
+        evidence,
+        voiceA,
+        calibration,
+        repairNote
+      );
+      const merged = mergeVoiceStages(voiceA, voiceB);
+      const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
+      assertCritiqueQualityGate(validated);
+      return validated;
+    } catch (error) {
+      lastError = error;
+      if (attempt === MAX_STAGE_ATTEMPTS) {
+        throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
+          stage: 'voice_b',
+          details: errorDetails(error),
+          cause: error,
+        });
+      }
+      repairNote = buildRepairNote(
+        `Previous Voice B attempt failed: ${errorMessage(error)}`,
+        error
+      );
+    }
+  }
+
+  throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
+    stage: 'voice_b',
+    details: errorDetails(lastError),
+    cause: lastError,
+  });
 }

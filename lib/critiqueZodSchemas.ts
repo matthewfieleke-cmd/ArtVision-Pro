@@ -20,38 +20,40 @@ import {
 const criterionEnum = z.enum(CRITERIA_ORDER as unknown as [string, ...string[]]);
 const ratingLevelEnum = z.enum(RATING_LEVELS as unknown as [string, ...string[]]);
 const confidenceEnum = z.enum(['low', 'medium', 'high']);
+const studioVerbPattern =
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|preserve|keep|protect|leave|hold)\b/i;
 
 // ---------------------------------------------------------------------------
 // Shared sub-objects
 // ---------------------------------------------------------------------------
 
 export const normalizedRegionSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().gt(0).max(1),
+  height: z.number().gt(0).max(1),
 });
 
 export const anchorSchema = z.object({
-  areaSummary: z.string().describe(
+  areaSummary: z.string().min(8).describe(
     'Short phrase naming one exact, recognizable visible passage in THIS painting that Voice A and Voice B are both discussing. It must point to content a user could locate, not a conceptual label.'
   ),
-  evidencePointer: z.string().describe(
+  evidencePointer: z.string().min(16).describe(
     'What visible relationship in that exact passage drives this criterion read in THIS painting. Name the concrete visual fact there now.'
   ),
   region: normalizedRegionSchema,
 });
 
 export const editPlanSchema = z.object({
-  targetArea: z.string().describe('Same passage as anchor.areaSummary.'),
-  preserveArea: z.string().describe('What nearby success must remain untouched while editing.'),
-  issue: z.string().describe(
+  targetArea: z.string().min(8).describe('Same passage as anchor.areaSummary.'),
+  preserveArea: z.string().min(8).describe('What nearby success must remain untouched while editing.'),
+  issue: z.string().min(16).describe(
     'The specific visual problem or strength in that anchored passage right now. Must name what is visibly happening there, not a generic goal.'
   ),
-  intendedChange: z.string().describe(
-    'Exact directional change for the AI preview to make in that passage only. If level is Master, describe preservation rather than revision.'
+  intendedChange: z.string().min(12).regex(studioVerbPattern).describe(
+    'Exact directional move for the AI preview to make in that passage only. For non-Master rows, start with a concrete change verb. For Master rows, start with a preserve verb such as preserve, keep, protect, leave, or hold.'
   ),
-  expectedOutcome: z.string().describe(
+  expectedOutcome: z.string().min(16).describe(
     'What the painting should read like after that change in that same passage. Must describe the resulting visual read, not a generic improvement slogan.'
   ),
   editability: z.enum(['yes', 'no']).describe(
@@ -60,28 +62,28 @@ export const editPlanSchema = z.object({
 });
 
 export const voiceBStepSchema = z.object({
-  area: z.string().describe(
+  area: z.string().min(8).describe(
     'A visible, locatable passage in THIS painting that a user could point to — e.g. "the terracotta pot against the red path" or "the blue delphiniums at left". NEVER use abstract placeholders like "arrangement of elements", "areas where energy is evident", "spatial relationships", or "the composition". If the criterion is conceptual (Intent, Presence), still name the physical passage that carries it.'
   ),
-  currentRead: z.string().describe(
+  currentRead: z.string().min(16).describe(
     'What is visibly happening in that specific passage right now — name colors, shapes, edges, or spatial relationships you can see. NEVER write "could be more unified", "feels less necessary", or other judgment-only language without naming what you see.'
   ),
-  move: z.string().describe(
-    'One specific directional verb + what to change in that passage. Must start with a concrete CHANGE verb (soften, darken, cool, group, separate, sharpen, widen, compress, vary, etc.) applied to a named visual element. For non-Master criteria, NEVER lead with "maintain", "preserve", "keep", "continue", or "protect" — those are preservation, not improvement. NEVER write "adjust elements", "enhance presence", "ensure consistency", "improve structure", or "strengthen" without saying what exactly to do to what.'
+  move: z.string().min(12).regex(studioVerbPattern).describe(
+    'One specific directional move for that passage. For non-Master criteria, it must start with a concrete CHANGE verb (soften, darken, cool, group, separate, sharpen, widen, compress, vary, etc.) applied to a named visual element. For Master criteria, it must instead start with a preserve verb such as preserve, keep, protect, leave, or hold. NEVER write "adjust elements", "enhance presence", "ensure consistency", "improve structure", or "strengthen" without saying what exactly to do to what.'
   ),
-  expectedRead: z.string().describe('What that same passage should read like after the move — describe the visual result, not an abstract improvement.'),
-  preserve: z.string().describe('What specific nearby success to protect while making the change.'),
+  expectedRead: z.string().min(16).describe('What that same passage should read like after the move — describe the visual result, not an abstract improvement.'),
+  preserve: z.string().min(8).describe('What specific nearby success to protect while making the change.'),
   priority: z.enum(['primary', 'secondary']),
 });
 
 export const voiceBPlanSchema = z.object({
-  currentRead: z.string().describe('What this anchored passage is visibly doing now — name what you see (colors, edges, shapes, spatial events), not abstract qualities.'),
+  currentRead: z.string().min(16).describe('What this anchored passage is visibly doing now — name what you see (colors, edges, shapes, spatial events), not abstract qualities.'),
   mainProblem: z.string().describe('The specific visible problem in that passage — what two things compete, merge, or misalign. Empty string if none.'),
   mainStrength: z.string().describe('The specific visible strength to preserve — name the exact relationship that works. Empty string if none.'),
-  bestNextMove: z.string().describe('One concrete verb + target: what to physically do in that passage. Must name the visual element to change.'),
+  bestNextMove: z.string().min(12).regex(studioVerbPattern).describe('One concrete move + target: what to physically do in that passage. For non-Master rows, start with a change verb. For Master rows, start with a preserve verb. Must name the visual element or relationship at stake.'),
   optionalSecondMove: z.string().describe('A second distinct move if needed, or empty string.'),
   avoidDoing: z.string().describe('What not to break or overdo in that passage, or empty string.'),
-  expectedRead: z.string().describe('What the passage should look like after the move — describe the visual result.'),
+  expectedRead: z.string().min(16).describe('What the passage should look like after the move — describe the visual result.'),
   storyIfRelevant: z.string().describe('The specific narrative or dramatic situation visible in this painting, or empty string if not relevant.'),
 });
 
@@ -109,7 +111,7 @@ const critiquePhase2Schema = z.object({
 
 const critiquePhase3Schema = z.object({
   teacherNextSteps: z.string().describe(
-    `Phase 3 — Voice B expert teachers: 2-3 bullet-style or numbered steps only, derived strictly from actionPlanSteps—no extra sentences, no duplicate steps, no pasted Voice A wording. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master. Else: 1–3 steps.`
+    `Phase 3 — Voice B expert teachers: exactly ONE polished paragraph for this criterion, derived strictly from actionPlanSteps—no bullet list, no duplicate sentences, no pasted Voice A wording. It may optionally begin with "1." for UI compatibility, but it must still read as one paragraph and one primary move. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master.`
   ),
 });
 
@@ -122,7 +124,7 @@ const voiceACategorySchema = z.object({
   phase2: critiquePhase2Schema,
   confidence: confidenceEnum,
   evidenceSignals: z
-    .array(z.string())
+    .array(z.string().min(12))
     .min(2)
     .max(4)
     .describe(
@@ -185,8 +187,8 @@ export const voiceAStageResultSchema = z.object({
 const voiceBCategorySchema = z.object({
   criterion: criterionEnum,
   phase3: critiquePhase3Schema,
-  actionPlanSteps: z.array(voiceBStepSchema).min(1).max(3).describe(
-    'Voice B structured teaching steps for THIS criterion only. Prefer 1-3 high-leverage moves instead of filler.'
+  actionPlanSteps: z.array(voiceBStepSchema).length(1).describe(
+    'Voice B structured teaching steps for THIS criterion only. Exactly one primary move per criterion; if the criterion is Master, make that one step a preserve-only description.'
   ),
   voiceBPlan: voiceBPlanSchema,
   anchor: anchorSchema,
@@ -194,7 +196,7 @@ const voiceBCategorySchema = z.object({
 });
 
 const studioChangeSchema = z.object({
-  text: z.string().describe(
+  text: z.string().min(24).describe(
     `Voice B: one concrete change—where, what, how—for THIS painting only. ${VOICE_B_SCHEMA_REMINDER}`
   ),
   previewCriterion: criterionEnum,
@@ -231,18 +233,21 @@ const photoQualityReadSchema = z.object({
 
 const criterionEvidenceSchema = z.object({
   criterion: criterionEnum,
+  anchor: z.string().min(12).describe(
+    'One specific locatable anchor for this criterion: a concrete passage or junction in THIS painting that downstream stages must keep referring back to. Example: "the jaw edge against the dark collar" or "the orange sleeve where it meets the blue-gray wall".'
+  ),
   visibleEvidence: z.array(
     z.string().describe(
       'One junction-level observation for this criterion. Required shape: where on the canvas (quadrant or named motif) + thing A + thing B + what happens at their meeting (value, color temp, edge, overlap, scale). Aim for 40+ characters when the image supports it. NEVER vague area praise or "some edges." Spread observations across different parts of the picture when possible.'
     )
   ).min(4).max(8),
-  strengthRead: z.string().describe(
+  strengthRead: z.string().min(16).describe(
     'What already works for this criterion in this painting. Name the specific passage and relationship that succeeds — not "good composition" but "the diagonal of figures from lower-left to upper-right creates a clear reading path through the office."'
   ),
-  tensionRead: z.string().describe(
+  tensionRead: z.string().min(16).describe(
     'What is unresolved for this criterion, if anything. Name the specific passage and what competes, merges, or misaligns there. If nothing is genuinely unresolved, say so plainly. NEVER manufacture a tension just to fill this field.'
   ),
-  preserve: z.string().describe(
+  preserve: z.string().min(16).describe(
     'What specific relationship in this painting must survive any revision for this criterion. Name the passage and the visual event to protect.'
   ),
   confidence: confidenceEnum,
