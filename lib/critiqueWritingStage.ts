@@ -1,8 +1,10 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
+import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
 import {
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_B_COMPOSITE_TEACHERS,
 } from '../shared/critiqueVoiceA.js';
+import { z } from 'zod';
 import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 import {
@@ -15,11 +17,13 @@ import {
 } from './critiquePhasePromptBlocks.js';
 import {
   VOICE_A_OPENAI_SCHEMA,
-  VOICE_B_OPENAI_SCHEMA,
+  studioChangeSchema,
   type VoiceAStageResult,
   type VoiceBStageResult,
+  voiceBCategorySchema,
   voiceAStageResultSchema,
   voiceBStageResultSchema,
+  toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
 import {
   validateCritiqueGrounding,
@@ -315,6 +319,91 @@ Return JSON only matching the schema.`;
 const VOICE_A_MAX_TOKENS = 4800;
 const VOICE_B_MAX_TOKENS = 7200;
 const MAX_STAGE_ATTEMPTS = 3;
+const VOICE_B_CRITERIA_PER_PASS = 2;
+
+type VoiceBCategoryResult = VoiceBStageResult['categories'][number];
+
+type VoiceBCategoryPassResult = {
+  categories: VoiceBCategoryResult[];
+};
+
+type VoiceBSummaryPassResult = {
+  overallSummary: {
+    topPriorities: string[];
+  };
+  studioChanges: VoiceBStageResult['studioChanges'];
+};
+
+function chunkCriteria<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function filterEvidenceForCriteria(
+  evidence: CritiqueEvidenceDTO,
+  criteria: readonly CriterionLabel[]
+): CritiqueEvidenceDTO {
+  const allowed = new Set(criteria);
+  return {
+    ...evidence,
+    criterionEvidence: evidence.criterionEvidence.filter((entry) =>
+      allowed.has(entry.criterion)
+    ),
+  };
+}
+
+function filterVoiceAForCriteria(
+  voiceA: VoiceAStageResult,
+  criteria: readonly CriterionLabel[]
+): VoiceAStageResult {
+  const allowed = new Set(criteria);
+  return {
+    ...voiceA,
+    categories: voiceA.categories.filter((category) =>
+      allowed.has(category.criterion as CriterionLabel)
+    ),
+  };
+}
+
+function orderedVoiceBCategories(
+  categories: readonly VoiceBCategoryResult[]
+): VoiceBCategoryResult[] {
+  const byCriterion = new Map(categories.map((category) => [category.criterion, category] as const));
+  return CRITERIA_ORDER.map((criterion) => {
+    const category = byCriterion.get(criterion);
+    if (!category) throw new Error(`Voice B category missing: ${criterion}`);
+    return category;
+  });
+}
+
+function createVoiceBCategoryPassSchema(criteria: readonly CriterionLabel[]) {
+  const criterionSubsetEnum = z.enum(criteria as [CriterionLabel, ...CriterionLabel[]]);
+  const categorySchema = voiceBCategorySchema.extend({
+    criterion: criterionSubsetEnum,
+  });
+  return z.object({
+    categories: z.array(categorySchema).length(criteria.length),
+  });
+}
+
+const voiceBSummaryPassSchema = z.object({
+  overallSummary: z.object({
+    topPriorities: z.array(
+      z.string().describe(
+        'Voice B top priority only for THIS painting. Start with one primary action tied to a visible passage.'
+      )
+    ).min(1).max(2),
+  }),
+  studioChanges: z.array(studioChangeSchema).min(2).max(5),
+});
+
+const VOICE_B_SUMMARY_OPENAI_SCHEMA = toOpenAIJsonSchema(
+  'painting_critique_voice_b_summary',
+  voiceBSummaryPassSchema
+);
 
 function buildVoiceAUserPrompt(evidence: CritiqueEvidenceDTO, repairNote?: string): string {
   const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildVoiceASchemaInstruction()}`;
@@ -322,12 +411,57 @@ function buildVoiceAUserPrompt(evidence: CritiqueEvidenceDTO, repairNote?: strin
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
 
-function buildVoiceBUserPrompt(
+function buildVoiceBCategoryPassPrompt(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO,
+  criteria: readonly CriterionLabel[],
+  calibration?: CritiqueCalibrationDTO
+): string {
+  const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
+  return `${buildWritingPrompt(style, medium, evidence, calibration)}
+
+This Voice B pass is limited to these criteria only, in this exact order:
+${criterionList}
+
+Return ONLY the categories array for those criteria in that exact order.
+Do NOT return overallSummary or studioChanges in this pass. Those are handled separately after the per-criterion teaching plans are fixed.`;
+}
+
+function buildVoiceBCategoryPassUserPrompt(
   evidence: CritiqueEvidenceDTO,
   voiceA: VoiceAStageResult,
+  criteria: readonly CriterionLabel[],
   repairNote?: string
 ): string {
-  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\n${buildVoiceBSchemaInstruction()}`;
+  const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
+  const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
+  const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  if (!repairNote) return base;
+  return `${base}\n\nCorrection required on retry:\n${repairNote}`;
+}
+
+function buildVoiceBSummaryPassPrompt(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO,
+  calibration?: CritiqueCalibrationDTO
+): string {
+  return `${buildWritingPrompt(style, medium, evidence, calibration)}
+
+This Voice B pass is for cross-criterion synthesis only.
+Return ONLY overallSummary.topPriorities and studioChanges.
+Do NOT return categories in this pass. The per-criterion Voice B category plans are already fixed and will be supplied in the user message.`;
+}
+
+function buildVoiceBSummaryPassUserPrompt(
+  evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult,
+  categories: readonly VoiceBCategoryResult[],
+  repairNote?: string
+): string {
+  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\nFixed Voice B category plans already generated for this painting:\n${JSON.stringify({ categories })}\n\n${buildVoiceBSchemaInstruction()}\n\nReturn ONLY overallSummary.topPriorities and studioChanges. Base them on the fixed Voice B category plans above; do not invent new category-level moves.`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -446,25 +580,129 @@ export async function runCritiqueVoiceBStage(
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
   voiceA: VoiceAStageResult,
-  calibration?: CritiqueCalibrationDTO,
-  repairNote?: string
+  calibration?: CritiqueCalibrationDTO
 ): Promise<VoiceBStageResult> {
-  const raw = await runSchemaStage(
-    apiKey,
-    model,
-    buildWritingPrompt(style, body.medium, evidence, calibration),
-    buildVoiceBUserPrompt(evidence, voiceA, repairNote),
-    VOICE_B_OPENAI_SCHEMA,
-    VOICE_B_MAX_TOKENS
-  );
-  const parsed = voiceBStageResultSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new CritiqueValidationError('Voice B schema validation failed.', {
-      stage: 'voice_b',
-      details: [parsed.error.message],
-    });
+  const acceptedCategories: VoiceBCategoryResult[] = [];
+  const criterionBatches = chunkCriteria(CRITERIA_ORDER, VOICE_B_CRITERIA_PER_PASS);
+
+  for (const criteria of criterionBatches) {
+    const batchSchema = createVoiceBCategoryPassSchema(criteria);
+    const batchOpenAiSchema = toOpenAIJsonSchema(
+      `painting_critique_voice_b_${criteria
+        .map((criterion) => criterion.toLowerCase().replace(/[^\w]+/g, '_'))
+        .join('_')}`,
+      batchSchema
+    );
+    let repairNote: string | undefined;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
+      try {
+        const raw = await runSchemaStage(
+          apiKey,
+          model,
+          buildVoiceBCategoryPassPrompt(style, body.medium, evidence, criteria, calibration),
+          buildVoiceBCategoryPassUserPrompt(evidence, voiceA, criteria, repairNote),
+          batchOpenAiSchema,
+          VOICE_B_MAX_TOKENS
+        );
+        const parsed = batchSchema.safeParse(raw);
+        if (!parsed.success) {
+          throw new CritiqueValidationError('Voice B schema validation failed.', {
+            stage: 'voice_b',
+            details: [parsed.error.message],
+          });
+        }
+        const combined = validateVoiceBStageOutput(
+          {
+            overallSummary: { topPriorities: [] },
+            studioChanges: [],
+            categories: [...acceptedCategories, ...parsed.data.categories],
+          } as VoiceBStageResult,
+          voiceA,
+          evidence
+        );
+        acceptedCategories.splice(0, acceptedCategories.length, ...combined.categories);
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === MAX_STAGE_ATTEMPTS) {
+          const criteriaLabel = criteria.join(', ');
+          throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
+            stage: 'voice_b',
+            details: [`Criteria batch failed: ${criteriaLabel}`, ...errorDetails(error)],
+            cause: error,
+          });
+        }
+        repairNote = buildRepairNote(
+          `Previous Voice B attempt failed for criteria: ${criteria.join(', ')}. ${errorMessage(error)}`,
+          error
+        );
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
   }
-  return validateVoiceBStageOutput(parsed.data as VoiceBStageResult, voiceA, evidence);
+
+  const orderedCategories = orderedVoiceBCategories(acceptedCategories);
+  let summaryRepairNote: string | undefined;
+  let lastSummaryError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
+    try {
+      const raw = await runSchemaStage(
+        apiKey,
+        model,
+        buildVoiceBSummaryPassPrompt(style, body.medium, evidence, calibration),
+        buildVoiceBSummaryPassUserPrompt(evidence, voiceA, orderedCategories, summaryRepairNote),
+        VOICE_B_SUMMARY_OPENAI_SCHEMA,
+        VOICE_B_MAX_TOKENS
+      );
+      const parsed = voiceBSummaryPassSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new CritiqueValidationError('Voice B summary schema validation failed.', {
+          stage: 'voice_b',
+          details: [parsed.error.message],
+        });
+      }
+      const validated = validateVoiceBStageOutput(
+        {
+          overallSummary: parsed.data.overallSummary,
+          studioChanges: parsed.data.studioChanges,
+          categories: orderedCategories,
+        },
+        voiceA,
+        evidence
+      );
+      return {
+        overallSummary: validated.overallSummary,
+        studioChanges: validated.studioChanges,
+        categories: orderedCategories,
+      };
+    } catch (error) {
+      lastSummaryError = error;
+      if (attempt === MAX_STAGE_ATTEMPTS) {
+        throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
+          stage: 'voice_b',
+          details: ['Voice B summary pass failed.', ...errorDetails(error)],
+          cause: error,
+        });
+      }
+      summaryRepairNote = buildRepairNote(
+        `Previous Voice B summary attempt failed: ${errorMessage(error)}`,
+        error
+      );
+    }
+  }
+
+  throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
+    stage: 'voice_b',
+    details: ['Voice B summary pass failed.', ...errorDetails(lastSummaryError)],
+    cause: lastSummaryError,
+  });
 }
 
 function mergeVoiceStages(
@@ -512,44 +750,17 @@ export async function runCritiqueWritingStage(
   calibration?: CritiqueCalibrationDTO
 ): Promise<CritiqueResultDTO> {
   const voiceA = await runCritiqueVoiceAStage(apiKey, model, style, body, evidence, calibration);
-  let repairNote: string | undefined;
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
-    try {
-      const voiceB = await runCritiqueVoiceBStage(
-        apiKey,
-        model,
-        style,
-        body,
-        evidence,
-        voiceA,
-        calibration,
-        repairNote
-      );
-      const merged = mergeVoiceStages(voiceA, voiceB);
-      const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
-      assertCritiqueQualityGate(validated);
-      return validated;
-    } catch (error) {
-      lastError = error;
-      if (attempt === MAX_STAGE_ATTEMPTS) {
-        throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
-          stage: 'voice_b',
-          details: errorDetails(error),
-          cause: error,
-        });
-      }
-      repairNote = buildRepairNote(
-        `Previous Voice B attempt failed: ${errorMessage(error)}`,
-        error
-      );
-    }
-  }
-
-  throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
-    stage: 'voice_b',
-    details: errorDetails(lastError),
-    cause: lastError,
-  });
+  const voiceB = await runCritiqueVoiceBStage(
+    apiKey,
+    model,
+    style,
+    body,
+    evidence,
+    voiceA,
+    calibration
+  );
+  const merged = mergeVoiceStages(voiceA, voiceB);
+  const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
+  assertCritiqueQualityGate(validated);
+  return validated;
 }

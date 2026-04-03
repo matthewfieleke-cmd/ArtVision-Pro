@@ -184,7 +184,7 @@ export const voiceAStageResultSchema = z.object({
 // Voice B stage result
 // ---------------------------------------------------------------------------
 
-const voiceBCategorySchema = z.object({
+export const voiceBCategorySchema = z.object({
   criterion: criterionEnum,
   phase3: critiquePhase3Schema,
   actionPlanSteps: z.array(voiceBStepSchema).length(1).describe(
@@ -195,7 +195,7 @@ const voiceBCategorySchema = z.object({
   editPlan: editPlanSchema,
 });
 
-const studioChangeSchema = z.object({
+export const studioChangeSchema = z.object({
   text: z.string().min(24).describe(
     `Voice B: one concrete change—where, what, how—for THIS painting only. ${VOICE_B_SCHEMA_REMINDER}`
   ),
