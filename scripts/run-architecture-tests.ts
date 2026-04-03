@@ -677,8 +677,16 @@ function testCritiqueGuardrails(): void {
     /soften|sharpen|preserve|keep|separate/i
   );
   assert.equal(
-    rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
-    'Define certain edges more clearly to enhance the focus hierarchy.'
+    /foreground chair back|interior chair bars|face/i.test(
+      rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text
+    ),
+    true
+  );
+  assert.equal(
+    /soften|sharpen|preserve|keep|separate/i.test(
+      rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text
+    ),
+    true
   );
 
   const inlineNumbered = {
@@ -913,8 +921,8 @@ function testWritingPromptDemandsConcreteAnchors(): void {
   );
   assert.match(prompt, /Voice B planning structure \(required for all eight categories\):/);
   assert.match(prompt, /categories\[\]\.voiceBPlan is Voice B's teacher note to self/);
-  assert.match(prompt, /categories\[\]\.actionPlanSteps must contain 1-3 high-leverage steps only/);
-  assert.match(prompt, /Make categories\[\]\.phase3\.teacherNextSteps a readable numbered rendering of categories\[\]\.actionPlanSteps/);
+  assert.match(prompt, /one paragraph and one primary move only/);
+  assert.match(prompt, /derived from categories\[\]\.actionPlanSteps/);
 }
 
 function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
@@ -1139,14 +1147,6 @@ function testStructuredVoiceBPlanFlow(): void {
             expectedRead: 'the figure regains priority without changing the room structure',
             preserve: 'the bright window strip and the shirt-to-wall contrast',
             priority: 'primary',
-          },
-          {
-            area: 'the left window strip',
-            currentRead: 'it already provides the clearest lateral pull in the room',
-            move: 'leave the light strip and its shirt relationship intact',
-            expectedRead: 'the room keeps its current scaffold while the chair competes less',
-            preserve: 'the current window-to-shirt value pattern',
-            priority: 'secondary',
           },
         ],
         voiceBPlan: {
@@ -1513,7 +1513,7 @@ function testStructuredVoiceBPlanFlow(): void {
 
   const validated = validateCritiqueResult(raw);
   const composition = validated.categories[1]!;
-  assert.equal(composition.actionPlanSteps?.length, 2);
+  assert.equal(composition.actionPlanSteps?.length, 1);
   assert.equal(composition.voiceBPlan?.bestNextMove, 'Soften the interior chair bars while keeping the silhouette intact.');
 
   const finalized = finalizeCritiqueResult(validated as unknown as CritiqueResult, {
@@ -1521,7 +1521,7 @@ function testStructuredVoiceBPlanFlow(): void {
   });
   const finalizedComposition = finalized.categories[1]!;
   assert.match(finalizedComposition.phase3.teacherNextSteps, /1\. In the foreground chair back/i);
-  assert.match(finalizedComposition.phase3.teacherNextSteps, /2\. In the left window strip/i);
+  assert.doesNotMatch(finalizedComposition.phase3.teacherNextSteps, /2\./i);
 }
 
 function testZodSchemaRoundTrip(): void {
