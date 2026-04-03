@@ -98,7 +98,12 @@ const MAX_STAGE_ATTEMPTS = 3;
 function buildEvidenceRepairNote(error: unknown): string {
   return `Previous evidence attempt failed: ${errorMessage(error)}\n${errorDetails(error)
     .map((detail) => `- ${detail}`)
-    .join('\n')}\nRegenerate the full evidence JSON. Use one concrete anchor per criterion, keep every claim visible, and do not change the schema.`;
+    .join('\n')}\nRegenerate the full evidence JSON. Use one concrete anchor per criterion, keep every claim visible, and do not change the schema.
+
+Critical anchor rule:
+- Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
+- For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
+- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.`;
 }
 
 async function runCritiqueEvidenceStageWithRetries(
