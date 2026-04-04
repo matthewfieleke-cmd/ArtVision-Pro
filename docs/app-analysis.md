@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**ArtVision Pro** is a mobile-first Progressive Web App (PWA) for **painting critique**. Users photograph or upload a painting, select its style and medium, and receive an AI-powered critique across eight artistic criteria — complete with per-criterion scores, actionable feedback, studio-change recommendations, and optional AI-generated "preview edits" that visualize proposed improvements. The app degrades gracefully to browser-side heuristic analysis when no API is available.
+**ArtVision Pro** is a mobile-first Progressive Web App (PWA) for **painting critique**. Users photograph or upload a painting, select its style and medium, and receive an AI-powered critique across eight artistic criteria — complete with per-criterion scores, actionable feedback, studio-change recommendations, and optional AI-generated "preview edits" that visualize proposed improvements.
 
 ---
 
@@ -33,11 +33,11 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Browser (PWA)                        │
-│  ┌──────────────┐  ┌───────────┐  ┌──────────────────┐ │
-│  │  React App   │  │ Heuristic │  │  localStorage    │ │
-│  │  (src/)      │──│ Fallback  │  │  persistence     │ │
-│  │  HashRouter  │  │ analysis  │  │  (paintings)     │ │
-│  └──────┬───────┘  └───────────┘  └──────────────────┘ │
+│  ┌──────────────┐                 ┌──────────────────┐ │
+│  │  React App   │                 │  localStorage    │ │
+│  │  (src/)      │                 │  persistence     │ │
+│  │  HashRouter  │                 │  (paintings)     │ │
+│  └──────┬───────┘                 └──────────────────┘ │
 │         │ fetch /api/*                                  │
 └─────────┼───────────────────────────────────────────────┘
           │
@@ -66,7 +66,7 @@ This is a **single-product, client-heavy architecture** — not a monorepo or mi
 
 | Directory | Purpose |
 |-----------|---------|
-| `src/` | React SPA — UI components, screens, hooks, state management, heuristic analysis, API clients |
+| `src/` | React SPA — UI components, screens, hooks, state management, API clients |
 | `lib/` | Server-side logic — API handler dispatch, OpenAI integrations, critique pipeline (validation, audit, calibration, writing stages) |
 | `api/` | Vercel serverless function entrypoints — thin wrappers delegating to `lib/apiHandlers.ts` |
 | `server/` | Local dev HTTP server (`dev-api.ts`) — mirrors Vercel routes for development parity |
@@ -117,10 +117,9 @@ Key components: `BottomNav`, `DesktopSidebar`, `CritiquePanels`, `ImageCropModal
 - **`sessionStorage`** (`navIntent.ts`) — preserves tab and critique flow state when navigating to hash routes and back.
 - **`localStorage`** (`storage.ts`) — persists saved paintings under `artvision-pro-paintings-v1` with forward-compatible migrations.
 
-### Dual Analysis Path
+### Analysis Path
 
-1. **API path** (`shouldTryApiFirst`): Sends image to `/api/critique` → OpenAI vision model → structured critique response.
-2. **Heuristic fallback** (`analyzePainting.ts`): Computes `imageMetrics` in-browser, classifies style/medium from pixel statistics, generates local critique. Activated when API is unreachable or `VITE_USE_LOCAL_CRITIQUE=true`.
+The app sends the image to `/api/critique` → OpenAI vision model → structured critique response. All critique, classification, and preview-edit features require a reachable API.
 
 ---
 
@@ -193,7 +192,7 @@ Supporting infrastructure:
 
 - `npm run dev` — Runs Vite + local API server concurrently.
 - Vite proxies `/api/*` to `127.0.0.1:8787` (the local Node server).
-- `npm run dev:ui` — UI only; uses heuristic analysis.
+- `npm run dev:ui` — UI only (no API server); for front-end work that doesn't need critique.
 
 ---
 
@@ -232,17 +231,15 @@ npm run build             # tsc -b → server typecheck → vite build
 
 1. **Dual runtime API parity** — Production Vercel handlers and local dev server share the same `handleApiRequest` / `resolveApiRoute` logic, ensuring identical behavior.
 
-2. **Graceful degradation** — Every AI feature has a browser-side fallback: heuristic critique from `imageMetrics`, pixel-based style/medium classifiers.
+2. **Typed state machine** — `critiqueFlow.ts` models the wizard as discriminated unions by `step` and `mode` (`new` vs `resubmit`), eliminating impossible states.
 
-3. **Typed state machine** — `critiqueFlow.ts` models the wizard as discriminated unions by `step` and `mode` (`new` vs `resubmit`), eliminating impossible states.
+3. **Preview-edit job deduplication** — `previewEditJobStore.ts` prevents duplicate OpenAI calls for the same logical request using a TTL-keyed map.
 
-4. **Preview-edit job deduplication** — `previewEditJobStore.ts` prevents duplicate OpenAI calls for the same logical request using a TTL-keyed map.
+4. **Hash routing for static hosting** — `HashRouter` sidesteps server-side routing requirements on GitHub Pages.
 
-5. **Hash routing for static hosting** — `HashRouter` sidesteps server-side routing requirements on GitHub Pages.
+5. **Progressive enhancement** — PWA with service worker, offline-capable for previously loaded content; wake lock during analysis; visibility-change retry.
 
-6. **Progressive enhancement** — PWA with service worker, offline-capable for previously loaded content; wake lock during analysis; visibility-change retry.
-
-7. **Forward-compatible persistence** — `storage.ts` includes migration paths for older save formats (e.g., `previewEdit` → `previewEdits[]`).
+6. **Forward-compatible persistence** — `storage.ts` includes migration paths for older save formats (e.g., `previewEdit` → `previewEdits[]`).
 
 ---
 
