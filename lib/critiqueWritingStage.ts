@@ -1,5 +1,5 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
-import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
+import { CRITERIA_ORDER, canonicalCriterionLabel, type CriterionLabel } from '../shared/criteria.js';
 import type { CritiqueCategory } from '../shared/critiqueContract.js';
 import {
   VOICE_A_COMPOSITE_EXPERTS,
@@ -396,6 +396,14 @@ function orderedVoiceBCategories(
   });
 }
 
+function canonicalCriterionOrThrow(criterion: string): CriterionLabel {
+  const canonical = canonicalCriterionLabel(criterion);
+  if (!canonical) {
+    throw new Error(`Unknown criterion label: ${criterion}`);
+  }
+  return canonical;
+}
+
 function summaryEvidenceForCriterion(
   evidence: CritiqueEvidenceDTO,
   criterion: CriterionLabel
@@ -439,7 +447,10 @@ function rankedSummaryCategories(
           ? VOICE_B_SUMMARY_LEVEL_RANK[b.level as keyof typeof VOICE_B_SUMMARY_LEVEL_RANK]
           : VOICE_B_SUMMARY_LEVEL_RANK.Intermediate;
       if (aRank !== bRank) return aRank - bRank;
-      return CRITERIA_ORDER.indexOf(a.category.criterion) - CRITERIA_ORDER.indexOf(b.category.criterion);
+      return (
+        CRITERIA_ORDER.indexOf(canonicalCriterionOrThrow(a.category.criterion)) -
+        CRITERIA_ORDER.indexOf(canonicalCriterionOrThrow(b.category.criterion))
+      );
     });
 }
 
@@ -487,9 +498,10 @@ function synthesizedStudioChange(
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
   level?: VoiceAStageResult['categories'][number]['level']
 ): StudioChangeDTO {
+  const previewCriterion = canonicalCriterionOrThrow(category.criterion);
   if (level === 'Master') {
     return {
-      previewCriterion: category.criterion,
+      previewCriterion,
       text: ensureTerminalPunctuation(
         `Preserve ${category.anchor.evidencePointer} in ${category.anchor.areaSummary}.`
       ),
@@ -498,7 +510,7 @@ function synthesizedStudioChange(
 
   const groundedCategory = normalizeVoiceBCategoryGrounding(category, criterionEvidence, level);
   return {
-    previewCriterion: groundedCategory.criterion,
+    previewCriterion: canonicalCriterionOrThrow(groundedCategory.criterion),
     text: synthesizedStudioChangeText(groundedCategory, criterionEvidence, level),
   };
 }
@@ -516,11 +528,19 @@ export function synthesizeVoiceBSummaryFromCategories(
   return {
     overallSummary: {
       topPriorities: topPriorityEntries.map(({ category, level }) =>
-        synthesizedPriorityLine(category, summaryEvidenceForCriterion(evidence, category.criterion), level)
+        synthesizedPriorityLine(
+          category,
+          summaryEvidenceForCriterion(evidence, canonicalCriterionOrThrow(category.criterion)),
+          level
+        )
       ),
     },
     studioChanges: studioChangeEntries.map(({ category, level }) =>
-      synthesizedStudioChange(category, summaryEvidenceForCriterion(evidence, category.criterion), level)
+      synthesizedStudioChange(
+        category,
+        summaryEvidenceForCriterion(evidence, canonicalCriterionOrThrow(category.criterion)),
+        level
+      )
     ),
   };
 }
