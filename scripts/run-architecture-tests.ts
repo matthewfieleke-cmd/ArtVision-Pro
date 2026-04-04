@@ -11,6 +11,7 @@ import { splitNumberedSteps } from '../lib/numberedSteps.ts';
 import { buildHighDetailImageMessage } from '../lib/openaiVisionContent.js';
 import { buildEvidenceStagePrompt } from '../lib/critiqueEvidenceStage.js';
 import { buildEvidenceRepairNote } from '../lib/openaiCritique.ts';
+import { CritiqueRetryExhaustedError, serializeCritiquePipelineError } from '../lib/critiqueErrors.js';
 import { migrateLegacySimpleFeedback, validateCritiqueResult } from '../lib/critiqueValidation.js';
 import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
@@ -970,6 +971,35 @@ function testEvidenceRepairNoteDemandsAnchorSupport(): void {
     repair,
     /If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again/
   );
+}
+
+function testSerializedPipelineErrorIncludesDebugMetadata(): void {
+  const error = new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', 3, {
+    stage: 'evidence',
+    details: ['Visible evidence does not support anchor for Composition and shape structure'],
+    debug: {
+      attempts: [
+        {
+          attempt: 1,
+          error: 'Evidence stage validation failed.',
+          details: ['Visible evidence does not support anchor for Composition and shape structure'],
+          rawPreview: '{"criterionEvidence":[{"criterion":"Composition and shape structure"}]}',
+        },
+      ],
+    },
+  });
+  const serialized = serializeCritiquePipelineError(error);
+  assert.equal(serialized.attempts, 3);
+  assert.deepEqual(serialized.debug, {
+    attempts: [
+      {
+        attempt: 1,
+        error: 'Evidence stage validation failed.',
+        details: ['Visible evidence does not support anchor for Composition and shape structure'],
+        rawPreview: '{"criterionEvidence":[{"criterion":"Composition and shape structure"}]}',
+      },
+    ],
+  });
 }
 
 function testValidationErrorDetailsAreHumanized(): void {
