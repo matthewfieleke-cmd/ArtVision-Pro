@@ -17,10 +17,14 @@ import {
 } from './critiquePhasePromptBlocks.js';
 import {
   VOICE_A_OPENAI_SCHEMA,
+  anchorSchema,
+  editPlanSchema,
   studioChangeSchema,
   type VoiceAStageResult,
   type VoiceBStageResult,
   voiceBCategorySchema,
+  voiceBPlanSchema,
+  voiceBStepSchema,
   voiceAStageResultSchema,
   toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
@@ -335,6 +339,12 @@ const VOICE_B_ALLOWED_LEAD_VERBS =
 
 type VoiceBCategoryResult = VoiceBStageResult['categories'][number];
 
+type SchemaStageDebugContext = {
+  stage: 'voice_a' | 'voice_b' | 'voice_b_summary';
+  attempt: number;
+  criteria?: readonly CriterionLabel[];
+};
+
 function chunkCriteria<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -472,9 +482,66 @@ function createVoiceBCategoryPassSchema(
     criteria.map((criterion) => [criterion, voiceALevelForCriterion(voiceA, criterion)] as const)
   );
   const criterionSubsetEnum = z.enum(criteria as [CriterionLabel, ...CriterionLabel[]]);
+  const changeVerbRegex = new RegExp(CRITIQUE_CHANGE_VERB_PATTERN.source, 'i');
+  const preserveVerbRegex = new RegExp(CRITIQUE_PRESERVE_VERB_PATTERN.source, 'i');
+  const masterStepSchema = voiceBStepSchema.extend({
+    move: z.string().min(12).regex(preserveVerbRegex),
+  });
+  const nonMasterStepSchema = voiceBStepSchema.extend({
+    move: z.string().min(12).regex(changeVerbRegex),
+  });
+  const masterVoiceBPlanSchema = voiceBPlanSchema.extend({
+    bestNextMove: z.string().min(12).regex(preserveVerbRegex),
+  });
+  const nonMasterVoiceBPlanSchema = voiceBPlanSchema.extend({
+    bestNextMove: z.string().min(12).regex(changeVerbRegex),
+  });
+  const masterEditPlanSchema = editPlanSchema.extend({
+    intendedChange: z.string().min(12).regex(preserveVerbRegex),
+  });
+  const nonMasterEditPlanSchema = editPlanSchema.extend({
+    intendedChange: z.string().min(12).regex(changeVerbRegex),
+  });
   const categorySchema = voiceBCategorySchema
     .extend({
       criterion: criterionSubsetEnum,
+    })
+    .transform((category, ctx) => {
+      const level = levelsByCriterion.get(category.criterion);
+      if (!level) return category;
+
+      const branchSchema =
+        level === 'Master'
+          ? z.object({
+              actionPlanSteps: z.array(masterStepSchema).length(1),
+              voiceBPlan: masterVoiceBPlanSchema,
+              anchor: anchorSchema,
+              editPlan: masterEditPlanSchema,
+            })
+          : z.object({
+              actionPlanSteps: z.array(nonMasterStepSchema).length(1),
+              voiceBPlan: nonMasterVoiceBPlanSchema,
+              anchor: anchorSchema,
+              editPlan: nonMasterEditPlanSchema,
+            });
+
+      const result = branchSchema.safeParse({
+        actionPlanSteps: category.actionPlanSteps,
+        voiceBPlan: category.voiceBPlan,
+        anchor: category.anchor,
+        editPlan: category.editPlan,
+      });
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: issue.message,
+            path: issue.path,
+          });
+        }
+        return z.NEVER;
+      }
+      return category;
     })
     .superRefine((category, ctx) => {
       const level = levelsByCriterion.get(category.criterion);
@@ -642,6 +709,32 @@ function buildRepairNote(prefix: string, error: unknown): string {
   return `${prefix}\n${errorDetails(error).map((detail) => `- ${detail}`).join('\n')}\nRegenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
 
+function summarizeRawForLog(raw: unknown): string {
+  try {
+    const serialized = JSON.stringify(raw);
+    if (!serialized) return '[unserializable raw payload]';
+    return serialized.length > 4000 ? `${serialized.slice(0, 4000)}…[truncated]` : serialized;
+  } catch {
+    return '[unserializable raw payload]';
+  }
+}
+
+function logSchemaAttemptFailure(
+  context: SchemaStageDebugContext,
+  error: unknown,
+  raw?: unknown
+): void {
+  const payload = {
+    stage: context.stage,
+    attempt: context.attempt,
+    ...(context.criteria ? { criteria: [...context.criteria] } : {}),
+    error: errorMessage(error),
+    details: errorDetails(error),
+    ...(raw !== undefined ? { rawPreview: summarizeRawForLog(raw) } : {}),
+  };
+  console.error('[critique schema attempt failed]', payload);
+}
+
 function buildVoiceBRepairNote(
   prefix: string,
   error: unknown,
@@ -780,6 +873,14 @@ export async function runCritiqueVoiceAStage(
       );
       const parsed = voiceAStageResultSchema.safeParse(raw);
       if (!parsed.success) {
+        logSchemaAttemptFailure(
+          { stage: 'voice_a', attempt },
+          new CritiqueValidationError('Voice A schema validation failed.', {
+            stage: 'voice_a',
+            details: [parsed.error.message],
+          }),
+          raw
+        );
         throw new CritiqueValidationError('Voice A schema validation failed.', {
           stage: 'voice_a',
           details: [parsed.error.message],
@@ -788,6 +889,9 @@ export async function runCritiqueVoiceAStage(
       return validateVoiceAStageOutput(parsed.data as VoiceAStageResult, evidence);
     } catch (error) {
       lastError = error;
+      if (!(error instanceof CritiqueValidationError)) {
+        logSchemaAttemptFailure({ stage: 'voice_a', attempt }, error);
+      }
       if (attempt === MAX_STAGE_ATTEMPTS) {
         throw new CritiqueRetryExhaustedError('Voice A stage exhausted retries.', attempt, {
           stage: 'voice_a',
@@ -842,6 +946,14 @@ export async function runCritiqueVoiceBStage(
         );
         const parsed = batchSchema.safeParse(raw);
         if (!parsed.success) {
+          logSchemaAttemptFailure(
+            { stage: 'voice_b', attempt, criteria },
+            new CritiqueValidationError('Voice B schema validation failed.', {
+              stage: 'voice_b',
+              details: [parsed.error.message],
+            }),
+            raw
+          );
           throw new CritiqueValidationError('Voice B schema validation failed.', {
             stage: 'voice_b',
             details: [parsed.error.message],
@@ -870,6 +982,9 @@ export async function runCritiqueVoiceBStage(
         break;
       } catch (error) {
         lastError = error;
+        if (!(error instanceof CritiqueValidationError)) {
+          logSchemaAttemptFailure({ stage: 'voice_b', attempt, criteria }, error);
+        }
         if (attempt === MAX_STAGE_ATTEMPTS) {
           const criteriaLabel = criteria.join(', ');
           throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
@@ -908,6 +1023,14 @@ export async function runCritiqueVoiceBStage(
       );
       const parsed = voiceBSummaryPassSchema.safeParse(raw);
       if (!parsed.success) {
+        logSchemaAttemptFailure(
+          { stage: 'voice_b_summary', attempt },
+          new CritiqueValidationError('Voice B summary schema validation failed.', {
+            stage: 'voice_b',
+            details: [parsed.error.message],
+          }),
+          raw
+        );
         throw new CritiqueValidationError('Voice B summary schema validation failed.', {
           stage: 'voice_b',
           details: [parsed.error.message],
@@ -929,6 +1052,9 @@ export async function runCritiqueVoiceBStage(
       };
     } catch (error) {
       lastSummaryError = error;
+      if (!(error instanceof CritiqueValidationError)) {
+        logSchemaAttemptFailure({ stage: 'voice_b_summary', attempt }, error);
+      }
       if (attempt === MAX_STAGE_ATTEMPTS) {
         throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
           stage: 'voice_b',

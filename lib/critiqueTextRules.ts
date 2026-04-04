@@ -30,18 +30,18 @@ export const GENERIC_TEACHER_PATTERNS: RegExp[] = [
   /\bmake it more dynamic\b/i,
 ];
 
-/** Anchors that are too vague for grounding checks. */
+/** Anchors that are too vague for grounding checks (whole label only, not substrings). */
 export const GENERIC_ANCHOR_PATTERNS: RegExp[] = [
-  /\bthe background\b/i,
-  /\bthe foreground\b/i,
-  /\bleft side of the painting\b/i,
-  /\bright side of the painting\b/i,
-  /\bcenter of the painting\b/i,
-  /\bthe painting overall\b/i,
-  /\bcomposition overall\b/i,
-  /\barrangement of elements\b/i,
-  /\bspatial relationships\b/i,
-  /\bcompositional flow\b/i,
+  /^\s*the background\s*$/i,
+  /^\s*the foreground\s*$/i,
+  /^\s*left side of the painting\s*$/i,
+  /^\s*right side of the painting\s*$/i,
+  /^\s*center of the painting\s*$/i,
+  /^\s*the painting overall\s*$/i,
+  /^\s*composition overall\s*$/i,
+  /^\s*arrangement of elements\s*$/i,
+  /^\s*spatial relationships\s*$/i,
+  /^\s*compositional flow\s*$/i,
 ];
 
 /**

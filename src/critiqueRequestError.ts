@@ -1,5 +1,6 @@
 import {
   CritiqueGroundingError,
+  type CritiqueDebugPayload,
   type CritiquePipelineErrorPayload,
   type CritiqueStageName,
   CritiqueRetryExhaustedError,
@@ -32,6 +33,7 @@ type CreateCritiqueRequestErrorArgs = {
   details?: string[];
   attempts?: number;
   backendErrorName?: string;
+  debug?: CritiqueDebugPayload;
 };
 
 export class CritiqueRequestError extends Error {
@@ -44,6 +46,7 @@ export class CritiqueRequestError extends Error {
   readonly details: string[];
   readonly attempts?: number;
   readonly backendErrorName?: string;
+  readonly debug?: CritiqueDebugPayload;
 
   constructor(args: {
     operation: CritiqueRequestOperation;
@@ -56,6 +59,7 @@ export class CritiqueRequestError extends Error {
     details?: string[];
     attempts?: number;
     backendErrorName?: string;
+    debug?: CritiqueDebugPayload;
   }) {
     super(args.message);
     this.name = 'CritiqueRequestError';
@@ -68,6 +72,7 @@ export class CritiqueRequestError extends Error {
     this.details = args.details ?? [];
     this.attempts = args.attempts;
     this.backendErrorName = args.backendErrorName;
+    this.debug = args.debug;
   }
 }
 
@@ -195,6 +200,7 @@ export function createCritiqueRequestError(
     details: args.details,
     attempts: args.attempts,
     backendErrorName: args.backendErrorName,
+    debug: args.debug,
   });
 }
 
@@ -212,7 +218,11 @@ export function isCritiquePipelineErrorPayload(
       candidate.stage === 'final') &&
     Array.isArray(candidate.details) &&
     candidate.details.every((detail) => typeof detail === 'string') &&
-    (candidate.attempts === undefined || typeof candidate.attempts === 'number')
+    (candidate.attempts === undefined || typeof candidate.attempts === 'number') &&
+    (candidate.debug === undefined ||
+      (typeof candidate.debug === 'object' &&
+        candidate.debug !== null &&
+        Array.isArray((candidate.debug as { attempts?: unknown }).attempts)))
   );
 }
 
@@ -264,6 +274,7 @@ export function normalizeCritiqueRequestError(
       details: error.details,
       attempts: error.attempts,
       backendErrorName: error.name,
+      debug: error.debug,
     });
   }
 

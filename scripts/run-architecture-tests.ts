@@ -9,6 +9,9 @@ import { evaluateCritiqueQuality } from '../lib/critiqueEval.ts';
 import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { splitNumberedSteps } from '../lib/numberedSteps.ts';
 import { buildHighDetailImageMessage } from '../lib/openaiVisionContent.js';
+import { buildEvidenceStagePrompt } from '../lib/critiqueEvidenceStage.js';
+import { buildEvidenceRepairNote } from '../lib/openaiCritique.ts';
+import { CritiqueRetryExhaustedError, serializeCritiquePipelineError } from '../lib/critiqueErrors.js';
 import { migrateLegacySimpleFeedback, validateCritiqueResult } from '../lib/critiqueValidation.js';
 import { buildWritingPrompt } from '../lib/critiqueWritingStage.ts';
 import {
@@ -16,6 +19,10 @@ import {
   handleApiRequest,
   resolveApiRoute,
 } from '../lib/apiHandlers.js';
+import {
+  createCritiqueRequestError,
+  normalizeCritiqueRequestError,
+} from '../src/critiqueRequestError.ts';
 import {
   backFromCapture,
   backFromResults,
@@ -918,6 +925,185 @@ function testWritingPromptDemandsConcreteAnchors(): void {
     prompt,
     /Make categories\[\]\.phase3\.teacherNextSteps one polished paragraph derived from categories\[\]\.actionPlanSteps/
   );
+  assert.match(prompt, /one paragraph and one primary move only/);
+}
+
+function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
+  const prompt = buildEvidenceStagePrompt('Realism', 'Oil on Canvas');
+  assert.match(
+    prompt,
+    /Anchor-to-evidence alignment rule: for EACH criterion, at least one visibleEvidence line must explicitly reuse the same concrete nouns from the anchor/
+  );
+  assert.match(
+    prompt,
+    /\*\*Surface and medium handling:\*\* Name \*\*actual\*\* mark behavior .* The anchor must STILL name one locatable mark-bearing passage or boundary in the painting, not a medium label\./
+  );
+  assert.match(
+    prompt,
+    /Bad anchors: "brushwork", "paint handling", "surface quality", "the paint surface"\./
+  );
+  assert.match(
+    prompt,
+    /Better anchors: "the wall hatching where it meets the smoother shirt passage", "the dry scumble across the cheek turning into the green shadow under the eye", "the loaded highlight stroke on the vase rim against the dark table\."/
+  );
+  assert.match(
+    prompt,
+    /visibleEvidence must support the anchor directly: at least one line must name that same passage again with the same concrete nouns/
+  );
+}
+
+function testEvidenceRepairNoteDemandsAnchorSupport(): void {
+  const repair = buildEvidenceRepairNote(
+    new Error('Visible evidence does not support anchor for Composition and shape structure')
+  );
+  assert.match(
+    repair,
+    /Critical anchor-support fix for Composition and shape structure:/
+  );
+  assert.match(
+    repair,
+    /at least one visibleEvidence line MUST repeat the same concrete nouns from the anchor/
+  );
+  assert.match(
+    repair,
+    /If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again/
+  );
+}
+
+function testSerializedPipelineErrorIncludesDebugMetadata(): void {
+  const error = new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', 3, {
+    stage: 'evidence',
+    details: ['Visible evidence does not support anchor for Composition and shape structure'],
+    debug: {
+      attempts: [
+        {
+          attempt: 1,
+          error: 'Evidence stage validation failed.',
+          details: ['Visible evidence does not support anchor for Composition and shape structure'],
+          rawPreview: '{"criterionEvidence":[{"criterion":"Composition and shape structure"}]}',
+        },
+      ],
+    },
+  });
+  const serialized = serializeCritiquePipelineError(error);
+  assert.equal(serialized.attempts, 3);
+  assert.deepEqual(serialized.debug, {
+    attempts: [
+      {
+        attempt: 1,
+        error: 'Evidence stage validation failed.',
+        details: ['Visible evidence does not support anchor for Composition and shape structure'],
+        rawPreview: '{"criterionEvidence":[{"criterion":"Composition and shape structure"}]}',
+      },
+    ],
+  });
+}
+
+function testValidationErrorDetailsAreHumanized(): void {
+  const normalized = normalizeCritiqueRequestError(
+    createCritiqueRequestError({
+      operation: 'critique',
+      kind: 'validation',
+      technicalMessage: 'Voice B schema validation failed.',
+      stage: 'voice_b',
+      details: [
+        '[{"origin":"string","code":"invalid_format","format":"regex","path":["categories",0,"actionPlanSteps",0,"move"],"message":"Invalid string: must match pattern /^\\\\s*(soften|group|separate|darken|quiet)/"}]',
+        'Composition and shape structure: non-Master actionPlanSteps[0].move must be a true change instruction.',
+      ],
+      backendErrorName: 'CritiqueValidationError',
+    }),
+    'critique'
+  );
+  assert.equal(normalized.kind, 'validation');
+  const renderedDetails = normalized.details.map((detail) => {
+    const trimmed = detail.trim();
+    if (!trimmed) return 'The critique response did not pass validation.';
+    if (trimmed.startsWith('[{') || trimmed.startsWith('[')) {
+      if (
+        trimmed.includes('actionPlanSteps[0].move') ||
+        (trimmed.includes('"path":["categories",0,"actionPlanSteps",0,"move"]') &&
+          trimmed.includes('"invalid_format"'))
+      ) {
+        return 'The teaching-plan move was not a concrete change instruction for that criterion.';
+      }
+      if (
+        trimmed.includes('bestNextMove') ||
+        (trimmed.includes('"path":["categories",0,"voiceBPlan","bestNextMove"]') &&
+          trimmed.includes('"invalid_format"'))
+      ) {
+        return 'The teaching-plan next move was not a concrete change instruction for that criterion.';
+      }
+      if (
+        trimmed.includes('intendedChange') ||
+        (trimmed.includes('"path":["categories",0,"editPlan","intendedChange"]') &&
+          trimmed.includes('"invalid_format"'))
+      ) {
+        return 'The edit plan did not specify a concrete change instruction for that criterion.';
+      }
+      return 'The critique response did not match the required schema.';
+    }
+    return trimmed;
+  });
+  assert.deepEqual(renderedDetails, [
+    'The teaching-plan move was not a concrete change instruction for that criterion.',
+    'Composition and shape structure: non-Master actionPlanSteps[0].move must be a true change instruction.',
+  ]);
+}
+
+function testRequestErrorCarriesDebugTrace(): void {
+  const normalized = normalizeCritiqueRequestError(
+    createCritiqueRequestError({
+      operation: 'critique',
+      kind: 'retry_exhausted',
+      technicalMessage: 'Evidence stage exhausted retries.',
+      stage: 'evidence',
+      attempts: 3,
+      details: ['Visible evidence does not support anchor for Intent and necessity'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence does not support anchor for Intent and necessity'],
+            repairNotePreview: 'Previous evidence attempt failed...',
+          },
+        ],
+      },
+      backendErrorName: 'CritiqueRetryExhaustedError',
+    }),
+    'critique'
+  );
+  assert.deepEqual(normalized.debug, {
+    attempts: [
+      {
+        attempt: 1,
+        error: 'Evidence stage validation failed.',
+        details: ['Visible evidence does not support anchor for Intent and necessity'],
+        repairNotePreview: 'Previous evidence attempt failed...',
+      },
+    ],
+  });
+}
+
+function testDebugLogPayloadSanitization(): void {
+  const stringifySafe = (value: unknown): string => {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+  const truncateForLog = (value: unknown, maxLength: number = 320): string => {
+    const text = typeof value === 'string' ? value : stringifySafe(value);
+    return text.length <= maxLength ? text : `${text.slice(0, maxLength)}…`;
+  };
+
+  const circular: { name: string; self?: unknown } = { name: 'circular' };
+  circular.self = circular;
+  assert.equal(truncateForLog(circular), '[object Object]');
+
+  const longText = 'x'.repeat(400);
+  assert.equal(truncateForLog(longText, 10), `${'x'.repeat(10)}…`);
 }
 
 function testPreviewEditPromptAlignment(): void {
@@ -1493,6 +1679,7 @@ function testStructuredVoiceBPlanFlow(): void {
   const finalizedComposition = finalized.categories[1]!;
   assert.match(finalizedComposition.phase3.teacherNextSteps, /1\. In the chair back crossing the seated figure/i);
   assert.match(finalizedComposition.phase3.teacherNextSteps, /soften|interior chair bars/i);
+  assert.doesNotMatch(finalizedComposition.phase3.teacherNextSteps, /2\./i);
 }
 
 function testZodSchemaRoundTrip(): void {
@@ -1652,6 +1839,12 @@ async function main(): Promise<void> {
   await testApiHelpers();
   testCritiqueGuardrails();
   testCriterionBandRubric();
+  testEvidencePromptDemandsConcreteSurfaceAnchors();
+  testEvidenceRepairNoteDemandsAnchorSupport();
+  testSerializedPipelineErrorIncludesDebugMetadata();
+  testValidationErrorDetailsAreHumanized();
+  testRequestErrorCarriesDebugTrace();
+  testDebugLogPayloadSanitization();
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();
   testStructuredVoiceBPlanFlow();

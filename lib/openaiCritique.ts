@@ -13,6 +13,8 @@ import {
   CritiqueGroundingError,
   CritiqueRetryExhaustedError,
   CritiqueValidationError,
+  type CritiqueDebugPayload,
+  type CritiqueDebugInfo,
   errorDetails,
   errorMessage,
 } from './critiqueErrors.js';
@@ -25,9 +27,106 @@ import {
 
 const EVIDENCE_MAX_TOKENS = 3600;
 
+function summarizeRawForLog(raw: unknown): string {
+  try {
+    const serialized = JSON.stringify(raw);
+    if (!serialized) return '[unserializable raw payload]';
+    return serialized.length > 4000 ? `${serialized.slice(0, 4000)}…[truncated]` : serialized;
+  } catch {
+    return '[unserializable raw payload]';
+  }
+}
+
+function extractCriterionEvidencePreview(raw: unknown): Array<{
+  criterion: string;
+  anchor?: string;
+  visibleEvidencePreview?: string[];
+}> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const criterionEvidence = (raw as { criterionEvidence?: unknown }).criterionEvidence;
+  if (!Array.isArray(criterionEvidence)) return undefined;
+  return criterionEvidence
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => ({
+      criterion: typeof entry.criterion === 'string' ? entry.criterion : '[missing criterion]',
+      ...(typeof entry.anchor === 'string' ? { anchor: entry.anchor } : {}),
+      ...(Array.isArray(entry.visibleEvidence)
+        ? {
+            visibleEvidencePreview: entry.visibleEvidence
+              .filter((line): line is string => typeof line === 'string')
+              .slice(0, 3),
+          }
+        : {}),
+    }));
+}
+
+function logEvidenceAttemptFailure(
+  context: { attempt: number; repairNote?: string },
+  error: unknown,
+  raw?: unknown
+): void {
+  const errorDebug =
+    error instanceof CritiqueValidationError || error instanceof CritiqueRetryExhaustedError
+      ? error.debug?.attempts?.[0]
+      : undefined;
+  const payload = {
+    stage: 'evidence',
+    attempt: context.attempt,
+    error: errorMessage(error),
+    details: errorDetails(error),
+    ...(context.repairNote ? { repairNotePreview: context.repairNote.slice(0, 1200) } : {}),
+    ...(raw !== undefined
+      ? {
+          rawPreview: summarizeRawForLog(raw),
+          criterionEvidencePreview: extractCriterionEvidencePreview(raw),
+        }
+      : errorDebug
+        ? {
+            ...(errorDebug.rawPreview ? { rawPreview: errorDebug.rawPreview } : {}),
+            ...(errorDebug.criterionEvidencePreview
+              ? { criterionEvidencePreview: errorDebug.criterionEvidencePreview }
+              : {}),
+          }
+      : {}),
+  };
+  console.error('[critique evidence attempt failed]', payload);
+}
+
+function buildEvidenceAttemptDebugInfo(args: {
+  attempt: number;
+  error: unknown;
+  repairNote?: string;
+  raw?: unknown;
+}): CritiqueDebugInfo {
+  return {
+    attempt: args.attempt,
+    error: errorMessage(args.error),
+    details: errorDetails(args.error),
+    ...(args.repairNote ? { repairNotePreview: args.repairNote.slice(0, 1200) } : {}),
+    ...(args.raw !== undefined
+      ? {
+          rawPreview: summarizeRawForLog(args.raw),
+          criterionEvidencePreview: extractCriterionEvidencePreview(args.raw),
+        }
+      : {}),
+  };
+}
+
+function singleAttemptDebugPayload(args: {
+  attempt: number;
+  error: unknown;
+  repairNote?: string;
+  raw?: unknown;
+}): CritiqueDebugPayload {
+  return {
+    attempts: [buildEvidenceAttemptDebugInfo(args)],
+  };
+}
+
 async function runCritiqueEvidenceStage(
   apiKey: string,
   args: {
+    attempt: number;
     model: string;
     style: string;
     medium: string;
@@ -82,25 +181,60 @@ async function runCritiqueEvidenceStage(
   if (!text || typeof text !== 'string') throw new Error('Empty model response');
 
   try {
-    return validateEvidenceResult(JSON.parse(text));
+    const raw = JSON.parse(text);
+    return validateEvidenceResult(raw);
   } catch (error) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      raw = text;
+    }
     if (error instanceof Error && error.message !== 'Model returned invalid evidence JSON') {
+      const debug = singleAttemptDebugPayload({
+        attempt: args.attempt,
+        error,
+        repairNote: args.repairNote,
+        raw,
+      });
       throw new CritiqueValidationError('Evidence stage validation failed.', {
         stage: 'evidence',
         details: [error.message],
         cause: error,
+        debug,
       });
     }
+    const debug = singleAttemptDebugPayload({
+      attempt: args.attempt,
+      error,
+      repairNote: args.repairNote,
+      raw,
+    });
     throw new CritiqueValidationError('Model returned invalid evidence JSON', {
       stage: 'evidence',
       cause: error,
+      debug,
     });
   }
 }
 
 const MAX_STAGE_ATTEMPTS = 3;
 
-function buildEvidenceRepairNote(error: unknown): string {
+export function buildEvidenceRepairNote(error: unknown): string {
+  const details = errorDetails(error);
+  const surfaceAnchorFailure = details.some((detail) =>
+    /Invalid evidence anchor for Surface and medium handling|Visible evidence does not support anchor for Surface and medium handling/.test(
+      detail
+    )
+  );
+  const unsupportedAnchorCriteria = Array.from(
+    new Set(
+      details
+        .map((detail) => detail.match(/^Visible evidence does not support anchor for (.+)$/)?.[1]?.trim())
+        .filter((criterion): criterion is string => Boolean(criterion))
+    )
+  );
+
   return `Previous evidence attempt failed: ${errorMessage(error)}\n${errorDetails(error)
     .map((detail) => `- ${detail}`)
     .join('\n')}\nRegenerate the full evidence JSON. Use one concrete anchor per criterion, keep every claim visible, and do not change the schema.
@@ -108,7 +242,21 @@ function buildEvidenceRepairNote(error: unknown): string {
 Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
-- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.`;
+- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.${unsupportedAnchorCriteria.length > 0
+    ? `
+
+Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
+- For each listed criterion, at least one visibleEvidence line MUST repeat the same concrete nouns from the anchor and then describe what is visibly happening in that exact passage.
+- Do not anchor to one relationship and then list only nearby but differently named passages.
+- If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again using the same objects or zones.`
+    : ''}${surfaceAnchorFailure
+    ? `
+
+Critical repair for Surface and medium handling:
+- Do NOT use anchors like "brushwork", "paint handling", "surface quality", or any painting-wide surface label.
+- Choose one locatable mark-bearing passage instead, such as a hatch field against a smoother shirt passage, a loaded highlight stroke against a darker rim, or a dry scumble crossing a shadow.
+- At least one visibleEvidence line for Surface and medium handling must repeat the same concrete nouns from that anchor and then describe the mark behavior visible there.`
+    : ''}`;
 }
 
 async function runCritiqueEvidenceStageWithRetries(
@@ -122,19 +270,32 @@ async function runCritiqueEvidenceStageWithRetries(
 ): Promise<ReturnType<typeof validateEvidenceResult>> {
   let repairNote: string | undefined;
   let lastError: unknown;
+  const attemptDebug: CritiqueDebugInfo[] = [];
 
   for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
     try {
       return await runCritiqueEvidenceStage(apiKey, {
+        attempt,
         ...args,
         repairNote,
       });
     } catch (error) {
       lastError = error;
+      const debug =
+        error instanceof CritiqueValidationError && error.debug?.attempts?.[0]
+          ? error.debug.attempts[0]
+          : buildEvidenceAttemptDebugInfo({
+              attempt,
+              error,
+              repairNote,
+            });
+      attemptDebug.push(debug);
+      logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_STAGE_ATTEMPTS) {
         throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', attempt, {
           stage: 'evidence',
           details: errorDetails(error),
+          debug: { attempts: attemptDebug },
           cause: error,
         });
       }
@@ -145,6 +306,7 @@ async function runCritiqueEvidenceStageWithRetries(
   throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
     stage: 'evidence',
     details: errorDetails(lastError),
+    debug: { attempts: attemptDebug },
     cause: lastError,
   });
 }

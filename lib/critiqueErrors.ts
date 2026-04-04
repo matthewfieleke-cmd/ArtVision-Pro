@@ -6,12 +6,33 @@ export type CritiquePipelineErrorPayload = {
   stage: CritiqueStageName;
   details: string[];
   attempts?: number;
+  debug?: CritiqueDebugPayload;
+};
+
+export type CritiqueCriterionEvidencePreview = {
+  criterion: string;
+  anchor?: string;
+  visibleEvidencePreview?: string[];
+};
+
+export type CritiqueDebugInfo = {
+  attempt: number;
+  error: string;
+  details: string[];
+  repairNotePreview?: string;
+  rawPreview?: string;
+  criterionEvidencePreview?: CritiqueCriterionEvidencePreview[];
+};
+
+export type CritiqueDebugPayload = {
+  attempts: CritiqueDebugInfo[];
 };
 
 type CritiqueErrorOptions = {
   stage: CritiqueStageName;
   details?: string[];
   cause?: unknown;
+  debug?: CritiqueDebugPayload;
 };
 
 function joinDetails(details?: string[]): string {
@@ -22,6 +43,7 @@ export class CritiquePipelineError extends Error {
   readonly stage: CritiqueStageName;
   readonly details: string[];
   cause?: unknown;
+  readonly debug?: CritiqueDebugPayload;
 
   constructor(message: string, options: CritiqueErrorOptions) {
     super(`${message}${joinDetails(options.details)}`);
@@ -29,6 +51,7 @@ export class CritiquePipelineError extends Error {
     this.stage = options.stage;
     this.details = options.details ?? [];
     this.cause = options.cause;
+    this.debug = options.debug;
   }
 }
 
@@ -76,6 +99,7 @@ export function serializeCritiquePipelineError(
     stage: error.stage,
     details: error.details,
     ...(error instanceof CritiqueRetryExhaustedError ? { attempts: error.attempts } : {}),
+    ...(error.debug ? { debug: error.debug } : {}),
   };
 }
 
