@@ -45,7 +45,7 @@ const CONCEPTUAL_GENERIC_PATTERN =
   /\b(journey|inviting|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch)\b/i;
 
 const CONCEPTUAL_CARRIER_OBJECT_PATTERN =
-  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|path|post|fence|patch|band|silhouette|wall|head|face|shirt|chair)\b/i;
+  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|path|post|fence|patch|band|silhouette|wall|head|face|shirt|chair|bridge|train|pole|poles|track|tracks|shoreline|shore|rocks)\b/i;
 
 const CONCEPTUAL_CARRIER_RELATION_PATTERN =
   /\b(meets?|against|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow)\b/i;
@@ -54,7 +54,7 @@ const CONCEPTUAL_ANCHOR_PATTERN =
   /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?\s+across|narrow(?:s|ing)?\s+toward|meets?|turn(?:s|ing)?\s+into|overlap|beside|below|above|into|through|beneath)\b/i;
 
 const CONCEPTUAL_CONCRETE_OBJECT_PATTERN =
-  /\b(sun|reflection|water|boat|boats|harbor|shore|sky|cloud|clouds|figure|figures|face|head|wall|window|chair|shirt|collar|smoke|chimney|roof|path|shadow|sleeve|hand|ground|opening|silhouette)\b/i;
+  /\b(sun|reflection|water|boat|boats|harbor|shore|shoreline|sky|cloud|clouds|figure|figures|face|head|wall|window|chair|shirt|collar|smoke|chimney|roof|path|shadow|sleeve|hand|ground|opening|silhouette|bridge|train|pole|poles|track|tracks|rocks|rocky shoreline)\b/i;
 
 const CONCEPTUAL_SOFT_ROUTE_PATTERN =
   /\b(path leading to|journey|story|narrative|overall mood|emotional tone|garden setting|atmosphere)\b/i;

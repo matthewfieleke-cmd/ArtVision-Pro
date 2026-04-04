@@ -208,6 +208,48 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
+  it('accepts train-based conceptual anchors when the carrier stays physical and repeated', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[7] = {
+      ...evidence.criterionEvidence[7]!,
+      criterion: 'Presence, point of view, and human force',
+      anchor: "the train's diagonal path across the canvas",
+      visibleEvidence: [
+        "The train's diagonal path across the canvas cuts through the flatter ground bands and drives the scene forward.",
+        "The leaning telegraph poles repeat the train's diagonal path across the canvas and intensify that push.",
+        "The smoke trail follows the train's diagonal path across the canvas and keeps the motion visible above the roofline.",
+        "The front of the train stays darkest where the train's diagonal path across the canvas meets the pale sky, so the engine holds the pressure.",
+      ],
+      strengthRead:
+        "The train's diagonal path across the canvas is the physical carrier that makes the scene feel driven rather than merely described.",
+      preserve:
+        "Preserve the train's diagonal path across the canvas as the passage that carries the scene's force.",
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('accepts bridge-based conceptual anchors when concrete visible lines support the carrier relationship', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the bridge leading into the colorful landscape',
+      visibleEvidence: [
+        "The bridge's diagonal path leads the eye into the vibrant background, suggesting movement.",
+        'The bright colors surrounding the bridge enhance the sense of transition.',
+        'The bridge structure contrasts with the organic foliage on both sides of the path.',
+        'The red and orange hues at the end of the bridge suggest a destination or focal point.',
+      ],
+      strengthRead:
+        "The bridge's diagonal path creates a strong directional flow into the vibrant background, effectively suggesting movement and transition.",
+      preserve: 'Preserve the bridge as the pathway carrying the eye into the brighter background.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+    expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
+  });
+
   it('rejects conceptual strength and preserve lines that slip into mood summary language', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
@@ -420,6 +462,28 @@ describe('validateEvidenceResult', () => {
     };
 
     expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence is too generic/);
+    expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
+  });
+
+  it('allows final-retry lenient mode to keep concrete figure-in-landscape conceptual shorthand', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the seated figure against the rocky shoreline',
+      visibleEvidence: [
+        "The seated figure's yellow clothing contrasts with the dark rocks and keeps the body legible.",
+        'The seated figure against the rocky shoreline stays lower than the standing figure and reads as the quieter human carrier.',
+        'The tree trunk rises just behind the seated figure against the rocky shoreline and keeps that body from floating loose.',
+        'A second figure farther right is lighter and less insistent, leaving the seated figure against the rocky shoreline to carry the main human address.',
+      ],
+      strengthRead:
+        "The seated figure's integration with the rocky shoreline creates a cohesive narrative moment.",
+      preserve:
+        'Preserve the seated figure against the rocky shoreline as the passage that carries the painting’s human address.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/strengthRead is too generic/);
     expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
   });
 });

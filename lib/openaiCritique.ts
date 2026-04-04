@@ -214,7 +214,7 @@ async function runCritiqueEvidenceStage(
       if (args.allowLenientValidation) {
         const message = error instanceof Error ? error.message : '';
         const canUseLenientFallback =
-          /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for/.test(
+          /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for|Visible evidence does not support anchor for|Conceptual evidence anchor is too soft for/.test(
             message
           );
         if (canUseLenientFallback) {

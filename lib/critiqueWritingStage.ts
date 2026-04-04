@@ -7,7 +7,7 @@ import {
 } from '../shared/critiqueVoiceA.js';
 import { z } from 'zod';
 import type { CritiqueCalibrationDTO } from './critiqueCalibrationStage.js';
-import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
+import type { CritiqueRequestBody, CritiqueResultDTO, StudioChangeDTO } from './critiqueTypes.js';
 import {
   buildVoiceASchemaInstruction,
   buildVoiceBSchemaInstruction,
@@ -336,6 +336,12 @@ const MAX_STAGE_ATTEMPTS = 3;
 const VOICE_B_CRITERIA_PER_PASS = 2;
 const VOICE_B_ALLOWED_LEAD_VERBS =
   'soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, preserve, keep, protect, leave, hold';
+const VOICE_B_SUMMARY_LEVEL_RANK = {
+  Beginner: 0,
+  Intermediate: 1,
+  Advanced: 2,
+  Master: 3,
+} as const;
 
 type VoiceBCategoryResult = VoiceBStageResult['categories'][number];
 
@@ -388,6 +394,135 @@ function orderedVoiceBCategories(
     if (!category) throw new Error(`Voice B category missing: ${criterion}`);
     return category;
   });
+}
+
+function summaryEvidenceForCriterion(
+  evidence: CritiqueEvidenceDTO,
+  criterion: CriterionLabel
+): CritiqueEvidenceDTO['criterionEvidence'][number] {
+  const match = evidence.criterionEvidence.find((entry) => entry.criterion === criterion);
+  if (!match) {
+    throw new Error(`Voice B summary evidence missing: ${criterion}`);
+  }
+  return match;
+}
+
+function ensureTerminalPunctuation(text: string): string {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return '';
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function upperCaseFirst(text: string): string {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function rankedSummaryCategories(
+  categories: readonly VoiceBCategoryResult[],
+  voiceA: VoiceAStageResult
+): Array<{ category: VoiceBCategoryResult; level?: VoiceAStageResult['categories'][number]['level'] }> {
+  const levelsByCriterion = new Map(voiceA.categories.map((category) => [category.criterion, category.level] as const));
+  return [...categories]
+    .map((category) => ({
+      category,
+      level: levelsByCriterion.get(category.criterion),
+    }))
+    .sort((a, b) => {
+      const aRank =
+        a.level && a.level in VOICE_B_SUMMARY_LEVEL_RANK
+          ? VOICE_B_SUMMARY_LEVEL_RANK[a.level as keyof typeof VOICE_B_SUMMARY_LEVEL_RANK]
+          : VOICE_B_SUMMARY_LEVEL_RANK.Intermediate;
+      const bRank =
+        b.level && b.level in VOICE_B_SUMMARY_LEVEL_RANK
+          ? VOICE_B_SUMMARY_LEVEL_RANK[b.level as keyof typeof VOICE_B_SUMMARY_LEVEL_RANK]
+          : VOICE_B_SUMMARY_LEVEL_RANK.Intermediate;
+      if (aRank !== bRank) return aRank - bRank;
+      return CRITERIA_ORDER.indexOf(a.category.criterion) - CRITERIA_ORDER.indexOf(b.category.criterion);
+    });
+}
+
+function synthesizedPriorityLine(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level?: VoiceAStageResult['categories'][number]['level']
+): string {
+  if (level === 'Master') {
+    return ensureTerminalPunctuation(
+      upperCaseFirst(`preserve ${category.anchor.evidencePointer} in ${category.anchor.areaSummary}`)
+    );
+  }
+
+  const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
+  const groundedMove = groundedVoiceBMove(category, groundedCurrentRead, level);
+  const normalizedMove = groundedMove.replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
+  return ensureTerminalPunctuation(upperCaseFirst(normalizedMove));
+}
+
+function synthesizedStudioChangeText(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level?: VoiceAStageResult['categories'][number]['level']
+): string {
+  const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\.$/, '');
+  const groundedMove = groundedVoiceBMove(category, groundedCurrentRead, level)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\.$/, '');
+  const expectedRead = groundedVoiceBExpectedRead(category)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\.$/, '');
+  return ensureTerminalPunctuation(
+    `In ${category.anchor.areaSummary}, ${groundedCurrentRead}—${groundedMove} so that ${expectedRead}`
+  );
+}
+
+function synthesizedStudioChange(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level?: VoiceAStageResult['categories'][number]['level']
+): StudioChangeDTO {
+  if (level === 'Master') {
+    return {
+      previewCriterion: category.criterion,
+      text: ensureTerminalPunctuation(
+        `Preserve ${category.anchor.evidencePointer} in ${category.anchor.areaSummary}.`
+      ),
+    };
+  }
+
+  const groundedCategory = normalizeVoiceBCategoryGrounding(category, criterionEvidence, level);
+  return {
+    previewCriterion: groundedCategory.criterion,
+    text: synthesizedStudioChangeText(groundedCategory, criterionEvidence, level),
+  };
+}
+
+export function synthesizeVoiceBSummaryFromCategories(
+  evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult,
+  categories: readonly VoiceBCategoryResult[]
+): Pick<VoiceBStageResult, 'overallSummary' | 'studioChanges'> {
+  const ranked = rankedSummaryCategories(categories, voiceA);
+  const prioritySource = ranked.filter(({ level }) => level !== 'Master').slice(0, 2);
+  const topPriorityEntries = prioritySource.length > 0 ? prioritySource : ranked.slice(0, 1);
+  const studioChangeEntries = ranked.slice(0, Math.min(5, Math.max(2, ranked.length)));
+
+  return {
+    overallSummary: {
+      topPriorities: topPriorityEntries.map(({ category, level }) =>
+        synthesizedPriorityLine(category, summaryEvidenceForCriterion(evidence, category.criterion), level)
+      ),
+    },
+    studioChanges: studioChangeEntries.map(({ category, level }) =>
+      synthesizedStudioChange(category, summaryEvidenceForCriterion(evidence, category.criterion), level)
+    ),
+  };
 }
 
 function groundedVoiceBCurrentRead(
@@ -1428,6 +1563,27 @@ export async function runCritiqueVoiceBStage(
         logSchemaAttemptFailure({ stage: 'voice_b_summary', attempt }, error);
       }
       if (attempt === MAX_STAGE_ATTEMPTS) {
+        if (error instanceof CritiqueValidationError) {
+          const synthesized = synthesizeVoiceBSummaryFromCategories(
+            evidence,
+            voiceA,
+            orderedCategories
+          );
+          const validated = validateVoiceBStageOutput(
+            {
+              overallSummary: synthesized.overallSummary,
+              studioChanges: synthesized.studioChanges,
+              categories: orderedCategories,
+            },
+            voiceA,
+            evidence
+          );
+          return {
+            overallSummary: validated.overallSummary,
+            studioChanges: validated.studioChanges,
+            categories: orderedCategories,
+          };
+        }
         throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
           stage: 'voice_b',
           details: ['Voice B summary pass failed.', ...errorDetails(error)],

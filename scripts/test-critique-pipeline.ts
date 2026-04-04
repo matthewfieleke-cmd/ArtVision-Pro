@@ -14,7 +14,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import 'dotenv/config';
+import './loadLocalEnv.ts';
 import { runOpenAIClassifyMedium } from '../lib/openaiClassifyMedium.js';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.js';
 import { runOpenAICritique } from '../lib/openaiCritique.js';

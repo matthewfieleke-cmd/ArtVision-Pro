@@ -15,15 +15,18 @@ Use the smoke command first for uploaded paintings. It keeps going after failure
 ## Current status
 
 - The canonical Monet pipeline completes end-to-end.
-- `Oil5 Small.png` completes in a direct single-painting run.
-- The latest-upload batch is still nondeterministic. The main remaining instability is stage-1 evidence generation for figure-in-landscape paintings.
+- The CLI / smoke scripts now load `.env.local` the same way as `server/dev-api.ts`, so local repro commands no longer fail just because the key is only in `.env.local`.
+- `Oil5 Small.png` now reaches the final quality gate in direct repros; the previous Voice B summary-pass crash path was reduced by synthesizing fallback `studioChanges` / `topPriorities` from the already-grounded category plans.
+- The latest-upload batch is still highly nondeterministic. In this pass it fluctuated between `2 passed / 4 failed` and `0 passed / 6 failed`, which confirms runtime instability rather than a single deterministic fixture bug.
 - The most common failure classes are:
-  - conceptual `strengthRead` or `preserve` staying too generic for `Intent and necessity`
-  - `Composition and shape structure` evidence using concrete-but-shorthand landscape language that sometimes still fails strict validation before lenient fallback
-  - final quality-gate rejection when teacher advice remains generic after generation
+  - conceptual `strengthRead` / `preserve` / anchor language still drifting generic for `Intent and necessity` and `Presence, point of view, and human force`
+  - `Composition and shape structure` evidence using concrete-but-shorthand language that sometimes passes direct repro but still fails in batch
+  - final quality-gate rejection when Voice B still sounds generic after generation, especially on `Watercolor3 Small.png` and some drawing / abstract runs
+  - occasional final grounding drift after merge (`Drawing2 Small.png`, `Pastel1 Small.png` in latest smoke)
 
 ## Files already hardened
 
+- `scripts/loadLocalEnv.ts`
 - `lib/openaiCritique.ts`
 - `lib/critiqueValidation.ts`
 - `lib/critiqueWeakWorkContracts.ts`
@@ -48,9 +51,18 @@ Use the smoke command first for uploaded paintings. It keeps going after failure
 
 - Prefer direct single-painting repros before touching prompts broadly.
 - If a batch fails, reproduce that exact fixture with `scripts/test-critique-pipeline.ts` first.
-- The evidence validator is still the main bottleneck. Prompt tuning alone has not made it stable enough.
+- The evidence validator is still a major bottleneck, but the final quality-gate / post-processing path is now equally important because many runs make it through generation and then fail on generic Voice B output.
 - The final-retry lenient path now exists for:
   - top-level tone failures
   - generic evidence thresholds
   - aggregate anchor support across multiple evidence lines
+  - conceptual `strengthRead` / `preserve` generic failures
+  - conceptual anchor-support failures
+  - conceptual-anchor softness failures
 - If you relax validation further, keep it scoped to `lenient` mode on the final retry.
+- The grounding equivalence map was expanded for `bridge`, `train`, `tracks`, `poles`, `shoreline`, `colors`, and `background` language. This helped some direct repros, but batch instability remains.
+- The current best deterministic repros from this pass:
+  - `npx tsx scripts/test-critique-pipeline.ts "Drawing1 Small.png"` now often completes directly even when smoke still fails later.
+  - `npx tsx scripts/test-critique-pipeline.ts "Watercolor3 Small.png"` reliably exposes the remaining "teaching advice is still too generic to be actionable" blocker.
+  - `npx tsx scripts/test-critique-pipeline.ts "Pastel1 Small.png"` still exposes weak conceptual / anchor-support behavior around bridge-led intent passages.
+- The freshest smoke report is `docs/latest-upload-smoke.md`; trust that file over earlier conversational summaries because pass counts shifted during this run.

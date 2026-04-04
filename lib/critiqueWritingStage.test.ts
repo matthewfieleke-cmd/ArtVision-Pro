@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeKnownVoiceBVerbDrift, normalizeVoiceBMoveForSchema } from './critiqueWritingStage';
+import {
+  normalizeKnownVoiceBVerbDrift,
+  normalizeVoiceBMoveForSchema,
+  synthesizeVoiceBSummaryFromCategories,
+} from './critiqueWritingStage';
 
 describe('normalizeKnownVoiceBVerbDrift', () => {
   it('rewrites generic color-transition enhancement into an allowed concrete move', () => {
@@ -152,5 +156,138 @@ describe('normalizeVoiceBMoveForSchema', () => {
 
     expect(rewritten).toContain('the edge in the pale square against the off-white ground');
     expect(rewritten).toContain('losing a nearby edge');
+  });
+});
+
+describe('synthesizeVoiceBSummaryFromCategories', () => {
+  it('builds concrete fallback priorities and studio changes from grounded category plans', () => {
+    const evidence = {
+      intentHypothesis: 'The painting appears to organize the scene around the seated figure and the tree trunk.',
+      strongestVisibleQualities: ['The seated figure against the tree trunk stays readable.'],
+      mainTensions: ['The branch-sky edge stays busy in one area.'],
+      completionRead: {
+        state: 'likely_finished' as const,
+        confidence: 'high' as const,
+        cues: ['Consistent finish'],
+        rationale: 'The work looks presentation-ready.',
+      },
+      photoQualityRead: {
+        level: 'good' as const,
+        summary: 'The photo is clear.',
+        issues: [],
+      },
+      comparisonObservations: [],
+      criterionEvidence: [
+        {
+          criterion: 'Edge and focus control' as const,
+          anchor: 'the branch edge against the pale sky',
+          visibleEvidence: [
+            'The branch edge against the pale sky stays sharp at the fork, while the nearby branch edge softens into the cloud.',
+            'The dark branch against the pale sky creates the strongest local edge contrast in the upper right.',
+          ],
+          strengthRead: 'The branch edge against the pale sky already carries the eye.',
+          tensionRead: 'A nearby branch edge stays equally sharp and competes.',
+          preserve: 'Preserve the strongest branch-sky edge contrast.',
+          confidence: 'high' as const,
+        },
+        {
+          criterion: 'Composition and shape structure' as const,
+          anchor: 'the seated figure under the tree trunk',
+          visibleEvidence: [
+            'The seated figure under the tree trunk sits lower than the standing figure and leaves a wider rock band to the left.',
+            'The tree trunk rises beside the seated figure and splits the sky from the rock mass.',
+          ],
+          strengthRead: 'The seated figure under the tree trunk gives the lower half a clear structural hold.',
+          tensionRead: 'The standing figure and rock patch still compete with that hold.',
+          preserve: 'Preserve the seated figure under the tree trunk as the main structural hold.',
+          confidence: 'high' as const,
+        },
+      ],
+    };
+
+    const voiceA = {
+      summary: 'summary',
+      suggestedPaintingTitles: [],
+      overallSummary: { analysis: 'analysis' },
+      studioAnalysis: { whatWorks: 'works', whatCouldImprove: 'improve' },
+      overallConfidence: 'high' as const,
+      photoQuality: { level: 'good' as const, summary: 'clear', issues: [], tips: [] },
+      categories: [
+        {
+          criterion: 'Edge and focus control' as const,
+          level: 'Intermediate' as const,
+          phase1: { visualInventory: 'inventory' },
+          phase2: { criticsAnalysis: 'analysis' },
+          confidence: 'high' as const,
+          evidenceSignals: ['signal 1', 'signal 2'],
+          preserve: 'Preserve the branch edge against the pale sky.',
+          nextTarget: 'Push edge and focus control toward Advanced.',
+          subskills: [],
+        },
+        {
+          criterion: 'Composition and shape structure' as const,
+          level: 'Beginner' as const,
+          phase1: { visualInventory: 'inventory' },
+          phase2: { criticsAnalysis: 'analysis' },
+          confidence: 'high' as const,
+          evidenceSignals: ['signal 1', 'signal 2'],
+          preserve: 'Preserve the seated figure under the tree trunk.',
+          nextTarget: 'Push composition and shape structure toward Intermediate.',
+          subskills: [],
+        },
+      ],
+    };
+
+    const categories = [
+      {
+        criterion: 'Edge and focus control' as const,
+        anchor: {
+          areaSummary: 'the branch edge against the pale sky',
+          evidencePointer: 'The branch edge against the pale sky stays sharp at the fork.',
+          region: { x: 0.2, y: 0.1, width: 0.3, height: 0.2 },
+        },
+        plan: {
+          currentRead: 'The branch edge against the pale sky stays sharp at the fork while the nearby branch edge softens into the cloud.',
+          move: 'clarify the focus hierarchy in this passage.',
+          expectedRead: 'the forked branch reads as the single strongest accent in that passage.',
+          editability: 'yes' as const,
+        },
+        phase3: {
+          teacherNextSteps: 'Improve focus in this area.',
+        },
+      },
+      {
+        criterion: 'Composition and shape structure' as const,
+        anchor: {
+          areaSummary: 'the seated figure under the tree trunk',
+          evidencePointer: 'The seated figure under the tree trunk leaves a wider rock band to the left.',
+          region: { x: 0.1, y: 0.4, width: 0.35, height: 0.28 },
+        },
+        plan: {
+          currentRead: 'The seated figure under the tree trunk leaves a wider rock band to the left than to the right.',
+          move: 'improve the composition.',
+          expectedRead: 'the seated figure reads as the main lower anchor instead of competing with the standing figure.',
+          editability: 'yes' as const,
+        },
+        phase3: {
+          teacherNextSteps: 'Make the composition stronger.',
+        },
+      },
+    ];
+
+    const summary = synthesizeVoiceBSummaryFromCategories(
+      evidence as any,
+      voiceA as any,
+      categories as any
+    );
+
+    expect(summary.overallSummary.topPriorities).toHaveLength(2);
+    expect(summary.overallSummary.topPriorities[0]).toMatch(/^(group|sharpen)\b/i);
+    expect(summary.studioChanges).toHaveLength(2);
+    expect(summary.studioChanges[0]?.previewCriterion).toBe('Composition and shape structure');
+    expect(summary.studioChanges[0]?.text).toContain('the seated figure under the tree trunk');
+    expect(summary.studioChanges[1]?.previewCriterion).toBe('Edge and focus control');
+    expect(summary.studioChanges[1]?.text).toContain('the branch edge against the pale sky');
+    expect(summary.studioChanges[1]?.text).toContain('edge');
   });
 });

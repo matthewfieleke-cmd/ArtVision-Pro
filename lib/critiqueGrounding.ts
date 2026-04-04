@@ -35,11 +35,20 @@ function minimumRequiredTokens(text: string): number {
 }
 
 const GROUNDING_EQUIVALENT_TOKENS: Record<string, string> = {
+  lead: 'lead',
+  leads: 'lead',
+  leading: 'lead',
   shore: 'shore',
   shoreline: 'shore',
   seashore: 'shore',
   coast: 'shore',
   coastal: 'shore',
+  landscape: 'ground',
+  colorful: 'color',
+  colours: 'color',
+  colors: 'color',
+  color: 'color',
+  vibrant: 'color',
   rocks: 'rock',
   rocky: 'rock',
   rock: 'rock',
