@@ -9,11 +9,19 @@ export type CritiquePipelineErrorPayload = {
   debug?: CritiqueDebugPayload;
 };
 
+export type CritiqueCriterionEvidencePreview = {
+  criterion: string;
+  anchor?: string;
+  visibleEvidencePreview?: string[];
+};
+
 export type CritiqueDebugInfo = {
   attempt: number;
   error: string;
   details: string[];
   repairNotePreview?: string;
+  rawPreview?: string;
+  criterionEvidencePreview?: CritiqueCriterionEvidencePreview[];
 };
 
 export type CritiqueDebugPayload = {
@@ -24,6 +32,7 @@ type CritiqueErrorOptions = {
   stage: CritiqueStageName;
   details?: string[];
   cause?: unknown;
+  debug?: CritiqueDebugPayload;
 };
 
 function joinDetails(details?: string[]): string {
@@ -34,6 +43,7 @@ export class CritiquePipelineError extends Error {
   readonly stage: CritiqueStageName;
   readonly details: string[];
   cause?: unknown;
+  readonly debug?: CritiqueDebugPayload;
 
   constructor(message: string, options: CritiqueErrorOptions) {
     super(`${message}${joinDetails(options.details)}`);
@@ -41,6 +51,7 @@ export class CritiquePipelineError extends Error {
     this.stage = options.stage;
     this.details = options.details ?? [];
     this.cause = options.cause;
+    this.debug = options.debug;
   }
 }
 
@@ -67,17 +78,15 @@ export class CritiqueRuntimeEvalError extends CritiquePipelineError {
 
 export class CritiqueRetryExhaustedError extends CritiquePipelineError {
   readonly attempts: number;
-  readonly debug?: CritiqueDebugInfo[];
 
   constructor(
     message: string,
     attempts: number,
-    options: CritiqueErrorOptions & { debug?: CritiqueDebugInfo[] }
+    options: CritiqueErrorOptions
   ) {
     super(message, options);
     this.name = 'CritiqueRetryExhaustedError';
     this.attempts = attempts;
-    this.debug = options.debug;
   }
 }
 
@@ -88,16 +97,9 @@ export function serializeCritiquePipelineError(
     error: error.message,
     errorName: error.name,
     stage: error.stage,
-    details:
-      error instanceof CritiqueRetryExhaustedError && error.debug && error.debug.length > 0
-        ? [
-            ...error.details,
-            ...error.debug.map((entry) =>
-              `[debug attempt ${entry.attempt}] ${entry.error}${entry.details.length > 0 ? ` | ${entry.details.join(' | ')}` : ''}${entry.repairNotePreview ? ` | repair: ${entry.repairNotePreview}` : ''}`
-            ),
-          ]
-        : error.details,
+    details: error.details,
     ...(error instanceof CritiqueRetryExhaustedError ? { attempts: error.attempts } : {}),
+    ...(error.debug ? { debug: error.debug } : {}),
   };
 }
 

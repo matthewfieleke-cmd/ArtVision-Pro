@@ -274,7 +274,7 @@ export function normalizeCritiqueRequestError(
       details: error.details,
       attempts: error.attempts,
       backendErrorName: error.name,
-      debug: error.debug ? { attempts: error.debug } : undefined,
+      debug: error.debug,
     });
   }
 

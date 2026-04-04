@@ -13,6 +13,7 @@ import {
   CritiqueGroundingError,
   CritiqueRetryExhaustedError,
   CritiqueValidationError,
+  type CritiqueDebugPayload,
   type CritiqueDebugInfo,
   errorDetails,
   errorMessage,
@@ -59,6 +60,10 @@ function logEvidenceAttemptFailure(
   error: unknown,
   raw?: unknown
 ): void {
+  const errorDebug =
+    error instanceof CritiqueValidationError || error instanceof CritiqueRetryExhaustedError
+      ? error.debug?.attempts?.[0]
+      : undefined;
   const payload = {
     stage: 'evidence',
     attempt: context.attempt,
@@ -70,6 +75,13 @@ function logEvidenceAttemptFailure(
           rawPreview: summarizeRawForLog(raw),
           criterionEvidencePreview: extractCriterionEvidencePreview(raw),
         }
+      : errorDebug
+        ? {
+            ...(errorDebug.rawPreview ? { rawPreview: errorDebug.rawPreview } : {}),
+            ...(errorDebug.criterionEvidencePreview
+              ? { criterionEvidencePreview: errorDebug.criterionEvidencePreview }
+              : {}),
+          }
       : {}),
   };
   console.error('[critique evidence attempt failed]', payload);
@@ -95,9 +107,21 @@ function buildEvidenceAttemptDebugInfo(args: {
   };
 }
 
+function singleAttemptDebugPayload(args: {
+  attempt: number;
+  error: unknown;
+  repairNote?: string;
+  raw?: unknown;
+}): CritiqueDebugPayload {
+  return {
+    attempts: [buildEvidenceAttemptDebugInfo(args)],
+  };
+}
+
 async function runCritiqueEvidenceStage(
   apiKey: string,
   args: {
+    attempt: number;
     model: string;
     style: string;
     medium: string;
@@ -162,15 +186,29 @@ async function runCritiqueEvidenceStage(
       raw = text;
     }
     if (error instanceof Error && error.message !== 'Model returned invalid evidence JSON') {
+      const debug = singleAttemptDebugPayload({
+        attempt: args.attempt,
+        error,
+        repairNote: args.repairNote,
+        raw,
+      });
       throw new CritiqueValidationError('Evidence stage validation failed.', {
         stage: 'evidence',
         details: [error.message],
         cause: error,
+        debug,
       });
     }
+    const debug = singleAttemptDebugPayload({
+      attempt: args.attempt,
+      error,
+      repairNote: args.repairNote,
+      raw,
+    });
     throw new CritiqueValidationError('Model returned invalid evidence JSON', {
       stage: 'evidence',
       cause: error,
+      debug,
     });
   }
 }
@@ -232,23 +270,27 @@ async function runCritiqueEvidenceStageWithRetries(
   for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
     try {
       return await runCritiqueEvidenceStage(apiKey, {
+        attempt,
         ...args,
         repairNote,
       });
     } catch (error) {
       lastError = error;
-      const debug = buildEvidenceAttemptDebugInfo({
-        attempt,
-        error,
-        repairNote,
-      });
+      const debug =
+        error instanceof CritiqueValidationError && error.debug?.attempts?.[0]
+          ? error.debug.attempts[0]
+          : buildEvidenceAttemptDebugInfo({
+              attempt,
+              error,
+              repairNote,
+            });
       attemptDebug.push(debug);
       logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_STAGE_ATTEMPTS) {
         throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', attempt, {
           stage: 'evidence',
           details: errorDetails(error),
-          debug: attemptDebug,
+          debug: { attempts: attemptDebug },
           cause: error,
         });
       }
@@ -259,7 +301,7 @@ async function runCritiqueEvidenceStageWithRetries(
   throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
     stage: 'evidence',
     details: errorDetails(lastError),
-    debug: attemptDebug,
+    debug: { attempts: attemptDebug },
     cause: lastError,
   });
 }
