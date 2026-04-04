@@ -57,6 +57,9 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
           details: data.details,
           attempts: data.attempts,
           backendErrorName: data.errorName,
+          debug: 'debug' in data && data.debug && typeof data.debug === 'object'
+            ? (data.debug as import('../lib/critiqueErrors.js').CritiqueDebugPayload)
+            : undefined,
         });
       }
       throw createCritiqueRequestError({

@@ -1053,6 +1053,41 @@ function testValidationErrorDetailsAreHumanized(): void {
   ]);
 }
 
+function testRequestErrorCarriesDebugTrace(): void {
+  const normalized = normalizeCritiqueRequestError(
+    createCritiqueRequestError({
+      operation: 'critique',
+      kind: 'retry_exhausted',
+      technicalMessage: 'Evidence stage exhausted retries.',
+      stage: 'evidence',
+      attempts: 3,
+      details: ['Visible evidence does not support anchor for Intent and necessity'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence does not support anchor for Intent and necessity'],
+            repairNotePreview: 'Previous evidence attempt failed...',
+          },
+        ],
+      },
+      backendErrorName: 'CritiqueRetryExhaustedError',
+    }),
+    'critique'
+  );
+  assert.deepEqual(normalized.debug, {
+    attempts: [
+      {
+        attempt: 1,
+        error: 'Evidence stage validation failed.',
+        details: ['Visible evidence does not support anchor for Intent and necessity'],
+        repairNotePreview: 'Previous evidence attempt failed...',
+      },
+    ],
+  });
+}
+
 function testDebugLogPayloadSanitization(): void {
   const stringifySafe = (value: unknown): string => {
     try {
@@ -1809,6 +1844,7 @@ async function main(): Promise<void> {
   testEvidencePromptDemandsConcreteSurfaceAnchors();
   testEvidenceRepairNoteDemandsAnchorSupport();
   testValidationErrorDetailsAreHumanized();
+  testRequestErrorCarriesDebugTrace();
   testDebugLogPayloadSanitization();
   testWritingPromptDemandsConcreteAnchors();
   testPreviewEditPromptAlignment();

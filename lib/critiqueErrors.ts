@@ -6,6 +6,7 @@ export type CritiquePipelineErrorPayload = {
   stage: CritiqueStageName;
   details: string[];
   attempts?: number;
+  debug?: CritiqueDebugPayload;
 };
 
 export type CritiqueDebugInfo = {
@@ -13,6 +14,10 @@ export type CritiqueDebugInfo = {
   error: string;
   details: string[];
   repairNotePreview?: string;
+};
+
+export type CritiqueDebugPayload = {
+  attempts: CritiqueDebugInfo[];
 };
 
 type CritiqueErrorOptions = {
