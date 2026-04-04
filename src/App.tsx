@@ -31,6 +31,7 @@ import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchClassifyMediumFromApi } from './classifyMediumApi';
 import type { PreviewEditTarget } from '../lib/previewEditTypes.js';
+import { hydrateVoiceBCanonicalCategory } from '../lib/critiqueVoiceBCanonical.js';
 import {
   applyDetectedStyle,
   backFromCapture,
@@ -173,7 +174,7 @@ function previewDisplayTarget(
   activePreviewEditId: string | null
 ): PreviewEditTargetPayload | null {
   if (flow.step !== 'results' || !flow.critique.categories.length) return null;
-  const catList = flow.critique.categories;
+  const catList = flow.critique.categories.map((category) => hydrateVoiceBCanonicalCategory(category));
   const session = flow.sessionPreviewEdits ?? [];
   const active = activePreviewEditId ? session.find((e) => e.id === activePreviewEditId) : undefined;
   if (active) {
@@ -185,6 +186,7 @@ function previewDisplayTarget(
       phase1: cat.phase1,
       phase2: cat.phase2,
       phase3: cat.phase3,
+      plan: cat.plan,
       actionPlanSteps: cat.actionPlanSteps,
       anchor: cat.anchor,
       editPlan: cat.editPlan,
@@ -202,6 +204,7 @@ function previewDisplayTarget(
       phase1: cat.phase1,
       phase2: cat.phase2,
       phase3: cat.phase3,
+      plan: cat.plan,
       actionPlanSteps: cat.actionPlanSteps,
       anchor: cat.anchor,
       editPlan: cat.editPlan,
@@ -215,6 +218,7 @@ function previewDisplayTarget(
     phase1: p.phase1,
     phase2: p.phase2,
     phase3: p.phase3,
+    plan: p.plan,
     actionPlanSteps: p.actionPlanSteps,
     anchor: p.anchor,
     editPlan: p.editPlan,

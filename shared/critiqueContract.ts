@@ -42,6 +42,14 @@ export type VoiceBPlan = {
   storyIfRelevant?: string;
 };
 
+export type VoiceBCanonicalPlan = {
+  currentRead: string;
+  move: string;
+  expectedRead: string;
+  preserve?: string;
+  editability: 'yes' | 'no';
+};
+
 export type CritiqueSubskill = {
   label: string;
   /** Normalized 0-1 local estimate or API-provided sub-score. */
@@ -73,8 +81,13 @@ export type CritiqueCategory = {
   preserve?: string;
   nextTarget?: string;
   anchor?: CriterionAnchor;
+  /** Canonical Voice B plan; legacy fields below can be derived from this. */
+  plan?: VoiceBCanonicalPlan;
+  /** @deprecated Derived from plan + anchor for preview/edit compatibility. */
   editPlan?: CriterionEditPlan;
+  /** @deprecated Derived from plan for legacy compatibility. */
   voiceBPlan?: VoiceBPlan;
+  /** @deprecated Derived from plan + anchor for legacy compatibility. */
   actionPlanSteps?: VoiceBStep[];
   subskills?: CritiqueSubskill[];
 };

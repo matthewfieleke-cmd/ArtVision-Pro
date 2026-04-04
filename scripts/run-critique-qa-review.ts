@@ -27,6 +27,11 @@ const FIRST_PASS_FIXTURE_IDS = [
   'abstract-kandinsky-vii',
 ];
 
+function selectedFixtureIdsFromArgs(): string[] {
+  const requested = process.argv.slice(2).map((arg) => arg.trim()).filter(Boolean);
+  return requested.length > 0 ? requested : FIRST_PASS_FIXTURE_IDS;
+}
+
 function mimeTypeFor(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   switch (ext) {
@@ -64,7 +69,8 @@ function checklistBlock(): string {
 async function main() {
   const raw = await readFile(fixturePath, 'utf8');
   const fixtures = JSON.parse(raw) as Fixture[];
-  const selected = FIRST_PASS_FIXTURE_IDS.map((id) => {
+  const selectedFixtureIds = selectedFixtureIdsFromArgs();
+  const selected = selectedFixtureIds.map((id) => {
     const fixture = fixtures.find((entry) => entry.id === id);
     if (!fixture) throw new Error(`Missing fixture: ${id}`);
     return fixture;

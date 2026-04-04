@@ -10,6 +10,7 @@ import type {
   StudioChange,
   SuggestedTitle,
   SuggestedTitleCategory,
+  VoiceBCanonicalPlan,
   VoiceBPlan,
   VoiceBStep,
   WorkCompletionState,
@@ -21,6 +22,7 @@ export type CompletionReadDTO = CompletionRead;
 export type PhotoQualityAssessmentDTO = PhotoQualityAssessment;
 export type VoiceBStepDTO = VoiceBStep;
 export type VoiceBPlanDTO = VoiceBPlan;
+export type VoiceBCanonicalPlanDTO = VoiceBCanonicalPlan;
 export type CritiqueCategoryDTO = CritiqueCategory;
 export type StudioAnalysisDTO = StudioAnalysis;
 export type StudioChangeDTO = StudioChange;

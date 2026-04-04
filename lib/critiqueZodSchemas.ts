@@ -22,7 +22,7 @@ const ratingLevelEnum = z.enum(RATING_LEVELS as unknown as [string, ...string[]]
 const confidenceEnum = z.enum(['low', 'medium', 'high']);
 /** Align with CRITIQUE_CHANGE_VERB_PATTERN ∪ CRITIQUE_PRESERVE_VERB_PATTERN in critiqueTextRules.ts */
 const studioVerbPattern =
-  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|preserve|keep|protect|leave|hold|maintain|continue)\b/i;
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|integrate|adjust|reduce|shift|refine|preserve|keep|protect|leave|hold|maintain|continue)\b/i;
 
 // ---------------------------------------------------------------------------
 // Shared sub-objects
@@ -86,6 +86,24 @@ export const voiceBPlanSchema = z.object({
   avoidDoing: z.string().describe('What not to break or overdo in that passage, or empty string.'),
   expectedRead: z.string().min(16).describe('What the passage should look like after the move — describe the visual result.'),
   storyIfRelevant: z.string().describe('The specific narrative or dramatic situation visible in this painting, or empty string if not relevant.'),
+});
+
+export const voiceBCanonicalPlanSchema = z.object({
+  currentRead: z.string().min(16).describe(
+    'Canonical Voice B current read for the anchored passage. Name the visible fact in that passage now, not an abstract diagnosis.'
+  ),
+  move: z.string().min(12).regex(studioVerbPattern).describe(
+    'Canonical Voice B move for the anchored passage. For non-Master criteria, begin with a true change verb; for Master criteria, begin with a preserve verb.'
+  ),
+  expectedRead: z.string().min(16).describe(
+    'Canonical Voice B expected read after the move in that same anchored passage.'
+  ),
+  preserve: z.string().describe(
+    'Nearby success to protect while making the move. Use empty string if there is nothing specific to preserve.'
+  ),
+  editability: z.enum(['yes', 'no']).describe(
+    'Whether this criterion should be available for AI edit preview generation.'
+  ),
 });
 
 // ---------------------------------------------------------------------------
@@ -188,12 +206,19 @@ export const voiceAStageResultSchema = z.object({
 export const voiceBCategorySchema = z.object({
   criterion: criterionEnum,
   phase3: critiquePhase3Schema,
-  actionPlanSteps: z.array(voiceBStepSchema).length(1).describe(
-    'Voice B structured teaching steps for THIS criterion only. Exactly one primary move per criterion; if the criterion is Master, make that one step a preserve-only description.'
-  ),
-  voiceBPlan: voiceBPlanSchema,
   anchor: anchorSchema,
-  editPlan: editPlanSchema,
+  plan: voiceBCanonicalPlanSchema.describe(
+    'Canonical Voice B plan for THIS criterion only. This is the primary machine-usable teaching plan; legacy actionPlan/edit fields may be derived from it.'
+  ),
+  actionPlanSteps: z.array(voiceBStepSchema).length(1).optional().describe(
+    'Legacy compatibility field derived from plan for preview/edit consumers that still expect one structured step.'
+  ),
+  voiceBPlan: voiceBPlanSchema.optional().describe(
+    'Legacy compatibility field derived from plan for older consumers.'
+  ),
+  editPlan: editPlanSchema.optional().describe(
+    'Legacy compatibility field derived from plan for preview/edit consumers.'
+  ),
 });
 
 export const studioChangeSchema = z.object({
@@ -306,6 +331,7 @@ export type EvidenceStageResult = z.infer<typeof evidenceStageResultSchema>;
 
 export type VoiceBPlanZ = z.infer<typeof voiceBPlanSchema>;
 export type VoiceBStepZ = z.infer<typeof voiceBStepSchema>;
+export type VoiceBCanonicalPlanZ = z.infer<typeof voiceBCanonicalPlanSchema>;
 export type CriterionAnchorZ = z.infer<typeof anchorSchema>;
 export type CriterionEditPlanZ = z.infer<typeof editPlanSchema>;
 export type NormalizedRegionZ = z.infer<typeof normalizedRegionSchema>;

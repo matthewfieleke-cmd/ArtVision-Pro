@@ -10,6 +10,7 @@ export type {
   OverallSummaryCard,
   PhotoQualityAssessment,
   SuggestedTitle,
+  VoiceBCanonicalPlan,
   VoiceBPlan,
   WorkCompletionState,
 } from '../shared/critiqueContract';

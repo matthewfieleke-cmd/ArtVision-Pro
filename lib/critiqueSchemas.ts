@@ -24,15 +24,13 @@ export function buildCritiqueSchemaInstruction(): string {
 For each criterion:
 - level: Voice A’s ranking for that criterion alone—Beginner / Intermediate / Advanced / Master—eight independent integrated judgments from the evidence; no single-feature shortcuts; not one grade repeated eight times unless truly warranted.
 ${phaseSchemaSummaryLines()}
-- voiceBPlan: structured teacher notes for this criterion — currentRead, bestNextMove, expectedRead, plus optional mainProblem/mainStrength/avoidDoing/storyIfRelevant; fields must not duplicate the same prose
-- actionPlanSteps: exactly 1 structured Voice B step per criterion, with { area, currentRead, move, expectedRead, preserve, priority }; for non-Master criteria this must be a real on-canvas change, and for Master it must be preserve-only
-- phase3: { teacherNextSteps } — Voice B one-paragraph rendering of actionPlanSteps only, no extra duplicate moves. It may optionally start with "1." for UI compatibility, but it must still read as one polished paragraph. Master only: may start with "Don't change a thing." then brief praise. Any other level: one grounded instructional move only. Do not park Edge and Surface one band below everything else by default.
+- plan: { currentRead, move, expectedRead, preserve, editability } — canonical Voice B teaching plan for this criterion; one concrete visible current read, one concrete move, one expected read, and one preserve field. Use empty string for preserve if there is nothing specific to protect.
+- phase3: { teacherNextSteps } — Voice B one-paragraph rendering of plan only, no extra duplicate moves. It may optionally start with "1." for UI compatibility, but it must still read as one polished paragraph. Master only: may start with "Don't change a thing." then brief praise. Any other level: one grounded instructional move only. Do not park Edge and Surface one band below everything else by default.
 - confidence
 - evidenceSignals: 2–4 lines, each distilling a distinct visibleEvidence line for this criterion—no new claims
 - preserve
 - nextTarget
-- anchor: { areaSummary, evidencePointer, region } — same exact passage used by feedback, actionPlan, overlay, and edit plan
-- editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability } — machine-readable and aligned to anchor
+- anchor: { areaSummary, evidencePointer, region } — same exact passage used by feedback, canonical plan, overlay, and any derived edit plan
 - subskills`;
 }
 
@@ -65,9 +63,8 @@ export function buildVoiceBSchemaInstruction(): string {
 
 For each criterion:
 ${phaseVoiceBSummaryLines()}
-- actionPlanSteps: exactly 1 structured Voice B step, with { area, currentRead, move, expectedRead, preserve, priority }
-- voiceBPlan: structured teacher notes for this criterion — { currentRead, mainProblem, mainStrength, bestNextMove, optionalSecondMove, avoidDoing, expectedRead, storyIfRelevant }
-- phase3: { teacherNextSteps } — one-paragraph rendering matching actionPlanSteps only—no extra steps or repeated moves
+- plan: { currentRead, move, expectedRead, preserve, editability } — canonical Voice B teaching plan for this criterion. Use empty string for preserve if there is nothing specific to protect.
+- phase3: { teacherNextSteps } — one-paragraph rendering matching plan only—no extra steps or repeated moves
 - anchor: { areaSummary, evidencePointer, region }
-- editPlan: { targetArea, preserveArea, issue, intendedChange, expectedOutcome, editability }`;
+- Legacy compatibility fields may be derived later; do not invent alternate restatements of the same move.`;
 }

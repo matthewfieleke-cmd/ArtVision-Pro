@@ -4,6 +4,11 @@ import {
   EVIDENCE_STAGE_ASSESSMENT_PROTOCOL,
 } from '../shared/critiqueVoiceA.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
+import {
+  weakWorkCompositionGuidance,
+  weakWorkEvidenceGuidance,
+  weakWorkRepairExamples,
+} from './critiqueWeakWorkContracts.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -46,6 +51,9 @@ function buildEvidencePrompt(style: string, medium: string): string {
     ? ARTISTS_BY_STYLE[style].join(', ')
     : 'the masters listed for the selected style';
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
+  const weakWorkRules = weakWorkEvidenceGuidance().map((rule) => `- ${rule}`).join('\n');
+  const weakWorkCompositionRules = weakWorkCompositionGuidance().map((rule) => `- ${rule}`).join('\n');
+  const weakWorkExamples = weakWorkRepairExamples().map((rule) => `- ${rule}`).join('\n');
   return `You are stage 1 of a painting critique system.
 
 Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
@@ -67,8 +75,14 @@ Rules:
 - Be conservative with praise from a single photo: balanced composition, pleasant color, or competent finish alone are not proof of exceptional control.
 - If something reads strong but not exceptional, say it reads strong.
 - If the work is convincing overall, still look for the one or two relationships that remain least resolved instead of defaulting to perfection.
+- If the work looks weak, naive, or student-level, become MORE specific, not more charitable. Do not hide behind painting-level summaries like "the sky creates atmosphere", "the figure suggests contemplation", or "the brushwork adds texture." Name the exact junction, object pair, edge break, color collision, or mark bundle that makes you say it.
+- Top-level evidence fields must follow the same rule. Do NOT open with flattering summaries like "whimsical charm", "idyllic rural life", "lively atmosphere", or artist-comparison praise unless the criterion evidence already supports that level of control.
+- For weak work, write intentHypothesis, strongestVisibleQualities, and comparisonObservations in plain visual language first. Good: "The painting appears to organize the scene around a path, a small house, and bright flower bands." Bad: "The painting evokes whimsical charm and idyllic rural life."
+${weakWorkRules}
 - For each criterion, pick ONE concrete anchor first: a locatable junction or passage such as "the jaw edge against the dark collar" or "the orange sleeve where it meets the blue-gray wall." Downstream stages will be forced to stay with that anchor, so do not use broad areas like "the background" or "the left side."
 - For conceptual criteria such as Intent and necessity or Presence, point of view, and human force, the anchor must STILL be a physical carrier on the canvas: the passage that makes the intent or force legible. Good: "the red path narrowing toward the dark shed opening" or "the sitter's downturned face against the flat green wall." Bad: "the overall mood", "the composition overall", "the story", or "the painting's emotional tone."
+- For weak landscapes, do NOT use soft conceptual carriers like "the path leading to the house", "the smoke from the chimney", or "the garden setting" for Intent or Presence. Use a visible relationship instead: "the path bend where it meets the house shadow", "the chimney smoke against the blue wash", or "the roof edge cutting the sky wash".
+- Anchor wording rule: the anchor must name visible things, not a flattering summary of them. Bad: "the arrangement of flowers in the foreground", "the cozy house amidst the vibrant garden", "the vibrant flowers flanking the path", "the narrative journey of the path". Better: "the path bend under the red house", "the red roof against the blue wash behind it", "the purple flower patch where it meets the path edge".
 - Anchor-to-evidence alignment rule: for EACH criterion, at least one visibleEvidence line must explicitly reuse the same concrete nouns from the anchor so a validator can see that the evidence really supports that exact passage. Do not anchor to "the jaw edge against the dark collar" and then list only unrelated wall or window observations.
 
 Edge / focus and surface / medium (avoid lazy defaults):
@@ -90,12 +104,20 @@ For each criterion, provide:
 - anchor: one concrete, locatable passage or junction for this criterion. Make it specific enough that a teacher could point to the exact place on the canvas without ambiguity.
 - anchor for conceptual criteria is still a physical passage, not a painting-wide abstraction. If the criterion is Intent and necessity or Presence, point of view, and human force, name the visible passage carrying that intent, mood, or address.
 - anchor for Surface and medium handling is still a physical passage, not a material label. Name where the mark behavior is happening: a hatch field against a smoother passage, a loaded edge against a dry drag, a scumble over a darker underlayer.
+- On weak landscapes or garden scenes, prefer object-pair or junction anchors over scene summaries: a path bend under a house, a roof edge against a sky wash, a flower patch meeting a path edge, a fence post against foliage, or smoke against sky.
 - visibleEvidence: 4–8 junction-level observations (see schema). Each must name TWO identifiable things in the painting and describe the specific visual relationship between them (value break, color shift, edge event, spatial overlap, alignment). Cover different areas of the canvas across the list when possible. NEVER write area-level generalities like "the background is well-handled" or "some transitions could be smoother." Instead: "the clerk’s white cuff against the dark ledger creates a sharp value accent that draws the eye before the face does."
 - visibleEvidence must support the anchor directly: at least one line must name that same passage again with the same concrete nouns, then describe what is visibly happening there.
+- On weak or developing work, generic summaries are worse than blunt accuracy. If a visibleEvidence line could fit many landscape paintings by swapping one noun, it is too vague and must be rewritten.
+- For Composition and shape structure on weak landscapes, do NOT rely on stock composition talk such as "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact structural passage producing that effect.
+${weakWorkCompositionRules}
 - strengthRead: name the specific passage and relationship that works for this criterion. Not "good value structure" but "the progression from the bright foreground shirts through the mid-tone desks to the dim back wall creates a clear three-plane depth stack."
+- For Intent and necessity or Presence on weak landscapes, strengthRead and preserve must still name the same visible carrier passage. Do NOT write "preserve the narrative journey", "preserve the inviting warmth", or "preserve the sense of life". Name the path bend, smoke-against-sky, roof-against-wash, or other concrete carrier instead.
 - tensionRead: name what is genuinely unresolved and WHERE. If nothing is truly unresolved, say "This criterion reads resolved at the level the painting is working at" rather than manufacturing a problem. Forced tensions produce bad downstream advice.
 - preserve: name the specific relationship that must survive revision—the passage and the visual event, not an abstract quality.
 - confidence: high / medium / low
+
+Weak-work examples:
+${weakWorkExamples}
 
 Return JSON only.`;
 }

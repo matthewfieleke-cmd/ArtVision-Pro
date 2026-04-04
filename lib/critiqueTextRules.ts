@@ -40,8 +40,13 @@ export const GENERIC_ANCHOR_PATTERNS: RegExp[] = [
   /^\s*the painting overall\s*$/i,
   /^\s*composition overall\s*$/i,
   /^\s*arrangement of elements\s*$/i,
+  /^\s*the arrangement of .+\s*$/i,
   /^\s*spatial relationships\s*$/i,
   /^\s*compositional flow\s*$/i,
+  /^\s*the narrative journey(?: .+)?\s*$/i,
+  /^\s*the cozy .+\s*$/i,
+  /^\s*the idyllic .+\s*$/i,
+  /^\s*the vibrant (garden|setting|scene|flowers?)\b.*$/i,
 ];
 
 /**
@@ -103,7 +108,7 @@ export function isVagueOrGenericStudioText(text: string): boolean {
 
 /** Non-Master moves must start with one of these change verbs. */
 export const CRITIQUE_CHANGE_VERB_PATTERN =
-  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break)\b/i;
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|integrate|adjust|reduce|shift|refine)\b/i;
 
 /**
  * Master / preserve-only moves. Includes maintain|continue for validation parity with

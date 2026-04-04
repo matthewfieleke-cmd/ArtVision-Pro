@@ -22,20 +22,20 @@ import {
   studioChangeSchema,
   type VoiceAStageResult,
   type VoiceBStageResult,
-  voiceBCategorySchema,
+  voiceBCanonicalPlanSchema,
   voiceBPlanSchema,
   voiceBStepSchema,
   voiceAStageResultSchema,
   toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
 import {
-  tracesToVisibleEvidence,
   validateCritiqueGrounding,
   validateCritiqueResult,
   type CritiqueEvidenceDTO,
   validateVoiceAStageOutput,
   validateVoiceBStageOutput,
 } from './critiqueValidation.js';
+import { tracesToVisibleEvidence } from './critiqueGrounding.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import {
@@ -46,6 +46,11 @@ import {
 } from './critiqueErrors.js';
 import { assertCritiqueQualityGate } from './critiqueEval.js';
 import { noopCritiqueInstrumenter, type CritiqueInstrumenter } from './critiqueInstrumentation.js';
+import {
+  deriveActionPlanStepFromCanonical,
+  deriveEditPlanFromCanonical,
+  deriveLegacyVoiceBPlanFromCanonical,
+} from './critiqueVoiceBCanonical.js';
 import {
   CRITIQUE_CHANGE_VERB_PATTERN,
   CRITIQUE_DONT_CHANGE_PATTERN,
@@ -164,12 +169,12 @@ Voice:
 ${VOICE_B_COMPOSITE_TEACHERS}
 
 Your job in this stage:
-- Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, editPlan, voiceBPlan, actionPlanSteps, and phase3.teacherNextSteps.
+- Output ONLY Voice B teaching fields: overallSummary.topPriorities, studioChanges, and for each criterion the anchor, plan, and phase3.teacherNextSteps.
 - Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
 - Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
 - Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis.
 ${phaseVoiceBWorkflowRules()}
-- For each criterion, the evidence JSON already gives you one concrete anchor passage. Stay with that same visible passage. Output ONE shared anchored passage in categories[].anchor and ONE machine-readable edit instruction block in categories[].editPlan. The prose, overlay region, and AI edit must all point to that same visible passage.
+- For each criterion, the evidence JSON already gives you one concrete anchor passage. Stay with that same visible passage. Output ONE shared anchored passage in categories[].anchor and ONE canonical teaching plan in categories[].plan. The prose, overlay region, and any derived AI edit fields must all point to that same visible passage.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
 ${rubricBlock}
@@ -188,10 +193,10 @@ Rules:
 - Your usefulness comes from precision, not from forced criticism.
 - The eight criteria should usually vary; uniformity across all eight is possible but uncommon. Do not smooth everything to one level out of politeness or uncertainty.
 - Voice B tone: teacherly coaching for a motivated serious hobbyist or art student. Lead with the clearest action, then explain it plainly.
-- For every non-Master criterion, there is exactly ONE primary move. Return one actionPlanStep only, and make phase3.teacherNextSteps read as one polished paragraph about that one move.
+- For every non-Master criterion, there is exactly ONE primary move. Return one canonical plan only, and make phase3.teacherNextSteps read as one polished paragraph about that one move.
 - For every Master criterion, give preserve-only guidance. Praise the exact visible relationship that is already exceptional and provide ZERO improvement instructions.
 - Distinctness is mandatory across the full eight-criterion set: do not recycle the same move, the same wording, or the same anchored passage across multiple criteria unless the painting truly makes that unavoidable.
-- Voice B non-redundancy: voiceBPlan fields must not copy/paste the same sentence across currentRead, mainProblem, bestNextMove, and expectedRead—each field adds new information. phase3.teacherNextSteps must be a tight rendering of actionPlanSteps only: do not add extra steps, synonyms, or repeated junctions that are not in those steps. Do not restate Voice A’s feedback verbatim.
+- Voice B non-redundancy: categories[].plan.currentRead, move, and expectedRead must each add different information. phase3.teacherNextSteps must be a tight rendering of categories[].plan only: do not add extra steps, synonyms, or repeated junctions that are not in that plan. Do not restate Voice A’s feedback verbatim.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
   - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "push the contrast," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
@@ -216,25 +221,22 @@ Rules:
 - If calibration caps are supplied below, they are mandatory ceilings for this response.
 - overallSummary (required):
   - topPriorities = 1 or 2 Voice B lines only, each beginning with the primary action and naming a visible passage from this painting.
-- Voice B planning structure (required for all eight categories): First create categories[].voiceBPlan and categories[].actionPlanSteps for THAT criterion on THIS painting only.
-  - categories[].voiceBPlan is Voice B's teacher note to self for the anchored passage: what it is doing now, what the main problem/strength is, what the best next move is, what should be preserved or avoided, and what the passage should read like afterward.
-  - categories[].actionPlanSteps must contain exactly 1 high-leverage step. That one step is the primary move for the criterion.
-  - The one actionPlanStep must answer: where exactly, what is happening there now, what exact move to make, and what should read differently afterward.
-  - actionPlanSteps[].area must name a **visible, locatable passage** in THIS painting—a physical thing the artist can point to (a pot, a path edge, a cluster of flowers, a shadow junction, a contour). NEVER fill area with abstract design language: "arrangement of elements", "spatial relationships", "areas where energy is evident", "the compositional flow", or "elements" by itself. If the criterion is conceptual (Intent, Presence), still locate it in a physical passage—e.g. "the red path pulling the eye toward the shed" rather than "the arrangement of elements."
-  - actionPlanSteps[].move must begin with a concrete studio verb (soften, darken, cool, group, separate, sharpen, widen, compress, quiet, warm, lose, restate) applied to a specific visual element in that passage. NEVER use "adjust elements", "enhance presence", "ensure consistency", "improve structure", "strengthen the painting's presence", "define these spatial relationships", or "unify texture" without naming what exactly to change. If you cannot name a specific brushstroke, edge, color relationship, or spatial event to change, the step is too vague.
-  - actionPlanSteps[].currentRead must describe a visible fact, not a judgment. Bad: "could be more unified", "feels less necessary", "some relationships could be clearer". Better: "the green foliage patches are all the same value and chroma, flattening the depth between near and far beds."
-  - Set actionPlanSteps[0].priority to "primary".
-  - Make categories[].phase3.teacherNextSteps a readable polished paragraph rendering of categories[].actionPlanSteps. It may optionally begin with "1." for UI compatibility, but it must still be one paragraph and one primary move only.
-- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable studio guidance derived from actionPlanSteps for THAT criterion on THIS painting only.
-  - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and editPlan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
+- Voice B planning structure (required for all eight categories): First create categories[].plan for THAT criterion on THIS painting only.
+  - categories[].plan.currentRead must describe a visible fact in the anchored passage, not a judgment. Bad: "could be more unified", "feels less necessary", "some relationships could be clearer". Better: "the green foliage patches are all the same value and chroma, flattening the depth between near and far beds."
+  - categories[].plan.move must begin with a concrete studio verb (soften, darken, cool, group, separate, sharpen, widen, compress, quiet, warm, lose, restate) applied to a specific visual element in that passage. NEVER use "adjust elements", "enhance presence", "ensure consistency", "improve structure", "strengthen the painting's presence", "define these spatial relationships", or "unify texture" without naming what exactly to change. If you cannot name a specific brushstroke, edge, color relationship, or spatial event to change, the move is too vague.
+  - categories[].plan.expectedRead must state what should read differently afterward in that same passage.
+  - categories[].plan.preserve should name any nearby strength that must survive the move. If there is nothing specific to preserve, return an empty string.
+  - categories[].plan.editability must be "yes" for non-Master criteria unless the anchored target is too ambiguous or too broad to revise reliably. For Master criteria, set it to "no".
+- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable studio guidance derived from categories[].plan for THAT criterion on THIS painting only.
+  - Voice B must derive every recommendation from the same anchored passage used by anchor.areaSummary, anchor.evidencePointer, and plan. Think in this exact order for every step: (1) name the anchored passage, (2) name the concrete issue or strength in that passage, (3) state the exact move, and (4) state the intended read after the move.
   - Every numbered step must answer all three questions explicitly: **where exactly**, **what exactly is wrong/right there**, and **what exactly should change or stay**. If a step could fit many paintings by swapping only the subject noun, it is too vague.
   - Do not use abstract placeholders such as "certain edges", "small details", "the story", "color transitions", "focal area", "more realism", or "more depth" unless the same sentence names the exact edge, exact detail, exact story beat, exact color junction, or exact focal passage in THIS painting.
   - If you mention a narrative or story, say what that story or dramatic situation appears to be in this painting and which visible passages carry it; do not refer to "the story" generically.
   - If you mention preserving a strength, say exactly what to preserve and why it matters: e.g. keep X contrast, keep Y diagonal, keep Z edge around the eyes—not "maintain the focus" in the abstract.
   - **Critical:** The exact phrase "Don’t change a thing." is **only** allowed when categories[].level is **Master** for that criterion. For **Beginner, Intermediate, or Advanced**, never use that phrase or praise-only preservation as a substitute for a real improvement move.
-  - **Equally critical — no preservation masquerading as improvement:** For any criterion below Master, phase3.teacherNextSteps and actionPlanSteps must contain one genuine CHANGE instruction—something the artist would physically alter on the canvas. Steps that begin with "Maintain", "Preserve", "Keep", "Continue", or "Protect" are preservation steps, NOT improvement steps.
+  - **Equally critical — no preservation masquerading as improvement:** For any criterion below Master, phase3.teacherNextSteps and categories[].plan.move must contain one genuine CHANGE instruction—something the artist would physically alter on the canvas. Moves that begin with "Maintain", "Preserve", "Keep", "Continue", or "Protect" are preservation steps, NOT improvement steps.
   - If categories[].level is **Master** for that criterion: phase3.teacherNextSteps must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.
-  - If categories[].level is **Master** for that criterion, the structured fields must also be preserve-only: categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange must begin with "Preserve", "Keep", "Protect", "Leave", or "Hold".
+  - If categories[].level is **Master** for that criterion, categories[].plan.move must also be preserve-only and begin with "Preserve", "Keep", "Protect", "Leave", or "Hold".
   - If level is **Beginner**: the one move should realistically push this criterion toward **Intermediate**.
   - If level is **Intermediate**: the one move should realistically push this criterion toward **Advanced**.
   - If level is **Advanced**: the one move should be a real refinement toward **Master**, not praise disguised as advice.
@@ -250,18 +252,9 @@ Rules:
   - Bad: "left side of the painting", "color transitions in clothing and background", "circular arrangement of figures around the table". Better: "the leftmost seated woman’s face against the dark hedge", "the orange sleeve where it meets the blue-gray wall", "the gap between the two front figures at the table edge".
   - If the real issue is relational, the anchor should still name the visible relationship in concrete terms: "the overlap between the cup rim and the hand", "the jaw edge against the dark collar", "the warm cheek turning into the green shadow under the eye".
   - The anchor should be as tight as possible while still including the full visible relationship being discussed.
-  - Voice A categories[].phase2.criticsAnalysis, Voice B categories[].phase3.teacherNextSteps, categories[].editPlan, and any related studioChanges must all stay aligned to that same anchored passage.
-- Edit plan rules (required for every criterion):
-  - categories[].editPlan.targetArea must match categories[].anchor.areaSummary.
-  - categories[].editPlan.issue, intendedChange, and expectedOutcome must be concrete, machine-readable, and limited to the same anchored passage.
-  - issue must describe the visible problem or strength in that passage, not a generic goal. Bad: "needs more depth", "some shadow areas could be more defined", "improve realism". Better: "the shadow behind the left cheek merges too evenly into the jacket so the head loses separation".
-  - intendedChange must be a directional studio move in that same passage, not a broad ambition. Bad: "refine shadow areas", "smooth transitions", "add details". Better: "darken the jacket side of that cheek-jacket junction and keep the cheek edge slightly cleaner".
-  - expectedOutcome must describe the resulting read in plain visual terms, not a slogan. Bad: "enhanced clarity", "better narrative", "more realism". Better: "the face separates sooner from the jacket and the overlap reads as depth instead of flattening".
-  - Think of editPlan as a studio teacher's note to self: where, what is happening there now, what exact move to make, and what the passage should read like afterward.
-  - If categories[].level is Master, set editability to "no" and make intendedChange a preservation description only.
-  - Otherwise set editability to "yes" unless the anchored target is too ambiguous or too broad to revise reliably.
+- Voice A categories[].phase2.criticsAnalysis, Voice B categories[].phase3.teacherNextSteps, categories[].plan, and any related studioChanges must all stay aligned to that same anchored passage.
 - studioChanges (Voice B — same composite teaching voice): 2–5 items. Each item is { text, previewCriterion }. text = one concrete studio instruction: where + what + how for THIS image only. previewCriterion must be the single best-matching criterion label from the schema enum for that change (used to route an illustrative preview image).
-- studioChanges should usually be selected from the strongest categories[].actionPlanSteps rather than invented as a separate loose advice stream. If you write a studioChange that is not visibly grounded in an existing actionPlanStep for that criterion, it is probably too vague.
+- studioChanges should usually be selected from the strongest categories[].plan items rather than invented as a separate loose advice stream. If you write a studioChange that is not visibly grounded in an existing canonical plan for that criterion, it is probably too vague.
 - For every studioChanges.text, use the same hidden template: **where** (named passage) + **what is happening there now** + **what exact move to make** + **what read should result**.
 - Each studioChanges.text must anchor to **identifiable content from the evidence** (same rules as before: motif, two colors at a junction, or precise zone + what occupies it). Bad: "In one area…", "two color families", "one contour" without naming what is in the picture.
 - No two studioChanges should repeat the same move or the same named passage.
@@ -276,7 +269,7 @@ Rules:
   - Pastel: prefer stroke pressure, tooth coverage, layering, edge softness, and control of powdery chroma.
   - Oil on Canvas: prefer paint thickness, scumble/glaze, temperature shifts, edge weight, and shape/value editing.
 - For strong finished paintings, at most one studioChange may be preservation-only; the rest must still name something concrete in the picture to refine or protect in place.
-- Ensure the eight actionPlan blocks collectively cover improvement intent across criteria: Voice B should not repeat the same step verbatim in multiple categories—tailor each actionPlan to that criterion’s lever on this canvas.
+- Ensure the eight canonical plans collectively cover improvement intent across criteria: Voice B should not repeat the same move verbatim in multiple categories—tailor each plan to that criterion’s lever on this canvas.
 
 Benchmarks for what "Master" means in this style: ${benchmarks}
 
@@ -395,16 +388,17 @@ function groundedVoiceBCurrentRead(
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): string {
   const candidates = [
-    category.actionPlanSteps[0]?.currentRead,
-    category.voiceBPlan.currentRead,
+    category.plan.currentRead,
+    category.actionPlanSteps?.[0]?.currentRead,
+    category.voiceBPlan?.currentRead,
     category.anchor.evidencePointer,
-    category.editPlan.issue,
+    category.editPlan?.issue,
   ];
   return (
     candidates.find(
       (candidate): candidate is string =>
         typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
-    ) ?? category.actionPlanSteps[0]?.currentRead ?? category.voiceBPlan.currentRead
+    ) ?? category.plan.currentRead
   );
 }
 
@@ -414,16 +408,17 @@ function groundedVoiceBIssue(
 ): string {
   const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
   const candidates = [
-    category.editPlan.issue,
+    category.plan.currentRead,
+    category.editPlan?.issue,
     groundedCurrentRead,
-    category.voiceBPlan.currentRead,
+    category.voiceBPlan?.currentRead,
     category.anchor.evidencePointer,
   ];
   return (
     candidates.find(
       (candidate): candidate is string =>
         typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
-    ) ?? category.editPlan.issue
+    ) ?? groundedCurrentRead
   );
 }
 
@@ -433,20 +428,296 @@ function normalizeVoiceBCategoryGrounding(
 ): VoiceBCategoryResult {
   const anchorArea = category.anchor.areaSummary;
   const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
-  return {
+  const normalizedCategory: VoiceBCategoryResult = {
     ...category,
-    actionPlanSteps: category.actionPlanSteps.map((step, index) =>
-      index === 0 ? { ...step, area: anchorArea, currentRead: groundedCurrentRead } : step
-    ),
-    voiceBPlan: {
-      ...category.voiceBPlan,
+    plan: {
+      ...category.plan,
       currentRead: groundedCurrentRead,
     },
-    editPlan: {
-      ...category.editPlan,
-      issue: groundedVoiceBIssue(category, criterionEvidence),
-      targetArea: anchorArea,
+  };
+  const legacyCategory = deriveLegacyVoiceBFields(normalizedCategory);
+  return {
+    ...legacyCategory,
+    editPlan: legacyCategory.editPlan
+      ? {
+          ...legacyCategory.editPlan,
+          issue: groundedVoiceBIssue(legacyCategory, criterionEvidence),
+          targetArea: anchorArea,
+        }
+      : undefined,
+    voiceBPlan: legacyCategory.voiceBPlan
+      ? {
+          ...legacyCategory.voiceBPlan,
+          currentRead: groundedCurrentRead,
+        }
+      : undefined,
+    actionPlanSteps: legacyCategory.actionPlanSteps?.map((step, index) =>
+      index === 0 ? { ...step, area: anchorArea, currentRead: groundedCurrentRead } : step
+    ),
+    plan: {
+      ...legacyCategory.plan,
+      currentRead: groundedCurrentRead,
     },
+  };
+}
+
+type VoiceBCategoryLike = {
+  criterion?: unknown;
+  anchor?: { areaSummary?: unknown };
+  level?: unknown;
+};
+
+export function normalizeKnownVoiceBVerbDrift(
+  text: string,
+  category?: VoiceBCategoryLike
+): string {
+  const normalized = text.trim();
+  if (!normalized) return normalized;
+  const criterion = typeof category?.criterion === 'string' ? category.criterion : '';
+  const areaSummary =
+    category?.anchor && typeof category.anchor.areaSummary === 'string'
+      ? category.anchor.areaSummary.trim()
+      : 'the anchored passage';
+
+  const spatialSeparationMatch = normalized.match(
+    /^enhance(?:\s+the)?\s+spatial separation between\s+(.+?)\s+and\s+(.+?)(?:\s+to\s+(.+))?\.?$/i
+  );
+  if (spatialSeparationMatch) {
+    const left = spatialSeparationMatch[1]?.trim();
+    const right = spatialSeparationMatch[2]?.trim();
+    const outcome = spatialSeparationMatch[3]?.trim();
+    const tail = outcome ? ` to ${outcome}` : '';
+    return `separate ${left} and ${right} more clearly${tail}.`;
+  }
+
+  const separationMatch = normalized.match(
+    /^enhance(?:\s+the)?\s+separation between\s+(.+?)\s+and\s+(.+?)(?:\s+to\s+(.+))?\.?$/i
+  );
+  if (separationMatch) {
+    const left = separationMatch[1]?.trim();
+    const right = separationMatch[2]?.trim();
+    const outcome = separationMatch[3]?.trim();
+    const tail = outcome ? ` to ${outcome}` : '';
+    return `separate ${left} and ${right} more clearly${tail}.`;
+  }
+
+  if (/^enhance(?:\s+the)?\s+color transitions?/i.test(normalized)) {
+    return `vary the color transitions in ${areaSummary} so adjacent color passages stay distinct without breaking the palette.`;
+  }
+
+  if (/^enhance(?:\s+the)?\s+color transitions?.*\bcohesion\b/i.test(normalized)) {
+    return `vary the color transitions in ${areaSummary} so adjacent passages stay cohesive without flattening the palette.`;
+  }
+
+  if (/^smooth the color transitions/i.test(normalized)) {
+    return `vary the color transitions in ${areaSummary} so adjacent color passages stay cohesive without flattening the palette.`;
+  }
+
+  if (/^refine the transitions between light and dark areas/i.test(normalized)) {
+    return `separate the light and dark passages in ${areaSummary} more clearly so the depth reads sooner.`;
+  }
+
+  if (/^refine the transitions between .+ and .+ to enhance separation/i.test(normalized)) {
+    return `separate the adjacent passages in ${areaSummary} more clearly so the structure reads sooner.`;
+  }
+
+  if (/^enhance(?:\s+the)?\s+distinctiveness of individual expressions/i.test(normalized)) {
+    return `sharpen the clearest expression accents in ${areaSummary} so the human pressure reads more distinctly.`;
+  }
+
+  if (/^refine the necessity of each figure'?s placement/i.test(normalized)) {
+    return `group the least necessary figure placements in ${areaSummary} more tightly with the main cluster so the arrangement reads as one deliberate structure.`;
+  }
+
+  if (/^enhance(?:\s+the)?\s+presence\b/i.test(normalized) || /^enhance(?:\s+the)?\s+human force\b/i.test(normalized)) {
+    return `sharpen the clearest force-carrying passage in ${areaSummary} so the point of view reads more decisively.`;
+  }
+
+  if (
+    criterion === 'Color relationships' &&
+    (/^enhance\b/i.test(normalized) || /^strengthen\b/i.test(normalized))
+  ) {
+    return `vary the color transitions in ${areaSummary} so the palette stays cohesive without flattening nearby passages.`;
+  }
+
+  if (
+    criterion === 'Color relationships' &&
+    /^smooth\b/i.test(normalized)
+  ) {
+    return `vary the color transitions in ${areaSummary} so the palette stays cohesive without flattening nearby passages.`;
+  }
+
+  if (
+    criterion === 'Presence, point of view, and human force' &&
+    (/^enhance\b/i.test(normalized) || /^strengthen\b/i.test(normalized))
+  ) {
+    return `sharpen the clearest expressive passage in ${areaSummary} so the human pressure reads more distinctly.`;
+  }
+
+  if (
+    criterion === 'Value and light structure' &&
+    /^refine\b/i.test(normalized)
+  ) {
+    return `separate the light and dark passages in ${areaSummary} more clearly so the value structure reads sooner.`;
+  }
+
+  if (
+    criterion === 'Edge and focus control' &&
+    (/^enhance\b/i.test(normalized) ||
+      /^refine\b/i.test(normalized) ||
+      /^improve\b/i.test(normalized) ||
+      /^clarify\b/i.test(normalized) ||
+      /\bfocus hierarchy\b/i.test(normalized))
+  ) {
+    return `sharpen one edge in ${areaSummary} while losing the neighboring edge so the focus hierarchy reads through that passage instead of flattening.`;
+  }
+
+  return normalized;
+}
+
+function fallbackVoiceBMoveForCriterion(category?: VoiceBCategoryLike): string {
+  const criterion = typeof category?.criterion === 'string' ? category.criterion : '';
+  const areaSummary =
+    category?.anchor && typeof category.anchor.areaSummary === 'string'
+      ? category.anchor.areaSummary.trim()
+      : 'the anchored passage';
+  const level = typeof category?.level === 'string' ? category.level : '';
+
+  if (level === 'Master') {
+    return `preserve the strongest relationship in ${areaSummary}.`;
+  }
+
+  switch (criterion) {
+    case 'Composition and shape structure':
+      return `group the main shape relationship in ${areaSummary}.`;
+    case 'Value and light structure':
+      return `separate the light and dark passages in ${areaSummary}.`;
+    case 'Color relationships':
+      return `vary the color transitions in ${areaSummary}.`;
+    case 'Drawing, proportion, and spatial form':
+      return `restate the key spatial relationship in ${areaSummary}.`;
+    case 'Edge and focus control':
+      return `sharpen the key edge contrast in ${areaSummary}.`;
+    case 'Surface and medium handling':
+      return `vary the handling transitions in ${areaSummary}.`;
+    case 'Intent and necessity':
+      return `quiet the least necessary accent in ${areaSummary}.`;
+    case 'Presence, point of view, and human force':
+      return `sharpen the clearest expressive accent in ${areaSummary}.`;
+    default:
+      return `adjust the key relationship in ${areaSummary}.`;
+  }
+}
+
+export function normalizeVoiceBMoveForSchema(
+  text: string,
+  category?: VoiceBCategoryLike
+): string {
+  const normalized = normalizeKnownVoiceBVerbDrift(text, category);
+  if (CRITIQUE_CHANGE_VERB_PATTERN.test(normalized) || CRITIQUE_PRESERVE_VERB_PATTERN.test(normalized)) {
+    return normalized;
+  }
+  return fallbackVoiceBMoveForCriterion(category);
+}
+
+function deriveLegacyVoiceBFields(category: VoiceBCategoryResult): VoiceBCategoryResult {
+  const actionPlanStep = deriveActionPlanStepFromCanonical(category.anchor, category.plan);
+  const voiceBPlan = deriveLegacyVoiceBPlanFromCanonical(category.plan);
+  const editPlan = deriveEditPlanFromCanonical(category.anchor, category.plan);
+
+  return {
+    ...category,
+    ...(actionPlanStep ? { actionPlanSteps: [actionPlanStep] } : {}),
+    ...(voiceBPlan ? { voiceBPlan } : {}),
+    ...(editPlan ? { editPlan } : {}),
+  };
+}
+
+function normalizeVoiceBCategoryBatchRaw(raw: unknown, voiceA: VoiceAStageResult): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const payload = raw as { categories?: unknown };
+  if (!Array.isArray(payload.categories)) return raw;
+  const levelsByCriterion = new Map(voiceA.categories.map((category) => [category.criterion, category.level] as const));
+
+  return {
+    ...payload,
+    categories: payload.categories.map((category) => {
+      if (!category || typeof category !== 'object') return category;
+      const entry = category as Record<string, unknown>;
+      const criterion = typeof entry.criterion === 'string' ? entry.criterion : undefined;
+      const context: VoiceBCategoryLike = {
+        criterion,
+        anchor:
+          entry.anchor && typeof entry.anchor === 'object'
+            ? { areaSummary: (entry.anchor as Record<string, unknown>).areaSummary }
+            : undefined,
+        level: criterion ? levelsByCriterion.get(criterion as CriterionLabel) : undefined,
+      };
+      const plan =
+        entry.plan && typeof entry.plan === 'object'
+          ? {
+              ...(entry.plan as Record<string, unknown>),
+              ...(typeof (entry.plan as Record<string, unknown>).move === 'string'
+                ? {
+                    move: normalizeVoiceBMoveForSchema(
+                      (entry.plan as Record<string, unknown>).move as string,
+                      context
+                    ),
+                  }
+                : {}),
+            }
+          : entry.plan;
+      const actionPlanSteps = Array.isArray(entry.actionPlanSteps)
+        ? entry.actionPlanSteps.map((step, index) => {
+            if (!step || typeof step !== 'object' || index !== 0) return step;
+            const stepRecord = step as Record<string, unknown>;
+            return {
+              ...stepRecord,
+              ...(typeof stepRecord.move === 'string'
+                ? { move: normalizeVoiceBMoveForSchema(stepRecord.move, context) }
+                : {}),
+            };
+          })
+        : entry.actionPlanSteps;
+
+      const voiceBPlan =
+        entry.voiceBPlan && typeof entry.voiceBPlan === 'object'
+          ? {
+              ...(entry.voiceBPlan as Record<string, unknown>),
+              ...(typeof (entry.voiceBPlan as Record<string, unknown>).bestNextMove === 'string'
+                ? {
+                    bestNextMove: normalizeVoiceBMoveForSchema(
+                      (entry.voiceBPlan as Record<string, unknown>).bestNextMove as string,
+                      context
+                    ),
+                  }
+                : {}),
+            }
+          : entry.voiceBPlan;
+
+      const editPlan =
+        entry.editPlan && typeof entry.editPlan === 'object'
+          ? {
+              ...(entry.editPlan as Record<string, unknown>),
+              ...(typeof (entry.editPlan as Record<string, unknown>).intendedChange === 'string'
+                ? {
+                    intendedChange: normalizeVoiceBMoveForSchema(
+                      (entry.editPlan as Record<string, unknown>).intendedChange as string,
+                      context
+                    ),
+                  }
+                : {}),
+            }
+          : entry.editPlan;
+
+      return {
+        ...entry,
+        plan,
+        actionPlanSteps,
+        voiceBPlan,
+        editPlan,
+      };
+    }),
   };
 }
 
@@ -467,9 +738,9 @@ function buildVoiceBLevelRuleBlock(
     .map((criterion) => {
       const level = voiceALevelForCriterion(voiceA, criterion);
       if (level === 'Master') {
-        return `- ${criterion}: Voice A fixed level is Master. This criterion MUST use preserve-only guidance. categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange must begin with preserve, keep, protect, leave, or hold. categories[].phase3.teacherNextSteps may begin with "Don't change a thing."`;
+        return `- ${criterion}: Voice A fixed level is Master. This criterion MUST use preserve-only guidance. categories[].plan.move must begin with preserve, keep, protect, leave, or hold, and categories[].plan.editability must be "no". categories[].phase3.teacherNextSteps may begin with "Don't change a thing."`;
       }
-      return `- ${criterion}: Voice A fixed level is ${level}. This criterion is NOT Master. Do NOT use "Don't change a thing." anywhere. categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange must begin with a true CHANGE verb from this list: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break. Preserve-only wording is forbidden for this criterion.`;
+        return `- ${criterion}: Voice A fixed level is ${level}. This criterion is NOT Master. Do NOT use "Don't change a thing." anywhere. categories[].plan.move must begin with a true CHANGE verb from this list: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, integrate, adjust, reduce, shift, refine. Preserve-only wording is forbidden for this criterion, and categories[].plan.editability must be "yes".`;
     })
     .join('\n');
 }
@@ -484,71 +755,49 @@ function createVoiceBCategoryPassSchema(
   const criterionSubsetEnum = z.enum(criteria as [CriterionLabel, ...CriterionLabel[]]);
   const changeVerbRegex = new RegExp(CRITIQUE_CHANGE_VERB_PATTERN.source, 'i');
   const preserveVerbRegex = new RegExp(CRITIQUE_PRESERVE_VERB_PATTERN.source, 'i');
-  const masterStepSchema = voiceBStepSchema.extend({
+  const masterPlanSchema = voiceBCanonicalPlanSchema.extend({
     move: z.string().min(12).regex(preserveVerbRegex),
+    editability: z.literal('no'),
   });
-  const nonMasterStepSchema = voiceBStepSchema.extend({
+  const nonMasterPlanSchema = voiceBCanonicalPlanSchema.extend({
     move: z.string().min(12).regex(changeVerbRegex),
+    editability: z.literal('yes'),
   });
-  const masterVoiceBPlanSchema = voiceBPlanSchema.extend({
-    bestNextMove: z.string().min(12).regex(preserveVerbRegex),
-  });
-  const nonMasterVoiceBPlanSchema = voiceBPlanSchema.extend({
-    bestNextMove: z.string().min(12).regex(changeVerbRegex),
-  });
-  const masterEditPlanSchema = editPlanSchema.extend({
-    intendedChange: z.string().min(12).regex(preserveVerbRegex),
-  });
-  const nonMasterEditPlanSchema = editPlanSchema.extend({
-    intendedChange: z.string().min(12).regex(changeVerbRegex),
-  });
-  const categorySchema = voiceBCategorySchema
-    .extend({
+  const categorySchema = z.object({
       criterion: criterionSubsetEnum,
+      phase3: z.object({
+        teacherNextSteps: z.string(),
+      }),
+      anchor: anchorSchema,
+      plan: voiceBCanonicalPlanSchema,
     })
-    .transform((category, ctx) => {
+    .superRefine((category, ctx) => {
       const level = levelsByCriterion.get(category.criterion);
-      if (!level) return category;
-
+      if (!level) return;
       const branchSchema =
         level === 'Master'
           ? z.object({
-              actionPlanSteps: z.array(masterStepSchema).length(1),
-              voiceBPlan: masterVoiceBPlanSchema,
               anchor: anchorSchema,
-              editPlan: masterEditPlanSchema,
+              plan: masterPlanSchema,
             })
           : z.object({
-              actionPlanSteps: z.array(nonMasterStepSchema).length(1),
-              voiceBPlan: nonMasterVoiceBPlanSchema,
               anchor: anchorSchema,
-              editPlan: nonMasterEditPlanSchema,
+              plan: nonMasterPlanSchema,
             });
-
-      const result = branchSchema.safeParse({
-        actionPlanSteps: category.actionPlanSteps,
-        voiceBPlan: category.voiceBPlan,
+      const branchResult = branchSchema.safeParse({
         anchor: category.anchor,
-        editPlan: category.editPlan,
+        plan: category.plan,
       });
-      if (!result.success) {
-        for (const issue of result.error.issues) {
+      if (!branchResult.success) {
+        for (const issue of branchResult.error.issues) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: issue.message,
             path: issue.path,
           });
         }
-        return z.NEVER;
       }
-      return category;
-    })
-    .superRefine((category, ctx) => {
-      const level = levelsByCriterion.get(category.criterion);
-      if (!level) return;
-      const stepMove = category.actionPlanSteps[0]?.move ?? '';
-      const bestNextMove = category.voiceBPlan.bestNextMove;
-      const intendedChange = category.editPlan.intendedChange;
+      const planMove = category.plan.move;
       const teacherNextSteps = category.phase3.teacherNextSteps;
 
       if (level === 'Master') {
@@ -559,25 +808,11 @@ function createVoiceBCategoryPassSchema(
             message: `${category.criterion}: Master guidance must begin with "Don't change a thing."`,
           });
         }
-        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(stepMove)) {
+        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(planMove)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['actionPlanSteps', 0, 'move'],
-            message: `${category.criterion}: Master actionPlanSteps[0].move must be preserve-only.`,
-          });
-        }
-        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(bestNextMove)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['voiceBPlan', 'bestNextMove'],
-            message: `${category.criterion}: Master voiceBPlan.bestNextMove must be preserve-only.`,
-          });
-        }
-        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(intendedChange)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['editPlan', 'intendedChange'],
-            message: `${category.criterion}: Master editPlan.intendedChange must be preserve-only.`,
+            path: ['plan', 'move'],
+            message: `${category.criterion}: Master plan.move must be preserve-only.`,
           });
         }
         return;
@@ -590,25 +825,11 @@ function createVoiceBCategoryPassSchema(
           message: `${category.criterion}: non-Master guidance cannot use "Don't change a thing."`,
         });
       }
-      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(stepMove)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(planMove)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['actionPlanSteps', 0, 'move'],
-          message: `${category.criterion}: non-Master actionPlanSteps[0].move must be a true change instruction.`,
-        });
-      }
-      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(bestNextMove)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['voiceBPlan', 'bestNextMove'],
-          message: `${category.criterion}: non-Master voiceBPlan.bestNextMove must be a true change instruction.`,
-        });
-      }
-      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(intendedChange)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['editPlan', 'intendedChange'],
-          message: `${category.criterion}: non-Master editPlan.intendedChange must be a true change instruction.`,
+          path: ['plan', 'move'],
+          message: `${category.criterion}: non-Master plan.move must be a true change instruction.`,
         });
       }
     });
@@ -658,10 +879,8 @@ ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 
 Anchor alignment rules for this pass:
 - categories[].anchor.areaSummary is the canonical label for the chosen passage.
-- categories[].actionPlanSteps[0].area MUST repeat categories[].anchor.areaSummary verbatim.
-- categories[].actionPlanSteps[0].currentRead MUST restate the same concrete visible fact as categories[].anchor.evidencePointer or categories[].voiceBPlan.currentRead.
-- categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
-- categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that anchored passage.
+- categories[].plan.currentRead MUST restate the same concrete visible fact as categories[].anchor.evidencePointer for that anchored passage.
+- categories[].plan.move and categories[].plan.expectedRead MUST stay limited to that same anchored passage.
 
 Return ONLY the categories array for those criteria in that exact order.
 Do NOT return overallSummary or studioChanges in this pass. Those are handled separately after the per-criterion teaching plans are fixed.`;
@@ -676,7 +895,7 @@ function buildVoiceBCategoryPassUserPrompt(
   const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
   const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].actionPlanSteps[0].area must repeat categories[].anchor.areaSummary verbatim.\n- categories[].actionPlanSteps[0].currentRead must restate the same concrete visible fact as categories[].anchor.evidencePointer or categories[].voiceBPlan.currentRead, not a more abstract summary.\n- categories[].editPlan.targetArea must repeat categories[].anchor.areaSummary verbatim.\n- categories[].editPlan.issue should restate the same concrete visible fact as categories[].actionPlanSteps[0].currentRead for that passage, not a more abstract summary.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].plan.currentRead must restate the same concrete visible fact as categories[].anchor.evidencePointer for that passage, not a more abstract summary.\n- categories[].plan.move and categories[].plan.expectedRead must stay limited to that same anchored passage.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -744,49 +963,41 @@ function buildVoiceBRepairNote(
   const details = errorDetails(error);
   const failedLeadVerbFields = details.filter(
     (detail) =>
+      detail.includes('plan.move') ||
       detail.includes('actionPlanSteps[0].move') ||
       detail.includes('bestNextMove') ||
       detail.includes('intendedChange')
   );
   const failedAnchorAlignmentFields = details.filter(
     (detail) =>
+      detail.includes('plan.currentRead') ||
       detail.includes('targetArea does not match the anchored passage') ||
       detail.includes('actionPlanSteps[0].area does not match the anchored passage')
   );
-  const failedIssueGroundingFields = details.filter((detail) =>
-    detail.includes('editPlan.issue is not traceable to visibleEvidence')
-  );
   const failedCurrentReadGroundingFields = details.filter((detail) =>
+    detail.includes('plan.currentRead is not traceable to visibleEvidence') ||
     detail.includes('actionPlanSteps[0].currentRead is not traceable to visibleEvidence')
   );
   const fieldInstruction =
     failedLeadVerbFields.length > 0
       ? `Critical field fix for ${criteria.join(', ')}:
-- categories[].actionPlanSteps[0].move, categories[].voiceBPlan.bestNextMove, and categories[].editPlan.intendedChange MUST begin with exactly one of these verbs: ${VOICE_B_ALLOWED_LEAD_VERBS}.
+- categories[].plan.move MUST begin with exactly one of these verbs: ${VOICE_B_ALLOWED_LEAD_VERBS}.
 - For non-Master criteria, begin with a true CHANGE verb from that list.
 - For Master criteria, begin with a preserve verb from that list.
-- Do not start those fields with clarify, define, strengthen, improve, maintain, enhance, adjust, refine, or any synonym outside the allowed list.`
+- Do not start that field with clarify, define, strengthen, improve, maintain, enhance, or any synonym outside the allowed list.`
       : '';
   const anchorAlignmentInstruction =
     failedAnchorAlignmentFields.length > 0
       ? `Critical anchor alignment fix for ${criteria.join(', ')}:
 - categories[].anchor.areaSummary is the canonical passage label.
-- categories[].actionPlanSteps[0].area MUST repeat categories[].anchor.areaSummary verbatim.
-- categories[].editPlan.targetArea MUST repeat categories[].anchor.areaSummary verbatim.
-- Do not paraphrase those two fields with nearby synonyms or alternate names.`
-      : '';
-  const issueGroundingInstruction =
-    failedIssueGroundingFields.length > 0
-      ? `Critical issue grounding fix for ${criteria.join(', ')}:
-- categories[].editPlan.issue MUST stay traceable to visibleEvidence in the same anchored passage.
-- Reuse the same concrete visible fact already stated in categories[].actionPlanSteps[0].currentRead instead of summarizing it into abstract diagnosis language.
-- Do not rewrite that field as "needs more structure", "feels unresolved", or any other location-free summary.`
+- categories[].plan.currentRead MUST restate the same concrete visible fact as categories[].anchor.evidencePointer.
+- Do not paraphrase the anchored passage into a broader or alternate location.`
       : '';
   const currentReadGroundingInstruction =
     failedCurrentReadGroundingFields.length > 0
       ? `Critical currentRead grounding fix for ${criteria.join(', ')}:
-- categories[].actionPlanSteps[0].currentRead MUST stay traceable to visibleEvidence in the same anchored passage.
-- Reuse the same concrete visible fact already stated in categories[].anchor.evidencePointer or categories[].voiceBPlan.currentRead instead of summarizing it into abstract diagnosis language.
+- categories[].plan.currentRead MUST stay traceable to visibleEvidence in the same anchored passage.
+- Reuse the same concrete visible fact already stated in categories[].anchor.evidencePointer instead of summarizing it into abstract diagnosis language.
 - Do not rewrite that field as "feels unresolved", "could be more unified", or any other judgment-only summary.`
       : '';
   return `${prefix}
@@ -794,7 +1005,6 @@ ${details.map((detail) => `- ${detail}`).join('\n')}
 ${buildVoiceBLevelRuleBlock(voiceA, criteria)}
 ${fieldInstruction}
 ${anchorAlignmentInstruction}
-${issueGroundingInstruction}
 ${currentReadGroundingInstruction}
 Regenerate the full JSON and fix every listed failure without changing the response shape.`;
 }
@@ -936,14 +1146,16 @@ export async function runCritiqueVoiceBStage(
 
     for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
       try {
-        const raw = await runSchemaStage(
+        const raw = normalizeVoiceBCategoryBatchRaw(
+          await runSchemaStage(
           apiKey,
           model,
           buildVoiceBCategoryPassPrompt(style, body.medium, evidence, voiceA, criteria, calibration),
           buildVoiceBCategoryPassUserPrompt(evidence, voiceA, criteria, repairNote),
           batchOpenAiSchema,
           VOICE_B_MAX_TOKENS
-        );
+          )
+        , voiceA);
         const parsed = batchSchema.safeParse(raw);
         if (!parsed.success) {
           logSchemaAttemptFailure(
@@ -966,7 +1178,7 @@ export async function runCritiqueVoiceBStage(
           if (!criterionEvidence) {
             throw new Error(`Voice B evidence missing for criterion: ${category.criterion}`);
           }
-          return normalizeVoiceBCategoryGrounding(category, criterionEvidence);
+          return deriveLegacyVoiceBFields(normalizeVoiceBCategoryGrounding(category, criterionEvidence));
         });
         const combined = validateVoiceBStageOutput(
           {
@@ -1103,6 +1315,7 @@ function mergeVoiceStages(
         ...category,
         phase3,
         actionPlan: phase3.teacherNextSteps,
+        plan: teacher.plan,
         actionPlanSteps: teacher.actionPlanSteps,
         voiceBPlan: teacher.voiceBPlan,
         anchor: teacher.anchor,

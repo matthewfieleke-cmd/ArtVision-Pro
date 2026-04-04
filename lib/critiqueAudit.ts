@@ -1,8 +1,11 @@
 import { CRITERIA_ORDER } from '../shared/criteria.js';
 import { phase2Text, phase3Text } from '../shared/critiquePhaseText.js';
+import type { CritiqueInstrumenter } from './critiqueInstrumentation.js';
+import { noopCritiqueInstrumenter } from './critiqueInstrumentation.js';
 import { splitNumberedSteps } from './numberedSteps.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import { isVagueOrGenericStudioText } from './critiqueTextRules.js';
+import { hasAnchorReference } from './critiqueGrounding.js';
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
@@ -14,86 +17,15 @@ function normalizedContains(haystack: string, needle: string): boolean {
   return n.length > 0 && h.includes(n);
 }
 
-const ANCHOR_STOPWORDS = new Set([
-  'about',
-  'across',
-  'after',
-  'around',
-  'because',
-  'before',
-  'below',
-  'between',
-  'could',
-  'figure',
-  'from',
-  'into',
-  'like',
-  'near',
-  'onto',
-  'over',
-  'painting',
-  'passage',
-  'same',
-  'should',
-  'still',
-  'their',
-  'there',
-  'these',
-  'this',
-  'through',
-  'toward',
-  'under',
-  'using',
-  'while',
-  'with',
-]);
-
-function anchorTokens(text: string): string[] {
-  return Array.from(
-    new Set(
-      text
-        .toLowerCase()
-        .replace(/[^\w\s]/g, ' ')
-        .split(/\s+/)
-        .filter((token) => token.length >= 4 && !ANCHOR_STOPWORDS.has(token))
-    )
-  );
-}
-
-function matchedAnchorTokenCount(text: string, source: string): number {
-  const normalized = normalizeWhitespace(text).toLowerCase();
-  return anchorTokens(source).filter((token) => normalized.includes(token)).length;
-}
-
-function hasConcreteAnchorReference(
-  text: string,
-  anchorSummary: string,
-  evidencePointer = ''
-): boolean {
-  if (!anchorSummary.trim()) return false;
-  if (normalizedContains(text, anchorSummary)) return true;
-  if (evidencePointer.trim() && normalizedContains(text, evidencePointer)) return true;
-
-  const summaryMatches = matchedAnchorTokenCount(text, anchorSummary);
-  const pointerMatches = evidencePointer.trim() ? matchedAnchorTokenCount(text, evidencePointer) : 0;
-  const summaryNeeded = Math.min(2, anchorTokens(anchorSummary).length);
-  const pointerNeeded = Math.min(2, anchorTokens(evidencePointer).length);
-
-  return (
-    (summaryNeeded > 0 && summaryMatches >= summaryNeeded) ||
-    (pointerNeeded > 0 && pointerMatches >= pointerNeeded) ||
-    (summaryMatches >= 1 && pointerMatches >= 1)
-  );
-}
-
 function anchoredCategoryMatchesText(
   text: string,
   category: CritiqueResultDTO['categories'][number]
 ): boolean {
-  return hasConcreteAnchorReference(
+  return hasAnchorReference(
     text,
     category.anchor?.areaSummary ?? '',
-    category.anchor?.evidencePointer ?? ''
+    category.anchor?.evidencePointer ?? '',
+    'strictAudit'
   );
 }
 
@@ -136,7 +68,12 @@ function alignedStudioChanges(critique: CritiqueResultDTO): boolean {
   return critique.simpleFeedback.studioChanges.every((change) => {
     const category = categoryByCriterion.get(change.previewCriterion);
     if (!category?.anchor) return false;
-    return hasConcreteAnchorReference(change.text, category.anchor.areaSummary, category.anchor.evidencePointer);
+    return hasAnchorReference(
+      change.text,
+      category.anchor.areaSummary,
+      category.anchor.evidencePointer,
+      'strictAudit'
+    );
   });
 }
 
@@ -144,11 +81,31 @@ export function critiqueNeedsFreshEvidenceRead(critique: CritiqueResultDTO): boo
   for (const category of critique.categories) {
     const anchor = category.anchor;
     if (!anchor) return true;
-    if (!hasConcreteAnchorReference(phase2Text(category), anchor.areaSummary, anchor.evidencePointer)) return true;
-    if (!hasConcreteAnchorReference(phase3Text(category), anchor.areaSummary, anchor.evidencePointer)) return true;
+    if (!hasAnchorReference(phase2Text(category), anchor.areaSummary, anchor.evidencePointer, 'strictAudit')) return true;
+    if (!hasAnchorReference(phase3Text(category), anchor.areaSummary, anchor.evidencePointer, 'strictAudit')) return true;
     if (!normalizedContains(category.editPlan?.targetArea ?? '', anchor.areaSummary)) return true;
   }
   return !topLevelVoicesStayGrounded(critique) || !alignedStudioChanges(critique);
+}
+
+type GuardrailCategory = 'normalization' | 'repair' | 'policyOverride';
+
+function guardrailChanged(before: CritiqueResultDTO, after: CritiqueResultDTO): boolean {
+  return JSON.stringify(before) !== JSON.stringify(after);
+}
+
+function applyGuardrailStep(
+  critique: CritiqueResultDTO,
+  category: GuardrailCategory,
+  label: string,
+  fn: (input: CritiqueResultDTO) => CritiqueResultDTO,
+  instrumenter: CritiqueInstrumenter
+): CritiqueResultDTO {
+  const next = fn(critique);
+  if (guardrailChanged(critique, next)) {
+    instrumenter.recordMutation(category, label);
+  }
+  return next;
 }
 
 const LEVEL_RANK = {
@@ -659,7 +616,10 @@ function rebalanceEdgeSurfaceIntermediateCluster(critique: CritiqueResultDTO): C
   return changed ? { ...critique, categories } : critique;
 }
 
-export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueResultDTO {
+export function applyCritiqueGuardrails(
+  critique: CritiqueResultDTO,
+  instrumenter: CritiqueInstrumenter = noopCritiqueInstrumenter
+): CritiqueResultDTO {
   if (noviceLikeOverrated(critique)) {
     const adjustedCategories = critique.categories.map((category) => {
       if (
@@ -701,15 +661,65 @@ export function applyCritiqueGuardrails(critique: CritiqueResultDTO): CritiqueRe
           }
         : critique.simpleFeedback,
     };
-    return hybridizeVoiceBFromStructuredFields(
-      stabilizeCriticAnchorReferences(
-        rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(adjusted))
-      )
+    if (guardrailChanged(critique, adjusted)) {
+      instrumenter.recordMutation('policyOverride', 'noviceLikeOverrated');
+    }
+    let next = adjusted;
+    next = applyGuardrailStep(
+      next,
+      'repair',
+      'normalizeActionPlansToLevels',
+      normalizeActionPlansToLevels,
+      instrumenter
+    );
+    next = applyGuardrailStep(
+      next,
+      'policyOverride',
+      'rebalanceEdgeSurfaceIntermediateCluster',
+      rebalanceEdgeSurfaceIntermediateCluster,
+      instrumenter
+    );
+    next = applyGuardrailStep(
+      next,
+      'normalization',
+      'stabilizeCriticAnchorReferences',
+      stabilizeCriticAnchorReferences,
+      instrumenter
+    );
+    return applyGuardrailStep(
+      next,
+      'repair',
+      'hybridizeVoiceBFromStructuredFields',
+      hybridizeVoiceBFromStructuredFields,
+      instrumenter
     );
   }
-  return hybridizeVoiceBFromStructuredFields(
-    stabilizeCriticAnchorReferences(
-      rebalanceEdgeSurfaceIntermediateCluster(normalizeActionPlansToLevels(critique))
-    )
+  let next = applyGuardrailStep(
+    critique,
+    'repair',
+    'normalizeActionPlansToLevels',
+    normalizeActionPlansToLevels,
+    instrumenter
+  );
+  next = applyGuardrailStep(
+    next,
+    'policyOverride',
+    'rebalanceEdgeSurfaceIntermediateCluster',
+    rebalanceEdgeSurfaceIntermediateCluster,
+    instrumenter
+  );
+  next = applyGuardrailStep(
+    next,
+    'normalization',
+    'stabilizeCriticAnchorReferences',
+    stabilizeCriticAnchorReferences,
+    instrumenter
+  );
+  return applyGuardrailStep(
+    next,
+    'repair',
+    'hybridizeVoiceBFromStructuredFields',
+    hybridizeVoiceBFromStructuredFields,
+    instrumenter
   );
 }

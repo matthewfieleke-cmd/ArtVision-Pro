@@ -32,7 +32,7 @@ const overlayImgClass =
 type Props = {
   originalSrc: string;
   revisedSrc: string;
-  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'phase2' | 'phase3' | 'actionPlanSteps'> & {
+  target: Pick<CritiqueCategory, 'criterion' | 'level' | 'phase2' | 'phase3' | 'actionPlanSteps' | 'plan'> & {
     anchor?: CritiqueCategory['anchor'];
     editPlan?: CritiqueCategory['editPlan'];
     studioChangeRecommendation?: string;

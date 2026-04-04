@@ -1,5 +1,6 @@
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import { CritiqueRuntimeEvalError } from './critiqueErrors.js';
+import { hasAnchorReference, tokenOverlapRatio } from './critiqueGrounding.js';
 import {
   GENERIC_MAIN_ISSUE_PATTERNS,
   GENERIC_VOICE_A_PATTERNS,
@@ -9,6 +10,7 @@ import {
 
 export type CritiqueEvalResult = {
   genericMainIssue: boolean;
+  genericVoiceA: boolean;
   genericNextSteps: boolean;
   vagueVoiceB: boolean;
   weakEvidence: boolean;
@@ -21,47 +23,6 @@ export type CritiqueEvalResult = {
 
 function containsAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
-}
-
-function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
-}
-
-function contentTokens(text: string): string[] {
-  return Array.from(
-    new Set(
-      normalizeWhitespace(text)
-        .toLowerCase()
-        .replace(/[^\w\s]/g, ' ')
-        .split(/\s+/)
-        .filter((token) => token.length >= 4)
-    )
-  );
-}
-
-function overlapRatio(a: string, b: string): number {
-  const aTokens = contentTokens(a);
-  const bTokens = contentTokens(b);
-  if (aTokens.length === 0 || bTokens.length === 0) return 0;
-  const bSet = new Set(bTokens);
-  const matches = aTokens.filter((token) => bSet.has(token)).length;
-  return matches / Math.max(aTokens.length, bTokens.length);
-}
-
-function hasAnchorReference(
-  text: string,
-  areaSummary?: string,
-  evidencePointer?: string
-): boolean {
-  const normalized = normalizeWhitespace(text).toLowerCase();
-  if (!normalized) return false;
-  const area = normalizeWhitespace(areaSummary ?? '').toLowerCase();
-  const pointer = normalizeWhitespace(evidencePointer ?? '').toLowerCase();
-  if (area && normalized.includes(area)) return true;
-  if (pointer && normalized.includes(pointer)) return true;
-  if (area && overlapRatio(normalized, area) >= 0.35) return true;
-  if (pointer && overlapRatio(normalized, pointer) >= 0.35) return true;
-  return false;
 }
 
 export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEvalResult {
@@ -97,8 +58,8 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
     const teacher = category.phase3.teacherNextSteps;
     const critic = category.phase2.criticsAnalysis;
     return (
-      !hasAnchorReference(teacher, category.anchor?.areaSummary, category.anchor?.evidencePointer) ||
-      !hasAnchorReference(critic, category.anchor?.areaSummary, category.anchor?.evidencePointer)
+      !hasAnchorReference(teacher, category.anchor?.areaSummary, category.anchor?.evidencePointer, 'pass') ||
+      !hasAnchorReference(critic, category.anchor?.areaSummary, category.anchor?.evidencePointer, 'pass')
     );
   });
 
@@ -106,7 +67,7 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
     critique.categories.slice(index + 1).some((other) => {
       const currentAdvice = `${category.phase3.teacherNextSteps} ${category.actionPlanSteps?.[0]?.move ?? ''}`;
       const otherAdvice = `${other.phase3.teacherNextSteps} ${other.actionPlanSteps?.[0]?.move ?? ''}`;
-      return overlapRatio(currentAdvice, otherAdvice) >= 0.72;
+      return tokenOverlapRatio(currentAdvice, otherAdvice) >= 0.72;
     })
   );
 
@@ -176,6 +137,7 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
 
   return {
     genericMainIssue,
+    genericVoiceA,
     genericNextSteps,
     vagueVoiceB,
     weakEvidence,

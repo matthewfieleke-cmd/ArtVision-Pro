@@ -23,7 +23,7 @@ import type { CritiqueResultDTO } from '../lib/critiqueTypes.js';
 const PRESERVATION_LEAD = /^\s*(maintain|preserve|keep|continue|protect)\b/i;
 const VAGUE_AREA = /^(arrangement of elements|spatial arrangement|areas where|background elements|foreground figures|some (edges|areas|transitions|elements)|the (composition|overall|painting))\b/i;
 const CHANGE_VERBS =
-  /\b(soften|darken|lighten|cool|warm|group|separate|sharpen|widen|narrow|compress|vary|quiet|lose|restate|simplify|refine|reduce|shift|bridge|thin|thicken|brighten|deepen|pull|push|clean|trim|lower|raise|spread|tighten|carve|blend|glaze|scumble|drag|feather)\b/i;
+  /\b(soften|darken|lighten|cool|warm|group|separate|sharpen|widen|narrow|compress|vary|quiet|lose|restate|simplify|refine|reduce|shift|bridge|thin|thicken|brighten|deepen|pull|push|clean|trim|lower|raise|spread|tighten|carve|blend|glaze|scumble|drag|feather|integrate|adjust)\b/i;
 
 function gradeStep(step: string, level: string | undefined): { grade: string; issues: string[] } {
   const issues: string[] = [];

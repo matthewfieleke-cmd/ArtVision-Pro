@@ -75,6 +75,26 @@ Use this initial set of paintings already available in the repo under `public/ar
 - `mondrian-composition-ii.jpg`
 - `malevich-white-on-white.jpg`
 
+### Canonical rollout set
+
+For critique-pipeline changes that affect grounding, calibration, validation, or guardrails, always review the same canonical fixture set before accepting the change.
+
+Start with these fixture ids from `docs/critique-qa-fixtures.json`:
+
+- `realism-courbet-burial`
+- `impressionism-monet-sunrise`
+- `expressionism-kirchner-street`
+- `abstract-kandinsky-vii`
+
+Then extend that pass with:
+
+- one additional strong realism example
+- one stylized but competent example
+- one developing or student-level example
+- one novice-like example when available
+
+The goal is stable before/after comparison, not maximum variety.
+
 ### Suggested review structure per painting
 
 For each painting, capture:
@@ -93,6 +113,33 @@ Then write:
 - what worked in the critique
 - what felt generic or weak
 - what to tighten in prompt/template logic
+
+### Before / after workflow
+
+For any critique-pipeline hardening work:
+
+1. Run `npm test` to confirm characterization, validation, and guardrail tests still pass.
+2. Run `npm run critique:review` to generate the markdown review for the canonical fixture set.
+3. Compare the new markdown against the last accepted review for the same fixture ids.
+4. Reject the change if Analysis becomes more generic, Suggestions become less passage-specific, or multiple criteria collapse into the same advice.
+
+For a single-painting raw pipeline spot check, use:
+
+- `npx tsx scripts/test-critique-pipeline.ts <image-path> [style] [medium]`
+
+For the multi-fixture markdown review, use:
+
+- `npm run critique:review`
+
+### Regression gate
+
+Pipeline hardening is acceptable only if the canonical fixture review shows:
+
+- Voice A remains concrete, painting-specific, and written on the work's own terms.
+- Voice B remains single-move, passage-anchored, and non-generic.
+- Criteria remain distinct rather than repeating one teaching move in different wording.
+- Fail-closed validation catches drift without newly rejecting clearly good critiques.
+- Guardrail mutations are understandable from instrumentation when policy overrides fire.
 
 ### What to watch for
 

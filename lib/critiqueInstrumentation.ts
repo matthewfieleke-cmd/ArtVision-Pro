@@ -8,10 +8,16 @@ export type CritiqueInstrumentStage = {
   ms: number;
 };
 
+export type CritiqueMutationRecord = {
+  category: 'normalization' | 'repair' | 'policyOverride';
+  label: string;
+};
+
 export type CritiqueInstrumenter = {
   enabled: boolean;
   time<T>(stage: string, fn: () => Promise<T>): Promise<T>;
   record(stage: string, ms: number): void;
+  recordMutation(category: CritiqueMutationRecord['category'], label: string): void;
   logSummary(extra?: Record<string, unknown>): void;
 };
 
@@ -22,11 +28,13 @@ export const noopCritiqueInstrumenter: CritiqueInstrumenter = {
     return fn();
   },
   record() {},
+  recordMutation() {},
   logSummary() {},
 };
 
 export function createCritiqueInstrumenter(enabled: boolean): CritiqueInstrumenter {
   const stages: CritiqueInstrumentStage[] = [];
+  const mutations: CritiqueMutationRecord[] = [];
 
   return {
     enabled,
@@ -51,14 +59,22 @@ export function createCritiqueInstrumenter(enabled: boolean): CritiqueInstrument
       console.info(JSON.stringify({ type: 'critique_instrument', stage, ms }));
     },
 
+    recordMutation(category: CritiqueMutationRecord['category'], label: string): void {
+      if (!enabled) return;
+      const mutation = { category, label };
+      mutations.push(mutation);
+      console.info(JSON.stringify({ type: 'critique_mutation', ...mutation }));
+    },
+
     logSummary(extra?: Record<string, unknown>): void {
-      if (!enabled || stages.length === 0) return;
+      if (!enabled || (stages.length === 0 && mutations.length === 0)) return;
       const totalMs = stages.reduce((sum, entry) => sum + entry.ms, 0);
       console.info(
         JSON.stringify({
           type: 'critique_instrument_summary',
           totalMs,
           stages,
+          mutations,
           ...extra,
         })
       );

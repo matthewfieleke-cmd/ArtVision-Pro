@@ -1,6 +1,6 @@
 import type { CriterionLabel, RatingLevelLabel } from '../shared/criteria.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
-import type { VoiceBPlanDTO, VoiceBStepDTO } from './critiqueTypes.js';
+import type { VoiceBCanonicalPlanDTO, VoiceBPlanDTO, VoiceBStepDTO } from './critiqueTypes.js';
 
 export type PreviewEditTarget = {
   criterion: CriterionLabel;
@@ -14,6 +14,7 @@ export type PreviewEditTarget = {
   phase3: {
     teacherNextSteps: string;
   };
+  plan?: VoiceBCanonicalPlanDTO;
   actionPlanSteps?: VoiceBStepDTO[];
   voiceBPlan?: VoiceBPlanDTO;
   anchor?: CriterionAnchor;

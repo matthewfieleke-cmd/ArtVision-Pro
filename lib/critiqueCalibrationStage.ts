@@ -2,6 +2,12 @@ import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import { CRITERIA_ORDER, RATING_LEVELS, type RatingLevelLabel } from '../shared/criteria.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
+import {
+  CRITIQUE_CHANGE_VERB_PATTERN,
+  CRITIQUE_DONT_CHANGE_PATTERN,
+  CRITIQUE_PRESERVE_VERB_PATTERN,
+  normalizeWhitespace,
+} from './critiqueTextRules.js';
 
 const CALIBRATION_SCHEMA = {
   name: 'painting_critique_calibration',
@@ -51,6 +57,30 @@ export type CritiqueCalibrationDTO = {
     reason: string;
   }>;
 };
+
+function validateCriterionCaps(
+  criterionCaps: CritiqueCalibrationDTO['criterionCaps']
+): CritiqueCalibrationDTO['criterionCaps'] {
+  if (!Array.isArray(criterionCaps) || criterionCaps.length !== CRITERIA_ORDER.length) {
+    throw new Error('Invalid calibration response');
+  }
+
+  const seen = new Set<string>();
+  for (const criterion of CRITERIA_ORDER) {
+    const match = criterionCaps.find((cap) => cap.criterion === criterion);
+    if (!match) throw new Error(`Missing calibration cap for ${criterion}`);
+    if (seen.has(match.criterion)) throw new Error(`Duplicate calibration cap for ${criterion}`);
+    if (!RATING_LEVELS.includes(match.maxLevel)) {
+      throw new Error(`Invalid calibration maxLevel for ${criterion}`);
+    }
+    if (typeof match.reason !== 'string' || match.reason.trim().length < 8) {
+      throw new Error(`Invalid calibration reason for ${criterion}`);
+    }
+    seen.add(match.criterion);
+  }
+
+  return CRITERIA_ORDER.map((criterion) => criterionCaps.find((cap) => cap.criterion === criterion)!);
+}
 
 type CalibrationUserContent = Array<
   | { type: 'text'; text: string }
@@ -140,10 +170,11 @@ export async function runCritiqueCalibrationStage(
   ) {
     throw new Error('Invalid calibration overallClass');
   }
-  if (!Array.isArray(parsed.criterionCaps) || parsed.criterionCaps.length !== CRITERIA_ORDER.length) {
-    throw new Error('Invalid calibration response');
-  }
-  return parsed;
+  const criterionCaps = validateCriterionCaps(parsed.criterionCaps);
+  return {
+    ...parsed,
+    criterionCaps,
+  };
 }
 
 const LEVEL_RANK: Record<RatingLevelLabel, number> = {
@@ -157,32 +188,138 @@ function clampLevel(current: RatingLevelLabel, maxLevel: RatingLevelLabel): Rati
   return LEVEL_RANK[current] > LEVEL_RANK[maxLevel] ? maxLevel : current;
 }
 
+function nextTargetForLevel(criterion: string, level: RatingLevelLabel): string {
+  if (level === 'Beginner') return `Push ${criterion.toLowerCase()} toward Intermediate.`;
+  if (level === 'Intermediate') return `Push ${criterion.toLowerCase()} toward Advanced.`;
+  if (level === 'Advanced') return `Push ${criterion.toLowerCase()} toward Master.`;
+  return `Preserve the current ${criterion.toLowerCase()} authority.`;
+}
+
+function normalizeCalibrationText(
+  text: string,
+  fromLevel: RatingLevelLabel,
+  toLevel: RatingLevelLabel
+): string {
+  let normalized = normalizeWhitespace(text);
+  if (!normalized) return normalized;
+  if (fromLevel === toLevel) return normalized;
+
+  if (toLevel !== 'Master' && CRITIQUE_DONT_CHANGE_PATTERN.test(normalized)) {
+    normalized = normalized.replace(CRITIQUE_DONT_CHANGE_PATTERN, '').trim();
+  }
+
+  if (toLevel === 'Master') {
+    if (!CRITIQUE_DONT_CHANGE_PATTERN.test(normalized)) {
+      normalized = `Don't change a thing. ${normalized}`;
+    }
+    return normalized;
+  }
+
+  if (CRITIQUE_PRESERVE_VERB_PATTERN.test(normalized) && !CRITIQUE_CHANGE_VERB_PATTERN.test(normalized)) {
+    return normalized.replace(
+      CRITIQUE_PRESERVE_VERB_PATTERN,
+      fromLevel === 'Master' ? 'Refine' : 'Adjust'
+    );
+  }
+
+  return normalized;
+}
+
+function calibratedOverallConfidence(
+  current: CritiqueResultDTO['overallConfidence'],
+  overallClass: CritiqueCalibrationDTO['overallClass']
+): CritiqueResultDTO['overallConfidence'] {
+  if (overallClass === 'novice_like') return 'low';
+  if (overallClass === 'developing') return current === 'high' ? 'medium' : current;
+  return current;
+}
+
+function calibratedCategoryConfidence(
+  current: CritiqueResultDTO['categories'][number]['confidence'],
+  overallClass: CritiqueCalibrationDTO['overallClass']
+): CritiqueResultDTO['categories'][number]['confidence'] {
+  if (overallClass === 'novice_like') return 'low';
+  if (overallClass === 'developing' && current === 'high') return 'medium';
+  return current;
+}
+
+function calibratedOverallAnalysis(
+  critique: CritiqueResultDTO,
+  calibration: CritiqueCalibrationDTO
+): CritiqueResultDTO['overallSummary'] {
+  if (!critique.overallSummary) return critique.overallSummary;
+  if (calibration.overallClass === 'novice_like') {
+    return {
+      ...critique.overallSummary,
+      analysis:
+        'Using the chosen style and medium lens, this work still reads as early-stage rather than as mature expressive stylization. The forms are rudimentary, the spatial logic is unstable, and the mark-making does not yet show the control needed for higher ratings.',
+    };
+  }
+  if (calibration.overallClass === 'developing') {
+    return {
+      ...critique.overallSummary,
+      analysis:
+        'Using the chosen style and medium lens, this work shows developing intent with a few credible local strengths, but the control is uneven. Several criteria still read student-level, so the painting should be judged as mixed and in-progress rather than as uniformly competent.',
+    };
+  }
+  return critique.overallSummary;
+}
+
 export function applyCalibrationToCritique(
   critique: CritiqueResultDTO,
   calibration: CritiqueCalibrationDTO
 ): CritiqueResultDTO {
-  const capMap = new Map(calibration.criterionCaps.map((cap) => [cap.criterion, cap.maxLevel] as const));
+  const criterionCaps = validateCriterionCaps(calibration.criterionCaps);
+  const capMap = new Map(criterionCaps.map((cap) => [cap.criterion, cap.maxLevel] as const));
   const categories = critique.categories.map((category) => {
     const maxLevel = capMap.get(category.criterion);
     if (!maxLevel || !category.level) return category;
+    const nextLevel = clampLevel(category.level, maxLevel);
+    if (nextLevel === category.level) return category;
     return {
       ...category,
-      level: clampLevel(category.level, maxLevel),
+      level: nextLevel,
+      confidence: calibratedCategoryConfidence(category.confidence, calibration.overallClass),
+      nextTarget: nextTargetForLevel(category.criterion, nextLevel),
+      phase3: {
+        teacherNextSteps: normalizeCalibrationText(category.phase3.teacherNextSteps, category.level, nextLevel),
+      },
+      actionPlanSteps: category.actionPlanSteps?.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              move: normalizeCalibrationText(step.move, category.level, nextLevel),
+            }
+          : step
+      ),
+      voiceBPlan: category.voiceBPlan
+        ? {
+            ...category.voiceBPlan,
+            bestNextMove: normalizeCalibrationText(
+              category.voiceBPlan.bestNextMove,
+              category.level,
+              nextLevel
+            ),
+          }
+        : category.voiceBPlan,
+      editPlan: category.editPlan
+        ? {
+            ...category.editPlan,
+            intendedChange: normalizeCalibrationText(
+              category.editPlan.intendedChange,
+              category.level,
+              nextLevel
+            ),
+            editability: nextLevel === 'Master' ? 'no' : 'yes',
+          }
+        : category.editPlan,
     };
   });
 
-  const noviceLike = calibration.overallClass === 'novice_like';
   return {
     ...critique,
     categories,
-    overallConfidence: noviceLike ? 'low' : critique.overallConfidence,
-    overallSummary:
-      noviceLike && critique.overallSummary
-        ? {
-            ...critique.overallSummary,
-            analysis:
-              'Using the chosen style and medium lens, this work still reads as early-stage rather than as mature expressive stylization. The forms are rudimentary, the spatial logic is unstable, and the mark-making does not yet show the control needed for higher ratings.',
-          }
-        : critique.overallSummary,
+    overallConfidence: calibratedOverallConfidence(critique.overallConfidence, calibration.overallClass),
+    overallSummary: calibratedOverallAnalysis(critique, calibration),
   };
 }

@@ -1,5 +1,6 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
+import { applyCalibrationToCritique } from './critiqueCalibrationStage.js';
 import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
 import {
   buildHighDetailImageMessage,
@@ -10,9 +11,11 @@ import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js'
 import { validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
+  CritiquePipelineError,
   CritiqueGroundingError,
   CritiqueRetryExhaustedError,
   CritiqueValidationError,
+  type CritiqueCriterionEvidencePreview,
   type CritiqueDebugPayload,
   type CritiqueDebugInfo,
   errorDetails,
@@ -24,6 +27,7 @@ import {
   critiqueInstrumentEnabled,
   noopCritiqueInstrumenter,
 } from './critiqueInstrumentation.js';
+import { weakWorkCompositionRepairExamples, weakWorkRepairExamples } from './critiqueWeakWorkContracts.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 
@@ -54,10 +58,31 @@ function extractCriterionEvidencePreview(raw: unknown): Array<{
         ? {
             visibleEvidencePreview: entry.visibleEvidence
               .filter((line): line is string => typeof line === 'string')
-              .slice(0, 3),
+              .slice(0, 4),
           }
         : {}),
     }));
+}
+
+function criterionEvidencePreviewFromError(error: unknown): CritiqueCriterionEvidencePreview[] {
+  if (!(error instanceof CritiquePipelineError)) return [];
+  const previews = error.debug?.attempts?.[0]?.criterionEvidencePreview;
+  return Array.isArray(previews) ? previews : [];
+}
+
+function formatCriterionEvidencePreview(
+  previews: CritiqueCriterionEvidencePreview[],
+  criteria: string[],
+  heading: string
+): string {
+  const blocks = criteria
+    .map((criterion) => previews.find((preview) => preview.criterion === criterion))
+    .filter((preview): preview is CritiqueCriterionEvidencePreview => Boolean(preview))
+    .map((preview) => {
+      const evidenceLines = (preview.visibleEvidencePreview ?? []).map((line) => `  - "${line}"`).join('\n');
+      return `${heading} ${preview.criterion}:${preview.anchor ? `\n- Previous anchor: "${preview.anchor}"` : ''}${evidenceLines ? `\n- Previous visibleEvidence lines to rewrite:\n${evidenceLines}` : ''}`;
+    });
+  return blocks.length > 0 ? `\n\n${blocks.join('\n')}` : '';
 }
 
 function logEvidenceAttemptFailure(
@@ -222,6 +247,11 @@ const MAX_STAGE_ATTEMPTS = 3;
 
 export function buildEvidenceRepairNote(error: unknown): string {
   const details = errorDetails(error);
+  const criterionPreviews = criterionEvidencePreviewFromError(error);
+  const weakWorkExamples = weakWorkRepairExamples().map((rule) => `- ${rule}`).join('\n');
+  const weakWorkCompositionExamples = weakWorkCompositionRepairExamples()
+    .map((rule) => `- ${rule}`)
+    .join('\n');
   const surfaceAnchorFailure = details.some((detail) =>
     /Invalid evidence anchor for Surface and medium handling|Visible evidence does not support anchor for Surface and medium handling/.test(
       detail
@@ -234,6 +264,28 @@ export function buildEvidenceRepairNote(error: unknown): string {
         .filter((criterion): criterion is string => Boolean(criterion))
     )
   );
+  const genericEvidenceCriteria = Array.from(
+    new Set(
+      details
+        .map((detail) => detail.match(/^(?:Visible evidence|strengthRead|preserve) is too generic for (.+)$/)?.[1]?.trim())
+        .filter((criterion): criterion is string => Boolean(criterion))
+    )
+  );
+  const topLevelToneFailure = details.some((detail) =>
+    /(?:Evidence )?intentHypothesis is too flattering or style-biased(?: for weak work)?|(?:Evidence )?strongestVisibleQualities are too flattering or style-biased(?: for weak work)?|(?:Evidence )?comparisonObservations are too flattering or style-biased(?: for weak work)?/.test(
+      detail
+    )
+  );
+  const genericEvidencePreviewBlock = formatCriterionEvidencePreview(
+    criterionPreviews,
+    genericEvidenceCriteria,
+    'Previous evidence preview for'
+  );
+  const unsupportedAnchorPreviewBlock = formatCriterionEvidencePreview(
+    criterionPreviews,
+    unsupportedAnchorCriteria,
+    'Previous anchor-support preview for'
+  );
 
   return `Previous evidence attempt failed: ${errorMessage(error)}\n${errorDetails(error)
     .map((detail) => `- ${detail}`)
@@ -242,13 +294,40 @@ export function buildEvidenceRepairNote(error: unknown): string {
 Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
-- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.${unsupportedAnchorCriteria.length > 0
+- Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.
+- Do NOT use flattering anchor labels such as "the arrangement of flowers", "the cozy house", "the vibrant garden", "the idyllic setting", or "the narrative journey of the path". Name the visible object pair or junction instead.
+- For weak landscapes or garden scenes, prefer anchors shaped like "the path bend under the red house", "the roof edge against the blue wash", "the flower patch where it meets the path edge", or "the fence post against the foliage".${unsupportedAnchorCriteria.length > 0
     ? `
 
 Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
 - For each listed criterion, at least one visibleEvidence line MUST repeat the same concrete nouns from the anchor and then describe what is visibly happening in that exact passage.
 - Do not anchor to one relationship and then list only nearby but differently named passages.
-- If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again using the same objects or zones.`
+- If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again using the same objects or zones.
+- For weak landscape anchors, repeat BOTH sides of the relationship in one evidence line. Example: if the anchor is "the purple flower patch where it meets the path edge", one visibleEvidence line must mention both the purple flower patch and the path edge again in the same sentence.${unsupportedAnchorPreviewBlock}`
+    : ''}${genericEvidenceCriteria.length > 0
+    ? `
+
+Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
+- For Intent and necessity or Presence, point of view, and human force, do NOT use phrases like "narrative journey", "inviting atmosphere", "idyllic setting", "warmth", "life and activity", or "sense of story" unless the same sentence also names the exact visible carrier relationship that creates that read.
+- Do NOT write "the path leading to the house" or "the smoke from the chimney" as sufficient conceptual evidence on a weak landscape. Prefer "the path bend where it meets the house shadow" or "the chimney smoke against the blue wash."
+- strengthRead and preserve must also name that same visible carrier passage, not a mood summary.
+- For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact path bend, roof edge, fence post, flower band, or other structural passage creating that effect.
+- For Composition and shape structure, write a shape event, not a verdict: what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts in that exact passage.
+- If one visibleEvidence line is already concrete, keep it and rewrite the generic filler lines so the full list stays at junction/event level.
+- Rewrite the quoted lines below instead of paraphrasing the same generic idea again.${genericEvidencePreviewBlock}
+${weakWorkCompositionExamples}`
+    : ''}${topLevelToneFailure
+    ? `
+
+Critical top-level tone fix:
+- intentHypothesis, strongestVisibleQualities, and comparisonObservations must stay provisional and evidence-led for weak work.
+- Do NOT open with "whimsical charm", "idyllic rural life", "lively atmosphere", or artist praise like "Monet's garden scenes" unless the criterion evidence already proves unusually strong control.
+- Describe what is visibly happening in plain terms before making any flattering style comparison.
+- Safe rewrite pattern for weak work:
+  - intentHypothesis = "The painting appears to organize the scene around [visible things]."
+  - strongestVisibleQualities = plain statements about path / house / flower band / sky wash / edge contrast, not mood praise.
+  - comparisonObservations = omit artist-name praise unless the criterion evidence clearly shows exceptional control.
+${weakWorkExamples}`
     : ''}${surfaceAnchorFailure
     ? `
 
@@ -380,8 +459,9 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     calibration,
     instrumenter
   );
+  const calibrated = applyCalibrationToCritique(base, calibration);
   const withCompletion = {
-    ...base,
+    ...calibrated,
     completionRead: {
       state: evidence.completionRead.state,
       confidence: evidence.completionRead.confidence,
@@ -390,7 +470,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     },
   };
 
-  const guarded = applyCritiqueGuardrails(withCompletion);
+  const guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
 
   if (critiqueNeedsFreshEvidenceRead(guarded)) {
     throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
