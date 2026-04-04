@@ -17,6 +17,11 @@ import {
   errorMessage,
 } from './critiqueErrors.js';
 import { assertCritiqueQualityGate } from './critiqueEval.js';
+import {
+  createCritiqueInstrumenter,
+  critiqueInstrumentEnabled,
+  noopCritiqueInstrumenter,
+} from './critiqueInstrumentation.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 
@@ -188,22 +193,31 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  const evidence = await runCritiqueEvidenceStageWithRetries(apiKey, {
-    model,
-    style: body.style,
-    medium: body.medium,
-    userContent,
-  });
-  const calibration = await runCritiqueCalibrationStage(
+  const instrumenter = critiqueInstrumentEnabled()
+    ? createCritiqueInstrumenter(true)
+    : noopCritiqueInstrumenter;
+
+  const evidence = await instrumenter.time('evidence', () =>
+    runCritiqueEvidenceStageWithRetries(apiKey, {
+      model,
+      style: body.style,
+      medium: body.medium,
+      userContent,
+    })
+  );
+  const calibration = await instrumenter.time('calibration', () =>
+    runCritiqueCalibrationStage(apiKey, model, body.style, body.medium, evidence, userContent)
+  );
+
+  const base = await runCritiqueWritingStage(
     apiKey,
     model,
     body.style,
-    body.medium,
+    body,
     evidence,
-    userContent
+    calibration,
+    instrumenter
   );
-
-  const base = await runCritiqueWritingStage(apiKey, model, body.style, body, evidence, calibration);
   const withCompletion = {
     ...base,
     completionRead: {
@@ -227,6 +241,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   }
 
   assertCritiqueQualityGate(guarded);
+  instrumenter.logSummary({ model });
+
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   return trimmedTitle ? { ...guarded, paintingTitle: trimmedTitle } : guarded;

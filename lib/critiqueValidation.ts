@@ -15,6 +15,15 @@ import {
   CritiqueGroundingError,
   CritiqueValidationError,
 } from './critiqueErrors.js';
+import {
+  CRITIQUE_CHANGE_VERB_PATTERN,
+  CRITIQUE_DONT_CHANGE_PATTERN,
+  CRITIQUE_PRESERVE_VERB_PATTERN,
+  CRITIQUE_TOKEN_STOPWORDS,
+  GENERIC_ANCHOR_PATTERNS,
+  isGenericTeacherText,
+  normalizeWhitespace,
+} from './critiqueTextRules.js';
 import type {
   VoiceAStageResult,
   VoiceBStageResult,
@@ -47,80 +56,6 @@ export type CritiqueEvidenceDTO = {
   }>;
 };
 
-const GENERIC_TEACHER_PATTERNS = [
-  /\bimprove composition\b/i,
-  /\bpush the contrast\b/i,
-  /\bincrease contrast\b/i,
-  /\brefine edges\b/i,
-  /\bimprove spatial clarity\b/i,
-  /\badd more depth\b/i,
-  /\benhance focus\b/i,
-  /\bstronger focal point\b/i,
-  /\bdevelop the\b/i,
-  /\bexplore\b/i,
-  /\bcontinue to\b/i,
-  /\bexperiment with\b/i,
-  /\bmake it more dynamic\b/i,
-];
-
-const GENERIC_ANCHOR_PATTERNS = [
-  /\bthe background\b/i,
-  /\bthe foreground\b/i,
-  /\bleft side of the painting\b/i,
-  /\bright side of the painting\b/i,
-  /\bcenter of the painting\b/i,
-  /\bthe painting overall\b/i,
-  /\bcomposition overall\b/i,
-  /\barrangement of elements\b/i,
-  /\bspatial relationships\b/i,
-  /\bcompositional flow\b/i,
-];
-
-const CHANGE_VERB_LEAD =
-  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break)\b/i;
-const PRESERVE_VERB_LEAD =
-  /^\s*(preserve|keep|protect|leave|hold|maintain|continue)\b/i;
-const DONT_CHANGE_LEAD = /^\s*(?:1\.\s*)?don['’]t change a thing\./i;
-const STOPWORDS = new Set([
-  'about',
-  'across',
-  'after',
-  'around',
-  'artist',
-  'because',
-  'before',
-  'behind',
-  'between',
-  'canvas',
-  'could',
-  'figure',
-  'from',
-  'into',
-  'left',
-  'main',
-  'near',
-  'over',
-  'painting',
-  'passage',
-  'right',
-  'same',
-  'should',
-  'some',
-  'that',
-  'their',
-  'there',
-  'these',
-  'this',
-  'through',
-  'toward',
-  'under',
-  'with',
-]);
-
-function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
-}
-
 function normalizeForComparison(text: string): string {
   return normalizeWhitespace(text).toLowerCase().replace(/[^\w\s]/g, ' ');
 }
@@ -130,7 +65,7 @@ function contentTokens(text: string): string[] {
     new Set(
       normalizeForComparison(text)
         .split(/\s+/)
-        .filter((token) => token.length >= 4 && !STOPWORDS.has(token))
+        .filter((token) => token.length >= 4 && !CRITIQUE_TOKEN_STOPWORDS.has(token))
     )
   );
 }
@@ -175,12 +110,6 @@ function sameAdvice(a: string, b: string): boolean {
   if (!normalizedA || !normalizedB) return false;
   if (normalizedA === normalizedB) return true;
   return tokenOverlapRatio(normalizedA, normalizedB) >= 0.72;
-}
-
-function isGenericTeacherText(text: string): boolean {
-  const normalized = normalizeWhitespace(text);
-  if (!normalized) return true;
-  return GENERIC_TEACHER_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function evidenceForCriterion(
@@ -673,41 +602,41 @@ export function validateVoiceBStageOutput(
     }
 
     if (level === 'Master') {
-      if (!DONT_CHANGE_LEAD.test(category.phase3.teacherNextSteps)) {
+      if (!CRITIQUE_DONT_CHANGE_PATTERN.test(category.phase3.teacherNextSteps)) {
         details.push(`${criterion}: Master guidance must begin with "Don't change a thing."`);
       }
-      if (!PRESERVE_VERB_LEAD.test(step.move)) {
+      if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(step.move)) {
         details.push(`${criterion}: Master actionPlanSteps[0].move must be preserve-only.`);
       }
-      if (!PRESERVE_VERB_LEAD.test(category.voiceBPlan.bestNextMove)) {
+      if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(category.voiceBPlan.bestNextMove)) {
         details.push(`${criterion}: Master voiceBPlan.bestNextMove must be preserve-only.`);
       }
-      if (!PRESERVE_VERB_LEAD.test(category.editPlan.intendedChange)) {
+      if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(category.editPlan.intendedChange)) {
         details.push(`${criterion}: Master editPlan.intendedChange must be preserve-only.`);
       }
-      if (CHANGE_VERB_LEAD.test(step.move)) {
+      if (CRITIQUE_CHANGE_VERB_PATTERN.test(step.move)) {
         details.push(`${criterion}: Master guidance must be preserve-only, not a change instruction.`);
       }
-      if (CHANGE_VERB_LEAD.test(category.voiceBPlan.bestNextMove)) {
+      if (CRITIQUE_CHANGE_VERB_PATTERN.test(category.voiceBPlan.bestNextMove)) {
         details.push(`${criterion}: Master voiceBPlan.bestNextMove cannot be a change instruction.`);
       }
-      if (CHANGE_VERB_LEAD.test(category.editPlan.intendedChange)) {
+      if (CRITIQUE_CHANGE_VERB_PATTERN.test(category.editPlan.intendedChange)) {
         details.push(`${criterion}: Master editPlan.intendedChange cannot be a change instruction.`);
       }
       if (category.editPlan.editability !== 'no') {
         details.push(`${criterion}: Master editPlan.editability must be "no".`);
       }
     } else {
-      if (DONT_CHANGE_LEAD.test(category.phase3.teacherNextSteps)) {
+      if (CRITIQUE_DONT_CHANGE_PATTERN.test(category.phase3.teacherNextSteps)) {
         details.push(`${criterion}: non-Master guidance cannot use "Don't change a thing."`);
       }
-      if (!CHANGE_VERB_LEAD.test(step.move) || PRESERVE_VERB_LEAD.test(step.move)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(step.move) || CRITIQUE_PRESERVE_VERB_PATTERN.test(step.move)) {
         details.push(`${criterion}: non-Master actionPlanSteps[0].move must be a true change instruction.`);
       }
-      if (!CHANGE_VERB_LEAD.test(category.voiceBPlan.bestNextMove) || PRESERVE_VERB_LEAD.test(category.voiceBPlan.bestNextMove)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(category.voiceBPlan.bestNextMove) || CRITIQUE_PRESERVE_VERB_PATTERN.test(category.voiceBPlan.bestNextMove)) {
         details.push(`${criterion}: non-Master voiceBPlan.bestNextMove must be a true change instruction.`);
       }
-      if (!CHANGE_VERB_LEAD.test(category.editPlan.intendedChange) || PRESERVE_VERB_LEAD.test(category.editPlan.intendedChange)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(category.editPlan.intendedChange) || CRITIQUE_PRESERVE_VERB_PATTERN.test(category.editPlan.intendedChange)) {
         details.push(`${criterion}: non-Master editPlan.intendedChange must be a true change instruction.`);
       }
       if (category.editPlan.editability !== 'yes') {

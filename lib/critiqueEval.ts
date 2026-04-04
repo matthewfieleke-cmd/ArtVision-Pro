@@ -1,5 +1,11 @@
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import { CritiqueRuntimeEvalError } from './critiqueErrors.js';
+import {
+  GENERIC_MAIN_ISSUE_PATTERNS,
+  GENERIC_VOICE_A_PATTERNS,
+  matchesAnyRegExp,
+  VAGUE_OR_GENERIC_STUDIO_PATTERNS,
+} from './critiqueTextRules.js';
 
 export type CritiqueEvalResult = {
   genericMainIssue: boolean;
@@ -63,68 +69,21 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
   const improveText = simple?.studioAnalysis.whatCouldImprove ?? '';
   const worksText = simple?.studioAnalysis.whatWorks ?? '';
   const genericMainIssue = Boolean(
-    simple &&
-      containsAny(improveText, [
-        /clearer focal/i,
-        /stronger focal/i,
-        /enhance depth/i,
-        /more depth/i,
-        /more contrast/i,
-        /spatial definition/i,
-        /guide the viewer/i,
-        /more cohesion/i,
-      ])
+    simple && matchesAnyRegExp(improveText, GENERIC_MAIN_ISSUE_PATTERNS)
   );
 
   const genericVoiceA = Boolean(
-    simple &&
-      containsAny(`${worksText} ${improveText}`, [
-        /\bcaptures?\b/i,
-        /\beffectively uses?\b/i,
-        /\bcreates a sense of\b/i,
-        /\bstrong sense of\b/i,
-        /\baims to\b/i,
-      ])
+    simple && matchesAnyRegExp(`${worksText} ${improveText}`, GENERIC_VOICE_A_PATTERNS)
   );
 
   const genericNextSteps = Boolean(
     simple &&
-      simple.studioChanges.some((ch) =>
-        containsAny(ch.text, [
-          /increase contrast/i,
-          /enhance definition/i,
-          /refine edges/i,
-          /create a stronger focal point/i,
-          /improve spatial clarity/i,
-          /more cohesive/i,
-          /enhance focus/i,
-          /\brefine the edges\b/i,
-          /\badjust the lighting\b/i,
-          /\badd subtle variations\b/i,
-          /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
-          /\benhance\b.*\bfocus hierarchy\b/i,
-          /\benhance\b.*\bnarrative\b/i,
-          /\badd\b.*\bsmall details\b/i,
-          /\bcontribute to the story\b/i,
-          /\bsmooth out\b.*\bcolor transitions\b/i,
-          /\benhance\b.*\brealism\b/i,
-        ])
-      )
+      simple.studioChanges.some((ch) => matchesAnyRegExp(ch.text, VAGUE_OR_GENERIC_STUDIO_PATTERNS))
   );
 
   const vagueVoiceB = Boolean(
     simple &&
-      simple.studioChanges.some((ch) =>
-        containsAny(ch.text, [
-          /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
-          /\benhance\b.*\bfocus hierarchy\b/i,
-          /\benhance\b.*\bnarrative\b/i,
-          /\badd\b.*\bsmall details\b/i,
-          /\bcontribute to the story\b/i,
-          /\bsmooth out\b.*\bcolor transitions\b/i,
-          /\benhance\b.*\brealism\b/i,
-        ])
-      )
+      simple.studioChanges.some((ch) => matchesAnyRegExp(ch.text, VAGUE_OR_GENERIC_STUDIO_PATTERNS))
   );
 
   const weakEvidence = critique.categories.some(

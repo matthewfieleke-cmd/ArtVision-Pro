@@ -1,0 +1,151 @@
+/**
+ * Single source for generic / vague coaching patterns and verb anchors used across
+ * critiqueValidation, critiqueEval, critiqueAudit, and critiqueWritingStage (Zod refinements).
+ */
+
+export function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+export function matchesAnyRegExp(text: string, patterns: readonly RegExp[]): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return false;
+  return patterns.some((pattern) => pattern.test(normalized));
+}
+
+/** Stock “art coach” phrasing we reject in Voice B–style fields. */
+export const GENERIC_TEACHER_PATTERNS: RegExp[] = [
+  /\bimprove composition\b/i,
+  /\bpush the contrast\b/i,
+  /\bincrease contrast\b/i,
+  /\brefine edges\b/i,
+  /\bimprove spatial clarity\b/i,
+  /\badd more depth\b/i,
+  /\benhance focus\b/i,
+  /\bstronger focal point\b/i,
+  /\bdevelop the\b/i,
+  /\bexplore\b/i,
+  /\bcontinue to\b/i,
+  /\bexperiment with\b/i,
+  /\bmake it more dynamic\b/i,
+];
+
+/** Anchors that are too vague for grounding checks. */
+export const GENERIC_ANCHOR_PATTERNS: RegExp[] = [
+  /\bthe background\b/i,
+  /\bthe foreground\b/i,
+  /\bleft side of the painting\b/i,
+  /\bright side of the painting\b/i,
+  /\bcenter of the painting\b/i,
+  /\bthe painting overall\b/i,
+  /\bcomposition overall\b/i,
+  /\barrangement of elements\b/i,
+  /\bspatial relationships\b/i,
+  /\bcompositional flow\b/i,
+];
+
+/**
+ * Underspecified studio / teacher lines (audit rewrite + eval vagueVoiceB + eval genericNextSteps).
+ * Keep in sync when adding new anti-patterns.
+ */
+export const VAGUE_OR_GENERIC_STUDIO_PATTERNS: RegExp[] = [
+  /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
+  /\benhance\b.*\bfocus hierarchy\b/i,
+  /\benhance\b.*\bnarrative\b/i,
+  /\badd\b.*\bsmall details\b/i,
+  /\bcontribute to the story\b/i,
+  /\bsmooth out\b.*\bcolor transitions\b/i,
+  /\benhance\b.*\brealism\b/i,
+  /\bimprove the focus where needed\b/i,
+  /\bimprove the main focal area\b/i,
+  /increase contrast/i,
+  /enhance definition/i,
+  /refine edges/i,
+  /create a stronger focal point/i,
+  /improve spatial clarity/i,
+  /more cohesive/i,
+  /enhance focus/i,
+  /\brefine the edges\b/i,
+  /\badjust the lighting\b/i,
+  /\badd subtle variations\b/i,
+];
+
+export const GENERIC_MAIN_ISSUE_PATTERNS: RegExp[] = [
+  /clearer focal/i,
+  /stronger focal/i,
+  /enhance depth/i,
+  /more depth/i,
+  /more contrast/i,
+  /spatial definition/i,
+  /guide the viewer/i,
+  /more cohesion/i,
+];
+
+export const GENERIC_VOICE_A_PATTERNS: RegExp[] = [
+  /\bcaptures?\b/i,
+  /\beffectively uses?\b/i,
+  /\bcreates a sense of\b/i,
+  /\bstrong sense of\b/i,
+  /\baims to\b/i,
+];
+
+export function isGenericTeacherText(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return true;
+  return GENERIC_TEACHER_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+export function isVagueOrGenericStudioText(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return true;
+  return VAGUE_OR_GENERIC_STUDIO_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+/** Non-Master moves must start with one of these change verbs. */
+export const CRITIQUE_CHANGE_VERB_PATTERN =
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break)\b/i;
+
+/**
+ * Master / preserve-only moves. Includes maintain|continue for validation parity with
+ * critiqueValidation Voice B rules.
+ */
+export const CRITIQUE_PRESERVE_VERB_PATTERN =
+  /^\s*(preserve|keep|protect|leave|hold|maintain|continue)\b/i;
+
+export const CRITIQUE_DONT_CHANGE_PATTERN = /^\s*(?:1\.\s*)?don['\u2019]t change a thing\./i;
+
+export const CRITIQUE_TOKEN_STOPWORDS = new Set([
+  'about',
+  'across',
+  'after',
+  'around',
+  'artist',
+  'because',
+  'before',
+  'behind',
+  'between',
+  'canvas',
+  'could',
+  'figure',
+  'from',
+  'into',
+  'left',
+  'main',
+  'near',
+  'over',
+  'painting',
+  'passage',
+  'right',
+  'same',
+  'should',
+  'some',
+  'that',
+  'their',
+  'there',
+  'these',
+  'this',
+  'through',
+  'toward',
+  'under',
+  'with',
+]);

@@ -675,10 +675,11 @@ function testCritiqueGuardrails(): void {
       .teacherNextSteps,
     /soften|sharpen|preserve|keep|separate/i
   );
-  assert.equal(
+  assert.match(
     rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text,
-    'Define certain edges more clearly to enhance the focus hierarchy.'
+    /foreground chair back|interior chair bars|face/i
   );
+  assert.match(rewrittenVoiceB.simpleFeedback!.studioChanges[0]!.text, /soften|sharpen|preserve|keep|separate/i);
 
   const inlineNumbered = {
     ...base,
@@ -912,8 +913,11 @@ function testWritingPromptDemandsConcreteAnchors(): void {
   );
   assert.match(prompt, /Voice B planning structure \(required for all eight categories\):/);
   assert.match(prompt, /categories\[\]\.voiceBPlan is Voice B's teacher note to self/);
-  assert.match(prompt, /categories\[\]\.actionPlanSteps must contain 1-3 high-leverage steps only/);
-  assert.match(prompt, /Make categories\[\]\.phase3\.teacherNextSteps a readable numbered rendering of categories\[\]\.actionPlanSteps/);
+  assert.match(prompt, /categories\[\]\.actionPlanSteps must contain exactly 1 high-leverage step/);
+  assert.match(
+    prompt,
+    /Make categories\[\]\.phase3\.teacherNextSteps one polished paragraph derived from categories\[\]\.actionPlanSteps/
+  );
 }
 
 function testPreviewEditPromptAlignment(): void {
@@ -1098,7 +1102,7 @@ function testStructuredVoiceBPlanFlow(): void {
         level: 'Advanced',
         phase1: {
           visualInventory:
-            'The foreground chair back occupies the center-left foreground and crosses the seated figure behind it. A bright vertical window strip sits along the left edge, while the seated figure and shirt hold the center-right. These three vertical passages establish the room scaffold.',
+            'The chair back occupies the center-left and crosses the seated figure behind it. A bright vertical window strip sits along the left edge, while the seated figure and shirt hold the center-right. These three vertical passages establish the room scaffold.',
         },
         phase2: {
           criticsAnalysis: 'The chair back and seated figure already give the room a strong scaffold.',
@@ -1108,20 +1112,12 @@ function testStructuredVoiceBPlanFlow(): void {
         },
         actionPlanSteps: [
           {
-            area: 'the foreground chair back',
+            area: 'the chair back crossing the seated figure',
             currentRead: 'the dark interior bars interrupt the route to the seated figure',
             move: 'soften the interior chair bars while keeping the outer silhouette intact',
             expectedRead: 'the figure regains priority without changing the room structure',
             preserve: 'the bright window strip and the shirt-to-wall contrast',
             priority: 'primary',
-          },
-          {
-            area: 'the left window strip',
-            currentRead: 'it already provides the clearest lateral pull in the room',
-            move: 'leave the light strip and its shirt relationship intact',
-            expectedRead: 'the room keeps its current scaffold while the chair competes less',
-            preserve: 'the current window-to-shirt value pattern',
-            priority: 'secondary',
           },
         ],
         voiceBPlan: {
@@ -1139,12 +1135,12 @@ function testStructuredVoiceBPlanFlow(): void {
         preserve: 'Keep the window strip and the shirt-to-wall contrast.',
         nextTarget: 'Push composition and shape structure toward Master.',
         anchor: {
-          areaSummary: 'the foreground chair back',
+          areaSummary: 'the chair back crossing the seated figure',
           evidencePointer: 'its dark vertical bars compete with the seated figure for first attention',
           region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
         },
         editPlan: {
-          targetArea: 'the foreground chair back',
+          targetArea: 'the chair back crossing the seated figure',
           preserveArea: 'the bright window strip and the shirt-to-wall contrast',
           issue: 'its dark interior bars pull as strongly as the face',
           intendedChange: 'soften the interior chair bars while preserving the outer silhouette',
@@ -1327,19 +1323,19 @@ function testStructuredVoiceBPlanFlow(): void {
         level: 'Intermediate',
         phase1: {
           visualInventory:
-            'The interior verticals in the foreground chair back are close in sharpness to the face behind them. The head and shirt passage sits slightly right of center and is meant to hold focus. The chair silhouette reads more clearly than some of the interior slats.',
+            'The interior verticals in the chair back crossing the figure are close in sharpness to the face behind them. The head and shirt passage sits slightly right of center and is meant to hold focus. The chair silhouette reads more clearly than some of the interior slats.',
         },
         phase2: {
           criticsAnalysis:
-            'In the foreground chair back, the interior verticals stay almost as insistent as the face.',
+            'In the chair back crossing the seated figure, the interior verticals stay almost as insistent as the face.',
         },
         phase3: {
           teacherNextSteps:
-            '1. In the foreground chair back, soften the interior verticals so they stop competing with the face.',
+            '1. In the chair back crossing the seated figure, soften the interior verticals so they stop competing with the face.',
         },
         actionPlanSteps: [
           {
-            area: 'the foreground chair back',
+            area: 'the chair back crossing the seated figure',
             currentRead: 'the interior verticals stay almost as insistent as the face',
             move: 'soften the interior verticals so they stop competing with the face',
             expectedRead: 'the face regains priority',
@@ -1362,12 +1358,12 @@ function testStructuredVoiceBPlanFlow(): void {
         preserve: 'Preserve the outer chair silhouette and the head-to-shirt contrast.',
         nextTarget: 'Push edge and focus control toward Advanced.',
         anchor: {
-          areaSummary: 'the foreground chair back',
+          areaSummary: 'the chair back crossing the seated figure',
           evidencePointer: 'its interior verticals compete with the face instead of supporting it',
           region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
         },
         editPlan: {
-          targetArea: 'the foreground chair back',
+          targetArea: 'the chair back crossing the seated figure',
           preserveArea: 'the outer chair silhouette and the head-to-shirt contrast',
           issue: 'the interior chair bars pull too strongly relative to the face',
           intendedChange: 'soften the interior chair bars while preserving the silhouette',
@@ -1488,15 +1484,15 @@ function testStructuredVoiceBPlanFlow(): void {
 
   const validated = validateCritiqueResult(raw);
   const composition = validated.categories[1]!;
-  assert.equal(composition.actionPlanSteps?.length, 2);
+  assert.equal(composition.actionPlanSteps?.length, 1);
   assert.equal(composition.voiceBPlan?.bestNextMove, 'Soften the interior chair bars while keeping the silhouette intact.');
 
   const finalized = finalizeCritiqueResult(validated as unknown as CritiqueResult, {
     photoQuality: validated.photoQuality,
   });
   const finalizedComposition = finalized.categories[1]!;
-  assert.match(finalizedComposition.phase3.teacherNextSteps, /1\. In the foreground chair back/i);
-  assert.match(finalizedComposition.phase3.teacherNextSteps, /2\. In the left window strip/i);
+  assert.match(finalizedComposition.phase3.teacherNextSteps, /1\. In the chair back crossing the seated figure/i);
+  assert.match(finalizedComposition.phase3.teacherNextSteps, /soften|interior chair bars/i);
 }
 
 function testZodSchemaRoundTrip(): void {
@@ -1540,7 +1536,7 @@ function testZodSchemaRoundTrip(): void {
 
   // Round-trip: mock Voice B step through Zod parse
   const mockStep = {
-    area: 'the foreground chair back',
+    area: 'the chair back crossing the seated figure',
     currentRead: 'interior bars compete with the face',
     move: 'soften the interior bars',
     expectedRead: 'the face regains priority',
@@ -1552,7 +1548,7 @@ function testZodSchemaRoundTrip(): void {
 
   // Round-trip: mock anchor through Zod parse
   const mockAnchor = {
-    areaSummary: 'the foreground chair back',
+    areaSummary: 'the chair back crossing the seated figure',
     evidencePointer: 'its interior verticals compete with the face',
     region: { x: 0.18, y: 0.22, width: 0.24, height: 0.46 },
   };
@@ -1561,7 +1557,7 @@ function testZodSchemaRoundTrip(): void {
 
   // Round-trip: mock edit plan through Zod parse
   const mockEditPlan = {
-    targetArea: 'the foreground chair back',
+    targetArea: 'the chair back crossing the seated figure',
     preserveArea: 'the outer chair silhouette',
     issue: 'the interior bars pull too strongly',
     intendedChange: 'soften the interior bars while preserving the silhouette',
@@ -1582,13 +1578,13 @@ function testZodSchemaRoundTrip(): void {
     criterion,
     level: 'Intermediate',
     phase1: {
-      visualInventory: `Literal visual inventory for ${criterion} centered on the foreground chair back and its overlap with the seated figure.`,
+      visualInventory: `Literal visual inventory for ${criterion} centered on the chair back crossing the seated figure.`,
     },
     phase2: {
-      criticsAnalysis: `Feedback for ${criterion} grounded in the foreground chair back.`,
+      criticsAnalysis: `Feedback for ${criterion} grounded in the chair back crossing the seated figure.`,
     },
     phase3: {
-      teacherNextSteps: `1. In the foreground chair back, soften the interior bars so the face regains priority.`,
+      teacherNextSteps: `1. In the chair back crossing the seated figure, soften the interior bars so the face regains priority.`,
     },
     actionPlanSteps: [mockStep],
     voiceBPlan: mockPlan,
@@ -1605,22 +1601,22 @@ function testZodSchemaRoundTrip(): void {
   }));
 
   const mockMerged = {
-    summary: 'A focused interior with one competing obstruction in the foreground chair back.',
+    summary: 'A focused interior with one competing obstruction at the chair back crossing the seated figure.',
     suggestedPaintingTitles: [
-      { category: 'formalist', title: 'Interior Study', rationale: 'Composition at Intermediate with the foreground chair back as dominant structure.' },
-      { category: 'tactile', title: 'Chair and Figure', rationale: 'Surface at Intermediate with the foreground chair back as key physical element.' },
-      { category: 'intent', title: 'Window Light Drawing', rationale: 'Intent at Intermediate with the foreground chair back as core psychological weight.' },
+      { category: 'formalist', title: 'Interior Study', rationale: 'Composition at Intermediate with the chair back as dominant structure.' },
+      { category: 'tactile', title: 'Chair and Figure', rationale: 'Surface at Intermediate with the chair back as key physical element.' },
+      { category: 'intent', title: 'Window Light Drawing', rationale: 'Intent at Intermediate with the chair back as core psychological weight.' },
     ],
     overallSummary: {
-      analysis: 'The foreground chair back and seated figure create a clear interior tension.',
-      topPriorities: ['Soften the interior bars of the foreground chair back.'],
+      analysis: 'The chair back and seated figure create a clear interior tension.',
+      topPriorities: ['Soften the interior bars at the chair back crossing the seated figure.'],
     },
     studioAnalysis: {
-      whatWorks: 'The foreground chair back and window strip establish a strong scaffold.',
-      whatCouldImprove: 'The foreground chair back still competes with the face.',
+      whatWorks: 'The chair back and window strip establish a strong scaffold.',
+      whatCouldImprove: 'The chair back still competes with the face.',
     },
     studioChanges: [
-      { text: 'Soften the interior bars of the foreground chair back.', previewCriterion: 'Edge and focus control' },
+      { text: 'Soften the interior bars at the chair back crossing the seated figure.', previewCriterion: 'Edge and focus control' },
       { text: 'Keep the left window strip intact.', previewCriterion: 'Value and light structure' },
     ],
     comparisonNote: null,
@@ -1633,11 +1629,11 @@ function testZodSchemaRoundTrip(): void {
   assert.ok(validated, 'Zod-shaped mock should pass validateCritiqueResult');
   assert.equal(
     validated.categories[0]!.phase1.visualInventory,
-    'Literal visual inventory for Intent and necessity centered on the foreground chair back and its overlap with the seated figure.'
+    'Literal visual inventory for Intent and necessity centered on the chair back crossing the seated figure.'
   );
   assert.equal(validated.categories[0]!.voiceBPlan?.expectedRead, 'The face separates from the jacket.');
   assert.equal(validated.categories[0]!.actionPlanSteps?.length, 1);
-  assert.equal(validated.categories[0]!.anchor?.areaSummary, 'the foreground chair back');
+  assert.equal(validated.categories[0]!.anchor?.areaSummary, 'the chair back crossing the seated figure');
 }
 
 function testVisionImagePayloadShape(): void {

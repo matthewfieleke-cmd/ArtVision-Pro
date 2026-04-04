@@ -22,7 +22,6 @@ import {
   type VoiceBStageResult,
   voiceBCategorySchema,
   voiceAStageResultSchema,
-  voiceBStageResultSchema,
   toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
 import {
@@ -42,6 +41,12 @@ import {
   errorMessage,
 } from './critiqueErrors.js';
 import { assertCritiqueQualityGate } from './critiqueEval.js';
+import { noopCritiqueInstrumenter, type CritiqueInstrumenter } from './critiqueInstrumentation.js';
+import {
+  CRITIQUE_CHANGE_VERB_PATTERN,
+  CRITIQUE_DONT_CHANGE_PATTERN,
+  CRITIQUE_PRESERVE_VERB_PATTERN,
+} from './critiqueTextRules.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -320,27 +325,15 @@ Return JSON only matching the schema.`;
 const VOICE_A_MAX_TOKENS = 4800;
 const VOICE_B_MAX_TOKENS = 7200;
 const MAX_STAGE_ATTEMPTS = 3;
-const VOICE_B_CRITERIA_PER_PASS = 1;
+/**
+ * Criteria per Voice B API call. Two keeps eight criteria in four calls (plus summary pass),
+ * preserving cross-batch dedup validation while cutting serial round-trips vs one-per-call.
+ */
+const VOICE_B_CRITERIA_PER_PASS = 2;
 const VOICE_B_ALLOWED_LEAD_VERBS =
   'soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, preserve, keep, protect, leave, hold';
-const VOICE_B_CHANGE_VERB_PATTERN =
-  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break)\b/i;
-const VOICE_B_PRESERVE_VERB_PATTERN =
-  /^\s*(preserve|keep|protect|leave|hold)\b/i;
-const VOICE_B_DONT_CHANGE_PATTERN = /^\s*(?:1\.\s*)?don['’]t change a thing\./i;
 
 type VoiceBCategoryResult = VoiceBStageResult['categories'][number];
-
-type VoiceBCategoryPassResult = {
-  categories: VoiceBCategoryResult[];
-};
-
-type VoiceBSummaryPassResult = {
-  overallSummary: {
-    topPriorities: string[];
-  };
-  studioChanges: VoiceBStageResult['studioChanges'];
-};
 
 function chunkCriteria<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -492,28 +485,28 @@ function createVoiceBCategoryPassSchema(
       const teacherNextSteps = category.phase3.teacherNextSteps;
 
       if (level === 'Master') {
-        if (!VOICE_B_DONT_CHANGE_PATTERN.test(teacherNextSteps)) {
+        if (!CRITIQUE_DONT_CHANGE_PATTERN.test(teacherNextSteps)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['phase3', 'teacherNextSteps'],
             message: `${category.criterion}: Master guidance must begin with "Don't change a thing."`,
           });
         }
-        if (!VOICE_B_PRESERVE_VERB_PATTERN.test(stepMove)) {
+        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(stepMove)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['actionPlanSteps', 0, 'move'],
             message: `${category.criterion}: Master actionPlanSteps[0].move must be preserve-only.`,
           });
         }
-        if (!VOICE_B_PRESERVE_VERB_PATTERN.test(bestNextMove)) {
+        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(bestNextMove)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['voiceBPlan', 'bestNextMove'],
             message: `${category.criterion}: Master voiceBPlan.bestNextMove must be preserve-only.`,
           });
         }
-        if (!VOICE_B_PRESERVE_VERB_PATTERN.test(intendedChange)) {
+        if (!CRITIQUE_PRESERVE_VERB_PATTERN.test(intendedChange)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['editPlan', 'intendedChange'],
@@ -523,28 +516,28 @@ function createVoiceBCategoryPassSchema(
         return;
       }
 
-      if (VOICE_B_DONT_CHANGE_PATTERN.test(teacherNextSteps)) {
+      if (CRITIQUE_DONT_CHANGE_PATTERN.test(teacherNextSteps)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['phase3', 'teacherNextSteps'],
           message: `${category.criterion}: non-Master guidance cannot use "Don't change a thing."`,
         });
       }
-      if (!VOICE_B_CHANGE_VERB_PATTERN.test(stepMove)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(stepMove)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['actionPlanSteps', 0, 'move'],
           message: `${category.criterion}: non-Master actionPlanSteps[0].move must be a true change instruction.`,
         });
       }
-      if (!VOICE_B_CHANGE_VERB_PATTERN.test(bestNextMove)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(bestNextMove)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['voiceBPlan', 'bestNextMove'],
           message: `${category.criterion}: non-Master voiceBPlan.bestNextMove must be a true change instruction.`,
         });
       }
-      if (!VOICE_B_CHANGE_VERB_PATTERN.test(intendedChange)) {
+      if (!CRITIQUE_CHANGE_VERB_PATTERN.test(intendedChange)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['editPlan', 'intendedChange'],
@@ -999,17 +992,14 @@ export async function runCritiqueWritingStage(
   style: string,
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
-  calibration?: CritiqueCalibrationDTO
+  calibration?: CritiqueCalibrationDTO,
+  instrumenter: CritiqueInstrumenter = noopCritiqueInstrumenter
 ): Promise<CritiqueResultDTO> {
-  const voiceA = await runCritiqueVoiceAStage(apiKey, model, style, body, evidence, calibration);
-  const voiceB = await runCritiqueVoiceBStage(
-    apiKey,
-    model,
-    style,
-    body,
-    evidence,
-    voiceA,
-    calibration
+  const voiceA = await instrumenter.time('writing_voice_a', () =>
+    runCritiqueVoiceAStage(apiKey, model, style, body, evidence, calibration)
+  );
+  const voiceB = await instrumenter.time('writing_voice_b', () =>
+    runCritiqueVoiceBStage(apiKey, model, style, body, evidence, voiceA, calibration)
   );
   const merged = mergeVoiceStages(voiceA, voiceB);
   const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);

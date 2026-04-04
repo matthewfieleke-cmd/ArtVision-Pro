@@ -2,6 +2,7 @@ import { CRITERIA_ORDER } from '../shared/criteria.js';
 import { phase2Text, phase3Text } from '../shared/critiquePhaseText.js';
 import { splitNumberedSteps } from './numberedSteps.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
+import { isVagueOrGenericStudioText } from './critiqueTextRules.js';
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
@@ -171,24 +172,6 @@ function sentenceCase(text: string): string {
 }
 
 
-const VAGUE_VOICE_B_PATTERNS = [
-  /\bdefine\b.*\bedges?\b.*\bmore clearly\b/i,
-  /\benhance\b.*\bfocus hierarchy\b/i,
-  /\benhance\b.*\bnarrative\b/i,
-  /\badd\b.*\bsmall details\b/i,
-  /\bcontribute to the story\b/i,
-  /\bsmooth out\b.*\bcolor transitions\b/i,
-  /\benhance\b.*\brealism\b/i,
-  /\bimprove the focus where needed\b/i,
-  /\bimprove the main focal area\b/i,
-];
-
-function isVagueVoiceBText(text: string): boolean {
-  const normalized = normalizeWhitespace(text);
-  if (!normalized) return true;
-  return VAGUE_VOICE_B_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
 function ensureTrailingPeriod(text: string): string {
   const trimmed = normalizeWhitespace(text);
   if (!trimmed) return '';
@@ -213,23 +196,6 @@ function looksConceptualLabel(text: string): boolean {
   );
 }
 
-function structuredFieldsAreConcrete(category: CritiqueResultDTO['categories'][number]): boolean {
-  const area = category.anchor?.areaSummary ?? category.editPlan?.targetArea ?? '';
-  const issue = category.editPlan?.issue ?? '';
-  const move = category.editPlan?.intendedChange ?? '';
-  const outcome = category.editPlan?.expectedOutcome ?? '';
-  if (!area.trim() || !issue.trim() || !move.trim() || !outcome.trim()) return false;
-  if (looksConceptualLabel(area)) return false;
-  if (
-    /\b(more depth|better narrative|improve realism|enhanced clarity|more cohesive|more integrated)\b/i.test(
-      `${issue} ${move} ${outcome}`
-    )
-  ) {
-    return false;
-  }
-  return true;
-}
-
 function firstUsableStructuredPhrase(...candidates: Array<string | undefined>): string {
   for (const candidate of candidates) {
     const normalized = concretePhrase(candidate ?? '');
@@ -241,7 +207,7 @@ function firstUsableStructuredPhrase(...candidates: Array<string | undefined>): 
     ) {
       continue;
     }
-    if (isVagueVoiceBText(normalized)) continue;
+    if (isVagueOrGenericStudioText(normalized)) continue;
     return normalized;
   }
   return '';
@@ -311,7 +277,7 @@ function rewriteActionPlanFromStructuredFields(
     const normalizedExisting = existing ? normalizeWhitespace(existing).toLowerCase() : '';
     if (
       existing &&
-      !isVagueVoiceBText(existing) &&
+      !isVagueOrGenericStudioText(existing) &&
       anchoredCategoryMatchesText(existing, category) &&
       !usedNormalizedSteps.has(normalizedExisting)
     ) {
@@ -347,7 +313,7 @@ function rewriteStudioChangeFromStructuredFields(
 
   if (
     existingText &&
-    !isVagueVoiceBText(existingText) &&
+    !isVagueOrGenericStudioText(existingText) &&
     anchoredCategoryMatchesText(existingText, category)
   ) {
     return existingText;

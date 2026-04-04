@@ -20,8 +20,9 @@ import {
 const criterionEnum = z.enum(CRITERIA_ORDER as unknown as [string, ...string[]]);
 const ratingLevelEnum = z.enum(RATING_LEVELS as unknown as [string, ...string[]]);
 const confidenceEnum = z.enum(['low', 'medium', 'high']);
+/** Align with CRITIQUE_CHANGE_VERB_PATTERN ∪ CRITIQUE_PRESERVE_VERB_PATTERN in critiqueTextRules.ts */
 const studioVerbPattern =
-  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|preserve|keep|protect|leave|hold)\b/i;
+  /^\s*(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|preserve|keep|protect|leave|hold|maintain|continue)\b/i;
 
 // ---------------------------------------------------------------------------
 // Shared sub-objects
