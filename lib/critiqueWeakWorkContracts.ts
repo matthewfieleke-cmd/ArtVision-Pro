@@ -11,8 +11,11 @@ export type WeakWorkEvidenceFamily =
 const TOP_LEVEL_FLATTERING_PATTERN =
   /\b(whimsical charm|whimsical tranquility|idyllic rural life|idyllic world|lively atmosphere|peaceful.*scene|momentary impression|monet'?s garden scenes?|monet|morisot|pissarro)\b/i;
 
+// Visible-language allowance needs to cover more than novice garden scenes so
+// masterworks with concrete nouns like "sun", "boats", or "harbor" are not
+// rejected as abstract praise.
 const TOP_LEVEL_NEUTRAL_PATTERN =
-  /\b(path|house|roof|flower|flowers|sky|wash|edge|shadow|fence|tree|trees|garden|foreground|background|color|value|watercolor)\b/i;
+  /\b(path|house|roof|flower|flowers|sky|wash|edge|edges|shadow|fence|tree|trees|garden|foreground|background|color|palette|value|watercolor|sun|boat|boats|harbor|shore|water|reflection|reflections|building|buildings|figure|figures|face|head|chair|wall|window|square|band|bands|line|lines|silhouette|cloud|clouds|smoke|sleeve|collar|canvas|ground|brushwork|brushstrokes?|strokes?|blending|ripples?)\b/i;
 
 const GENERIC_EVIDENCE_ACTION_PATTERN =
   /\b(creates?|shows?|features?|suggests?|conveys?|adds?|enhances?|emphasizes?|implies?|provides?)\b/i;
@@ -33,10 +36,10 @@ const COMPOSITION_GENERIC_PATTERN =
   /\b(dynamic tension|balanced composition|stable composition|guides? the viewer'?s eye|leads? the eye|framing|frame the path|sense of depth|adds interest|focal point|balance|balances?|balanced|symmetry|symmetrical|rhythm|counterbalance|counterbalances?)\b/i;
 
 const COMPOSITION_CONCRETE_PATTERN =
-  /\b(path bend|roof edge|fence post|fence line|flower patch|house shadow|chair back|chair bars?|window strip|figure|sitter|shoulder|head|silhouette|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across)\b/i;
+  /\b(path bend|roof edge|fence post|fence line|flower patch|house shadow|chair back|chair bars?|window strip|figure|sitter|shoulder|head|silhouette|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across|boat|boats|reflection|horizon|mast|masts|ripples?|water|sky|harbor|shore|foreground|background|vertical|horizontal)\b/i;
 
 const COMPOSITION_EVENT_PATTERN =
-  /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?)\b/i;
+  /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|positioned|placed)\b/i;
 
 const CONCEPTUAL_GENERIC_PATTERN =
   /\b(journey|inviting|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch)\b/i;
@@ -49,6 +52,12 @@ const CONCEPTUAL_CARRIER_RELATION_PATTERN =
 
 const CONCEPTUAL_ANCHOR_PATTERN =
   /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?\s+across|narrow(?:s|ing)?\s+toward|meets?|turn(?:s|ing)?\s+into|overlap|beside|below|above|into|through|beneath)\b/i;
+
+const CONCEPTUAL_CONCRETE_OBJECT_PATTERN =
+  /\b(sun|reflection|water|boat|boats|harbor|shore|sky|cloud|clouds|figure|figures|face|head|wall|window|chair|shirt|collar|smoke|chimney|roof|path|shadow|sleeve|hand|ground|opening|silhouette)\b/i;
+
+const CONCEPTUAL_SOFT_ROUTE_PATTERN =
+  /\b(path leading to|journey|story|narrative|overall mood|emotional tone|garden setting|atmosphere)\b/i;
 
 export function isConceptualCriterion(criterion: CriterionLabel): boolean {
   return (
@@ -79,7 +88,7 @@ export function hasWeakCompositionGenericText(text: string): boolean {
   if (!normalized) return true;
   const lacksConcreteStructure = !COMPOSITION_CONCRETE_PATTERN.test(normalized);
   const lacksStructuralEvent = !COMPOSITION_EVENT_PATTERN.test(normalized);
-  return COMPOSITION_GENERIC_PATTERN.test(normalized) || lacksConcreteStructure || lacksStructuralEvent;
+  return lacksConcreteStructure || lacksStructuralEvent;
 }
 
 export function hasFlatteringWeakWorkTopLevelText(text: string): boolean {
@@ -107,7 +116,9 @@ export function neutralizeWeakWorkComparisonObservation(text: string): string {
 
 export function hasSpecificConceptualCarrierAnchor(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
-  return CONCEPTUAL_ANCHOR_PATTERN.test(normalized);
+  if (!normalized) return false;
+  if (CONCEPTUAL_SOFT_ROUTE_PATTERN.test(normalized)) return false;
+  return CONCEPTUAL_ANCHOR_PATTERN.test(normalized) || CONCEPTUAL_CONCRETE_OBJECT_PATTERN.test(normalized);
 }
 
 export function hasWeakConceptualGenericText(text: string): boolean {

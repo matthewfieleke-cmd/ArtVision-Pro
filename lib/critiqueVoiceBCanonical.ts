@@ -1,6 +1,7 @@
 import type { VoiceBCanonicalPlan, VoiceBPlan, VoiceBStep } from '../shared/critiqueContract.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 import { CRITIQUE_DONT_CHANGE_PATTERN, CRITIQUE_PRESERVE_VERB_PATTERN } from './critiqueTextRules.js';
+import { isConcreteAnchor } from './critiqueGrounding.js';
 
 type VoiceBLegacyCompatible = {
   phase3?: { teacherNextSteps?: string };
@@ -15,9 +16,22 @@ type VoiceBCanonicalCarrier = VoiceBLegacyCompatible & {
   plan?: VoiceBCanonicalPlan;
 };
 
+const GENERIC_PRESERVE_AREA_PATTERN =
+  /\b((nearby|surrounding|adjacent)\s+(handling|transitions?|surface|texture|textures|edges?|passages?|areas?|strengths?)|strong (focal point|compositional line|axis|contrast|atmosphere|mood)|harmonious contrast|dynamic compositional line|central organizing element)\b/i;
+
 function clean(text: string | undefined): string | undefined {
   const normalized = text?.trim();
   return normalized ? normalized : undefined;
+}
+
+function concretePreserveArea(
+  anchor: CriterionAnchor,
+  plan: VoiceBCanonicalPlan
+): string {
+  const preserve = clean(plan.preserve);
+  return preserve && isConcreteAnchor(preserve) && !GENERIC_PRESERVE_AREA_PATTERN.test(preserve)
+    ? preserve
+    : anchor.evidencePointer;
 }
 
 export function deriveActionPlanStepFromCanonical(
@@ -42,7 +56,7 @@ export function deriveEditPlanFromCanonical(
   if (!anchor || !plan) return undefined;
   return {
     targetArea: anchor.areaSummary,
-    preserveArea: plan.preserve ?? anchor.evidencePointer,
+    preserveArea: concretePreserveArea(anchor, plan),
     issue: plan.currentRead,
     intendedChange: plan.move,
     expectedOutcome: plan.expectedRead,

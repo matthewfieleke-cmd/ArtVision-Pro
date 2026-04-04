@@ -36,7 +36,7 @@ import {
   validateVoiceAStageOutput,
   validateVoiceBStageOutput,
 } from './critiqueValidation.js';
-import { tracesToVisibleEvidence } from './critiqueGrounding.js';
+import { sharesConcreteLanguage, tracesToVisibleEvidence } from './critiqueGrounding.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import {
@@ -56,6 +56,7 @@ import {
   CRITIQUE_CHANGE_VERB_PATTERN,
   CRITIQUE_DONT_CHANGE_PATTERN,
   CRITIQUE_PRESERVE_VERB_PATTERN,
+  isGenericTeacherText,
 } from './critiqueTextRules.js';
 
 function isStyleKey(s: string): s is StyleKey {
@@ -198,10 +199,14 @@ Rules:
 - For every Master criterion, give preserve-only guidance. Praise the exact visible relationship that is already exceptional and provide ZERO improvement instructions.
 - Distinctness is mandatory across the full eight-criterion set: do not recycle the same move, the same wording, or the same anchored passage across multiple criteria unless the painting truly makes that unavoidable.
 - Voice B non-redundancy: categories[].plan.currentRead, move, and expectedRead must each add different information. phase3.teacherNextSteps must be a tight rendering of categories[].plan only: do not add extra steps, synonyms, or repeated junctions that are not in that plan. Do not restate Voice A’s feedback verbatim.
+- Anchor fidelity is mandatory: categories[].plan.move and phase3.teacherNextSteps must stay on the SAME passage named by categories[].anchor.areaSummary. Do not diagnose one passage and then prescribe a move on a nearby but different object.
+- If the evidence anchor is "the boat's silhouette against the water", then the move must still name that boat-water edge or a directly adjacent passage inside it. Do not drift to "the horizon", "the background", "the whole harbor", or a generalized focal-area fix.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
   - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "push the contrast," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
   - If the work is strong, keep the advice modest and local; do not turn a small issue into a full repaint.
+  - For Edge and focus control, the move must name a literal edge relationship: "[edge A] against [shape B]" plus what should change there. Bad: "improve focus", "clarify the focal point", "sharpen the main area", "separate the boat more". Good: "sharpen the boat's top edge against the pale water just right of the bow while leaving the far hull edge soft."
+  - For Drawing, proportion, and spatial form, the move must stay on the anchored form relationship itself, not jump to a broader atmospheric or compositional fix.
 - Calibration warning:
   - Do not mistake childlike, rudimentary, or clearly underdeveloped work for successful Expressionism or Abstract Art just because it is simplified, distorted, bold, or high-contrast.
   - Successful stylization still requires visible control, structural intent, and consistency within the chosen criterion. If those are missing, the criterion must stay low even when the work is vivid or unusual.
@@ -225,6 +230,7 @@ Rules:
 - Voice B planning structure (required for all eight categories): First create categories[].plan for THAT criterion on THIS painting only.
   - categories[].plan.currentRead must describe a visible fact in the anchored passage, not a judgment. Bad: "could be more unified", "feels less necessary", "some relationships could be clearer". Better: "the green foliage patches are all the same value and chroma, flattening the depth between near and far beds."
   - categories[].plan.move must begin with a concrete studio verb (soften, darken, cool, group, separate, sharpen, widen, compress, quiet, warm, lose, restate) applied to a specific visual element in that passage. NEVER use "adjust elements", "enhance presence", "ensure consistency", "improve structure", "strengthen the painting's presence", "define these spatial relationships", or "unify texture" without naming what exactly to change. If you cannot name a specific brushstroke, edge, color relationship, or spatial event to change, the move is too vague.
+- categories[].plan.move must repeat at least one concrete noun from categories[].anchor.areaSummary and stay inside that same visible passage.
   - categories[].plan.expectedRead must state what should read differently afterward in that same passage.
   - categories[].plan.preserve should name any nearby strength that must survive the move. If there is nothing specific to preserve, return an empty string.
   - categories[].plan.editability must be "yes" for non-Master criteria unless the anchored target is too ambiguous or too broad to revise reliably. For Master criteria, set it to "no".
@@ -394,12 +400,35 @@ function groundedVoiceBCurrentRead(
     category.voiceBPlan?.currentRead,
     category.anchor.evidencePointer,
     category.editPlan?.issue,
+    criterionEvidence.visibleEvidence[0],
+    criterionEvidence.strengthRead,
   ];
   return (
     candidates.find(
       (candidate): candidate is string =>
         typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
     ) ?? category.plan.currentRead
+  );
+}
+
+function groundedAnchorEvidencePointer(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+): string {
+  const candidates = [
+    category.anchor.evidencePointer,
+    category.plan.currentRead,
+    category.actionPlanSteps?.[0]?.currentRead,
+    category.voiceBPlan?.currentRead,
+    category.editPlan?.issue,
+    criterionEvidence.visibleEvidence[0],
+    criterionEvidence.strengthRead,
+  ];
+  return (
+    candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
+    ) ?? criterionEvidence.visibleEvidence[0] ?? category.anchor.evidencePointer
   );
 }
 
@@ -414,6 +443,8 @@ function groundedVoiceBIssue(
     groundedCurrentRead,
     category.voiceBPlan?.currentRead,
     category.anchor.evidencePointer,
+    criterionEvidence.visibleEvidence[0],
+    criterionEvidence.strengthRead,
   ];
   return (
     candidates.find(
@@ -423,17 +454,105 @@ function groundedVoiceBIssue(
   );
 }
 
+function groundedVoiceBExpectedRead(
+  category: VoiceBCategoryResult
+): string {
+  return (
+    category.plan.expectedRead ||
+    category.actionPlanSteps?.[0]?.expectedRead ||
+    category.voiceBPlan?.expectedRead ||
+    category.editPlan?.expectedOutcome ||
+    'the passage will read more clearly in the same area.'
+  );
+}
+
+function edgeMoveNamesConcreteRelationship(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  const hasEdgeTerm = /\b(edge|edges|contour|contours|boundary|boundaries|outline|outlines)\b/.test(normalized);
+  const hasRelationalCue =
+    /\b(against|between|where|versus|than|while|not\b|so\b)\b/.test(normalized) ||
+    normalized.includes('-to-');
+  return hasEdgeTerm && hasRelationalCue;
+}
+
+function concreteEdgeRelationshipMove(areaSummary: string): string {
+  const area = areaSummary.trim() || 'the anchored passage';
+  if (/\b(edge|edges|contour|contours|boundary|boundaries|outline|outlines)\b/i.test(area)) {
+    return `sharpen ${area} a little more while losing a nearby edge in that same passage so the focus hierarchy reads there instead of flattening.`;
+  }
+  if (/\b(against|between|where)\b/i.test(area)) {
+    return `sharpen the edge in ${area} while losing a nearby edge in that same passage so the focus hierarchy reads there instead of flattening.`;
+  }
+  return `sharpen the clearest edge in ${area} against the neighboring shape while losing a nearby edge in that same passage so the focus hierarchy reads there instead of flattening.`;
+}
+
+function groundedVoiceBMove(
+  category: VoiceBCategoryResult,
+  groundedCurrentRead: string
+): string {
+  const context = {
+    criterion: category.criterion,
+    anchor: { areaSummary: category.anchor.areaSummary },
+    level: category.level,
+  };
+  const normalizedMove = normalizeVoiceBMoveForSchema(category.plan.move, context);
+  if (category.criterion === 'Edge and focus control' && !edgeMoveNamesConcreteRelationship(normalizedMove)) {
+    return concreteEdgeRelationshipMove(category.anchor.areaSummary);
+  }
+  if (sharesConcreteLanguage(normalizedMove, category.anchor.areaSummary, 2)) {
+    return normalizedMove;
+  }
+  if (sharesConcreteLanguage(normalizedMove, groundedCurrentRead, 2)) {
+    return normalizedMove;
+  }
+  return fallbackVoiceBMoveForCriterion(context);
+}
+
+function groundedTeacherNextSteps(
+  category: VoiceBCategoryResult,
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
+  groundedCurrentRead: string,
+  groundedMove: string
+): string {
+  const existing = category.phase3.teacherNextSteps;
+  if (
+    existing &&
+    tracesToVisibleEvidence(existing, criterionEvidence) &&
+    sharesConcreteLanguage(existing, category.anchor.areaSummary, 2) &&
+    !isGenericTeacherText(existing)
+  ) {
+    return existing;
+  }
+  const expectedRead = groundedVoiceBExpectedRead(category).replace(/\s+/g, ' ').trim().replace(/\.$/, '');
+  const currentRead = groundedCurrentRead.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
+  const move = groundedMove.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
+  return `In ${category.anchor.areaSummary}, ${currentRead}. ${move.charAt(0).toUpperCase()}${move.slice(1)} so ${expectedRead}.`;
+}
+
 function normalizeVoiceBCategoryGrounding(
   category: VoiceBCategoryResult,
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): VoiceBCategoryResult {
   const anchorArea = category.anchor.areaSummary;
   const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
+  const groundedEvidencePointer = groundedAnchorEvidencePointer(category, criterionEvidence);
+  const groundedMove = groundedVoiceBMove(category, groundedCurrentRead);
+  const teacherNextSteps = groundedTeacherNextSteps(category, criterionEvidence, groundedCurrentRead, groundedMove);
   const normalizedCategory: VoiceBCategoryResult = {
     ...category,
+    anchor: {
+      ...category.anchor,
+      evidencePointer: groundedEvidencePointer,
+    },
+    phase3: {
+      ...category.phase3,
+      teacherNextSteps,
+    },
     plan: {
       ...category.plan,
       currentRead: groundedCurrentRead,
+      move: groundedMove,
     },
   };
   const legacyCategory = deriveLegacyVoiceBFields(normalizedCategory);
@@ -530,6 +649,18 @@ export function normalizeKnownVoiceBVerbDrift(
     return `group the least necessary figure placements in ${areaSummary} more tightly with the main cluster so the arrangement reads as one deliberate structure.`;
   }
 
+  if (
+    criterion === 'Intent and necessity' &&
+    (/^enhance\b/i.test(normalized) ||
+      /^strengthen\b/i.test(normalized) ||
+      /^clarify\b/i.test(normalized) ||
+      /^improve\b/i.test(normalized) ||
+      /\bintent\b/i.test(normalized) ||
+      /\bnecessity\b/i.test(normalized))
+  ) {
+    return `quiet the least necessary accent in ${areaSummary} so that same passage carries the painting's intent more decisively.`;
+  }
+
   if (/^enhance(?:\s+the)?\s+presence\b/i.test(normalized) || /^enhance(?:\s+the)?\s+human force\b/i.test(normalized)) {
     return `sharpen the clearest force-carrying passage in ${areaSummary} so the point of view reads more decisively.`;
   }
@@ -570,7 +701,7 @@ export function normalizeKnownVoiceBVerbDrift(
       /^clarify\b/i.test(normalized) ||
       /\bfocus hierarchy\b/i.test(normalized))
   ) {
-    return `sharpen one edge in ${areaSummary} while losing the neighboring edge so the focus hierarchy reads through that passage instead of flattening.`;
+    return concreteEdgeRelationshipMove(areaSummary);
   }
 
   return normalized;
@@ -598,7 +729,7 @@ function fallbackVoiceBMoveForCriterion(category?: VoiceBCategoryLike): string {
     case 'Drawing, proportion, and spatial form':
       return `restate the key spatial relationship in ${areaSummary}.`;
     case 'Edge and focus control':
-      return `sharpen the key edge contrast in ${areaSummary}.`;
+      return concreteEdgeRelationshipMove(areaSummary);
     case 'Surface and medium handling':
       return `vary the handling transitions in ${areaSummary}.`;
     case 'Intent and necessity':
@@ -648,17 +779,7 @@ function deriveLegacyVoiceBFields(category: VoiceBCategoryResult): VoiceBCategor
           storyIfRelevant: '',
         }
       : undefined;
-  const editPlan =
-    anchor && plan
-      ? {
-          targetArea: anchor.areaSummary,
-          preserveArea: plan.preserve ?? anchor.evidencePointer,
-          issue: plan.currentRead,
-          intendedChange: plan.move,
-          expectedOutcome: plan.expectedRead,
-          editability: plan.editability,
-        }
-      : undefined;
+  const editPlan = deriveEditPlanFromCanonical(anchor, plan);
 
   const hydrated: VoiceBCategoryResult = {
     ...category,

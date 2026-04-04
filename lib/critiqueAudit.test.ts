@@ -62,6 +62,36 @@ describe('applyCritiqueGuardrails', () => {
     expect(guarded.simpleFeedback!.studioChanges[2]!.text).toMatch(/sharpen|lose/i);
   });
 
+  it('rewrites soft but anchored workshop boilerplate into criterion-specific structured advice', () => {
+    const critique = makeCritiqueResultFixture();
+    critique.categories[1] = {
+      ...critique.categories[1]!,
+      phase3: {
+        teacherNextSteps:
+          '1. Adjust the chair relationship so the composition feels more harmonious.',
+      },
+      editPlan: {
+        ...critique.categories[1]!.editPlan!,
+        issue:
+          'the middle slat in the foreground chair back around the sitter interrupts the route more abruptly than the surrounding scaffold',
+        intendedChange:
+          'adjust the chair relationship so the composition feels more harmonious',
+        expectedOutcome: 'the route through the chair passage feels more cohesive',
+      },
+    };
+    critique.simpleFeedback!.studioChanges[1] = {
+      text: 'Adjust the chair relationship so the composition feels more harmonious.',
+      previewCriterion: 'Composition and shape structure',
+    };
+
+    const guarded = applyCritiqueGuardrails(critique);
+
+    expect(guarded.categories[1]!.phase3.teacherNextSteps).toMatch(/foreground chair back around the sitter/i);
+    expect(guarded.categories[1]!.phase3.teacherNextSteps).toMatch(/group|soften|widen/i);
+    expect(guarded.simpleFeedback!.studioChanges[1]!.text).toMatch(/foreground chair back around the sitter/i);
+    expect(guarded.simpleFeedback!.studioChanges[1]!.text).not.toMatch(/harmonious/i);
+  });
+
   it('records guardrail categories when a repair mutation occurs', () => {
     const critique = makeCritiqueResultFixture();
     critique.categories[5] = {

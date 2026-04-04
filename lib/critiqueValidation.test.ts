@@ -13,6 +13,7 @@ import {
   validateVoiceAStageOutput,
   validateVoiceBStageOutput,
 } from './critiqueValidation';
+import { hasNeutralWeakWorkTopLevelText } from './critiqueWeakWorkContracts';
 
 describe('validateVoiceAStageOutput', () => {
   it('accepts a high-quality Voice A stage fixture', () => {
@@ -160,6 +161,53 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).toThrow(/Conceptual evidence anchor is too soft/);
   });
 
+  it('accepts conceptual anchors built from concrete visible carriers like a reflection in water', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      ...neutralizeCompositionEvidence(),
+      criterion: 'Composition and shape structure',
+    };
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: "the sun's reflection in the water",
+      visibleEvidence: [
+        "The sun's reflection in the water forms a bright vertical streak below the sun.",
+        "The sun's reflection in the water breaks into shorter orange marks across the blue-gray harbor.",
+        "The boats sit to one side of the sun's reflection in the water, leaving the bright passage exposed.",
+        "The sun's reflection in the water stays brighter than the surrounding harbor wash.",
+      ],
+      strengthRead:
+        "The sun's reflection in the water is the concrete carrier that makes the dawn read immediate rather than merely described.",
+      preserve:
+        "Preserve the sun's reflection in the water as the passage that carries the painting's felt arrival of light.",
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('accepts figure-in-landscape presence evidence when the human carrier stays physical and repeated', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[7] = {
+      ...evidence.criterionEvidence[7]!,
+      criterion: 'Presence, point of view, and human force',
+      anchor: 'the small dark figure against the pale shore',
+      visibleEvidence: [
+        'The small dark figure against the pale shore sits just below the leaning tree and reads as the clearest human carrier in the scene.',
+        'The small dark figure against the pale shore stays darker than the light sand behind it, so the body holds together at a distance.',
+        'The leaning tree trunk rises just behind the small dark figure against the pale shore and keeps the figure from floating loose in the open water band.',
+        'A second figure farther right is lighter and less insistent, leaving the small dark figure against the pale shore to carry the main human pressure.',
+      ],
+      strengthRead:
+        'The small dark figure against the pale shore gives the landscape a specific human address because that body stays legible against the lighter ground.',
+      preserve:
+        'Preserve the small dark figure against the pale shore as the passage that carries the painting\'s human pressure.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
   it('rejects conceptual strength and preserve lines that slip into mood summary language', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
@@ -218,6 +266,22 @@ describe('validateEvidenceResult', () => {
     evidence.comparisonObservations = ['The image generally aligns with an impressionistic landscape approach.'];
 
     expect(() => validateEvidenceResult(evidence)).toThrow(/too flattering or style-biased/);
+  });
+
+  it('accepts concrete harbor-scene nouns as neutral top-level evidence language', () => {
+    expect(
+      hasNeutralWeakWorkTopLevelText(
+        'The painting appears to organize the scene around a low sun, a few boats, and the reflection crossing the harbor water.'
+      )
+    ).toBe(true);
+  });
+
+  it('accepts top-level strongest-visible-qualities language that stays visual for an impressionist harbor scene', () => {
+    expect(
+      hasNeutralWeakWorkTopLevelText(
+        'The soft edges, loose brushwork, and warm-cool palette keep the harbor water and sky in one atmospheric field.'
+      )
+    ).toBe(true);
   });
 
   it('rejects weak composition evidence that relies on stock composition praise', () => {
@@ -303,6 +367,60 @@ describe('validateEvidenceResult', () => {
     };
 
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('accepts harbor-scene composition evidence when it names concrete structural elements and events', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: "the boat's silhouette against the water",
+      visibleEvidence: [
+        "The boat's silhouette against the water anchors the lower foreground just left of the sun's reflection.",
+        "The sun's reflection intersects the horizontal water bands and leaves a brighter vertical track than the nearby harbor water.",
+        'The distant masts echo the reflection as slimmer verticals above the horizon band.',
+        'The horizon line sits high enough to leave a larger water field below than sky above.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('accepts harbor-scene composition evidence that uses concrete structure plus light shorthand', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: "the boat's silhouette against the water",
+      visibleEvidence: [
+        "The boat's silhouette against the water is positioned slightly off-center in the lower field.",
+        "The vertical reflection of the sun aligns with the boat, guiding the viewer's eye through the harbor water.",
+        'The distant masts echo the reflection as slimmer verticals above the horizon band.',
+        'The water ripples contrast with the vertical reflection, leaving a different directional pull on each side.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('allows final-retry lenient mode to keep concrete-but-shorthand landscape composition evidence', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: 'the tree branches against the sky',
+      visibleEvidence: [
+        'The tree branches create a dynamic diagonal across the sky, leading the eye upward.',
+        'The seated figure and tree trunk form a vertical axis on the right side of the painting.',
+        'The rocky shoreline creates a horizontal band that anchors the composition.',
+        'The clouds form a sweeping curve that echoes the tree branches.',
+      ],
+      strengthRead:
+        'The tree branches create a dynamic diagonal across the sky that keeps the upper field active.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence is too generic/);
+    expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
   });
 });
 

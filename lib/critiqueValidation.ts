@@ -24,6 +24,7 @@ import {
 } from './critiqueTextRules.js';
 import {
   anchorSupportedByEvidenceLine,
+  anchorSupportedByEvidenceLines,
   isConcreteAnchor,
   sameAdvice,
   sharesConcreteLanguage,
@@ -72,6 +73,54 @@ export type CritiqueEvidenceDTO = {
     confidence: 'low' | 'medium' | 'high';
   }>;
 };
+
+type EvidenceValidationMode = 'strict' | 'lenient';
+
+type EvidenceValidationOptions = {
+  mode?: EvidenceValidationMode;
+};
+
+function uniqueNonEmptyLines(lines: Array<string | undefined>, min: number, max: number): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const line of lines) {
+    const normalized = typeof line === 'string' ? line.trim() : '';
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= max) break;
+  }
+  if (result.length >= min) return result;
+  return result;
+}
+
+function joinVisibleSubjects(items: string[]): string {
+  if (items.length === 0) return 'the main visible passages in the painting';
+  if (items.length === 1) return items[0]!;
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+function fallbackIntentHypothesis(
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence']
+): string {
+  const anchors = uniqueNonEmptyLines(
+    criterionEvidence.map((entry) => entry.anchor),
+    1,
+    3
+  );
+  return `The painting appears to organize the scene around ${joinVisibleSubjects(anchors)}.`;
+}
+
+function fallbackStrongestVisibleQualities(
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence']
+): string[] {
+  return uniqueNonEmptyLines(
+    criterionEvidence.flatMap((entry) => [entry.visibleEvidence[0], entry.strengthRead]),
+    2,
+    4
+  );
+}
 
 function evidenceForCriterion(
   evidence: CritiqueEvidenceDTO,
@@ -397,13 +446,11 @@ function fallbackSubskills(
   ];
 }
 
-export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
+export function validateEvidenceResult(raw: unknown, options: EvidenceValidationOptions = {}): CritiqueEvidenceDTO {
+  const mode = options.mode ?? 'strict';
   if (!raw || typeof raw !== 'object') throw new Error('Invalid evidence API response');
   const o = raw as Record<string, unknown>;
   if (typeof o.intentHypothesis !== 'string') throw new Error('Invalid evidence: intentHypothesis');
-  if (hasFlatteringWeakWorkTopLevelText(o.intentHypothesis) || !hasNeutralWeakWorkTopLevelText(o.intentHypothesis)) {
-    throw new Error('Evidence intentHypothesis is too flattering or style-biased for weak work');
-  }
   if (
     !Array.isArray(o.strongestVisibleQualities) ||
     o.strongestVisibleQualities.length < 2 ||
@@ -411,13 +458,6 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
     o.strongestVisibleQualities.some((v) => typeof v !== 'string')
   ) {
     throw new Error('Invalid evidence: strongestVisibleQualities');
-  }
-  if (
-    (o.strongestVisibleQualities as string[]).filter(
-      (line) => hasFlatteringWeakWorkTopLevelText(line) || !hasNeutralWeakWorkTopLevelText(line)
-    ).length >= 2
-  ) {
-    throw new Error('Evidence strongestVisibleQualities are too flattering or style-biased for weak work');
   }
   if (
     !Array.isArray(o.mainTensions) ||
@@ -501,47 +541,87 @@ export function validateEvidenceResult(raw: unknown): CritiqueEvidenceDTO {
     }
     const anchor = r.anchor.trim();
     const visibleEvidence = r.visibleEvidence as string[];
+    let strengthRead = r.strengthRead.trim();
+    let preserve = r.preserve.trim();
     if (!isConcreteAnchor(anchor)) {
       throw new Error(`Invalid evidence anchor for ${expected}`);
     }
     if (isConceptualCriterion(expected) && !hasSpecificConceptualCarrierAnchor(anchor)) {
       throw new Error(`Conceptual evidence anchor is too soft for ${expected}`);
     }
-    if (!visibleEvidence.some((line) => anchorSupportedByEvidenceLine(anchor, line))) {
+    const hasDirectAnchorSupport = visibleEvidence.some((line) => anchorSupportedByEvidenceLine(anchor, line));
+    const hasAggregateAnchorSupport =
+      mode === 'lenient' && anchorSupportedByEvidenceLines(anchor, visibleEvidence);
+    if (!hasDirectAnchorSupport && !hasAggregateAnchorSupport) {
       throw new Error(`Visible evidence does not support anchor for ${expected}`);
     }
-    if (visibleEvidence.filter((line) => hasWeakWorkGenericEvidenceLine(line)).length >= 3) {
+    if (visibleEvidence.filter((line) => hasWeakWorkGenericEvidenceLine(line)).length >= (mode === 'strict' ? 3 : 5)) {
       throw new Error(`Visible evidence is too generic for ${expected}`);
     }
     if (
       expected === 'Composition and shape structure' &&
-      visibleEvidence.filter((line) => hasWeakCompositionGenericText(line)).length >= 2
+      visibleEvidence.filter((line) => hasWeakCompositionGenericText(line)).length >= (mode === 'strict' ? 3 : 5)
     ) {
       throw new Error(`Visible evidence is too generic for ${expected}`);
     }
-    if (isConceptualCriterion(expected) && visibleEvidence.filter((line) => hasWeakConceptualGenericText(line)).length >= 2) {
+    if (
+      isConceptualCriterion(expected) &&
+      visibleEvidence.filter((line) => hasWeakConceptualGenericText(line)).length >= (mode === 'strict' ? 3 : 5)
+    ) {
       throw new Error(`Visible evidence is too generic for ${expected}`);
     }
-    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(r.strengthRead)) {
-      throw new Error(`strengthRead is too generic for ${expected}`);
+    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(strengthRead)) {
+      if (mode === 'strict') {
+        throw new Error(`strengthRead is too generic for ${expected}`);
+      }
+      strengthRead = visibleEvidence[0] ?? anchor;
     }
-    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(r.preserve)) {
-      throw new Error(`preserve is too generic for ${expected}`);
+    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(preserve)) {
+      if (mode === 'strict') {
+        throw new Error(`preserve is too generic for ${expected}`);
+      }
+      preserve = anchor;
     }
     return {
       criterion: expected,
       anchor,
       visibleEvidence,
-      strengthRead: r.strengthRead,
+      strengthRead,
       tensionRead: r.tensionRead,
-      preserve: r.preserve,
+      preserve,
       confidence: r.confidence as 'low' | 'medium' | 'high',
     };
   });
 
+  const rawIntentHypothesis = o.intentHypothesis.trim();
+  const rawStrongestVisibleQualities = (o.strongestVisibleQualities as string[]).map((line) => line.trim());
+  const intentHypothesis =
+    !hasFlatteringWeakWorkTopLevelText(rawIntentHypothesis) && hasNeutralWeakWorkTopLevelText(rawIntentHypothesis)
+      ? rawIntentHypothesis
+      : mode === 'lenient'
+        ? fallbackIntentHypothesis(normalized)
+        : (() => {
+            throw new Error('Evidence intentHypothesis is too flattering or style-biased for weak work');
+          })();
+
+  const strongestVisibleQualities =
+    rawStrongestVisibleQualities.filter(
+      (line) => !hasFlatteringWeakWorkTopLevelText(line) && hasNeutralWeakWorkTopLevelText(line)
+    ).length >= 2
+      ? rawStrongestVisibleQualities
+      : mode === 'lenient'
+        ? fallbackStrongestVisibleQualities(normalized)
+        : (() => {
+            throw new Error('Evidence strongestVisibleQualities are too flattering or style-biased for weak work');
+          })();
+
+  if (strongestVisibleQualities.length < 2 || strongestVisibleQualities.length > 4) {
+    throw new Error('Invalid evidence: strongestVisibleQualities');
+  }
+
   return {
-    intentHypothesis: o.intentHypothesis,
-    strongestVisibleQualities: o.strongestVisibleQualities as string[],
+    intentHypothesis,
+    strongestVisibleQualities,
     mainTensions: o.mainTensions as string[],
     completionRead: {
       state: crObj.state as 'unfinished' | 'likely_finished' | 'uncertain',

@@ -11,6 +11,15 @@ function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+const SOFT_WORKSHOP_BOILERPLATE_PATTERN =
+  /\b(harmonious|harmony|narrative connection|moment of contemplation|contemplative mood|connection with nature|human presence|visual interest|balanced composition|dynamic composition|dynamic tension|guides? the viewer'?s eye|leading the eye|supports the mood|integrated into the landscape|suggests rest|suggests contemplation|atmospheric effect|vibrant palette|cohesive|cohesion)\b/i;
+
+function needsStructuredStudioRewrite(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return true;
+  return isVagueOrGenericStudioText(normalized) || SOFT_WORKSHOP_BOILERPLATE_PATTERN.test(normalized);
+}
+
 function normalizedContains(haystack: string, needle: string): boolean {
   const h = normalizeWhitespace(haystack).toLowerCase();
   const n = normalizeWhitespace(needle).toLowerCase();
@@ -164,7 +173,7 @@ function firstUsableStructuredPhrase(...candidates: Array<string | undefined>): 
     ) {
       continue;
     }
-    if (isVagueOrGenericStudioText(normalized)) continue;
+    if (needsStructuredStudioRewrite(normalized)) continue;
     return normalized;
   }
   return '';
@@ -195,23 +204,66 @@ function bestAnchoredIssue(category: CritiqueResultDTO['categories'][number]): s
 }
 
 function bestAnchoredMove(category: CritiqueResultDTO['categories'][number]): string {
-  return (
+  const structured =
     firstUsableStructuredPhrase(
       category.editPlan?.intendedChange,
       category.actionPlanSteps?.[0]?.move,
       category.voiceBPlan?.bestNextMove
-    ) || 'make one clearer directional adjustment there'
-  );
+    );
+  if (structured) return structured;
+
+  const area = bestAnchoredArea(category);
+  switch (category.criterion) {
+    case 'Composition and shape structure':
+      return `group the main shape break in ${area} so one side of that passage reads more clearly than the other`;
+    case 'Value and light structure':
+      return `separate the lighter passage from the darker neighbor in ${area}`;
+    case 'Color relationships':
+      return `shift the warmest note in ${area} a little cooler so the surrounding color family holds together`;
+    case 'Drawing, proportion, and spatial form':
+      return `restate the main overlap in ${area} so the form sits more convincingly in space`;
+    case 'Edge and focus control':
+      return `sharpen the clearest edge in ${area} against the neighboring shape while losing a nearby edge in that same passage`;
+    case 'Surface and medium handling':
+      return `vary two or three repeated marks in ${area} so the surface reads less patterned and more deliberate`;
+    case 'Intent and necessity':
+      return `quiet the least necessary accent in ${area} so that passage carries the painting's intent more decisively`;
+    case 'Presence, point of view, and human force':
+      return `quiet the weaker accent around ${area} so that passage carries the human pressure more clearly`;
+    default:
+      return `make one clearer directional adjustment in ${area}`;
+  }
 }
 
 function bestAnchoredOutcome(category: CritiqueResultDTO['categories'][number]): string {
-  return (
+  const structured =
     firstUsableStructuredPhrase(
       category.editPlan?.expectedOutcome,
       category.actionPlanSteps?.[0]?.expectedRead,
       category.voiceBPlan?.expectedRead
-    ) || 'the passage reads with more deliberate control'
-  );
+    );
+  if (structured) return structured;
+
+  switch (category.criterion) {
+    case 'Composition and shape structure':
+      return 'the route through that passage reads more deliberately';
+    case 'Value and light structure':
+      return 'the light-dark separation reads sooner';
+    case 'Color relationships':
+      return 'the color relationship holds together without flattening';
+    case 'Drawing, proportion, and spatial form':
+      return 'the form sits more convincingly in space';
+    case 'Edge and focus control':
+      return 'the focus hierarchy reads more clearly in that passage';
+    case 'Surface and medium handling':
+      return 'the handling reads more deliberate in that passage';
+    case 'Intent and necessity':
+      return "the painting's intent reads more decisively through that passage";
+    case 'Presence, point of view, and human force':
+      return 'the human pressure stays centered in that passage';
+    default:
+      return 'the passage reads with more deliberate control';
+  }
 }
 
 function fallbackVoiceBStep(category: CritiqueResultDTO['categories'][number], index: number): string {
@@ -234,7 +286,7 @@ function rewriteActionPlanFromStructuredFields(
     const normalizedExisting = existing ? normalizeWhitespace(existing).toLowerCase() : '';
     if (
       existing &&
-      !isVagueOrGenericStudioText(existing) &&
+      !needsStructuredStudioRewrite(existing) &&
       anchoredCategoryMatchesText(existing, category) &&
       !usedNormalizedSteps.has(normalizedExisting)
     ) {
@@ -270,13 +322,57 @@ function rewriteStudioChangeFromStructuredFields(
 
   if (
     existingText &&
-    !isVagueOrGenericStudioText(existingText) &&
+    !needsStructuredStudioRewrite(existingText) &&
     anchoredCategoryMatchesText(existingText, category)
   ) {
     return existingText;
   }
 
   return `In ${area}, ${issue}—${move} so that ${outcome}.`;
+}
+
+function forceStructuredTeachingPass(critique: CritiqueResultDTO): CritiqueResultDTO {
+  const hasGenericCategoryAdvice = critique.categories.some(
+    (category) => category.level !== 'Master' && needsStructuredStudioRewrite(phase3Text(category))
+  );
+  const hasGenericStudioChanges = critique.simpleFeedback?.studioChanges.some((change) =>
+    needsStructuredStudioRewrite(change.text)
+  );
+  if (!hasGenericCategoryAdvice && !hasGenericStudioChanges) return critique;
+
+  const categories = critique.categories.map((category) =>
+    category.level === 'Master'
+      ? category
+      : {
+          ...category,
+          phase3: {
+            teacherNextSteps: fallbackVoiceBStep(category, 0),
+          },
+        }
+  );
+
+  if (!critique.simpleFeedback) {
+    return { ...critique, categories };
+  }
+
+  const categoryByCriterion = new Map(categories.map((category) => [category.criterion, category] as const));
+  const studioChanges = critique.simpleFeedback.studioChanges.map((change) => {
+    const category = categoryByCriterion.get(change.previewCriterion);
+    if (!category) return change;
+    return {
+      ...change,
+      text: rewriteStudioChangeFromStructuredFields(category),
+    };
+  });
+
+  return {
+    ...critique,
+    categories,
+    simpleFeedback: {
+      ...critique.simpleFeedback,
+      studioChanges,
+    },
+  };
 }
 
 function rewriteCriticAnalysisFromAnchor(
@@ -715,11 +811,18 @@ export function applyCritiqueGuardrails(
     stabilizeCriticAnchorReferences,
     instrumenter
   );
-  return applyGuardrailStep(
+  next = applyGuardrailStep(
     next,
     'repair',
     'hybridizeVoiceBFromStructuredFields',
     hybridizeVoiceBFromStructuredFields,
+    instrumenter
+  );
+  return applyGuardrailStep(
+    next,
+    'repair',
+    'forceStructuredTeachingPass',
+    forceStructuredTeachingPass,
     instrumenter
   );
 }

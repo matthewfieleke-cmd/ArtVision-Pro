@@ -1,28 +1,15 @@
+import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runOpenAIClassifyStyle } from '../lib/openaiClassifyStyle.ts';
 import { evaluateCritiqueQuality, studioReadMarkdownLines } from '../lib/critiqueEval.js';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
-
-type Fixture = {
-  filename: string;
-  title: string;
-  medium: 'Oil on Canvas' | 'Drawing' | 'Watercolor' | 'Pastel';
-};
+import { LATEST_UPLOAD_FIXTURES } from './latestUploadFixtures.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(__dirname, '..');
 const outputPath = path.join(workspaceRoot, 'docs', 'latest-upload-review.md');
-
-const FIXTURES: Fixture[] = [
-  { filename: 'Oil5 Small.png', title: 'Oil 5', medium: 'Oil on Canvas' },
-  { filename: 'Drawing1 Small.png', title: 'Drawing 1', medium: 'Drawing' },
-  { filename: 'Drawing2 Small.png', title: 'Drawing 2', medium: 'Drawing' },
-  { filename: 'Watercolor3 Small.png', title: 'Watercolor 3', medium: 'Watercolor' },
-  { filename: 'Abstract1 Small.png', title: 'Abstract 1', medium: 'Oil on Canvas' },
-  { filename: 'Pastel1 Small.png', title: 'Pastel 1 Small', medium: 'Pastel' },
-];
 
 function mimeTypeFor(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -57,7 +44,7 @@ async function main() {
   sections.push('Generated with the API classify + critique path after post-processing guardrails were added.');
   sections.push('');
 
-  for (const fixture of FIXTURES) {
+  for (const fixture of LATEST_UPLOAD_FIXTURES) {
     const absolutePath = path.join(workspaceRoot, fixture.filename);
     const imageDataUrl = await imageFileToDataUrl(absolutePath);
     const classification = await runOpenAIClassifyStyle(apiKey, imageDataUrl);

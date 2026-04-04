@@ -35,6 +35,14 @@ function minimumRequiredTokens(text: string): number {
 }
 
 const GROUNDING_EQUIVALENT_TOKENS: Record<string, string> = {
+  shore: 'shore',
+  shoreline: 'shore',
+  seashore: 'shore',
+  coast: 'shore',
+  coastal: 'shore',
+  rocks: 'rock',
+  rocky: 'rock',
+  rock: 'rock',
   background: 'ground',
   backdrop: 'ground',
   ground: 'ground',
@@ -85,6 +93,13 @@ export function anchorSupportedByEvidenceLine(anchor: string, line: string): boo
   const anchorTokens = comparableGroundingTokens(anchor);
   const lineTokenSet = new Set(comparableGroundingTokens(line));
   return anchorTokens.filter((token) => lineTokenSet.has(token)).length >= 2;
+}
+
+export function anchorSupportedByEvidenceLines(anchor: string, lines: string[]): boolean {
+  if (lines.some((line) => anchorSupportedByEvidenceLine(anchor, line))) return true;
+  const anchorTokens = comparableGroundingTokens(anchor);
+  const aggregateTokenSet = new Set(lines.flatMap((line) => comparableGroundingTokens(line)));
+  return anchorTokens.filter((token) => aggregateTokenSet.has(token)).length >= 2;
 }
 
 export function tokenOverlapRatio(a: string, b: string): number {

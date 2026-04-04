@@ -157,6 +157,7 @@ async function runCritiqueEvidenceStage(
     medium: string;
     userContent: VisionUserMessagePart[];
     repairNote?: string;
+    allowLenientValidation?: boolean;
   }
 ): Promise<ReturnType<typeof validateEvidenceResult>> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -207,7 +208,21 @@ async function runCritiqueEvidenceStage(
 
   try {
     const raw = JSON.parse(text);
-    return validateEvidenceResult(raw);
+    try {
+      return validateEvidenceResult(raw);
+    } catch (error) {
+      if (args.allowLenientValidation) {
+        const message = error instanceof Error ? error.message : '';
+        const canUseLenientFallback =
+          /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for/.test(
+            message
+          );
+        if (canUseLenientFallback) {
+          return validateEvidenceResult(raw, { mode: 'lenient' });
+        }
+      }
+      throw error;
+    }
   } catch (error) {
     let raw: unknown;
     try {
@@ -313,6 +328,7 @@ Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - strengthRead and preserve must also name that same visible carrier passage, not a mood summary.
 - For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact path bend, roof edge, fence post, flower band, or other structural passage creating that effect.
 - For Composition and shape structure, write a shape event, not a verdict: what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts in that exact passage.
+- On seascapes, harbors, or other strong paintings, the same rule still applies: prefer "the reflection cuts through the harbor bands", "the boat silhouette sits left of the reflection", or "the masts echo that vertical above the horizon" over verdicts like "the reflection organizes the composition" or "the boat creates balance."
 - If one visibleEvidence line is already concrete, keep it and rewrite the generic filler lines so the full list stays at junction/event level.
 - Rewrite the quoted lines below instead of paraphrasing the same generic idea again.${genericEvidencePreviewBlock}
 ${weakWorkCompositionExamples}`
@@ -357,6 +373,7 @@ async function runCritiqueEvidenceStageWithRetries(
         attempt,
         ...args,
         repairNote,
+        allowLenientValidation: attempt === MAX_STAGE_ATTEMPTS,
       });
     } catch (error) {
       lastError = error;
