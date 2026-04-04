@@ -19,7 +19,7 @@ import {
   CRITIQUE_CHANGE_VERB_PATTERN,
   CRITIQUE_DONT_CHANGE_PATTERN,
   CRITIQUE_PRESERVE_VERB_PATTERN,
-  CRITIQUE_TOKEN_STOPWORDS,
+  GROUNDING_TOKEN_STOPWORDS,
   GENERIC_ANCHOR_PATTERNS,
   isGenericTeacherText,
   normalizeWhitespace,
@@ -60,12 +60,16 @@ function normalizeForComparison(text: string): string {
   return normalizeWhitespace(text).toLowerCase().replace(/[^\w\s]/g, ' ');
 }
 
+/**
+ * Tokens for anchor overlap and evidence grounding. Min length 3 so short pictorial
+ * words (sky, wet, sea, hull, mast, rim) count; grammar stripped via GROUNDING_TOKEN_STOPWORDS.
+ */
 function contentTokens(text: string): string[] {
   return Array.from(
     new Set(
       normalizeForComparison(text)
         .split(/\s+/)
-        .filter((token) => token.length >= 4 && !CRITIQUE_TOKEN_STOPWORDS.has(token))
+        .filter((token) => token.length >= 3 && !GROUNDING_TOKEN_STOPWORDS.has(token))
     )
   );
 }
