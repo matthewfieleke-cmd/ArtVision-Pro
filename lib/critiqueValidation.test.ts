@@ -250,6 +250,49 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
   });
 
+  it('rejects object-study conceptual anchors that describe theme or elegance instead of a physical carrier', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the elegance of the bottle',
+      visibleEvidence: [
+        'The elegance of the bottle suggests a refined and graceful object.',
+        'The elegance of the bottle is reinforced by the clean outline and smooth shading.',
+        'The elegance of the bottle adds a decorative note to the study.',
+        'The elegance of the bottle keeps the object feeling polished.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Conceptual evidence anchor is too soft/);
+  });
+
+  it('accepts object-study conceptual anchors when the carrier stays on a concrete bottle passage', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      ...neutralizeCompositionEvidence(),
+      criterion: 'Composition and shape structure',
+    };
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the floral label on the glass bottle',
+      visibleEvidence: [
+        'The floral label on the glass bottle sits inside the clear body and stays centered below the pump.',
+        'The floral label on the glass bottle stays darker than the pale liquid behind it, so the motif remains legible through the glass.',
+        'The pump head above the floral label on the glass bottle introduces a mechanical countershape to the softer petals below.',
+        'The bottle shoulder curves around the floral label on the glass bottle and keeps the decoration tied to the container instead of floating loose.',
+      ],
+      strengthRead:
+        'The floral label on the glass bottle is the physical carrier that keeps the object from reading as a blank container.',
+      preserve:
+        'Preserve the floral label on the glass bottle as the passage that carries the object’s decorative pressure.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
   it('accepts cafe-scene conceptual anchors when tables and umbrellas stay the repeated visible carrier', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[1] = {
@@ -435,6 +478,61 @@ describe('validateEvidenceResult', () => {
     };
 
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('rejects object-study composition evidence that stays at centered/stable verdict language', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: 'the pump head against the bottle neck',
+      visibleEvidence: [
+        'The pump head against the bottle neck is centered and creates a stable arrangement.',
+        'The bottle body feels balanced under the pump head.',
+        'The bottle silhouette is well-placed on the page.',
+        'The vertical arrangement keeps the object organized.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence is too generic for Composition and shape structure/);
+  });
+
+  it('accepts architectural composition evidence when roof, windows, and door are described as concrete events', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: 'the roofline above the lit windows',
+      visibleEvidence: [
+        'The roofline above the lit windows steps down toward the porch and leaves a taller dark sky wedge on the left than on the right.',
+        'The lit window stack under the roofline above the lit windows lands slightly right of center and leaves a wider wall strip beside the red door.',
+        'The red door sits below the roofline above the lit windows and interrupts the blue facade as a narrower vertical accent than the windows.',
+        'The snow band crosses in front of the house and leaves the lower wall visible longer on the right side than on the left.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('rejects house-scene conceptual strength language that slips into welcoming or festive summary', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the red door under the lit window',
+      visibleEvidence: [
+        'The red door under the lit window sits below the brightest window stack and interrupts the blue wall as a narrower vertical accent.',
+        'The red door under the lit window stays warmer than the snow band around it, so the entrance holds together against the cooler ground.',
+        'The porch roof drops just above the red door under the lit window and compresses that entrance passage against the facade.',
+        'The snow band crosses in front of the red door under the lit window and leaves only a short dark threshold visible.',
+      ],
+      strengthRead:
+        'The red door under the lit window creates a welcoming holiday mood for the whole house.',
+      preserve:
+        'Preserve the welcoming festive atmosphere around the entrance.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/strengthRead is too generic|preserve is too generic/);
   });
 
   it('accepts harbor-scene composition evidence when it names concrete structural elements and events', () => {

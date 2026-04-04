@@ -100,4 +100,81 @@ describe('buildEvidenceRepairNote', () => {
       'replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language'
     );
   });
+
+  it('includes object-study repair guidance when conceptual anchors and composition evidence drift generic', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: [
+        'Conceptual evidence anchor is too soft for Intent and necessity',
+        'Visible evidence is too generic for Composition and shape structure',
+      ],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: [
+              'Conceptual evidence anchor is too soft for Intent and necessity',
+              'Visible evidence is too generic for Composition and shape structure',
+            ],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Intent and necessity',
+                anchor: 'the elegance of the bottle',
+                visibleEvidencePreview: [
+                  'The elegance of the bottle suggests a refined and graceful object.',
+                ],
+              },
+              {
+                criterion: 'Composition and shape structure',
+                anchor: 'the bottle against the background',
+                visibleEvidencePreview: [
+                  'The bottle is centered and creates a stable composition.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('On object studies or architecture, conceptual anchors still need a physical carrier passage');
+    expect(note).toContain('Do NOT use object-summary anchors like "the beauty of the bottle"');
+    expect(note).toContain('Do NOT write object-study summaries like "the bottle feels elegant"');
+    expect(note).toContain('a pump head against a bottle neck');
+  });
+
+  it('includes house-scene repair guidance when conceptual retries drift into holiday mood language', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: ['Visible evidence is too generic for Intent and necessity'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence is too generic for Intent and necessity'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Intent and necessity',
+                anchor: "the 'JOY' sign against the house",
+                visibleEvidencePreview: [
+                  'The warm glow from the windows suggests a welcoming and festive atmosphere.',
+                  'The house feels festive because of the decorations and lights.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('Do NOT use house-scene summaries like "the welcoming house"');
+    expect(note).toContain('Do NOT write house-scene summaries like "the house feels welcoming"');
+    expect(note).toContain('the red door under the lit window');
+  });
 });

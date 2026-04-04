@@ -36,28 +36,34 @@ const COMPOSITION_GENERIC_PATTERN =
   /\b(dynamic tension|balanced composition|stable composition|guides? the viewer'?s eye|leads? the eye|framing|frame the path|sense of depth|adds interest|focal point|balance|balances?|balanced|symmetry|symmetrical|rhythm|counterbalance|counterbalances?)\b/i;
 
 const COMPOSITION_CONCRETE_PATTERN =
-  /\b(path bend|path|roof edge|fence post|fence line|flower patch|house shadow|chair back|chair bars?|window strip|figure|figures|sitter|shoulder|head|silhouette|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across|boat|boats|reflection|horizon|mast|masts|ripples?|water|sky|harbor|shore|foreground|background|vertical|horizontal|table|tables|umbrella|umbrellas|arch|arches|building|facade)\b/i;
+  /\b(path bend|path|roof edge|roofline|rooflines|gable|gables|eave|eaves|fence post|fence line|flower patch|house shadow|house|houses|door|doors|doorway|doorways|window strip|window stack|window stacks|window|windows|chair back|chair bars?|figure|figures|sitter|shoulder|head|silhouette|bottle|pump|cap|neck|shoulder line|base|label|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across|boat|boats|reflection|horizon|mast|masts|ripples?|water|sky|harbor|shore|foreground|background|vertical|horizontal|table|tables|umbrella|umbrellas|arch|arches|building|facade)\b/i;
 
 const COMPOSITION_EVENT_PATTERN =
   /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|positioned|placed)\b/i;
 
 const CONCEPTUAL_GENERIC_PATTERN =
-  /\b(journey|inviting|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch)\b/i;
+  /\b(journey|inviting|welcome|welcoming|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|festive|celebration|holiday|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch)\b/i;
 
 const CONCEPTUAL_CARRIER_OBJECT_PATTERN =
-  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|path|post|fence|patch|band|silhouette|wall|head|face|shirt|chair|bridge|train|pole|poles|track|tracks|shoreline|shore|rocks|table|tables|umbrella|umbrellas|arch|arches|facade|building)\b/i;
+  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|roofline|gable|eave|path|post|fence|patch|band|silhouette|wall|house|window|windows|door|doorway|wreath|bottle|glass|pump|cap|neck|label|liquid|floral|design|surface|head|face|shirt|chair|bridge|train|pole|poles|track|tracks|shoreline|shore|rocks|table|tables|umbrella|umbrellas|arch|arches|facade|building)\b/i;
 
 const CONCEPTUAL_CARRIER_RELATION_PATTERN =
-  /\b(meets?|against|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow)\b/i;
+  /\b(meets?|against|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|on|inside|within|across|along|around|above|below|behind|near|beside|with|at|in)\b/i;
+
+const CONCEPTUAL_CARRIER_STRONG_RELATION_PATTERN =
+  /\b(meets?|against|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|inside|within|across|along|around|above|below|behind|near|beside)\b/i;
 
 const CONCEPTUAL_ANCHOR_PATTERN =
-  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?\s+across|narrow(?:s|ing)?\s+toward|meets?|turn(?:s|ing)?\s+into|overlap|beside|below|above|into|through|beneath)\b/i;
+  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?\s+across|narrow(?:s|ing)?\s+toward|meets?|turn(?:s|ing)?\s+into|overlap|beside|below|above|into|through|beneath|on|inside|within|across|along|around|behind|near|with|at|in)\b/i;
 
 const CONCEPTUAL_CONCRETE_OBJECT_PATTERN =
-  /\b(sun|reflection|water|boat|boats|harbor|shore|shoreline|sky|cloud|clouds|figure|figures|face|head|wall|window|chair|shirt|collar|smoke|chimney|roof|path|shadow|sleeve|hand|ground|opening|silhouette|bridge|train|pole|poles|track|tracks|rocks|rocky shoreline|table|tables|umbrella|umbrellas|arch|arches|building|facade)\b/i;
+  /\b(sun|reflection|water|boat|boats|harbor|shore|shoreline|sky|cloud|clouds|figure|figures|face|head|wall|window|windows|chair|shirt|collar|smoke|chimney|roof|roofline|gable|eave|house|door|doorway|wreath|path|shadow|sleeve|hand|ground|opening|silhouette|bridge|train|pole|poles|track|tracks|rocks|rocky shoreline|table|tables|umbrella|umbrellas|arch|arches|building|facade|bottle|glass|pump|cap|neck|label|liquid|floral|design|surface)\b/i;
 
 const CONCEPTUAL_SOFT_ROUTE_PATTERN =
   /\b(path leading to|journey|story|narrative|overall mood|emotional tone|garden setting|atmosphere)\b/i;
+
+const CONCEPTUAL_ABSTRACT_ANCHOR_PATTERN =
+  /\b(beauty|elegance|festivity|celebration|warmth|simplicity|functionality|theme|message|presence|energy|emotion|feeling|mood)\b/i;
 
 export function isConceptualCriterion(criterion: CriterionLabel): boolean {
   return (
@@ -118,7 +124,10 @@ export function hasSpecificConceptualCarrierAnchor(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return false;
   if (CONCEPTUAL_SOFT_ROUTE_PATTERN.test(normalized)) return false;
-  return CONCEPTUAL_ANCHOR_PATTERN.test(normalized) || CONCEPTUAL_CONCRETE_OBJECT_PATTERN.test(normalized);
+  if (CONCEPTUAL_ABSTRACT_ANCHOR_PATTERN.test(normalized)) return false;
+  const hasConcreteObject = CONCEPTUAL_CONCRETE_OBJECT_PATTERN.test(normalized);
+  const hasCarrierRelation = CONCEPTUAL_ANCHOR_PATTERN.test(normalized);
+  return hasConcreteObject && hasCarrierRelation;
 }
 
 export function hasWeakConceptualGenericText(text: string): boolean {
@@ -126,7 +135,7 @@ export function hasWeakConceptualGenericText(text: string): boolean {
   if (!normalized) return true;
   const concreteCarrierCue =
     CONCEPTUAL_CARRIER_OBJECT_PATTERN.test(normalized) &&
-    CONCEPTUAL_CARRIER_RELATION_PATTERN.test(normalized);
+    CONCEPTUAL_CARRIER_STRONG_RELATION_PATTERN.test(normalized);
   return CONCEPTUAL_GENERIC_PATTERN.test(normalized) && !concreteCarrierCue;
 }
 
