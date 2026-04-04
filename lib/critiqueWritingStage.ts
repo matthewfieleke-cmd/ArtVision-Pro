@@ -489,12 +489,13 @@ function concreteEdgeRelationshipMove(areaSummary: string): string {
 
 function groundedVoiceBMove(
   category: VoiceBCategoryResult,
-  groundedCurrentRead: string
+  groundedCurrentRead: string,
+  level?: VoiceBCategoryLike['level']
 ): string {
   const context = {
     criterion: category.criterion,
     anchor: { areaSummary: category.anchor.areaSummary },
-    level: category.level,
+    level,
   };
   const normalizedMove = normalizeVoiceBMoveForSchema(category.plan.move, context);
   if (category.criterion === 'Edge and focus control' && !edgeMoveNamesConcreteRelationship(normalizedMove)) {
@@ -532,12 +533,13 @@ function groundedTeacherNextSteps(
 
 function normalizeVoiceBCategoryGrounding(
   category: VoiceBCategoryResult,
-  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level?: VoiceBCategoryLike['level']
 ): VoiceBCategoryResult {
   const anchorArea = category.anchor.areaSummary;
   const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
   const groundedEvidencePointer = groundedAnchorEvidencePointer(category, criterionEvidence);
-  const groundedMove = groundedVoiceBMove(category, groundedCurrentRead);
+  const groundedMove = groundedVoiceBMove(category, groundedCurrentRead, level);
   const teacherNextSteps = groundedTeacherNextSteps(category, criterionEvidence, groundedCurrentRead, groundedMove);
   const normalizedCategory: VoiceBCategoryResult = {
     ...category,
@@ -1335,7 +1337,8 @@ export async function runCritiqueVoiceBStage(
           if (!criterionEvidence) {
             throw new Error(`Voice B evidence missing for criterion: ${category.criterion}`);
           }
-          return deriveLegacyVoiceBFields(normalizeVoiceBCategoryGrounding(category, criterionEvidence));
+          const level = voiceALevelForCriterion(voiceA, category.criterion);
+          return deriveLegacyVoiceBFields(normalizeVoiceBCategoryGrounding(category, criterionEvidence, level));
         });
         const combined = validateVoiceBStageOutput(
           {
