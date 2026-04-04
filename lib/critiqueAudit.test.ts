@@ -12,8 +12,11 @@ describe('critiqueNeedsFreshEvidenceRead', () => {
   it('fails when top-level analysis loses concrete anchor references', () => {
     const critique = makeCritiqueResultFixture();
     critique.summary = 'A strong painting with one area to improve.';
-    critique.overallSummary.analysis =
-      'Using the Drawing lens, the painting shows clear strengths and a few modest issues.';
+    critique.overallSummary = {
+      ...critique.overallSummary!,
+      analysis:
+        'Using the Drawing lens, the painting shows clear strengths and a few modest issues.',
+    };
 
     expect(critiqueNeedsFreshEvidenceRead(critique)).toBe(true);
   });

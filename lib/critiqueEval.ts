@@ -55,11 +55,12 @@ export function evaluateCritiqueQuality(critique: CritiqueResultDTO): CritiqueEv
   );
 
   const weakGrounding = critique.categories.some((category) => {
+    if (!category.anchor) return true;
     const teacher = category.phase3.teacherNextSteps;
     const critic = category.phase2.criticsAnalysis;
     return (
-      !hasAnchorReference(teacher, category.anchor?.areaSummary, category.anchor?.evidencePointer, 'pass') ||
-      !hasAnchorReference(critic, category.anchor?.areaSummary, category.anchor?.evidencePointer, 'pass')
+      !hasAnchorReference(teacher, category.anchor.areaSummary, category.anchor.evidencePointer, 'pass') ||
+      !hasAnchorReference(critic, category.anchor.areaSummary, category.anchor.evidencePointer, 'pass')
     );
   });
 

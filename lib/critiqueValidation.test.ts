@@ -319,24 +319,31 @@ describe('validateVoiceBStageOutput', () => {
 
   it('accepts non-Master change verbs like integrate when the move stays specific', () => {
     const voiceB = makeVoiceBStageFixture();
+    const baseCategory = voiceB.categories[1]!;
+    const baseStep = baseCategory.actionPlanSteps?.[0];
+    const basePlan = baseCategory.voiceBPlan;
+    const baseEditPlan = baseCategory.editPlan;
+    if (!baseStep || !basePlan || !baseEditPlan) {
+      throw new Error('Expected canonical fixture to include legacy Voice B compatibility fields.');
+    }
     voiceB.categories[1] = {
-      ...voiceB.categories[1]!,
+      ...baseCategory,
       phase3: {
         teacherNextSteps:
           '1. In the foreground chair back around the sitter, integrate the middle slat more coherently with the larger chair scaffold so the eye can step to the head without losing the obstruction.',
       },
       actionPlanSteps: [
         {
-          ...voiceB.categories[1]!.actionPlanSteps[0]!,
+          ...baseStep,
           move: 'integrate the middle slat more coherently with the larger chair scaffold',
         },
       ],
       voiceBPlan: {
-        ...voiceB.categories[1]!.voiceBPlan,
+        ...basePlan,
         bestNextMove: 'integrate the middle slat more coherently with the larger chair scaffold',
       },
       editPlan: {
-        ...voiceB.categories[1]!.editPlan,
+        ...baseEditPlan,
         intendedChange: 'integrate the middle slat more coherently with the larger chair scaffold',
       },
     };
@@ -348,26 +355,33 @@ describe('validateVoiceBStageOutput', () => {
 
   it('rejects generic, location-free teacher guidance', () => {
     const voiceB = makeVoiceBStageFixture();
+    const baseCategory = voiceB.categories[5]!;
+    const baseStep = baseCategory.actionPlanSteps?.[0];
+    const basePlan = baseCategory.voiceBPlan;
+    const baseEditPlan = baseCategory.editPlan;
+    if (!baseStep || !basePlan || !baseEditPlan) {
+      throw new Error('Expected canonical fixture to include legacy Voice B compatibility fields.');
+    }
     voiceB.categories[5] = {
-      ...voiceB.categories[5]!,
+      ...baseCategory,
       phase3: {
         teacherNextSteps: '1. Improve the focus where needed across the painting.',
       },
       actionPlanSteps: [
         {
-          ...voiceB.categories[5]!.actionPlanSteps[0]!,
+          ...baseStep,
           area: 'focus hierarchy',
           currentRead: 'the focus could be stronger overall',
           move: 'improve the focus where needed',
         },
       ],
       voiceBPlan: {
-        ...voiceB.categories[5]!.voiceBPlan,
+        ...basePlan,
         currentRead: 'the focus could be stronger overall',
         bestNextMove: 'improve the focus where needed',
       },
       editPlan: {
-        ...voiceB.categories[5]!.editPlan,
+        ...baseEditPlan,
         targetArea: 'focus hierarchy',
         issue: 'the focus could be stronger overall',
         intendedChange: 'improve the focus where needed',

@@ -1,4 +1,5 @@
 import { CRITERIA_ORDER, type CriterionLabel, type RatingLevelLabel } from '../shared/criteria.js';
+import type { CritiqueCategory, StudioChange } from '../shared/critiqueContract.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import type { VoiceAStageResult, VoiceBStageResult } from './critiqueZodSchemas.js';
@@ -496,6 +497,17 @@ export function makeCritiqueEvidenceFixture(): CritiqueEvidenceDTO {
 }
 
 export function makeVoiceAStageFixture(): VoiceAStageResult {
+  const categories: VoiceAStageResult['categories'] = criterionFixtures().map((fixture) => ({
+    criterion: fixture.criterion,
+    level: fixture.level,
+    phase1: { visualInventory: fixture.visualInventory },
+    phase2: { criticsAnalysis: fixture.criticsAnalysis },
+    confidence: fixture.confidence,
+    evidenceSignals: fixture.evidenceSignals,
+    preserve: fixture.preserve,
+    nextTarget: fixture.nextTarget,
+    subskills: fixture.subskills,
+  }));
   return {
     summary:
       "The blocked chair, muted room, and downturned sitter already make this interior feel authored, but the wall behind the sitter's head and one middle chair slat still keep a few passages from landing as cleanly as the best ones do.",
@@ -537,21 +549,69 @@ export function makeVoiceAStageFixture(): VoiceAStageResult {
       issues: [],
       tips: [],
     },
-    categories: criterionFixtures().map((fixture) => ({
-      criterion: fixture.criterion,
-      level: fixture.level,
-      phase1: { visualInventory: fixture.visualInventory },
-      phase2: { criticsAnalysis: fixture.criticsAnalysis },
-      confidence: fixture.confidence,
-      evidenceSignals: fixture.evidenceSignals,
-      preserve: fixture.preserve,
-      nextTarget: fixture.nextTarget,
-      subskills: fixture.subskills,
-    })),
+    categories,
   };
 }
 
 export function makeVoiceBStageFixture(): VoiceBStageResult {
+  const studioChanges: VoiceBStageResult['studioChanges'] = [
+    {
+      text: "In the wall behind the sitter's head, darken the wall a half-step just behind the crown so the head separates sooner without breaking the broader window-to-shirt scaffold.",
+      previewCriterion: 'Value and light structure',
+    },
+    {
+      text: 'In the foreground chair back around the sitter, soften the middle slat and widen the small gap above the shoulder so the eye can step from chair to head without losing the scaffold.',
+      previewCriterion: 'Composition and shape structure',
+    },
+    {
+      text: 'In the jaw edge against the dark collar, sharpen the jaw-to-collar break while losing the cheek edge into the wall a little more so the face claims first attention.',
+      previewCriterion: 'Edge and focus control',
+    },
+  ];
+  const categories: VoiceBStageResult['categories'] = criterionFixtures().map((fixture) => ({
+    criterion: fixture.criterion,
+    phase3: { teacherNextSteps: fixture.teacherNextSteps },
+    plan: {
+      currentRead: fixture.currentRead,
+      move: fixture.move,
+      expectedRead: fixture.expectedRead,
+      preserve: fixture.preserveArea,
+      editability: 'yes',
+    },
+    actionPlanSteps: [
+      {
+        area: fixture.anchor,
+        currentRead: fixture.currentRead,
+        move: fixture.move,
+        expectedRead: fixture.expectedRead,
+        preserve: fixture.preserveArea,
+        priority: 'primary',
+      },
+    ],
+    voiceBPlan: {
+      currentRead: fixture.currentRead,
+      mainProblem: fixture.mainProblem,
+      mainStrength: fixture.mainStrength,
+      bestNextMove: fixture.move,
+      optionalSecondMove: '',
+      avoidDoing: fixture.avoidDoing,
+      expectedRead: fixture.expectedRead,
+      storyIfRelevant: '',
+    },
+    anchor: {
+      areaSummary: fixture.anchor,
+      evidencePointer: fixture.evidencePointer,
+      region: fixture.region,
+    },
+    editPlan: {
+      targetArea: fixture.anchor,
+      preserveArea: fixture.preserveArea,
+      issue: fixture.issue,
+      intendedChange: fixture.intendedChange,
+      expectedOutcome: fixture.expectedOutcome,
+      editability: 'yes',
+    },
+  }));
   return {
     overallSummary: {
       topPriorities: [
@@ -559,71 +619,47 @@ export function makeVoiceBStageFixture(): VoiceBStageResult {
         'Soften the middle slat in the foreground chair back so the eye can step from chair to head without losing the intentional obstruction.',
       ],
     },
-    studioChanges: [
-      {
-        text: "In the wall behind the sitter's head, darken the wall a half-step just behind the crown so the head separates sooner without breaking the broader window-to-shirt scaffold.",
-        previewCriterion: 'Value and light structure',
-      },
-      {
-        text: 'In the foreground chair back around the sitter, soften the middle slat and widen the small gap above the shoulder so the eye can step from chair to head without losing the scaffold.',
-        previewCriterion: 'Composition and shape structure',
-      },
-      {
-        text: 'In the jaw edge against the dark collar, sharpen the jaw-to-collar break while losing the cheek edge into the wall a little more so the face claims first attention.',
-        previewCriterion: 'Edge and focus control',
-      },
-    ],
-    categories: criterionFixtures().map((fixture) => ({
-      criterion: fixture.criterion,
-      phase3: { teacherNextSteps: fixture.teacherNextSteps },
-      plan: {
-        currentRead: fixture.currentRead,
-        move: fixture.move,
-        expectedRead: fixture.expectedRead,
-        preserve: fixture.preserveArea,
-        editability: 'yes',
-      },
-      actionPlanSteps: [
-        {
-          area: fixture.anchor,
-          currentRead: fixture.currentRead,
-          move: fixture.move,
-          expectedRead: fixture.expectedRead,
-          preserve: fixture.preserveArea,
-          priority: 'primary',
-        },
-      ],
-      voiceBPlan: {
-        currentRead: fixture.currentRead,
-        mainProblem: fixture.mainProblem,
-        mainStrength: fixture.mainStrength,
-        bestNextMove: fixture.move,
-        optionalSecondMove: '',
-        avoidDoing: fixture.avoidDoing,
-        expectedRead: fixture.expectedRead,
-        storyIfRelevant: '',
-      },
-      anchor: {
-        areaSummary: fixture.anchor,
-        evidencePointer: fixture.evidencePointer,
-        region: fixture.region,
-      },
-      editPlan: {
-        targetArea: fixture.anchor,
-        preserveArea: fixture.preserveArea,
-        issue: fixture.issue,
-        intendedChange: fixture.intendedChange,
-        expectedOutcome: fixture.expectedOutcome,
-        editability: 'yes',
-      },
-    })),
+    studioChanges,
+    categories,
   };
 }
 
 export function makeCritiqueResultFixture(): CritiqueResultDTO {
   const voiceA = makeVoiceAStageFixture();
   const voiceB = makeVoiceBStageFixture();
-  const voiceBCategories = new Map(voiceB.categories.map((category) => [category.criterion, category] as const));
+  const voiceBCategories = new Map<CritiqueCategory['criterion'], VoiceBStageResult['categories'][number]>();
+  for (const category of voiceB.categories) {
+    voiceBCategories.set(category.criterion as CriterionLabel, category);
+  }
+  const studioChanges = voiceB.studioChanges.map((change): StudioChange => ({
+    text: change.text,
+    previewCriterion: change.previewCriterion as CriterionLabel,
+  }));
+  const categories = voiceA.categories.map((category): CritiqueCategory => {
+    const criterion = category.criterion as CriterionLabel;
+    const teacher = voiceBCategories.get(criterion);
+    if (!teacher) throw new Error(`Missing Voice B category for ${criterion}`);
+    return {
+      criterion,
+      level: category.level as RatingLevelLabel,
+      phase1: category.phase1,
+      phase2: category.phase2,
+      phase3: teacher.phase3,
+      confidence: category.confidence,
+      evidenceSignals: category.evidenceSignals,
+      preserve: category.preserve,
+      nextTarget: category.nextTarget,
+      anchor: teacher.anchor,
+      plan: teacher.plan,
+      editPlan: teacher.editPlan,
+      voiceBPlan: teacher.voiceBPlan,
+      actionPlanSteps: teacher.actionPlanSteps,
+      subskills: category.subskills?.map((subskill) => ({
+        ...subskill,
+        level: subskill.level as RatingLevelLabel,
+      })),
+    };
+  });
 
   return {
     summary: voiceA.summary,
@@ -633,29 +669,9 @@ export function makeCritiqueResultFixture(): CritiqueResultDTO {
     },
     simpleFeedback: {
       studioAnalysis: voiceA.studioAnalysis,
-      studioChanges: voiceB.studioChanges,
+      studioChanges,
     },
-    categories: voiceA.categories.map((category) => {
-      const teacher = voiceBCategories.get(category.criterion);
-      if (!teacher) throw new Error(`Missing Voice B category for ${category.criterion}`);
-      return {
-        criterion: category.criterion,
-        level: category.level,
-        phase1: category.phase1,
-        phase2: category.phase2,
-        phase3: teacher.phase3,
-        confidence: category.confidence,
-        evidenceSignals: category.evidenceSignals,
-        preserve: category.preserve,
-        nextTarget: category.nextTarget,
-        anchor: teacher.anchor,
-        plan: teacher.plan,
-        editPlan: teacher.editPlan,
-        voiceBPlan: teacher.voiceBPlan,
-        actionPlanSteps: teacher.actionPlanSteps,
-        subskills: category.subskills,
-      };
-    }),
+    categories,
     overallConfidence: voiceA.overallConfidence,
     photoQuality: voiceA.photoQuality,
     analysisSource: 'api',

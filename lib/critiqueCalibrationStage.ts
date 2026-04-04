@@ -1,5 +1,6 @@
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import { CRITERIA_ORDER, RATING_LEVELS, type RatingLevelLabel } from '../shared/criteria.js';
+import type { CritiqueCategory, VoiceBStep } from '../shared/critiqueContract.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import {
@@ -271,33 +272,35 @@ export function applyCalibrationToCritique(
 ): CritiqueResultDTO {
   const criterionCaps = validateCriterionCaps(calibration.criterionCaps);
   const capMap = new Map(criterionCaps.map((cap) => [cap.criterion, cap.maxLevel] as const));
-  const categories = critique.categories.map((category) => {
+  const categories: CritiqueCategory[] = critique.categories.map((category) => {
     const maxLevel = capMap.get(category.criterion);
     if (!maxLevel || !category.level) return category;
-    const nextLevel = clampLevel(category.level, maxLevel);
+    const currentLevel = category.level;
+    const nextLevel = clampLevel(currentLevel, maxLevel);
     if (nextLevel === category.level) return category;
+    const actionPlanSteps = category.actionPlanSteps?.map((step, index): VoiceBStep =>
+      index === 0
+        ? {
+            ...step,
+            move: normalizeCalibrationText(step.move, currentLevel, nextLevel),
+          }
+        : step
+    );
     return {
       ...category,
       level: nextLevel,
       confidence: calibratedCategoryConfidence(category.confidence, calibration.overallClass),
       nextTarget: nextTargetForLevel(category.criterion, nextLevel),
       phase3: {
-        teacherNextSteps: normalizeCalibrationText(category.phase3.teacherNextSteps, category.level, nextLevel),
+        teacherNextSteps: normalizeCalibrationText(category.phase3.teacherNextSteps, currentLevel, nextLevel),
       },
-      actionPlanSteps: category.actionPlanSteps?.map((step, index) =>
-        index === 0
-          ? {
-              ...step,
-              move: normalizeCalibrationText(step.move, category.level, nextLevel),
-            }
-          : step
-      ),
+      ...(actionPlanSteps ? { actionPlanSteps } : {}),
       voiceBPlan: category.voiceBPlan
         ? {
             ...category.voiceBPlan,
             bestNextMove: normalizeCalibrationText(
               category.voiceBPlan.bestNextMove,
-              category.level,
+              currentLevel,
               nextLevel
             ),
           }
@@ -307,7 +310,7 @@ export function applyCalibrationToCritique(
             ...category.editPlan,
             intendedChange: normalizeCalibrationText(
               category.editPlan.intendedChange,
-              category.level,
+              currentLevel,
               nextLevel
             ),
             editability: nextLevel === 'Master' ? 'no' : 'yes',

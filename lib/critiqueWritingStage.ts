@@ -1,5 +1,6 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
 import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
+import type { CritiqueCategory } from '../shared/critiqueContract.js';
 import {
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_B_COMPOSITE_TEACHERS,
@@ -621,16 +622,51 @@ export function normalizeVoiceBMoveForSchema(
 }
 
 function deriveLegacyVoiceBFields(category: VoiceBCategoryResult): VoiceBCategoryResult {
-  const actionPlanStep = deriveActionPlanStepFromCanonical(category.anchor, category.plan);
-  const voiceBPlan = deriveLegacyVoiceBPlanFromCanonical(category.plan);
-  const editPlan = deriveEditPlanFromCanonical(category.anchor, category.plan);
+  const plan = category.plan;
+  const anchor = category.anchor;
+  const actionPlanStep =
+    anchor && plan
+      ? {
+          area: anchor.areaSummary,
+          currentRead: plan.currentRead,
+          move: plan.move,
+          expectedRead: plan.expectedRead,
+          preserve: plan.preserve ?? anchor.evidencePointer,
+          priority: 'primary' as const,
+        }
+      : undefined;
+  const voiceBPlan =
+    plan
+      ? {
+          currentRead: plan.currentRead,
+          mainProblem: '',
+          mainStrength: '',
+          bestNextMove: plan.move,
+          optionalSecondMove: '',
+          avoidDoing: '',
+          expectedRead: plan.expectedRead,
+          storyIfRelevant: '',
+        }
+      : undefined;
+  const editPlan =
+    anchor && plan
+      ? {
+          targetArea: anchor.areaSummary,
+          preserveArea: plan.preserve ?? anchor.evidencePointer,
+          issue: plan.currentRead,
+          intendedChange: plan.move,
+          expectedOutcome: plan.expectedRead,
+          editability: plan.editability,
+        }
+      : undefined;
 
-  return {
+  const hydrated: VoiceBCategoryResult = {
     ...category,
-    ...(actionPlanStep ? { actionPlanSteps: [actionPlanStep] } : {}),
-    ...(voiceBPlan ? { voiceBPlan } : {}),
-    ...(editPlan ? { editPlan } : {}),
   };
+  if (actionPlanStep) hydrated.actionPlanSteps = [actionPlanStep];
+  if (voiceBPlan) hydrated.voiceBPlan = voiceBPlan;
+  if (editPlan) hydrated.editPlan = editPlan;
+  return hydrated;
 }
 
 function normalizeVoiceBCategoryBatchRaw(raw: unknown, voiceA: VoiceAStageResult): unknown {

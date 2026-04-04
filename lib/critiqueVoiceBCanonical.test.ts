@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CritiqueCategory } from '../shared/critiqueContract.js';
 
 import {
   canonicalPlanFromLegacy,
@@ -90,7 +91,7 @@ describe('critiqueVoiceBCanonical', () => {
   });
 
   it('hydrates canonical plan and legacy compatibility fields together', () => {
-    const category = hydrateVoiceBCanonicalCategory({
+    const category = hydrateVoiceBCanonicalCategory<CritiqueCategory>({
       criterion: 'Edge and focus control' as const,
       phase1: { visualInventory: 'A soft shoulder edge meets a dark wall.' },
       phase2: { criticsAnalysis: 'The shoulder loses separation where it meets the wall.' },
@@ -113,8 +114,11 @@ describe('critiqueVoiceBCanonical', () => {
     });
 
     expect(category.plan?.move).toBe('sharpen the shoulder edge against the dark wall.');
-    expect(category.actionPlanSteps?.[0]?.area).toBe('the edge where the shoulder meets the dark wall');
-    expect(category.editPlan?.targetArea).toBe('the edge where the shoulder meets the dark wall');
-    expect(category.voiceBPlan?.bestNextMove).toBe('sharpen the shoulder edge against the dark wall.');
+    if (!category.actionPlanSteps?.[0] || !category.editPlan || !category.voiceBPlan) {
+      throw new Error('Expected legacy Voice B compatibility fields to be derived.');
+    }
+    expect(category.actionPlanSteps[0].area).toBe('the edge where the shoulder meets the dark wall');
+    expect(category.editPlan.targetArea).toBe('the edge where the shoulder meets the dark wall');
+    expect(category.voiceBPlan.bestNextMove).toBe('sharpen the shoulder edge against the dark wall.');
   });
 });

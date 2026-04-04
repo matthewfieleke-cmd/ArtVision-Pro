@@ -1,6 +1,19 @@
-import type { CritiqueCategory, VoiceBCanonicalPlan, VoiceBPlan, VoiceBStep } from '../shared/critiqueContract.js';
+import type { VoiceBCanonicalPlan, VoiceBPlan, VoiceBStep } from '../shared/critiqueContract.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 import { CRITIQUE_DONT_CHANGE_PATTERN, CRITIQUE_PRESERVE_VERB_PATTERN } from './critiqueTextRules.js';
+
+type VoiceBLegacyCompatible = {
+  phase3?: { teacherNextSteps?: string };
+  actionPlanSteps?: VoiceBStep[];
+  editPlan?: CriterionEditPlan;
+  voiceBPlan?: VoiceBPlan;
+  preserve?: string;
+};
+
+type VoiceBCanonicalCarrier = VoiceBLegacyCompatible & {
+  anchor?: CriterionAnchor;
+  plan?: VoiceBCanonicalPlan;
+};
 
 function clean(text: string | undefined): string | undefined {
   const normalized = text?.trim();
@@ -49,7 +62,7 @@ export function deriveLegacyVoiceBPlanFromCanonical(
 }
 
 export function canonicalPlanFromLegacy(
-  category: Pick<CritiqueCategory, 'phase3' | 'actionPlanSteps' | 'editPlan' | 'voiceBPlan' | 'preserve'>
+  category: VoiceBLegacyCompatible
 ): VoiceBCanonicalPlan | undefined {
   const step = category.actionPlanSteps?.[0];
   const currentRead = clean(step?.currentRead) ?? clean(category.editPlan?.issue) ?? clean(category.voiceBPlan?.currentRead);
@@ -74,10 +87,10 @@ export function canonicalPlanFromLegacy(
   };
 }
 
-export function hydrateVoiceBCanonicalCategory<T extends CritiqueCategory>(category: T): T {
+export function hydrateVoiceBCanonicalCategory<T extends VoiceBCanonicalCarrier>(category: T): T {
   const plan = category.plan ?? canonicalPlanFromLegacy(category);
   if (!plan) return category;
-  const hydrated: CritiqueCategory = {
+  const hydrated: VoiceBCanonicalCarrier = {
     ...category,
     plan,
   };

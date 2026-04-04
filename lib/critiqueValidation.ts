@@ -621,37 +621,40 @@ export function validateVoiceBStageOutput(
 ): VoiceBStageResult {
   const details: string[] = [];
   const levelsByCriterion = new Map(voiceA.categories.map((category) => [category.criterion, category.level] as const));
-  const hydratedCategories = voiceB.categories.map((category) => hydrateVoiceBCanonicalCategory(category));
+  const hydratedCategories: VoiceBStageResult['categories'] = voiceB.categories.map((category) =>
+    hydrateVoiceBCanonicalCategory(category)
+  );
 
   for (const category of hydratedCategories) {
     const criterion = category.criterion as CriterionLabel;
     const criterionEvidence = evidenceForCriterion(evidence, criterion);
     const level = levelsByCriterion.get(criterion);
+    const anchor = category.anchor;
     const plan = category.plan;
     const step = category.actionPlanSteps?.[0];
     const editPlan = category.editPlan;
 
-    if (!plan) {
-      details.push(`${criterion}: canonical Voice B plan is missing.`);
+    if (!anchor || !plan) {
+      details.push(`${criterion}: canonical Voice B anchor or plan is missing.`);
       continue;
     }
 
-    if (!sharesConcreteLanguage(category.anchor.areaSummary, criterionEvidence.anchor, 2)) {
+    if (!sharesConcreteLanguage(anchor.areaSummary, criterionEvidence.anchor, 2)) {
       details.push(`${criterion}: anchor.areaSummary drifted from the evidence-stage anchor.`);
     }
-    if (!tracesToVisibleEvidence(category.anchor.evidencePointer, criterionEvidence)) {
+    if (!tracesToVisibleEvidence(anchor.evidencePointer, criterionEvidence)) {
       details.push(`${criterion}: anchor.evidencePointer is not traceable to visibleEvidence.`);
     }
     if (!tracesToVisibleEvidence(category.phase3.teacherNextSteps, criterionEvidence)) {
       details.push(`${criterion}: teacherNextSteps is not traceable to the evidence anchor.`);
     }
-    if (!textTracksAnchorPassage(category.phase3.teacherNextSteps, category.anchor.areaSummary)) {
+    if (!textTracksAnchorPassage(category.phase3.teacherNextSteps, anchor.areaSummary)) {
       details.push(`${criterion}: teacherNextSteps drifted away from the anchored passage.`);
     }
     if (!tracesToVisibleEvidence(plan.currentRead, criterionEvidence)) {
       details.push(`${criterion}: plan.currentRead is not traceable to visibleEvidence.`);
     }
-    if (moveSwitchesToDifferentPassage(plan.move, plan.currentRead, category.anchor.areaSummary)) {
+    if (moveSwitchesToDifferentPassage(plan.move, plan.currentRead, anchor.areaSummary)) {
       details.push(`${criterion}: plan.move drifted away from the anchored passage.`);
     }
     if (isGenericTeacherText(category.phase3.teacherNextSteps)) {
@@ -668,7 +671,7 @@ export function validateVoiceBStageOutput(
         `${criterion}: plan.move must name a concrete edge relationship, not only a generic focus or clarity goal.`
       );
     }
-    if (step && !sharesConcreteLanguage(step.area, category.anchor.areaSummary, 2)) {
+    if (step && !sharesConcreteLanguage(step.area, anchor.areaSummary, 2)) {
       details.push(`${criterion}: actionPlanSteps[0].area does not match the anchored passage.`);
     }
     if (step && !tracesToVisibleEvidence(step.currentRead, criterionEvidence)) {
@@ -677,7 +680,7 @@ export function validateVoiceBStageOutput(
     if (editPlan && !tracesToVisibleEvidence(editPlan.issue, criterionEvidence)) {
       details.push(`${criterion}: editPlan.issue is not traceable to visibleEvidence.`);
     }
-    if (editPlan && !sharesConcreteLanguage(editPlan.targetArea, category.anchor.areaSummary, 2)) {
+    if (editPlan && !sharesConcreteLanguage(editPlan.targetArea, anchor.areaSummary, 2)) {
       details.push(`${criterion}: editPlan.targetArea does not match the anchored passage.`);
     }
 
@@ -711,8 +714,11 @@ export function validateVoiceBStageOutput(
     const current = hydratedCategories[i]!;
     for (let j = i + 1; j < voiceB.categories.length; j++) {
       const other = hydratedCategories[j]!;
-      const currentAdvice = `${current.anchor.areaSummary} ${current.plan?.move ?? ''} ${current.phase3.teacherNextSteps}`;
-      const otherAdvice = `${other.anchor.areaSummary} ${other.plan?.move ?? ''} ${other.phase3.teacherNextSteps}`;
+      const currentAnchor = current.anchor;
+      const otherAnchor = other.anchor;
+      if (!currentAnchor || !otherAnchor) continue;
+      const currentAdvice = `${currentAnchor.areaSummary} ${current.plan?.move ?? ''} ${current.phase3.teacherNextSteps}`;
+      const otherAdvice = `${otherAnchor.areaSummary} ${other.plan?.move ?? ''} ${other.phase3.teacherNextSteps}`;
       if (sameAdvice(currentAdvice, otherAdvice)) {
         details.push(
           `${current.criterion} and ${other.criterion}: teacher guidance is duplicative instead of criterion-specific.`
