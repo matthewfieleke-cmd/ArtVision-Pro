@@ -36,7 +36,7 @@ const COMPOSITION_GENERIC_PATTERN =
   /\b(dynamic tension|balanced composition|stable composition|guides? the viewer'?s eye|leads? the eye|framing|frame the path|sense of depth|adds interest|focal point|balance|balances?|balanced|symmetry|symmetrical|rhythm|counterbalance|counterbalances?)\b/i;
 
 const COMPOSITION_CONCRETE_PATTERN =
-  /\b(path bend|roof edge|fence post|fence line|flower patch|house shadow|chair back|chair bars?|window strip|figure|sitter|shoulder|head|silhouette|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across|boat|boats|reflection|horizon|mast|masts|ripples?|water|sky|harbor|shore|foreground|background|vertical|horizontal)\b/i;
+  /\b(path bend|path|roof edge|fence post|fence line|flower patch|house shadow|chair back|chair bars?|window strip|figure|figures|sitter|shoulder|head|silhouette|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across|boat|boats|reflection|horizon|mast|masts|ripples?|water|sky|harbor|shore|foreground|background|vertical|horizontal|table|tables|umbrella|umbrellas|arch|arches|building|facade)\b/i;
 
 const COMPOSITION_EVENT_PATTERN =
   /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|positioned|placed)\b/i;
@@ -45,7 +45,7 @@ const CONCEPTUAL_GENERIC_PATTERN =
   /\b(journey|inviting|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch)\b/i;
 
 const CONCEPTUAL_CARRIER_OBJECT_PATTERN =
-  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|path|post|fence|patch|band|silhouette|wall|head|face|shirt|chair|bridge|train|pole|poles|track|tracks|shoreline|shore|rocks)\b/i;
+  /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|path|post|fence|patch|band|silhouette|wall|head|face|shirt|chair|bridge|train|pole|poles|track|tracks|shoreline|shore|rocks|table|tables|umbrella|umbrellas|arch|arches|facade|building)\b/i;
 
 const CONCEPTUAL_CARRIER_RELATION_PATTERN =
   /\b(meets?|against|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow)\b/i;
@@ -54,7 +54,7 @@ const CONCEPTUAL_ANCHOR_PATTERN =
   /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?\s+across|narrow(?:s|ing)?\s+toward|meets?|turn(?:s|ing)?\s+into|overlap|beside|below|above|into|through|beneath)\b/i;
 
 const CONCEPTUAL_CONCRETE_OBJECT_PATTERN =
-  /\b(sun|reflection|water|boat|boats|harbor|shore|shoreline|sky|cloud|clouds|figure|figures|face|head|wall|window|chair|shirt|collar|smoke|chimney|roof|path|shadow|sleeve|hand|ground|opening|silhouette|bridge|train|pole|poles|track|tracks|rocks|rocky shoreline)\b/i;
+  /\b(sun|reflection|water|boat|boats|harbor|shore|shoreline|sky|cloud|clouds|figure|figures|face|head|wall|window|chair|shirt|collar|smoke|chimney|roof|path|shadow|sleeve|hand|ground|opening|silhouette|bridge|train|pole|poles|track|tracks|rocks|rocky shoreline|table|tables|umbrella|umbrellas|arch|arches|building|facade)\b/i;
 
 const CONCEPTUAL_SOFT_ROUTE_PATTERN =
   /\b(path leading to|journey|story|narrative|overall mood|emotional tone|garden setting|atmosphere)\b/i;
@@ -154,6 +154,8 @@ export function weakWorkEvidenceGuidance(): string[] {
 export function weakWorkCompositionRepairExamples(): string[] {
   return [
     'For composition evidence, write "the path bend under the red house narrows before the doorway and leaves a wider flower band on the left than on the right."',
+    'For cafe or street scenes, write "the path narrowing into the cafe tables leaves a wider pale ground shape on the left than on the right before it reaches the seated group."',
+    'For cafe or street scenes, write "the nearest building arch lands just behind the cafe tables and repeats their curve higher up the wall."',
     'For figure or interior work, write "the chair back cuts a tall vertical band between the window strip and the sitter, and the middle slat leaves a smaller gap above the shoulder than the outer edge does."',
     'Do not write composition fillers like "the trees balance the house" or "the fence line creates rhythm" by themselves. Rewrite them as concrete events in a specific passage.',
     'Rewrite "the roof edge creates a strong horizontal line" as "the roof edge cuts the sky wash and leaves a thinner blue strip above the house than above the trees."',
@@ -164,6 +166,7 @@ export function weakWorkCompositionRepairExamples(): string[] {
 export function weakWorkRepairExamples(): string[] {
   return [
     'Use anchors like "the path bend where it meets the house shadow", "the chimney smoke against the blue wash", or "the flower patch where it meets the path edge".',
+    'For cafe or street scenes, use anchors like "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables".',
     'Write top-level evidence in plain visual language, e.g. "The painting appears to organize the scene around a path, a small house, and bright flower bands."',
     'Do not use artist-name comparisons for weak work unless the criterion evidence already proves exceptional control.',
     ...weakWorkCompositionRepairExamples(),

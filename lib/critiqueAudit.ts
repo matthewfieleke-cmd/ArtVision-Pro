@@ -13,11 +13,17 @@ function normalizeWhitespace(text: string): string {
 
 const SOFT_WORKSHOP_BOILERPLATE_PATTERN =
   /\b(harmonious|harmony|narrative connection|moment of contemplation|contemplative mood|connection with nature|human presence|visual interest|balanced composition|dynamic composition|dynamic tension|guides? the viewer'?s eye|leading the eye|supports the mood|integrated into the landscape|suggests rest|suggests contemplation|atmospheric effect|vibrant palette|cohesive|cohesion)\b/i;
+const GENERIC_STRUCTURED_PHRASE_PATTERN =
+  /\b(add(?:ing)? more definition|without disrupting|remain harmonious|support the overall mood|background figures?|figures? in the background|enhance(?:\s+the)?\s+(?:spatial depth|vibrancy|coherence|clarity|medium handling)|maintain(?:ing)?\s+(?:the\s+)?overall\s+(?:spatial coherence|coherence|mood|clarity|balance)|ensure\b[^.]{0,80}\b(?:harmonious|coherent|clarity|spatial coherence)|refine(?:\s+the)?\s+(?:texture|color)\s+transitions|blend more naturally|integrate(?:\s+\w+){0,4}\s+(?:scene|background|atmosphere)|overall atmosphere|without losing(?:\s+\w+){0,4}\s+presence|introduce more varied texture|using a combination of|more engaging|stand out more distinctly|enhancing(?:\s+\w+){0,4}\s+presence|key spatial relationship)\b/i;
 
 function needsStructuredStudioRewrite(text: string): boolean {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return true;
-  return isVagueOrGenericStudioText(normalized) || SOFT_WORKSHOP_BOILERPLATE_PATTERN.test(normalized);
+  return (
+    isVagueOrGenericStudioText(normalized) ||
+    SOFT_WORKSHOP_BOILERPLATE_PATTERN.test(normalized) ||
+    GENERIC_STRUCTURED_PHRASE_PATTERN.test(normalized)
+  );
 }
 
 function normalizedContains(haystack: string, needle: string): boolean {
@@ -83,6 +89,33 @@ function alignedStudioChanges(critique: CritiqueResultDTO): boolean {
       category.anchor.evidencePointer,
       'strictAudit'
     );
+  });
+}
+
+function summaryLayerNeedsStructuredRewrite(critique: CritiqueResultDTO): boolean {
+  if (!critique.simpleFeedback) return false;
+
+  const topPriorities = critique.overallSummary?.topPriorities ?? [];
+  if (
+    topPriorities.length === 0 ||
+    topPriorities.some(
+      (priority) =>
+        !normalizeWhitespace(priority) ||
+        needsStructuredStudioRewrite(priority) ||
+        distinctAnchorMentions(priority, critique, { limit: 1 }) < 1
+    )
+  ) {
+    return true;
+  }
+
+  const categoryByCriterion = new Map(
+    critique.categories.map((category) => [category.criterion, category] as const)
+  );
+
+  if (critique.simpleFeedback.studioChanges.length < 2) return true;
+  return critique.simpleFeedback.studioChanges.some((change) => {
+    const category = categoryByCriterion.get(change.previewCriterion);
+    return !category || needsStructuredStudioRewrite(change.text) || !anchoredCategoryMatchesText(change.text, category);
   });
 }
 
@@ -154,7 +187,7 @@ function looksConceptualLabel(text: string): boolean {
   const normalized = normalizeWhitespace(text).toLowerCase();
   if (!normalized) return true;
   return (
-    /\b(left side of the painting|right side of the painting|background colors?|background color transitions|color transitions|peripheral elements|narrative focus|story|composition overall)\b/i.test(
+    /\b(left side of the painting|right side of the painting|background colors?|background color transitions|background figures?|color transitions|peripheral elements|narrative focus|story|composition overall)\b/i.test(
       normalized
     ) ||
     (!/[,'’\-]/.test(normalized) &&
@@ -173,6 +206,7 @@ function firstUsableStructuredPhrase(...candidates: Array<string | undefined>): 
     ) {
       continue;
     }
+    if (GENERIC_STRUCTURED_PHRASE_PATTERN.test(normalized)) continue;
     if (needsStructuredStudioRewrite(normalized)) continue;
     return normalized;
   }
@@ -310,6 +344,11 @@ function rewriteStudioChangeFromStructuredFields(
   category: CritiqueResultDTO['categories'][number],
   existingText?: string
 ): string {
+  if (category.level === 'Master') {
+    const preserved = firstUsableStructuredPhrase(category.anchor?.evidencePointer, category.editPlan?.preserveArea);
+    return `Preserve ${preserved || bestAnchoredArea(category)}.`;
+  }
+
   const area = bestAnchoredArea(category);
   const issue = bestAnchoredIssue(category);
   const move = bestAnchoredMove(category);
@@ -466,6 +505,35 @@ function weakestAnchoredCategories(
     .slice(0, limit);
 }
 
+function strongestAnchoredCategories(
+  critique: CritiqueResultDTO,
+  limit: number
+): CritiqueResultDTO['categories'] {
+  return [...critique.categories]
+    .filter((category) => category.anchor)
+    .sort((a, b) => {
+      const aRank = a.level ? LEVEL_RANK[a.level] : LEVEL_RANK.Intermediate;
+      const bRank = b.level ? LEVEL_RANK[b.level] : LEVEL_RANK.Intermediate;
+      if (aRank !== bRank) return bRank - aRank;
+      return CRITERIA_ORDER.indexOf(a.criterion) - CRITERIA_ORDER.indexOf(b.criterion);
+    })
+    .slice(0, limit);
+}
+
+function anchoredStrengthSentence(category: CritiqueResultDTO['categories'][number]): string {
+  const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
+  const strengthSource =
+    category.anchor?.evidencePointer?.trim() ||
+    category.editPlan?.preserveArea?.trim() ||
+    firstSentence(phase2Text(category));
+  if (!strengthSource) {
+    return `In ${area}, the anchored passage already carries one of the painting's clearer strengths.`;
+  }
+  const strength = sentenceCase(strengthSource);
+  if (normalizedContains(strength, area)) return `${strength}.`;
+  return `In ${area}, ${strength.charAt(0).toLowerCase()}${strength.slice(1)}.`;
+}
+
 function anchoredIssueSentence(category: CritiqueResultDTO['categories'][number]): string {
   const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
   const issueSource =
@@ -482,8 +550,8 @@ function anchoredIssueSentence(category: CritiqueResultDTO['categories'][number]
 
 function anchoredPriorityLine(category: CritiqueResultDTO['categories'][number]): string {
   const area = category.anchor?.areaSummary?.trim() || category.criterion.toLowerCase();
-  const intendedChange = sentenceCase(category.editPlan?.intendedChange ?? '');
-  if (intendedChange) return `Focus on ${area}: ${intendedChange}.`;
+  const intendedChange = bestAnchoredMove(category);
+  if (intendedChange) return `Focus on ${area}: ${ensureTrailingPeriod(intendedChange)}`;
   return `Focus on ${area}: restate that passage with simpler value and edge decisions before adding more detail.`;
 }
 
@@ -511,6 +579,115 @@ function buildSpecificNovicePriorities(critique: CritiqueResultDTO): string[] {
         'Focus on the weakest visible passage: simplify its value groups before pushing stylization further.',
         'Focus on the main focal passage: separate it from nearby shapes with clearer edge decisions.',
       ];
+}
+
+function buildGroundedSummary(critique: CritiqueResultDTO): string {
+  const strongest = strongestAnchoredCategories(critique, 1);
+  const weakest = weakestAnchoredCategories(critique, 1);
+  return normalizeWhitespace(
+    [strongest.map(anchoredStrengthSentence).join(' '), weakest.map(anchoredIssueSentence).join(' ')].join(' ')
+  );
+}
+
+function buildGroundedOverallAnalysis(critique: CritiqueResultDTO): string {
+  const strongest = strongestAnchoredCategories(critique, 1);
+  const weakest = weakestAnchoredCategories(critique, 1);
+  return normalizeWhitespace(
+    `${strongest.map(anchoredStrengthSentence).join(' ')} ${weakest.map(anchoredIssueSentence).join(' ')} These mixed signals keep the work from reading as fully resolved across the rubric.`
+  );
+}
+
+function buildGroundedWhatWorks(critique: CritiqueResultDTO): string {
+  const strongest = strongestAnchoredCategories(critique, 2);
+  return normalizeWhitespace(
+    `${strongest.map(anchoredStrengthSentence).join(' ')} These are the clearest passages already working in the painting's favor.`
+  );
+}
+
+function buildGroundedWhatCouldImprove(critique: CritiqueResultDTO): string {
+  const weakest = weakestAnchoredCategories(critique, 2);
+  return normalizeWhitespace(
+    `${weakest.map(anchoredIssueSentence).join(' ')} Those passages are the main leverage points for the next pass.`
+  );
+}
+
+function rebuildTopLevelGroundedVoices(critique: CritiqueResultDTO): CritiqueResultDTO {
+  const currentSummary = critique.summary ?? '';
+  const currentAnalysis = critique.overallSummary?.analysis ?? '';
+  const currentWhatWorks = critique.simpleFeedback?.studioAnalysis.whatWorks ?? '';
+  const currentWhatCouldImprove = critique.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '';
+
+  const nextSummary =
+    distinctAnchorMentions(currentSummary, critique, { limit: 1 }) >= 1
+      ? currentSummary
+      : buildGroundedSummary(critique);
+  const nextAnalysis =
+    distinctAnchorMentions(currentAnalysis, critique, { limit: 2 }) >= 2
+      ? currentAnalysis
+      : buildGroundedOverallAnalysis(critique);
+  const nextWhatWorks =
+    distinctAnchorMentions(currentWhatWorks, critique, { limit: 1 }) >= 1
+      ? currentWhatWorks
+      : buildGroundedWhatWorks(critique);
+  const nextWhatCouldImprove =
+    distinctAnchorMentions(currentWhatCouldImprove, critique, { limit: 1 }) >= 1
+      ? currentWhatCouldImprove
+      : buildGroundedWhatCouldImprove(critique);
+
+  if (
+    nextSummary === currentSummary &&
+    nextAnalysis === currentAnalysis &&
+    nextWhatWorks === currentWhatWorks &&
+    nextWhatCouldImprove === currentWhatCouldImprove
+  ) {
+    return critique;
+  }
+
+  return {
+    ...critique,
+    summary: nextSummary,
+    overallSummary: critique.overallSummary
+      ? {
+          ...critique.overallSummary,
+          analysis: nextAnalysis,
+        }
+      : critique.overallSummary,
+    simpleFeedback: critique.simpleFeedback
+      ? {
+          ...critique.simpleFeedback,
+          studioAnalysis: {
+            ...critique.simpleFeedback.studioAnalysis,
+            whatWorks: nextWhatWorks,
+            whatCouldImprove: nextWhatCouldImprove,
+          },
+        }
+      : critique.simpleFeedback,
+  };
+}
+
+function rebuildStructuredSummaryFromCategories(critique: CritiqueResultDTO): CritiqueResultDTO {
+  if (!critique.simpleFeedback || !summaryLayerNeedsStructuredRewrite(critique)) return critique;
+
+  const studioChangeCount = Math.max(2, Math.min(5, critique.simpleFeedback.studioChanges.length || 2));
+  const summaryCategories = weakestAnchoredCategories(critique, studioChangeCount);
+  const priorityCategories = weakestAnchoredCategories(critique, 2);
+
+  return {
+    ...critique,
+    overallSummary: critique.overallSummary
+      ? {
+          ...critique.overallSummary,
+          topPriorities: priorityCategories.map(anchoredPriorityLine),
+        }
+      : critique.overallSummary,
+    simpleFeedback: {
+      ...critique.simpleFeedback,
+      studioChanges: summaryCategories.map((category) => ({
+        previewCriterion: category.criterion,
+        text: rewriteStudioChangeFromStructuredFields(category),
+      })),
+    },
+  };
 }
 
 function critiqueText(critique: CritiqueResultDTO): string {
@@ -782,13 +959,21 @@ export function applyCritiqueGuardrails(
       stabilizeCriticAnchorReferences,
       instrumenter
     );
-    return applyGuardrailStep(
+    next = applyGuardrailStep(
       next,
       'repair',
       'hybridizeVoiceBFromStructuredFields',
       hybridizeVoiceBFromStructuredFields,
       instrumenter
     );
+    next = applyGuardrailStep(
+      next,
+      'repair',
+      'rebuildTopLevelGroundedVoices',
+      rebuildTopLevelGroundedVoices,
+      instrumenter
+    );
+    return next;
   }
   let next = applyGuardrailStep(
     critique,
@@ -816,6 +1001,20 @@ export function applyCritiqueGuardrails(
     'repair',
     'hybridizeVoiceBFromStructuredFields',
     hybridizeVoiceBFromStructuredFields,
+    instrumenter
+  );
+  next = applyGuardrailStep(
+    next,
+    'repair',
+    'rebuildTopLevelGroundedVoices',
+    rebuildTopLevelGroundedVoices,
+    instrumenter
+  );
+  next = applyGuardrailStep(
+    next,
+    'repair',
+    'rebuildStructuredSummaryFromCategories',
+    rebuildStructuredSummaryFromCategories,
     instrumenter
   );
   return applyGuardrailStep(

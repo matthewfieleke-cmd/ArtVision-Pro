@@ -92,6 +92,118 @@ describe('applyCritiqueGuardrails', () => {
     expect(guarded.simpleFeedback!.studioChanges[1]!.text).not.toMatch(/harmonious/i);
   });
 
+  it('rewrites polished-but-generic background-figure coaching into anchored deterministic advice', () => {
+    const critique = makeCritiqueResultFixture();
+    const previewCriterion = critique.simpleFeedback!.studioChanges[0]!.previewCriterion;
+    const targetIndex = critique.categories.findIndex((category) => category.criterion === previewCriterion);
+    if (targetIndex < 0) throw new Error('Expected fixture to include a matching category.');
+    const targetCategory = critique.categories[targetIndex]!;
+    const targetArea = targetCategory.anchor!.areaSummary;
+    const changeIndex = 0;
+
+    critique.categories[targetIndex] = {
+      ...targetCategory,
+      phase3: {
+        teacherNextSteps:
+          '1. To enhance spatial depth, refine the figures in the background by adding more definition to their forms. This will help maintain the overall spatial coherence without disrupting the scene.',
+      },
+      editPlan: {
+        ...targetCategory.editPlan!,
+        intendedChange: 'Refine the figures in the background by adding more definition to their forms.',
+        expectedOutcome:
+          'This will help maintain the overall spatial coherence without disrupting the scene.',
+      },
+    };
+    critique.simpleFeedback!.studioChanges[changeIndex] = {
+      ...critique.simpleFeedback!.studioChanges[changeIndex]!,
+      text:
+        'Refine the figures in the background by adding more definition to their forms so the scene keeps its overall coherence.',
+    };
+
+    const guarded = applyCritiqueGuardrails(critique);
+    const rewrittenCategory = guarded.categories[targetIndex]!;
+    const rewrittenStudioChange = guarded.simpleFeedback!.studioChanges[changeIndex]!;
+
+    expect(rewrittenCategory.phase3.teacherNextSteps).toContain(targetArea);
+    expect(rewrittenCategory.phase3.teacherNextSteps).toMatch(/restate|separate|group|sharpen|quiet/i);
+    expect(rewrittenCategory.phase3.teacherNextSteps).not.toMatch(
+      /background figures|adding more definition|overall spatial coherence|without disrupting/i
+    );
+    expect(rewrittenStudioChange.text).toContain(targetArea);
+    expect(rewrittenStudioChange.text).not.toMatch(
+      /background figures|adding more definition|overall coherence/i
+    );
+  });
+
+  it('rebuilds generic summary priorities from anchored category moves', () => {
+    const critique = makeCritiqueResultFixture();
+    critique.overallSummary = {
+      ...critique.overallSummary!,
+      topPriorities: [
+        'Enhance spatial depth in the scene.',
+        'Keep the overall mood harmonious.',
+      ],
+    };
+
+    const guarded = applyCritiqueGuardrails(critique);
+
+    expect(guarded.overallSummary!.topPriorities).toHaveLength(2);
+    expect(guarded.overallSummary!.topPriorities[0]).toMatch(/^Focus on /);
+    expect(guarded.overallSummary!.topPriorities.join(' ')).not.toMatch(
+      /enhance spatial depth|overall mood harmonious/i
+    );
+  });
+
+  it('repairs generic top-level overview text back to anchored grounding', () => {
+    const critique = makeCritiqueResultFixture();
+    critique.overallSummary = {
+      ...critique.overallSummary!,
+      analysis:
+        'Using the chosen style and medium lens, this work shows developing intent with a few credible local strengths, but the control is uneven.',
+    };
+    critique.simpleFeedback = {
+      ...critique.simpleFeedback!,
+      studioAnalysis: {
+        ...critique.simpleFeedback!.studioAnalysis,
+        whatWorks:
+          'The painting has several promising passages, with a readable structure and some effective visual energy.',
+        whatCouldImprove:
+          'A few areas still need better integration and clearer control in the next pass.',
+      },
+    };
+
+    expect(critiqueNeedsFreshEvidenceRead(critique)).toBe(true);
+
+    const guarded = applyCritiqueGuardrails(critique);
+
+    expect(critiqueNeedsFreshEvidenceRead(guarded)).toBe(false);
+    expect(guarded.overallSummary!.analysis).not.toMatch(/developing intent with a few credible local strengths/i);
+    expect(guarded.simpleFeedback!.studioAnalysis.whatWorks).not.toMatch(/promising passages/i);
+    expect(guarded.simpleFeedback!.studioAnalysis.whatCouldImprove).not.toMatch(/better integration/i);
+  });
+
+  it('rewrites atmospheric filler that still names the anchor once', () => {
+    const critique = makeCritiqueResultFixture();
+    critique.categories[2] = {
+      ...critique.categories[2]!,
+      phase3: {
+        teacherNextSteps:
+          '1. Soften the edges of the figures slightly to allow them to blend more naturally with the scene without losing their presence.',
+      },
+      editPlan: {
+        ...critique.categories[2]!.editPlan!,
+        intendedChange:
+          'Soften the edges of the figures slightly to allow them to blend more naturally with the scene without losing their presence.',
+      },
+    };
+
+    const guarded = applyCritiqueGuardrails(critique);
+
+    expect(guarded.categories[2]!.phase3.teacherNextSteps).not.toMatch(
+      /blend more naturally|without losing their presence/i
+    );
+  });
+
   it('records guardrail categories when a repair mutation occurs', () => {
     const critique = makeCritiqueResultFixture();
     critique.categories[5] = {

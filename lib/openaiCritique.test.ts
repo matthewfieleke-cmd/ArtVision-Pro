@@ -52,4 +52,52 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('Critical top-level tone fix:');
     expect(note).toContain('intentHypothesis, strongestVisibleQualities, and comparisonObservations must stay provisional and evidence-led for weak work.');
   });
+
+  it('includes cafe-scene repair guidance when evidence retries fail', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: [
+        'Visible evidence is too generic for Composition and shape structure',
+        'Conceptual evidence anchor is too soft for Intent and necessity',
+      ],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: [
+              'Visible evidence is too generic for Composition and shape structure',
+              'Conceptual evidence anchor is too soft for Intent and necessity',
+            ],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Intent and necessity',
+                anchor: 'the outdoor seating area',
+                visibleEvidencePreview: [
+                  'The outdoor seating area suggests a lively cafe atmosphere.',
+                ],
+              },
+              {
+                criterion: 'Composition and shape structure',
+                anchor: 'the path leading through the scene',
+                visibleEvidencePreview: [
+                  'The path guides the eye through the composition.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('For cafe or street scenes, prefer anchors shaped like "the cafe tables with yellow umbrellas"');
+    expect(note).toContain(
+      'Do NOT write "the outdoor seating area", "the cafe atmosphere", or "the path leading through the scene" as sufficient conceptual evidence'
+    );
+    expect(note).toContain(
+      'replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language'
+    );
+  });
 });

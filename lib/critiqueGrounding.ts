@@ -38,6 +38,41 @@ const GROUNDING_EQUIVALENT_TOKENS: Record<string, string> = {
   lead: 'lead',
   leads: 'lead',
   leading: 'lead',
+  figure: 'human',
+  figures: 'human',
+  person: 'human',
+  people: 'human',
+  body: 'human',
+  torso: 'human',
+  shirt: 'human',
+  shirts: 'human',
+  clothing: 'human',
+  clothes: 'human',
+  head: 'human',
+  face: 'human',
+  gaze: 'human',
+  shoulder: 'human',
+  shoulders: 'human',
+  arm: 'human',
+  arms: 'human',
+  leg: 'human',
+  legs: 'human',
+  seated: 'pose',
+  sitting: 'pose',
+  sits: 'pose',
+  sat: 'pose',
+  sitter: 'pose',
+  reclining: 'pose',
+  reclined: 'pose',
+  reclines: 'pose',
+  lying: 'pose',
+  recliner: 'pose',
+  posture: 'pose',
+  pose: 'pose',
+  poses: 'pose',
+  stance: 'pose',
+  couch: 'couch',
+  sofa: 'couch',
   shore: 'shore',
   shoreline: 'shore',
   seashore: 'shore',
@@ -52,6 +87,24 @@ const GROUNDING_EQUIVALENT_TOKENS: Record<string, string> = {
   rocks: 'rock',
   rocky: 'rock',
   rock: 'rock',
+  tree: 'tree',
+  trunk: 'tree',
+  trunks: 'tree',
+  branch: 'branch',
+  branches: 'branch',
+  umbrella: 'umbrella',
+  umbrellas: 'umbrella',
+  table: 'table',
+  tables: 'table',
+  building: 'building',
+  buildings: 'building',
+  path: 'path',
+  paths: 'path',
+  walkway: 'path',
+  road: 'path',
+  roads: 'path',
+  chair: 'chair',
+  chairs: 'chair',
   background: 'ground',
   backdrop: 'ground',
   ground: 'ground',
@@ -75,6 +128,8 @@ const GROUNDING_EQUIVALENT_TOKENS: Record<string, string> = {
   outlines: 'edge',
   perimeter: 'edge',
 };
+
+const HUMAN_CARRIER_TOKENS = new Set(['human', 'pose']);
 
 function comparableGroundingTokens(text: string): string[] {
   return Array.from(
@@ -108,7 +163,14 @@ export function anchorSupportedByEvidenceLines(anchor: string, lines: string[]):
   if (lines.some((line) => anchorSupportedByEvidenceLine(anchor, line))) return true;
   const anchorTokens = comparableGroundingTokens(anchor);
   const aggregateTokenSet = new Set(lines.flatMap((line) => comparableGroundingTokens(line)));
-  return anchorTokens.filter((token) => aggregateTokenSet.has(token)).length >= 2;
+  const sharedTokens = anchorTokens.filter((token) => aggregateTokenSet.has(token));
+  if (sharedTokens.length >= 2) return true;
+
+  const anchorHasHumanCarrier = anchorTokens.some((token) => HUMAN_CARRIER_TOKENS.has(token));
+  const aggregateHasHumanCarrier = Array.from(aggregateTokenSet).some((token) => HUMAN_CARRIER_TOKENS.has(token));
+  const sharedNonHumanTokens = sharedTokens.filter((token) => !HUMAN_CARRIER_TOKENS.has(token));
+
+  return anchorHasHumanCarrier && aggregateHasHumanCarrier && sharedNonHumanTokens.length >= 1;
 }
 
 export function tokenOverlapRatio(a: string, b: string): number {

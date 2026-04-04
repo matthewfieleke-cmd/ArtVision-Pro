@@ -250,6 +250,32 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
   });
 
+  it('accepts cafe-scene conceptual anchors when tables and umbrellas stay the repeated visible carrier', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      ...neutralizeCompositionEvidence(),
+      criterion: 'Composition and shape structure',
+    };
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the cafe tables with yellow umbrellas',
+      visibleEvidence: [
+        'The cafe tables with yellow umbrellas sit in the center and stay framed by the darker tree trunks on both sides.',
+        'The path narrows as it approaches the cafe tables with yellow umbrellas and leaves a wider open ground shape on the left than on the right.',
+        'The building arches line up behind the cafe tables with yellow umbrellas and keep that cluster tied to the wall instead of floating loose.',
+        'The seated figures under the cafe tables with yellow umbrellas stay smaller than the umbrellas above them, so the shelter shape carries the scene first.',
+      ],
+      strengthRead:
+        'The cafe tables with yellow umbrellas are the physical carrier that makes the social focus read immediately rather than as a vague outdoor mood.',
+      preserve:
+        'Preserve the cafe tables with yellow umbrellas as the centered cluster that keeps the seated figures tied to the wall and path.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
   it('rejects conceptual strength and preserve lines that slip into mood summary language', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
@@ -422,6 +448,23 @@ describe('validateEvidenceResult', () => {
         "The sun's reflection intersects the horizontal water bands and leaves a brighter vertical track than the nearby harbor water.",
         'The distant masts echo the reflection as slimmer verticals above the horizon band.',
         'The horizon line sits high enough to leave a larger water field below than sky above.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('accepts cafe-scene composition evidence when it names path, tables, and arch events concretely', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: 'the path narrowing into the cafe tables',
+      visibleEvidence: [
+        'The path narrowing into the cafe tables leaves a wider pale ground shape on the left than on the right before it reaches the seated group.',
+        'The dark tree trunks cut down on both sides of the path narrowing into the cafe tables and keep the opening compressed around the center.',
+        'The nearest building arch lands just behind the cafe tables and repeats their curve higher up the wall.',
+        'The yellow umbrellas sit above the seated figures and create a broader horizontal cap than the table band below.',
       ],
     };
 

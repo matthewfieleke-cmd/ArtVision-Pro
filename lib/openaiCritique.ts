@@ -13,6 +13,7 @@ import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
   CritiquePipelineError,
   CritiqueGroundingError,
+  CritiqueRuntimeEvalError,
   CritiqueRetryExhaustedError,
   CritiqueValidationError,
   type CritiqueCriterionEvidencePreview,
@@ -115,6 +116,40 @@ function logEvidenceAttemptFailure(
       : {}),
   };
   console.error('[critique evidence attempt failed]', payload);
+}
+
+function logQualityGateFailure(critique: CritiqueResultDTO): void {
+  console.error('[critique quality gate payload]', {
+    topPriorities: critique.overallSummary?.topPriorities ?? [],
+    studioChanges: critique.simpleFeedback?.studioChanges ?? [],
+    categories: critique.categories.map((category) => ({
+      criterion: category.criterion,
+      level: category.level,
+      teacherNextSteps: category.phase3.teacherNextSteps,
+      anchor: category.anchor?.areaSummary,
+      editTarget: category.editPlan?.targetArea,
+      intendedChange: category.editPlan?.intendedChange,
+    })),
+  });
+}
+
+function logGroundingGateFailure(critique: CritiqueResultDTO): void {
+  console.error('[critique grounding gate payload]', {
+    summary: critique.summary,
+    analysis: critique.overallSummary?.analysis ?? '',
+    whatWorks: critique.simpleFeedback?.studioAnalysis.whatWorks ?? '',
+    whatCouldImprove: critique.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '',
+    topPriorities: critique.overallSummary?.topPriorities ?? [],
+    studioChanges: critique.simpleFeedback?.studioChanges ?? [],
+    categories: critique.categories.map((category) => ({
+      criterion: category.criterion,
+      anchorArea: category.anchor?.areaSummary,
+      anchorPointer: category.anchor?.evidencePointer,
+      critic: category.phase2.criticsAnalysis,
+      teacher: category.phase3.teacherNextSteps,
+      editTarget: category.editPlan?.targetArea,
+    })),
+  });
 }
 
 function buildEvidenceAttemptDebugInfo(args: {
@@ -311,7 +346,8 @@ Critical anchor rule:
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
 - Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.
 - Do NOT use flattering anchor labels such as "the arrangement of flowers", "the cozy house", "the vibrant garden", "the idyllic setting", or "the narrative journey of the path". Name the visible object pair or junction instead.
-- For weak landscapes or garden scenes, prefer anchors shaped like "the path bend under the red house", "the roof edge against the blue wash", "the flower patch where it meets the path edge", or "the fence post against the foliage".${unsupportedAnchorCriteria.length > 0
+- For weak landscapes or garden scenes, prefer anchors shaped like "the path bend under the red house", "the roof edge against the blue wash", "the flower patch where it meets the path edge", or "the fence post against the foliage".
+- For cafe or street scenes, prefer anchors shaped like "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", "the path narrowing into the cafe tables", or "the nearest building arch behind the cafe tables".${unsupportedAnchorCriteria.length > 0
     ? `
 
 Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
@@ -325,8 +361,10 @@ Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
 Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - For Intent and necessity or Presence, point of view, and human force, do NOT use phrases like "narrative journey", "inviting atmosphere", "idyllic setting", "warmth", "life and activity", or "sense of story" unless the same sentence also names the exact visible carrier relationship that creates that read.
 - Do NOT write "the path leading to the house" or "the smoke from the chimney" as sufficient conceptual evidence on a weak landscape. Prefer "the path bend where it meets the house shadow" or "the chimney smoke against the blue wash."
+- Do NOT write "the outdoor seating area", "the cafe atmosphere", or "the path leading through the scene" as sufficient conceptual evidence on a cafe or street scene. Prefer "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables."
 - strengthRead and preserve must also name that same visible carrier passage, not a mood summary.
 - For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact path bend, roof edge, fence post, flower band, or other structural passage creating that effect.
+- For Composition and shape structure in cafe or street scenes, replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language such as "the path narrowing into the cafe tables leaves a wider ground shape on one side" or "the nearest building arch lands behind the tables and repeats their curve higher up the wall."
 - For Composition and shape structure, write a shape event, not a verdict: what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts in that exact passage.
 - On seascapes, harbors, or other strong paintings, the same rule still applies: prefer "the reflection cuts through the harbor bands", "the boat silhouette sits left of the reflection", or "the masts echo that vertical above the horizon" over verdicts like "the reflection organizes the composition" or "the boat creates balance."
 - If one visibleEvidence line is already concrete, keep it and rewrite the generic filler lines so the full list stays at junction/event level.
@@ -490,6 +528,9 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
 
   if (critiqueNeedsFreshEvidenceRead(guarded)) {
+    if (instrumenter.enabled) {
+      logGroundingGateFailure(guarded);
+    }
     throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
       stage: 'final',
       details: [
@@ -499,7 +540,14 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  assertCritiqueQualityGate(guarded);
+  try {
+    assertCritiqueQualityGate(guarded);
+  } catch (error) {
+    if (instrumenter.enabled && error instanceof CritiqueRuntimeEvalError) {
+      logQualityGateFailure(guarded);
+    }
+    throw error;
+  }
   instrumenter.logSummary({ model });
 
   const trimmedTitle =

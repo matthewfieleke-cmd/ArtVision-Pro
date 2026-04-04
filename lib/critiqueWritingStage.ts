@@ -1678,6 +1678,5 @@ export async function runCritiqueWritingStage(
   );
   const merged = mergeVoiceStages(voiceA, voiceB);
   const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
-  assertCritiqueQualityGate(validated);
   return validated;
 }
