@@ -111,6 +111,65 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
+  it('rejects adjacent-passage evidence when no single line actually supports the chosen anchor', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the flowers against the green background',
+      visibleEvidence: [
+        'The vase shoulder below the bouquet stays lighter than the table edge beneath it.',
+        'The darker leaf band behind the outer petals breaks around the top edge of the bouquet.',
+        'The green background stays close in value to the vase neck on the right side.',
+        'The table edge below the vase curves upward slightly toward the right corner.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence does not support anchor/);
+  });
+
+  it('locks the primary anchor-support line to the front of visibleEvidence when one line clearly supports the anchor', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the path leading to the house',
+      visibleEvidence: [
+        'The red wall above the doorway stays warmer than the blue wash around it.',
+        'The path leading to the house narrows before the doorway and stays lighter than the flower patch beside it.',
+        'The flower band below the house opens wider on the left than on the right.',
+        'The roof edge above the doorway leaves a thinner sky strip than the tree line at right.',
+      ],
+    };
+
+    const validated = validateEvidenceResult(evidence);
+
+    expect(validated.criterionEvidence[0]?.visibleEvidence[0]).toBe(
+      'The path leading to the house narrows before the doorway and stays lighter than the flower patch beside it.'
+    );
+  });
+
+  it('rejects equivalence collisions that only reconstruct the anchor across multiple nearby lines', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[7] = {
+      ...evidence.criterionEvidence[7]!,
+      criterion: 'Presence, point of view, and human force',
+      anchor: 'the seated figure against the tree trunk',
+      visibleEvidence: [
+        'The seated figure stays lower than the standing companion and reads quieter in the scene.',
+        'A darker bark passage just behind one shoulder gives the silhouette some contrast.',
+        'The yellow shirt stays brighter than the rocks below it.',
+        'The shoreline behind the figures remains pale and open.',
+      ],
+      strengthRead:
+        'The seated figure against the tree trunk gives the scene a quieter human pressure than the standing companion does.',
+      preserve:
+        'Preserve the seated figure against the tree trunk as the quieter human carrier in the scene.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence does not support anchor/);
+  });
+
   it('rejects weak-work evidence that stays at painting-level summary language', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
@@ -618,7 +677,7 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
-  it('accepts house-scene conceptual interpretation when it stays tied to a concrete entrance passage', () => {
+  it('rejects house-scene conceptual interpretation when strengthRead and preserve drift into mood summary language', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
       ...evidence.criterionEvidence[0]!,
@@ -636,7 +695,7 @@ describe('validateEvidenceResult', () => {
         'Preserve the welcoming festive atmosphere around the entrance.',
     };
 
-    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+    expect(() => validateEvidenceResult(evidence)).toThrow(/strengthRead is too generic|preserve is too generic/);
   });
 
   it('accepts harbor-scene composition evidence when it names concrete structural elements and events', () => {

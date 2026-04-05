@@ -24,10 +24,11 @@ import {
 } from './critiqueTextRules.js';
 import {
   anchorSupportedByEvidenceLine,
-  anchorSupportedByEvidenceLines,
+  findPrimaryAnchorSupportLine,
   isConcreteAnchor,
   sameAdvice,
   sharesConcreteLanguage,
+  tracesToPrimarySupportLine,
   tracesShortEvidenceSignal,
   tracesToVisibleEvidence,
 } from './critiqueGrounding.js';
@@ -158,6 +159,13 @@ function evidenceForCriterion(
     });
   }
   return match;
+}
+
+function prioritizePrimarySupportLine(anchor: string, visibleEvidence: string[]): string[] {
+  const primarySupport = findPrimaryAnchorSupportLine(anchor, visibleEvidence)?.line;
+  if (!primarySupport) return visibleEvidence;
+  const ordered = [primarySupport, ...visibleEvidence.filter((line) => line !== primarySupport)];
+  return ordered;
 }
 
 function edgeMoveNamesConcreteRelationship(text: string): boolean {
@@ -564,7 +572,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
       throw new Error(`Invalid evidence fields for ${expected}`);
     }
     let anchor = r.anchor.trim();
-    const visibleEvidence = r.visibleEvidence as string[];
+    const visibleEvidence = (r.visibleEvidence as string[]).map((line) => line.trim());
     let strengthRead = r.strengthRead.trim();
     let preserve = r.preserve.trim();
     if (!isConcreteAnchor(anchor) && mode === 'lenient') {
@@ -581,12 +589,14 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
         throw new Error(`Conceptual evidence anchor is too soft for ${expected}`);
       }
     }
-    const hasDirectAnchorSupport = visibleEvidence.some((line) => anchorSupportedByEvidenceLine(anchor, line));
-    const hasAggregateAnchorSupport =
-      mode === 'lenient' && anchorSupportedByEvidenceLines(anchor, visibleEvidence);
-    if (!hasDirectAnchorSupport && !hasAggregateAnchorSupport) {
+    const primaryAnchorSupport = findPrimaryAnchorSupportLine(anchor, visibleEvidence);
+    if (!primaryAnchorSupport) {
       throw new Error(`Visible evidence does not support anchor for ${expected}`);
     }
+    if (isConceptualCriterion(expected) && hasWeakConceptualEvidenceLine(primaryAnchorSupport.line)) {
+      throw new Error(`Visible evidence is too generic for ${expected}`);
+    }
+    const normalizedVisibleEvidence = prioritizePrimarySupportLine(anchor, visibleEvidence);
     if (visibleEvidence.filter((line) => hasWeakWorkGenericEvidenceLine(line)).length >= (mode === 'strict' ? 3 : 5)) {
       throw new Error(`Visible evidence is too generic for ${expected}`);
     }
@@ -617,7 +627,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     return {
       criterion: expected,
       anchor,
-      visibleEvidence,
+      visibleEvidence: normalizedVisibleEvidence,
       strengthRead,
       tensionRead: r.tensionRead,
       preserve,
@@ -700,7 +710,7 @@ export function validateVoiceAStageOutput(
     if (!tracesToVisibleEvidence(category.phase1.visualInventory, criterionEvidence)) {
       details.push(`${criterion}: phase1.visualInventory drifted from the evidence anchor.`);
     }
-    if (!tracesToVisibleEvidence(category.phase2.criticsAnalysis, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(category.phase2.criticsAnalysis, criterionEvidence)) {
       details.push(`${criterion}: phase2.criticsAnalysis is not traceable to visibleEvidence.`);
     }
     if (!category.evidenceSignals.every((signal) => tracesShortEvidenceSignal(signal, criterionEvidence))) {
@@ -754,16 +764,16 @@ export function validateVoiceBStageOutput(
     if (!sharesConcreteLanguage(anchor.areaSummary, criterionEvidence.anchor, 2)) {
       details.push(`${criterion}: anchor.areaSummary drifted from the evidence-stage anchor.`);
     }
-    if (!tracesToVisibleEvidence(anchor.evidencePointer, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(anchor.evidencePointer, criterionEvidence)) {
       details.push(`${criterion}: anchor.evidencePointer is not traceable to visibleEvidence.`);
     }
-    if (!tracesToVisibleEvidence(category.phase3.teacherNextSteps, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(category.phase3.teacherNextSteps, criterionEvidence)) {
       details.push(`${criterion}: teacherNextSteps is not traceable to the evidence anchor.`);
     }
     if (!textTracksAnchorPassage(category.phase3.teacherNextSteps, anchor.areaSummary)) {
       details.push(`${criterion}: teacherNextSteps drifted away from the anchored passage.`);
     }
-    if (!tracesToVisibleEvidence(plan.currentRead, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(plan.currentRead, criterionEvidence)) {
       details.push(`${criterion}: plan.currentRead is not traceable to visibleEvidence.`);
     }
     if (moveSwitchesToDifferentPassage(plan.move, plan.currentRead, anchor.areaSummary)) {
@@ -786,10 +796,10 @@ export function validateVoiceBStageOutput(
     if (step && !sharesConcreteLanguage(step.area, anchor.areaSummary, 2)) {
       details.push(`${criterion}: actionPlanSteps[0].area does not match the anchored passage.`);
     }
-    if (step && !tracesToVisibleEvidence(step.currentRead, criterionEvidence)) {
+    if (step && !tracesToPrimarySupportLine(step.currentRead, criterionEvidence)) {
       details.push(`${criterion}: actionPlanSteps[0].currentRead is not traceable to visibleEvidence.`);
     }
-    if (editPlan && !tracesToVisibleEvidence(editPlan.issue, criterionEvidence)) {
+    if (editPlan && !tracesToPrimarySupportLine(editPlan.issue, criterionEvidence)) {
       details.push(`${criterion}: editPlan.issue is not traceable to visibleEvidence.`);
     }
     if (editPlan && !sharesConcreteLanguage(editPlan.targetArea, anchor.areaSummary, 2)) {
@@ -880,16 +890,16 @@ export function validateCritiqueGrounding(
     if (!sharesConcreteLanguage(anchor.areaSummary, criterionEvidence.anchor, 2)) {
       details.push(`${category.criterion}: final anchor drifted from the evidence-stage anchor.`);
     }
-    if (!tracesToVisibleEvidence(category.phase2.criticsAnalysis, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(category.phase2.criticsAnalysis, criterionEvidence)) {
       details.push(`${category.criterion}: final critic analysis is not traceable to visibleEvidence.`);
     }
-    if (!tracesToVisibleEvidence(category.phase3.teacherNextSteps, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(category.phase3.teacherNextSteps, criterionEvidence)) {
       details.push(`${category.criterion}: final teacher guidance is not traceable to visibleEvidence.`);
     }
     if (!textTracksAnchorPassage(category.phase3.teacherNextSteps, anchor.areaSummary)) {
       details.push(`${category.criterion}: final teacher guidance drifted away from the anchored passage.`);
     }
-    if (!tracesToVisibleEvidence(plan.currentRead, criterionEvidence)) {
+    if (!tracesToPrimarySupportLine(plan.currentRead, criterionEvidence)) {
       details.push(`${category.criterion}: final plan.currentRead is not traceable to visibleEvidence.`);
     }
     if (moveSwitchesToDifferentPassage(plan.move, plan.currentRead, anchor.areaSummary)) {

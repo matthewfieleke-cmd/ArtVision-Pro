@@ -1,5 +1,6 @@
 import { CRITERIA_ORDER, type CriterionLabel, type RatingLevelLabel } from '../shared/criteria.js';
 import { createPipelineMetadata } from './critiquePipeline.js';
+import { findPrimaryAnchorSupportLine } from './critiqueGrounding.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 
@@ -33,9 +34,12 @@ function nextLevel(level: RatingLevelLabel): RatingLevelLabel | null {
 function summarizeAnchor(
   entry: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): { areaSummary: string; evidencePointer: string; region: { x: number; y: number; width: number; height: number } } {
+  const primarySupportLine =
+    findPrimaryAnchorSupportLine(entry.anchor, entry.visibleEvidence)?.line ??
+    entry.visibleEvidence[0];
   return {
     areaSummary: entry.anchor,
-    evidencePointer: entry.visibleEvidence[0] ?? entry.strengthRead,
+    evidencePointer: primarySupportLine ?? entry.strengthRead,
     region: { x: 0.2, y: 0.2, width: 0.35, height: 0.35 },
   };
 }

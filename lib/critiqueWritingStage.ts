@@ -21,6 +21,7 @@ import {
   anchorSchema,
   editPlanSchema,
   studioChangeSchema,
+  type ObservationBank,
   type VoiceAStageResult,
   type VoiceBStageResult,
   voiceBCanonicalPlanSchema,
@@ -36,7 +37,12 @@ import {
   validateVoiceAStageOutput,
   validateVoiceBStageOutput,
 } from './critiqueValidation.js';
-import { sharesConcreteLanguage, tracesToVisibleEvidence } from './critiqueGrounding.js';
+import {
+  findPrimaryAnchorSupportLine,
+  sharesConcreteLanguage,
+  tracesToPrimarySupportLine,
+  tracesToVisibleEvidence,
+} from './critiqueGrounding.js';
 import { getCriterionExemplarBlock } from './criterionExemplars.js';
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
 import {
@@ -97,6 +103,7 @@ function buildVoiceAPrompt(
   style: string,
   medium: string,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   calibration?: CritiqueCalibrationDTO
 ): string {
   const capBlock = formatCalibrationCaps(calibration);
@@ -126,6 +133,7 @@ ${completionToneBlock(evidence)}
 
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
+- Use the supplied observation bank as the shared passage map behind that evidence JSON.
 - Do not invent visible claims that are not supported by the evidence.
 ${phaseVoiceAWorkflowRules()}
 - Judge the painting on its own terms.
@@ -134,6 +142,7 @@ ${phaseVoiceAWorkflowRules()}
 - If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
 - Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
 - The evidence JSON gives each criterion a concrete anchor passage. Stay traceable to that anchor and the listed visibleEvidence lines; do not drift to a different part of the painting.
+- Reuse the carrier passages and visible events from the observation bank when they fit; do not invent a fresh mini-scene for each criterion when the shared observation bank already names the passage.
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
 - Non-redundancy: categories[].phase1.visualInventory must stay objective and distinct from categories[].phase2.criticsAnalysis. categories[].phase2.criticsAnalysis must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate the phase2 text verbatim.
@@ -156,6 +165,7 @@ export function buildWritingPrompt(
   style: string,
   medium: string,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   calibration?: CritiqueCalibrationDTO
 ): string {
   const benchmarks = isStyleKey(style)
@@ -178,6 +188,7 @@ Your job in this stage:
 - Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis.
 ${phaseVoiceBWorkflowRules()}
 - For each criterion, the evidence JSON already gives you one concrete anchor passage. Stay with that same visible passage. Output ONE shared anchored passage in categories[].anchor and ONE canonical teaching plan in categories[].plan. The prose, overlay region, and any derived AI edit fields must all point to that same visible passage.
+- Reuse the carrier passages and visible events from the observation bank when they fit; do not invent a nearby substitute passage once the shared observation bank has already identified a stronger carrier.
 
 Full criterion rubric for this declared style (use it actively when deciding each band):
 ${rubricBlock}
@@ -186,6 +197,7 @@ ${completionToneBlock(evidence)}
 
 Rules:
 - Use ONLY the supplied evidence JSON as your factual base.
+- Use the supplied observation bank as the shared passage map behind that evidence JSON.
 - Use the supplied Voice A JSON as the fixed diagnosis and rating context.
 - Do not invent visible claims that are not supported by the evidence.
 - Ratings must stay honest to the declared style and medium. Treat style and medium as calibration tools, not decoration.
@@ -416,6 +428,15 @@ function summaryEvidenceForCriterion(
   return match;
 }
 
+function primarySupportLineForCriterion(
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
+): string | undefined {
+  return (
+    findPrimaryAnchorSupportLine(criterionEvidence.anchor, criterionEvidence.visibleEvidence)?.line ??
+    criterionEvidence.visibleEvidence[0]
+  );
+}
+
 function ensureTerminalPunctuation(text: string): string {
   const trimmed = text.replace(/\s+/g, ' ').trim();
   if (!trimmed) return '';
@@ -550,19 +571,20 @@ function groundedVoiceBCurrentRead(
   category: VoiceBCategoryResult,
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): string {
+  const primarySupportLine = primarySupportLineForCriterion(criterionEvidence);
   const candidates = [
+    primarySupportLine,
     category.plan.currentRead,
     category.actionPlanSteps?.[0]?.currentRead,
     category.voiceBPlan?.currentRead,
     category.anchor.evidencePointer,
     category.editPlan?.issue,
-    criterionEvidence.visibleEvidence[0],
     criterionEvidence.strengthRead,
   ];
   return (
     candidates.find(
       (candidate): candidate is string =>
-        typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
+        typeof candidate === 'string' && tracesToPrimarySupportLine(candidate, criterionEvidence)
     ) ?? category.plan.currentRead
   );
 }
@@ -571,20 +593,21 @@ function groundedAnchorEvidencePointer(
   category: VoiceBCategoryResult,
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): string {
+  const primarySupportLine = primarySupportLineForCriterion(criterionEvidence);
   const candidates = [
+    primarySupportLine,
     category.anchor.evidencePointer,
     category.plan.currentRead,
     category.actionPlanSteps?.[0]?.currentRead,
     category.voiceBPlan?.currentRead,
     category.editPlan?.issue,
-    criterionEvidence.visibleEvidence[0],
     criterionEvidence.strengthRead,
   ];
   return (
     candidates.find(
       (candidate): candidate is string =>
-        typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
-    ) ?? criterionEvidence.visibleEvidence[0] ?? category.anchor.evidencePointer
+        typeof candidate === 'string' && tracesToPrimarySupportLine(candidate, criterionEvidence)
+    ) ?? primarySupportLine ?? category.anchor.evidencePointer
   );
 }
 
@@ -593,19 +616,20 @@ function groundedVoiceBIssue(
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): string {
   const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
+  const primarySupportLine = primarySupportLineForCriterion(criterionEvidence);
   const candidates = [
+    primarySupportLine,
     category.plan.currentRead,
     category.editPlan?.issue,
     groundedCurrentRead,
     category.voiceBPlan?.currentRead,
     category.anchor.evidencePointer,
-    criterionEvidence.visibleEvidence[0],
     criterionEvidence.strengthRead,
   ];
   return (
     candidates.find(
       (candidate): candidate is string =>
-        typeof candidate === 'string' && tracesToVisibleEvidence(candidate, criterionEvidence)
+        typeof candidate === 'string' && tracesToPrimarySupportLine(candidate, criterionEvidence)
     ) ?? groundedCurrentRead
   );
 }
@@ -1174,8 +1198,12 @@ const VOICE_B_SUMMARY_OPENAI_SCHEMA = toOpenAIJsonSchema(
   voiceBSummaryPassSchema
 );
 
-function buildVoiceAUserPrompt(evidence: CritiqueEvidenceDTO, repairNote?: string): string {
-  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\n${buildVoiceASchemaInstruction()}`;
+function buildVoiceAUserPrompt(
+  evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
+  repairNote?: string
+): string {
+  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nShared observation bank behind that evidence:\n${JSON.stringify(observationBank)}\n\n${buildVoiceASchemaInstruction()}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -1184,12 +1212,13 @@ function buildVoiceBCategoryPassPrompt(
   style: string,
   medium: string,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   voiceA: VoiceAStageResult,
   criteria: readonly CriterionLabel[],
   calibration?: CritiqueCalibrationDTO
 ): string {
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  return `${buildWritingPrompt(style, medium, evidence, calibration)}
+  return `${buildWritingPrompt(style, medium, evidence, observationBank, calibration)}
 
 This Voice B pass is limited to these criteria only, in this exact order:
 ${criterionList}
@@ -1208,6 +1237,7 @@ Do NOT return overallSummary or studioChanges in this pass. Those are handled se
 
 function buildVoiceBCategoryPassUserPrompt(
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   voiceA: VoiceAStageResult,
   criteria: readonly CriterionLabel[],
   repairNote?: string
@@ -1215,7 +1245,7 @@ function buildVoiceBCategoryPassUserPrompt(
   const filteredEvidence = filterEvidenceForCriteria(evidence, criteria);
   const filteredVoiceA = filterVoiceAForCriteria(voiceA, criteria);
   const criterionList = criteria.map((criterion) => `- ${criterion}`).join('\n');
-  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].plan.currentRead must restate the same concrete visible fact as categories[].anchor.evidencePointer for that passage, not a more abstract summary.\n- categories[].plan.move and categories[].plan.expectedRead must stay limited to that same anchored passage.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
+  const base = `Use this evidence JSON as your only factual base for the listed criteria:\n${JSON.stringify(filteredEvidence)}\n\nShared observation bank behind that evidence:\n${JSON.stringify(observationBank)}\n\nVoice A judgment JSON (fixed diagnosis/rating context) for those same criteria:\n${JSON.stringify(filteredVoiceA)}\n\n${buildVoiceBSchemaInstruction()}\n\nThese level-locked rules are mandatory:\n${buildVoiceBLevelRuleBlock(voiceA, criteria)}\n\nThese anchor alignment rules are mandatory:\n- categories[].anchor.areaSummary is the canonical label for the chosen passage.\n- categories[].plan.currentRead must restate the same concrete visible fact as categories[].anchor.evidencePointer for that passage, not a more abstract summary.\n- categories[].plan.move and categories[].plan.expectedRead must stay limited to that same anchored passage.\n\nReturn ONLY categories for these criteria, in this exact order:\n${criterionList}`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -1224,9 +1254,10 @@ function buildVoiceBSummaryPassPrompt(
   style: string,
   medium: string,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   calibration?: CritiqueCalibrationDTO
 ): string {
-  return `${buildWritingPrompt(style, medium, evidence, calibration)}
+  return `${buildWritingPrompt(style, medium, evidence, observationBank, calibration)}
 
 This Voice B pass is for cross-criterion synthesis only.
 Return ONLY overallSummary.topPriorities and studioChanges.
@@ -1235,11 +1266,12 @@ Do NOT return categories in this pass. The per-criterion Voice B category plans 
 
 function buildVoiceBSummaryPassUserPrompt(
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   voiceA: VoiceAStageResult,
   categories: readonly VoiceBCategoryResult[],
   repairNote?: string
 ): string {
-  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\nFixed Voice B category plans already generated for this painting:\n${JSON.stringify({ categories })}\n\n${buildVoiceBSchemaInstruction()}\n\nReturn ONLY overallSummary.topPriorities and studioChanges. Base them on the fixed Voice B category plans above; do not invent new category-level moves.`;
+  const base = `Use this evidence JSON as your only factual base:\n${JSON.stringify(evidence)}\n\nShared observation bank behind that evidence:\n${JSON.stringify(observationBank)}\n\nVoice A judgment JSON (fixed diagnosis/rating context):\n${JSON.stringify(voiceA)}\n\nFixed Voice B category plans already generated for this painting:\n${JSON.stringify({ categories })}\n\n${buildVoiceBSchemaInstruction()}\n\nReturn ONLY overallSummary.topPriorities and studioChanges. Base them on the fixed Voice B category plans above; do not invent new category-level moves.`;
   if (!repairNote) return base;
   return `${base}\n\nCorrection required on retry:\n${repairNote}`;
 }
@@ -1387,6 +1419,7 @@ export async function runCritiqueVoiceAStage(
   style: string,
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   calibration?: CritiqueCalibrationDTO
 ): Promise<VoiceAStageResult> {
   let repairNote: string | undefined;
@@ -1397,8 +1430,8 @@ export async function runCritiqueVoiceAStage(
       const raw = await runSchemaStage(
         apiKey,
         model,
-        buildVoiceAPrompt(style, body.medium, evidence, calibration),
-        buildVoiceAUserPrompt(evidence, repairNote),
+        buildVoiceAPrompt(style, body.medium, evidence, observationBank, calibration),
+        buildVoiceAUserPrompt(evidence, observationBank, repairNote),
         VOICE_A_OPENAI_SCHEMA
       );
       const parsed = voiceAStageResultSchema.safeParse(raw);
@@ -1449,6 +1482,7 @@ export async function runCritiqueVoiceBStage(
   style: string,
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   voiceA: VoiceAStageResult,
   calibration?: CritiqueCalibrationDTO
 ): Promise<VoiceBStageResult> {
@@ -1470,8 +1504,8 @@ export async function runCritiqueVoiceBStage(
           await runSchemaStage(
           apiKey,
           model,
-          buildVoiceBCategoryPassPrompt(style, body.medium, evidence, voiceA, criteria, calibration),
-          buildVoiceBCategoryPassUserPrompt(evidence, voiceA, criteria, repairNote),
+          buildVoiceBCategoryPassPrompt(style, body.medium, evidence, observationBank, voiceA, criteria, calibration),
+          buildVoiceBCategoryPassUserPrompt(evidence, observationBank, voiceA, criteria, repairNote),
           batchOpenAiSchema,
           VOICE_B_MAX_TOKENS
           )
@@ -1549,8 +1583,8 @@ export async function runCritiqueVoiceBStage(
       const raw = await runSchemaStage(
         apiKey,
         model,
-        buildVoiceBSummaryPassPrompt(style, body.medium, evidence, calibration),
-        buildVoiceBSummaryPassUserPrompt(evidence, voiceA, orderedCategories, summaryRepairNote),
+        buildVoiceBSummaryPassPrompt(style, body.medium, evidence, observationBank, calibration),
+        buildVoiceBSummaryPassUserPrompt(evidence, observationBank, voiceA, orderedCategories, summaryRepairNote),
         VOICE_B_SUMMARY_OPENAI_SCHEMA,
         VOICE_B_MAX_TOKENS
       );
@@ -1677,14 +1711,15 @@ export async function runCritiqueWritingStage(
   style: string,
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
   calibration?: CritiqueCalibrationDTO,
   instrumenter: CritiqueInstrumenter = noopCritiqueInstrumenter
 ): Promise<CritiqueResultDTO> {
   const voiceA = await instrumenter.time('writing_voice_a', () =>
-    runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, calibration)
+    runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
   );
   const voiceB = await instrumenter.time('writing_voice_b', () =>
-    runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, voiceA, calibration)
+    runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceA, calibration)
   );
   const merged = mergeVoiceStages(voiceA, voiceB);
   const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);

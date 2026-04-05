@@ -257,6 +257,47 @@ const photoQualityReadSchema = z.object({
   issues: z.array(z.string()).min(0).max(4),
 });
 
+const observationPassageSchema = z.object({
+  label: z.string().min(10).describe(
+    'One locatable visible passage in the painting, written as a physical carrier phrase such as "the jaw edge against the dark collar" or "the reflection crossing the harbor water".'
+  ),
+  role: z.enum(['structure', 'value', 'color', 'edge', 'surface', 'intent', 'presence']).describe(
+    'What kind of visual carrier this passage most strongly serves.'
+  ),
+  visibleFacts: z.array(z.string().min(16)).min(2).max(4).describe(
+    '2-4 concrete, visible facts about this same passage only.'
+  ),
+});
+
+const observationEventSchema = z.object({
+  passage: z.string().min(10).describe(
+    'The passage label this event belongs to.'
+  ),
+  event: z.string().min(16).describe(
+    'One visible event in that passage, written in event-first language.'
+  ),
+  signalType: z.enum(['shape', 'value', 'color', 'edge', 'space', 'surface']).describe(
+    'Primary visual signal this event belongs to.'
+  ),
+});
+
+const observationCarrierSchema = z.object({
+  passage: z.string().min(10).describe(
+    'One physical carrier passage for intent or presence.'
+  ),
+  reason: z.string().min(16).describe(
+    'Why this passage seems to carry intent or presence, still grounded in visible form.'
+  ),
+});
+
+export const observationBankSchema = z.object({
+  passages: z.array(observationPassageSchema).min(5).max(12),
+  visibleEvents: z.array(observationEventSchema).min(8).max(20),
+  mediumCues: z.array(z.string().min(12)).min(2).max(6),
+  photoCaveats: z.array(z.string().min(8)).min(0).max(4),
+  intentCarriers: z.array(observationCarrierSchema).min(1).max(4),
+});
+
 const criterionEvidenceSchema = z.object({
   criterion: criterionEnum,
   anchor: z.string().min(12).describe(
@@ -321,6 +362,11 @@ export const EVIDENCE_OPENAI_SCHEMA = toOpenAIJsonSchema(
   evidenceStageResultSchema
 );
 
+export const OBSERVATION_BANK_OPENAI_SCHEMA = toOpenAIJsonSchema(
+  'painting_critique_observation_bank',
+  observationBankSchema
+);
+
 // ---------------------------------------------------------------------------
 // Inferred TypeScript types
 // ---------------------------------------------------------------------------
@@ -328,6 +374,7 @@ export const EVIDENCE_OPENAI_SCHEMA = toOpenAIJsonSchema(
 export type VoiceAStageResult = z.infer<typeof voiceAStageResultSchema>;
 export type VoiceBStageResult = z.infer<typeof voiceBStageResultSchema>;
 export type EvidenceStageResult = z.infer<typeof evidenceStageResultSchema>;
+export type ObservationBank = z.infer<typeof observationBankSchema>;
 
 export type VoiceBPlanZ = z.infer<typeof voiceBPlanSchema>;
 export type VoiceBStepZ = z.infer<typeof voiceBStepSchema>;

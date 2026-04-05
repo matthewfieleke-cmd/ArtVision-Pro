@@ -11,6 +11,16 @@ export type GroundingEvidence = {
   visibleEvidence: string[];
 };
 
+export type AnchorSupportMatch = {
+  line: string;
+  score: number;
+  exactSharedTokens: string[];
+  comparableSharedTokens: string[];
+  containsAnchorText: boolean;
+  hasRelationCue: boolean;
+  hasVisibleEventCue: boolean;
+};
+
 function normalizeForComparison(text: string): string {
   return normalizeWhitespace(text).toLowerCase().replace(/[^\w\s]/g, ' ');
 }
@@ -28,6 +38,11 @@ export function groundingContentTokens(text: string): string[] {
 function sharedTokenCount(a: string, b: string): number {
   const bTokens = new Set(groundingContentTokens(b));
   return groundingContentTokens(a).filter((token) => bTokens.has(token)).length;
+}
+
+function sharedGroundingTokens(a: string, b: string): string[] {
+  const bTokens = new Set(groundingContentTokens(b));
+  return groundingContentTokens(a).filter((token) => bTokens.has(token));
 }
 
 function minimumRequiredTokens(text: string): number {
@@ -141,10 +156,60 @@ function comparableGroundingTokens(text: string): string[] {
   );
 }
 
+function sharedComparableGroundingTokens(a: string, b: string): string[] {
+  const bTokens = new Set(comparableGroundingTokens(b));
+  return comparableGroundingTokens(a).filter((token) => bTokens.has(token));
+}
+
 function normalizedContains(haystack: string, needle: string): boolean {
   const h = normalizeWhitespace(haystack).toLowerCase();
   const n = normalizeWhitespace(needle).toLowerCase();
   return n.length > 0 && h.includes(n);
+}
+
+const GROUNDING_RELATION_CUE_PATTERN =
+  /\b(against|between|beside|under|over|above|below|behind|before|after|near|where|meets?|meeting|along|across|through|into|toward|around|inside|outside|beneath|within|with|than)\b/i;
+const GROUNDING_VISIBLE_EVENT_PATTERN =
+  /\b(narrows?|widens?|cuts?|leaves?|stacks?|overlaps?|aligns?|tilts?|bends?|passes?|stays?|sits?|breaks?|turns?|meets?|crosses?|repeats?|rises?|drops?|lands?|compresses?|leans?|holds?|separates?|contrasts?|opens?|closes?|curves?|echoes?|frames?|interrupts?|follows?|bridges?|steps?|pulls?)\b/i;
+
+export function hasVisibleEventLanguage(text: string): boolean {
+  return GROUNDING_VISIBLE_EVENT_PATTERN.test(normalizeWhitespace(text));
+}
+
+function evaluateAnchorSupportLine(anchor: string, line: string): AnchorSupportMatch | undefined {
+  const normalizedAnchor = normalizeWhitespace(anchor);
+  const normalizedLine = normalizeWhitespace(line);
+  if (!normalizedAnchor || !normalizedLine) return undefined;
+
+  const exactSharedTokens = sharedGroundingTokens(normalizedAnchor, normalizedLine);
+  const comparableSharedTokens = sharedComparableGroundingTokens(normalizedAnchor, normalizedLine);
+  const containsAnchorText = normalizedContains(normalizedLine, normalizedAnchor);
+  const hasRelationCue = GROUNDING_RELATION_CUE_PATTERN.test(normalizedLine);
+  const hasVisibleEventCue = hasVisibleEventLanguage(normalizedLine);
+  const anchorHasRelationCue = GROUNDING_RELATION_CUE_PATTERN.test(normalizedAnchor);
+
+  const hasMinimumTokenSupport =
+    comparableSharedTokens.length >= 2 && (exactSharedTokens.length >= 1 || containsAnchorText);
+  const hasPassageLanguage = containsAnchorText || hasRelationCue || hasVisibleEventCue;
+  if (!hasMinimumTokenSupport || !hasPassageLanguage) return undefined;
+  if (anchorHasRelationCue && !containsAnchorText && !hasRelationCue) return undefined;
+
+  const score =
+    comparableSharedTokens.length * 5 +
+    exactSharedTokens.length * 7 +
+    (containsAnchorText ? 12 : 0) +
+    (hasRelationCue ? 2 : 0) +
+    (hasVisibleEventCue ? 3 : 0);
+
+  return {
+    line: normalizedLine,
+    score,
+    exactSharedTokens,
+    comparableSharedTokens,
+    containsAnchorText,
+    hasRelationCue,
+    hasVisibleEventCue,
+  };
 }
 
 export function sharesConcreteLanguage(a: string, b: string, minimum: number = 2): boolean {
@@ -153,24 +218,29 @@ export function sharesConcreteLanguage(a: string, b: string, minimum: number = 2
 }
 
 export function anchorSupportedByEvidenceLine(anchor: string, line: string): boolean {
-  if (sharesConcreteLanguage(anchor, line, 2)) return true;
-  const anchorTokens = comparableGroundingTokens(anchor);
-  const lineTokenSet = new Set(comparableGroundingTokens(line));
-  return anchorTokens.filter((token) => lineTokenSet.has(token)).length >= 2;
+  return Boolean(evaluateAnchorSupportLine(anchor, line));
+}
+
+export function findPrimaryAnchorSupportLine(
+  anchor: string,
+  lines: string[]
+): AnchorSupportMatch | undefined {
+  const candidates = lines
+    .map((line) => evaluateAnchorSupportLine(anchor, line))
+    .filter((match): match is AnchorSupportMatch => Boolean(match));
+
+  return candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.containsAnchorText !== a.containsAnchorText) return Number(b.containsAnchorText) - Number(a.containsAnchorText);
+    if (b.exactSharedTokens.length !== a.exactSharedTokens.length) {
+      return b.exactSharedTokens.length - a.exactSharedTokens.length;
+    }
+    return b.comparableSharedTokens.length - a.comparableSharedTokens.length;
+  })[0];
 }
 
 export function anchorSupportedByEvidenceLines(anchor: string, lines: string[]): boolean {
-  if (lines.some((line) => anchorSupportedByEvidenceLine(anchor, line))) return true;
-  const anchorTokens = comparableGroundingTokens(anchor);
-  const aggregateTokenSet = new Set(lines.flatMap((line) => comparableGroundingTokens(line)));
-  const sharedTokens = anchorTokens.filter((token) => aggregateTokenSet.has(token));
-  if (sharedTokens.length >= 2) return true;
-
-  const anchorHasHumanCarrier = anchorTokens.some((token) => HUMAN_CARRIER_TOKENS.has(token));
-  const aggregateHasHumanCarrier = Array.from(aggregateTokenSet).some((token) => HUMAN_CARRIER_TOKENS.has(token));
-  const sharedNonHumanTokens = sharedTokens.filter((token) => !HUMAN_CARRIER_TOKENS.has(token));
-
-  return anchorHasHumanCarrier && aggregateHasHumanCarrier && sharedNonHumanTokens.length >= 1;
+  return Boolean(findPrimaryAnchorSupportLine(anchor, lines));
 }
 
 export function tokenOverlapRatio(a: string, b: string): number {
@@ -239,6 +309,18 @@ export function tracesToVisibleEvidence(
   if (hasAnchorReference(text, evidence.anchor, '', mode)) return true;
   const minimum = mode === 'strictAudit' ? 2 : 2;
   return evidence.visibleEvidence.some((line) => sharesConcreteLanguage(text, line, minimum));
+}
+
+export function tracesToPrimarySupportLine(
+  text: string,
+  evidence: GroundingEvidence,
+  mode: GroundingMode = 'pass'
+): boolean {
+  if (!normalizeWhitespace(text)) return false;
+  const primarySupport = findPrimaryAnchorSupportLine(evidence.anchor, evidence.visibleEvidence)?.line ?? '';
+  if (hasAnchorReference(text, evidence.anchor, primarySupport, mode)) return true;
+  if (!primarySupport) return false;
+  return sharesConcreteLanguage(text, primarySupport, 2);
 }
 
 export function tracesShortEvidenceSignal(

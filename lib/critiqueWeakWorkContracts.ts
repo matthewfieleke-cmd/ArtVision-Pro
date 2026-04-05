@@ -10,52 +10,69 @@ export type WeakWorkEvidenceFamily =
   | 'conceptualAnchor';
 
 const TOP_LEVEL_FLATTERING_PATTERN =
-  /\b(whimsical charm|whimsical tranquility|idyllic rural life|idyllic world|lively atmosphere|peaceful.*scene|momentary impression|monet'?s garden scenes?|monet|morisot|pissarro)\b/i;
+  /\b(whimsical charm|whimsical tranquility|idyllic rural life|idyllic world|lively atmosphere|peaceful.*scene|momentary impression|masterful|museum[- ]grade|monet|morisot|pissarro|degas|courbet|kandinsky|malevich|mondrian)\b/i;
 
-// Visible-language allowance needs to cover more than novice garden scenes so
-// masterworks with concrete nouns like "sun", "boats", or "harbor" are not
-// rejected as abstract praise.
-const TOP_LEVEL_NEUTRAL_PATTERN =
-  /\b(path|house|roof|flower|flowers|sky|wash|edge|edges|shadow|fence|tree|trees|garden|foreground|background|color|palette|value|watercolor|sun|boat|boats|harbor|shore|water|reflection|reflections|building|buildings|figure|figures|face|head|chair|wall|window|square|band|bands|line|lines|silhouette|cloud|clouds|smoke|sleeve|collar|canvas|ground|brushwork|brushstrokes?|strokes?|blending|ripples?)\b/i;
+const TOP_LEVEL_GENERIC_SUMMARY_PATTERN =
+  /\b(overall scene|overall composition|overall image|holds together|feels unified|feels calm|feels harmonious|pleasant|atmosphere|mood|approach|style|readable way|impressionistic landscape approach|expressionistic approach|abstract approach)\b/i;
+
+const TOP_LEVEL_VISUAL_PROPERTY_PATTERN =
+  /\b(edge|edges|brushwork|brushstrokes?|stroke|strokes|mark|marks|wash|washes|palette|value|values|light|lights|shadow|shadows|surface|surfaces|shape|shapes|silhouette|silhouettes|contour|contours|reflection|reflections|band|bands|line|lines|plane|planes|interval|intervals|temperature|chroma|hatching|scumble|glaze|drag|reserve)\b/i;
+
+const TOP_LEVEL_RELATION_OR_EVENT_PATTERN =
+  /\b(against|between|across|under|over|above|below|behind|beside|around|through|toward|where(?:\s+\w+){0,3}\s+meets?|meets?|cross(?:es|ing)?|lead(?:s|ing)?|narrow(?:s|ing)?|widen(?:s|ing)?|bend(?:s|ing)?|cut(?:s|ting)?|overlap(?:s|ping)?|separate(?:s|ing)?)\b/i;
 
 const GENERIC_EVIDENCE_ACTION_PATTERN =
   /\b(creates?|shows?|features?|suggests?|conveys?|adds?|enhances?|emphasizes?|implies?|provides?)\b/i;
 
 const GENERIC_EVIDENCE_CONCRETE_PATTERN =
-  /\b(edge|stroke|mark|ridge|gap|band|corner|peak|silhouette|reflection|shadow|highlight|contour)\b/i;
+  /\b(edge|stroke|mark|ridge|gap|band|corner|peak|silhouette|reflection|shadow|highlight|contour|plane|shape|interval|junction|boundary|surface|wash|drag|scumble|hatch|hatching)\b/i;
 
 const GENERIC_EVIDENCE_RELATION_PATTERN =
-  /\b(against|between|where|meets?|overlap|alongside|next to|adjacent|cuts across|turns into|beside|behind|below|above|under|across|along|in front of)\b/i;
+  /\b(against|between|where(?:\s+\w+){0,3}\s+meets?|meets?|overlap|alongside|next to|adjacent|cuts across|turns into|beside|behind|below|above|under|across|along|in front of|through|toward|around)\b/i;
 
 const GENERIC_EVIDENCE_ABSTRACT_OUTCOME_PATTERN =
   /\b(focal point|atmosphere|story|narrative|balance|mood|depth|dimension|movement|energy)\b/i;
 
 const GENERIC_EVIDENCE_STRUCTURAL_VERB_PATTERN =
-  /\b(break|shift|overlap|drag|turn|cut|touch|repeat|separate|merge)\b/i;
+  /\b(break|shift|overlap|drag|turn|cut|touch|repeat|separate|merge|align|stack|widen|narrow|tilt|lean|step|bridge)\b/i;
 
 const GENERIC_EVIDENCE_VISIBLE_EVENT_PATTERN =
-  /\b(narrows?|widens?|bends?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|stays?|lighter|darker|warmer|cooler|softer|harder|sharper|thinner|wider|smaller|larger)\b/i;
+  /\b(narrows?|widens?|bends?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|stays?|lighter|darker|warmer|cooler|softer|harder|sharper|thinner|wider|smaller|larger|leans?|compress(?:es|ing)?|frames?|bridges?)\b/i;
 
 const GENERIC_EVIDENCE_INTERPRETIVE_EFFECT_PATTERN =
   /\b(directional flow|guides? the eye|guides? attention|draws? the eye|draws? attention|emphasiz(?:es?|ing) (?:its|their|the) importance|importance\b|prominence\b|creates? presence|gives? presence|creates? atmosphere|gives? atmosphere|emotional center|social focus|sense of arrival)\b/i;
 
 const COMPOSITION_GENERIC_PATTERN =
-  /\b(dynamic tension|balanced composition|stable composition|guides? the viewer'?s eye|leads? the eye|framing|frame the path|sense of depth|adds interest|focal point|balance|balances?|balanced|symmetry|symmetrical|rhythm|counterbalance|counterbalances?)\b/i;
-
-const COMPOSITION_CONCRETE_PATTERN =
-  /\b(path bend|path|roof edge|roofline|rooflines|gable|gables|eave|eaves|fence post|fence line|flower patch|house shadow|house|houses|door|doors|doorway|doorways|window strip|window stack|window stacks|window|windows|chair back|chair bars?|figure|figures|sitter|shoulder|head|silhouette|bottle|pump|cap|neck|shoulder line|base|label|slat|bar|strip|line|lines|division|divisions|gap|gaps|band|bands|corner|corners|overlap|junction|edge|edges|shape|shapes|scaffold|under|against|between|cuts across|boat|boats|reflection|horizon|mast|masts|ripples?|water|sky|harbor|shore|foreground|background|vertical|horizontal|table|tables|umbrella|umbrellas|arch|arches|building|facade)\b/i;
+  /\b(dynamic tension|balanced composition|stable composition|guides? the viewer'?s eye|leads? the eye|framing|sense of depth|adds interest|focal point|balance|balances?|balanced|symmetry|symmetrical|rhythm|counterbalance|counterbalances?|strong structure|organized composition)\b/i;
 
 const COMPOSITION_EVENT_PATTERN =
-  /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|positioned|placed)\b/i;
+  /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|leans?|bridges?|frames?)\b/i;
+
+const COMPOSITION_RELATION_PATTERN =
+  /\b(against|between|where(?:\s+\w+){0,3}\s+meets?|meets?|under|across|above|below|behind|beside|around|through|toward|than)\b/i;
 
 const CONCEPTUAL_GENERIC_PATTERN =
-  /\b(journey|inviting|welcome|welcoming|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|festive|celebration|holiday|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch|movement|motion|speed|urgency|momentum|drama|dramatic energy|expression|personality|emotion|attitude)\b/i;
+  /\b(journey|inviting|welcome|welcoming|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|festive|celebration|holiday|cheerful|sense of time|exploration|viewer engagement|playful intent|movement|motion|speed|urgency|momentum|drama|dramatic energy|expression|personality|emotion|attitude|power|presence|energy|dominant presence)\b/i;
 
 const CONCEPTUAL_VISUAL_RELATION_PATTERN =
-  /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|on|in|with|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?\s+into|overlap(?:s|ping)?)\b/i;
+  /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?(?:\s+into)?|overlap(?:s|ping)?)\b/i;
 
 const CONCEPTUAL_STRONG_VISUAL_RELATION_PATTERN =
-  /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?\s+into|overlap(?:s|ping)?)\b/i;
+  /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?(?:\s+into)?|overlap(?:s|ping)?)\b/i;
+
+const CONCEPTUAL_CARRIER_ALLOW_PATTERN =
+  /\b(physical carrier|visible carrier|passage that (?:carries|keeps|makes))\b/i;
+
+function hasGroundedPassageLanguage(text: string, minimumTokens: number = 3): boolean {
+  const normalized = normalizeWeakWorkText(text);
+  if (!normalized) return false;
+  const tokenCount = groundingContentTokens(normalized).length;
+  const hasCarrierCue =
+    GENERIC_EVIDENCE_RELATION_PATTERN.test(normalized) ||
+    GENERIC_EVIDENCE_CONCRETE_PATTERN.test(normalized) ||
+    /\b(left|right|upper|lower|top|bottom|center|foreground|background)\b/i.test(normalized);
+  return tokenCount >= minimumTokens && hasCarrierCue;
+}
 
 export function isConceptualCriterion(criterion: CriterionLabel): boolean {
   return (
@@ -71,11 +88,11 @@ export function normalizeWeakWorkText(text: string): string {
 export function hasWeakWorkGenericEvidenceLine(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return true;
-  const lacksJunctionLanguage = !GENERIC_EVIDENCE_RELATION_PATTERN.test(normalized);
+  const lacksJunctionLanguage = !hasGroundedPassageLanguage(normalized);
   const lacksVisibleEvent = !GENERIC_EVIDENCE_VISIBLE_EVENT_PATTERN.test(normalized);
   const genericSummary =
     GENERIC_EVIDENCE_ACTION_PATTERN.test(normalized) &&
-    !GENERIC_EVIDENCE_CONCRETE_PATTERN.test(normalized);
+    !hasGroundedPassageLanguage(normalized);
   const abstractOutcome =
     GENERIC_EVIDENCE_ABSTRACT_OUTCOME_PATTERN.test(normalized) &&
     !GENERIC_EVIDENCE_STRUCTURAL_VERB_PATTERN.test(normalized) &&
@@ -89,9 +106,10 @@ export function hasWeakWorkGenericEvidenceLine(text: string): boolean {
 export function hasWeakCompositionGenericText(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return true;
-  const lacksConcreteStructure = !COMPOSITION_CONCRETE_PATTERN.test(normalized);
+  const lacksConcreteStructure = !hasGroundedPassageLanguage(normalized);
   const lacksStructuralEvent = !COMPOSITION_EVENT_PATTERN.test(normalized);
-  return lacksConcreteStructure || lacksStructuralEvent;
+  const stockVerdict = COMPOSITION_GENERIC_PATTERN.test(normalized) && lacksStructuralEvent;
+  return lacksConcreteStructure || lacksStructuralEvent || stockVerdict || !COMPOSITION_RELATION_PATTERN.test(normalized);
 }
 
 export function hasFlatteringWeakWorkTopLevelText(text: string): boolean {
@@ -103,7 +121,15 @@ export function hasFlatteringWeakWorkTopLevelText(text: string): boolean {
 export function hasNeutralWeakWorkTopLevelText(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return false;
-  return TOP_LEVEL_NEUTRAL_PATTERN.test(normalized);
+  if (TOP_LEVEL_FLATTERING_PATTERN.test(normalized)) return false;
+  const tokenCount = groundingContentTokens(normalized).length;
+  const hasVisualSpecificity =
+    TOP_LEVEL_VISUAL_PROPERTY_PATTERN.test(normalized) ||
+    TOP_LEVEL_RELATION_OR_EVENT_PATTERN.test(normalized) ||
+    /\baround\b.+,/.test(normalized);
+  const genericSummaryOnly =
+    TOP_LEVEL_GENERIC_SUMMARY_PATTERN.test(normalized) && !hasVisualSpecificity;
+  return tokenCount >= 4 && hasVisualSpecificity && !genericSummaryOnly;
 }
 
 export function neutralizeWeakWorkComparisonObservation(text: string): string {
@@ -120,7 +146,7 @@ export function neutralizeWeakWorkComparisonObservation(text: string): string {
 export function hasSpecificConceptualCarrierAnchor(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return false;
-  return groundingContentTokens(normalized).length >= 2 && CONCEPTUAL_VISUAL_RELATION_PATTERN.test(normalized);
+  return groundingContentTokens(normalized).length >= 2 && /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|on|in|with|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?(?:\s+into)?|overlap(?:s|ping)?)\b/i.test(normalized);
 }
 
 export function hasWeakConceptualGenericText(text: string): boolean {
@@ -128,8 +154,9 @@ export function hasWeakConceptualGenericText(text: string): boolean {
   if (!normalized) return true;
   const hasVisualCarrierCue =
     groundingContentTokens(normalized).length >= 2 &&
-    CONCEPTUAL_STRONG_VISUAL_RELATION_PATTERN.test(normalized);
-  return CONCEPTUAL_GENERIC_PATTERN.test(normalized) && !hasVisualCarrierCue;
+    /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|on|in|with|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?(?:\s+into)?|overlap(?:s|ping)?)\b/i.test(normalized);
+  const usesCarrierInterpretationGrammar = CONCEPTUAL_CARRIER_ALLOW_PATTERN.test(normalized);
+  return CONCEPTUAL_GENERIC_PATTERN.test(normalized) && (!hasVisualCarrierCue || !usesCarrierInterpretationGrammar);
 }
 
 export function hasWeakConceptualEvidenceLine(text: string): boolean {
@@ -151,12 +178,11 @@ export function hasWeakConceptualEvidenceLine(text: string): boolean {
 
 export function weakWorkCompositionGuidance(): string[] {
   return [
-    'For Composition and shape structure on weak work, EACH visibleEvidence line must name a structural passage and a shape event, such as what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts.',
+    'For Composition and shape structure on weak work, EACH visibleEvidence line must name one locatable passage and one shape event, such as what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, tilts, or separates.',
     'For Composition and shape structure, at least one visibleEvidence line must repeat the anchor nouns and describe what changes on each side of that passage.',
-    'Composition evidence can come from any real shape passage: a path against a flower band, a chair back against a sitter, a window strip beside a head, a train against the ground bands, leaning telegraph poles beside the engine, or a roof edge against a wash.',
-    'Lines like "the trees balance the house", "the fence creates rhythm", or "the roof makes the composition stable" are still too generic unless they also name the exact shape passage and the visible difference being produced there.',
-    'For figure-led or train-led scenes, avoid verdicts like "the figure creates presence", "the pose adds drama", or "the train creates movement". Replace them with event sentences naming the carrier passage, such as what the chair slat cuts off near the shoulder, how the shoulder drops against the pillow, how the engine cuts the ground bands, or how the telegraph poles repeat that diagonal.',
-    'For Composition and shape structure, avoid sentence stems like "creates a strong line", "adds structure", "creates rhythm", or "balances the scene". Replace them with event sentences such as "cuts the sky wash", "separates the garden from the sky", "leaves a wider band on one side", "rises higher than the roof", or "tilts harder than the neighboring pole".',
+    'Composition evidence can come from any real structural carrier: a path against a band, an edge against a field, a vertical against a horizontal, a reflection across water, or a loaded shape under a lighter one.',
+    'Lines like "creates balance", "guides the eye", "adds rhythm", or "makes the composition stable" are still too generic unless they also name the exact passage and the visible difference being produced there.',
+    'For Composition and shape structure, avoid sentence stems like "creates a strong line", "adds structure", "creates rhythm", or "balances the scene". Replace them with event sentences such as "cuts the pale field", "separates one band from another", "leaves a wider gap on one side", or "tilts harder than the neighboring form".',
   ];
 }
 
@@ -164,37 +190,32 @@ export function weakWorkEvidenceGuidance(): string[] {
   return [
     'If the work looks weak, naive, or student-level, become MORE specific, not more charitable.',
     'Top-level evidence fields must stay plain and evidence-led for weak work.',
-    'For weak landscapes, prefer object-pair or junction anchors over scene summaries.',
+    'Choose anchors from pointable passages and junctions, not scene summaries or subject tags.',
     'For Intent and Presence, use a visible carrier relationship instead of mood/story labels.',
     'For conceptual visibleEvidence lines, naming the carrier is not enough; the sentence must also describe a visible event there, such as what narrows, bends, cuts, overlaps, sits below, or stays lighter/darker.',
-    'For Composition on weak landscapes, avoid stock composition praise unless the sentence names the exact structural passage producing the effect.',
+    'For Composition, avoid stock composition praise unless the sentence names the exact structural passage producing the effect.',
     ...weakWorkCompositionGuidance(),
   ];
 }
 
 export function weakWorkCompositionRepairExamples(): string[] {
   return [
-    'For composition evidence, write "the path bend under the red house narrows before the doorway and leaves a wider flower band on the left than on the right."',
-    'For cafe or street scenes, write "the path narrowing into the cafe tables leaves a wider pale ground shape on the left than on the right before it reaches the seated group."',
-    'For cafe or street scenes, write "the nearest building arch lands just behind the cafe tables and repeats their curve higher up the wall."',
-    'For figure or interior work, write "the chair back cuts a tall vertical band between the window strip and the sitter, and the middle slat leaves a smaller gap above the shoulder than the outer edge does."',
-    'For figure-led scenes, write "the dropped shoulder against the pillow leaves a thinner light strip above the collar than along the forearm, so the body tilt reads through one exact passage."',
-    'For train-led scenes, write "the engine cuts diagonally across the flatter ground bands, and the nearest telegraph pole leans with that diagonal so the push stays visible above the track."',
-    'Do not write composition fillers like "the trees balance the house" or "the fence line creates rhythm" by themselves. Rewrite them as concrete events in a specific passage.',
-    'Rewrite "the roof edge creates a strong horizontal line" as "the roof edge cuts the sky wash and leaves a thinner blue strip above the house than above the trees."',
-    'Rewrite "the fence line creates a horizontal division" as "the fence line separates the garden from the sky and leaves a smaller blue band above the roof than above the tree mass."',
+    'For composition evidence, write "the path before the doorway narrows and leaves a wider light band on the left than on the right."',
+    'For composition evidence, write "the vertical edge against the pale field lands just behind the darker shape and leaves a thinner gap above it."',
+    'For composition evidence, write "the reflection cuts through the flatter water bands and leaves a wider dark shape on one side."',
+    'For composition evidence, write "the tilted form across the ground bands leans harder than the neighboring vertical and repeats that push above the horizon."',
+    'Do not write composition fillers like "creates balance", "creates rhythm", or "guides the eye" by themselves. Rewrite them as concrete events in a specific passage.',
+    'Rewrite "the roof edge creates a strong horizontal line" as "the roof edge cuts the pale wash and leaves a thinner strip above the form than beside it."',
+    'Rewrite "the fence line creates a horizontal division" as "the fence line separates one band from the next and leaves a smaller strip above the nearer shape than above the farther one."',
   ];
 }
 
 export function weakWorkRepairExamples(): string[] {
   return [
-    'Use anchors like "the path bend where it meets the house shadow", "the chimney smoke against the blue wash", or "the flower patch where it meets the path edge".',
-    'Rewrite "the path leading to the house creates a directional flow" as "the path leading to the house narrows before the doorway and stays lighter than the flower patch beside it."',
-    'Rewrite "the red door under the lit window creates a welcoming mood" as "the red door under the lit window stays warmer than the snow band around it and sits below the brightest window stack."',
-    'For cafe or street scenes, use anchors like "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables".',
-    'For figure-led scenes, use anchors like "the chair back beside the sitter", "the shoulder edge against the pillow", "the head against the dark wall", or "the forearm across the white sheet".',
-    'For train-led scenes, use anchors like "the engine against the pale sky", "the train across the ground bands", "the smoke trail above the roofline", or "the leaning telegraph poles beside the train".',
-    'Write top-level evidence in plain visual language, e.g. "The painting appears to organize the scene around a path, a small house, and bright flower bands."',
+    'Use anchors like "the path where it meets the doorway", "the vertical edge against the pale field", "the reflection across the water band", or "the loaded rim stroke against the table".',
+    'Rewrite "the path leading inward creates a directional flow" as "the path leading inward narrows before the opening and stays lighter than the band beside it."',
+    'Rewrite "the warm accent creates a welcoming mood" as "the warm accent under the bright opening stays warmer than the surrounding band and sits below the lightest stack."',
+    'Write top-level evidence in plain visual language, e.g. "The painting appears to organize the scene around a narrow path, a bright opening, and a darker band crossing the lower half."',
     'Do not use artist-name comparisons for weak work unless the criterion evidence already proves exceptional control.',
     ...weakWorkCompositionRepairExamples(),
   ];

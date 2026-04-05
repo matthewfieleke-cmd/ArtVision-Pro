@@ -146,6 +146,38 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('a pump head against a bottle neck');
   });
 
+  it('tells unsupported-anchor retries to put the anchor-echo support line first', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: ['Visible evidence does not support anchor for Intent and necessity'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence does not support anchor for Intent and necessity'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Intent and necessity',
+                anchor: 'the path leading to the house',
+                visibleEvidencePreview: [
+                  'The red wall above the doorway stays warmer than the blue wash around it.',
+                  'The flower band below the house opens wider on the left than on the right.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('Make the FIRST visibleEvidence line for each listed criterion that anchor-echo support line.');
+    expect(note).toContain('Nearby passages do NOT count as support just because they share scene tokens');
+    expect(note).toContain('the same line must restate the anchor passage and describe one visible event there');
+  });
+
   it('includes house-scene repair guidance when conceptual retries drift into holiday mood language', () => {
     const error = new CritiqueValidationError('Evidence stage validation failed.', {
       stage: 'evidence',
@@ -206,6 +238,7 @@ describe('buildEvidenceRepairNote', () => {
     const note = buildEvidenceRepairNote(error);
 
     expect(note).toContain('For conceptual visibleEvidence lines, naming the anchor is NOT enough.');
+    expect(note).toContain('make the FIRST visibleEvidence line an anchor-echo support line');
     expect(note).toContain('creates a directional flow');
     expect(note).toContain('rewrite');
     expect(note).toContain('what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what');

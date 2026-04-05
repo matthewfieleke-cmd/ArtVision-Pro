@@ -1,12 +1,17 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
 import { applyCalibrationToCritique } from './critiqueCalibrationStage.js';
-import { buildEvidenceStagePrompt } from './critiqueEvidenceStage.js';
+import { buildEvidenceStagePrompt, buildObservationStagePrompt } from './critiqueEvidenceStage.js';
 import {
   buildHighDetailImageMessage,
   type VisionUserMessagePart,
 } from './openaiVisionContent.js';
-import { EVIDENCE_OPENAI_SCHEMA } from './critiqueZodSchemas.js';
+import {
+  EVIDENCE_OPENAI_SCHEMA,
+  OBSERVATION_BANK_OPENAI_SCHEMA,
+  observationBankSchema,
+  type ObservationBank,
+} from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
 import { validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
@@ -41,6 +46,7 @@ import { composeFallbackCritique } from './critiqueFallback.js';
 import type { CritiquePipelineStageId } from '../shared/critiqueContract.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
+const OBSERVATION_MAX_TOKENS = 2600;
 
 function summarizeRawForLog(raw: unknown): string {
   try {
@@ -236,9 +242,77 @@ function singleAttemptDebugPayload(args: {
 
 type EvidenceStageRunResult = {
   evidence: ReturnType<typeof validateEvidenceResult>;
+  observationBank: ObservationBank;
   failedAttempts: CritiqueDebugInfo[];
   successAttempt: number;
 };
+
+async function runCritiqueObservationStage(
+  apiKey: string,
+  args: {
+    model: string;
+    style: string;
+    medium: string;
+    userContent: VisionUserMessagePart[];
+  }
+): Promise<ObservationBank> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: args.model,
+      temperature: 0.1,
+      max_tokens: OBSERVATION_MAX_TOKENS,
+      response_format: {
+        type: 'json_schema',
+        json_schema: OBSERVATION_BANK_OPENAI_SCHEMA,
+      },
+      messages: [
+        {
+          role: 'system',
+          content: buildObservationStagePrompt(args.style, args.medium),
+        },
+        {
+          role: 'user',
+          content: args.userContent,
+        },
+      ],
+    }),
+  });
+
+  const json = (await response.json()) as Record<string, unknown>;
+  if (!response.ok) {
+    const err = json.error as { message?: string } | undefined;
+    throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+  }
+
+  const choices = json.choices as Array<{
+    message?: { content?: string };
+    finish_reason?: string;
+  }> | undefined;
+  const choice = choices?.[0];
+  if (choice?.finish_reason === 'length') {
+    throw new Error('Observation response truncated (token limit reached)');
+  }
+  const text = choice?.message?.content;
+  if (!text || typeof text !== 'string') throw new Error('Empty observation response');
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error('Observation stage returned non-JSON');
+  }
+
+  const parsed = observationBankSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`Observation stage validation failed: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
 
 async function runCritiqueEvidenceStage(
   apiKey: string,
@@ -248,6 +322,7 @@ async function runCritiqueEvidenceStage(
     style: string;
     medium: string;
     userContent: VisionUserMessagePart[];
+    observationBank: ObservationBank;
     repairNote?: string;
     allowLenientValidation?: boolean;
   }
@@ -275,7 +350,13 @@ async function runCritiqueEvidenceStage(
         },
         {
           role: 'user',
-          content: args.userContent,
+          content: [
+            ...args.userContent,
+            {
+              type: 'text',
+              text: `Shared observation bank (reuse these passages and events where they genuinely fit):\n${JSON.stringify(args.observationBank)}`,
+            },
+          ],
         },
       ],
     }),
@@ -438,6 +519,8 @@ Critical anchor rule:
 
 Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
 - For each listed criterion, at least one visibleEvidence line MUST repeat the same concrete nouns from the anchor and then describe what is visibly happening in that exact passage.
+- Make the FIRST visibleEvidence line for each listed criterion that anchor-echo support line.
+- Nearby passages do NOT count as support just because they share scene tokens; the same line must restate the anchor passage and describe one visible event there.
 - Do not anchor to one relationship and then list only nearby but differently named passages.
 - If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again using the same objects or zones.
 - For weak landscape anchors, repeat BOTH sides of the relationship in one evidence line. Example: if the anchor is "the purple flower patch where it meets the path edge", one visibleEvidence line must mention both the purple flower patch and the path edge again in the same sentence.${unsupportedAnchorPreviewBlock}`
@@ -446,8 +529,10 @@ Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
 
 Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - For Intent and necessity or Presence, point of view, and human force, do NOT use phrases like "narrative journey", "inviting atmosphere", "idyllic setting", "warmth", "life and activity", or "sense of story" unless the same sentence also names the exact visible carrier relationship that creates that read.
+- For any listed conceptual criterion, make the FIRST visibleEvidence line an anchor-echo support line. Restate the same anchored passage there and describe one visible event in that same sentence.
 - For conceptual visibleEvidence lines, naming the anchor is NOT enough. The sentence must also describe a visible event in that passage: what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what.
 - Rewrite interpretation-first sentences like "the path leading to the house creates a directional flow", "the house draws attention", or "the red door under the lit window creates a welcoming mood" into event-first sentences that say what is visibly happening where.
+- Rewrite focal-summary lines like "the vibrant bouquet against the stylized leaf background creates a strong focal point" into event-first lines such as "the vibrant bouquet against the stylized leaf background stays lighter than the leaf shapes behind it and bunches tighter above the vase rim."
 - Route carriers like "the path leading to the house" are acceptable only if the evidence then names what that path is visibly doing: where it narrows, bends, meets the doorway, or separates against nearby shapes.
 - Do NOT write "the outdoor seating area", "the cafe atmosphere", or "the path leading through the scene" as sufficient conceptual evidence on a cafe or street scene. Prefer "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables."
 - Do NOT write figure summaries like "the pose creates emotion", "the figure has personality", "the sitter feels contemplative", or "the posture adds drama" as sufficient conceptual evidence. Prefer "the shoulder edge against the pillow", "the head against the dark wall", or "the forearm across the white sheet."
@@ -505,6 +590,7 @@ async function runCritiqueEvidenceStageWithRetries(
     style: string;
     medium: string;
     userContent: VisionUserMessagePart[];
+    observationBank: ObservationBank;
   }
 ): Promise<EvidenceStageRunResult> {
   let repairNote: string | undefined;
@@ -521,6 +607,7 @@ async function runCritiqueEvidenceStageWithRetries(
       });
       return {
         evidence,
+        observationBank: args.observationBank,
         failedAttempts: attemptDebug,
         successAttempt: attempt,
       };
@@ -606,12 +693,22 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
 
+  const observationBank = await instrumenter.time('observation', () =>
+    runCritiqueObservationStage(apiKey, {
+      model: stageModels.evidence,
+      style: body.style,
+      medium: body.medium,
+      userContent,
+    })
+  );
+
   const evidenceRun = await instrumenter.time('evidence', () =>
     runCritiqueEvidenceStageWithRetries(apiKey, {
       model: stageModels.evidence,
       style: body.style,
       medium: body.medium,
       userContent,
+      observationBank,
     })
   );
   const evidence = evidenceRun.evidence;
@@ -649,6 +746,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       body.style,
       body,
       evidence,
+      observationBank,
       calibration,
       instrumenter
     );
