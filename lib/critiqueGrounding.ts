@@ -144,8 +144,6 @@ const GROUNDING_EQUIVALENT_TOKENS: Record<string, string> = {
   perimeter: 'edge',
 };
 
-const HUMAN_CARRIER_TOKENS = new Set(['human', 'pose']);
-
 function comparableGroundingTokens(text: string): string[] {
   return Array.from(
     new Set(
