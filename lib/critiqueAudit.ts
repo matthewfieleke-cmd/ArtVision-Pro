@@ -6,6 +6,7 @@ import { splitNumberedSteps } from './numberedSteps.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import { isVagueOrGenericStudioText } from './critiqueTextRules.js';
 import { hasAnchorReference } from './critiqueGrounding.js';
+import { renderStructuredVoiceBStep } from './critiqueVoiceBProse.js';
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
@@ -305,7 +306,7 @@ function fallbackVoiceBStep(category: CritiqueResultDTO['categories'][number], i
   const issue = bestAnchoredIssue(category);
   const move = bestAnchoredMove(category);
   const outcome = bestAnchoredOutcome(category);
-  return `${index + 1}. In ${area}, ${issue}—${move} so that ${outcome}.`;
+  return renderStructuredVoiceBStep({ index, area, issue, move, outcome });
 }
 
 function rewriteActionPlanFromStructuredFields(
@@ -367,7 +368,7 @@ function rewriteStudioChangeFromStructuredFields(
     return existingText;
   }
 
-  return `In ${area}, ${issue}—${move} so that ${outcome}.`;
+  return renderStructuredVoiceBStep({ area, issue, move, outcome });
 }
 
 function forceStructuredTeachingPass(critique: CritiqueResultDTO): CritiqueResultDTO {

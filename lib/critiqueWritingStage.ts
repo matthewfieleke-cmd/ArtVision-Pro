@@ -58,6 +58,7 @@ import {
   CRITIQUE_PRESERVE_VERB_PATTERN,
   isGenericTeacherText,
 } from './critiqueTextRules.js';
+import { renderGroundedTeacherNextSteps } from './critiqueVoiceBProse.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -683,7 +684,12 @@ function groundedTeacherNextSteps(
   const expectedRead = groundedVoiceBExpectedRead(category).replace(/\s+/g, ' ').trim().replace(/\.$/, '');
   const currentRead = groundedCurrentRead.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
   const move = groundedMove.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
-  return `In ${category.anchor.areaSummary}, ${currentRead}. ${move.charAt(0).toUpperCase()}${move.slice(1)} so ${expectedRead}.`;
+  return renderGroundedTeacherNextSteps({
+    area: category.anchor.areaSummary,
+    currentRead,
+    move,
+    expectedRead,
+  });
 }
 
 function normalizeVoiceBCategoryGrounding(

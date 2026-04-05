@@ -124,12 +124,12 @@ describe('applyCritiqueGuardrails', () => {
     const rewrittenCategory = guarded.categories[targetIndex]!;
     const rewrittenStudioChange = guarded.simpleFeedback!.studioChanges[changeIndex]!;
 
-    expect(rewrittenCategory.phase3.teacherNextSteps).toContain(targetArea);
+    expect(rewrittenCategory.phase3.teacherNextSteps.toLowerCase()).toContain(targetArea.toLowerCase());
     expect(rewrittenCategory.phase3.teacherNextSteps).toMatch(/restate|separate|group|sharpen|quiet/i);
     expect(rewrittenCategory.phase3.teacherNextSteps).not.toMatch(
       /background figures|adding more definition|overall spatial coherence|without disrupting/i
     );
-    expect(rewrittenStudioChange.text).toContain(targetArea);
+    expect(rewrittenStudioChange.text.toLowerCase()).toContain(targetArea.toLowerCase());
     expect(rewrittenStudioChange.text).not.toMatch(
       /background figures|adding more definition|overall coherence/i
     );

@@ -177,4 +177,49 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('Do NOT write house-scene summaries like "the house feels welcoming"');
     expect(note).toContain('the red door under the lit window');
   });
+
+  it('includes figure-led and train-led repair guidance when retries drift into drama or movement summaries', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: [
+        'Conceptual evidence anchor is too soft for Presence, point of view, and human force',
+        'Visible evidence is too generic for Composition and shape structure',
+      ],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: [
+              'Conceptual evidence anchor is too soft for Presence, point of view, and human force',
+              'Visible evidence is too generic for Composition and shape structure',
+            ],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Presence, point of view, and human force',
+                anchor: 'the dramatic pose of the figure',
+                visibleEvidencePreview: [
+                  'The dramatic pose of the figure creates emotion and personality.',
+                ],
+              },
+              {
+                criterion: 'Composition and shape structure',
+                anchor: 'the train moving through the scene',
+                visibleEvidencePreview: [
+                  'The train creates movement and the poles create rhythm.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('Do NOT write figure summaries like "the pose creates emotion"');
+    expect(note).toContain('Do NOT write train summaries like "the train creates movement"');
+    expect(note).toContain('the shoulder edge against the pillow');
+    expect(note).toContain('the leaning telegraph poles beside the train');
+  });
 });

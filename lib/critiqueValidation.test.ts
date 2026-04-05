@@ -229,21 +229,59 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
+  it('rejects train-led conceptual summaries that name movement instead of a physical carrier passage', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[7] = {
+      ...evidence.criterionEvidence[7]!,
+      criterion: 'Presence, point of view, and human force',
+      anchor: 'the movement of the train',
+      visibleEvidence: [
+        'The movement of the train creates momentum across the whole scene.',
+        'The movement of the train makes the image feel dramatic and fast.',
+        'The telegraph poles add speed and rhythm to that movement.',
+        'The smoke reinforces the energetic motion of the train.',
+      ],
+      strengthRead: 'The movement of the train gives the painting urgency and excitement.',
+      preserve: 'Preserve the speed and drama of the train.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Conceptual evidence anchor is too soft|Visible evidence is too generic|strengthRead is too generic|preserve is too generic/);
+  });
+
+  it('rejects figure-led conceptual summaries that name emotion or personality instead of the carrier passage', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[7] = {
+      ...evidence.criterionEvidence[7]!,
+      criterion: 'Presence, point of view, and human force',
+      anchor: 'the emotional pose of the sitter',
+      visibleEvidence: [
+        'The emotional pose of the sitter creates a contemplative mood.',
+        'The pose adds personality and drama to the figure.',
+        'The body language makes the sitter feel vulnerable.',
+        'The overall posture communicates strong emotion.',
+      ],
+      strengthRead: 'The emotional pose of the sitter gives the painting personality.',
+      preserve: 'Preserve the contemplative emotion in the pose.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Conceptual evidence anchor is too soft|Visible evidence is too generic|strengthRead is too generic|preserve is too generic/);
+  });
+
   it('accepts bridge-based conceptual anchors when concrete visible lines support the carrier relationship', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
       ...evidence.criterionEvidence[0]!,
       criterion: 'Intent and necessity',
-      anchor: 'the bridge leading into the colorful landscape',
+      anchor: 'the bridge rail against the bright background',
       visibleEvidence: [
-        "The bridge's diagonal path leads the eye into the vibrant background, suggesting movement.",
-        'The bright colors surrounding the bridge enhance the sense of transition.',
-        'The bridge structure contrasts with the organic foliage on both sides of the path.',
-        'The red and orange hues at the end of the bridge suggest a destination or focal point.',
+        'The bridge rail against the bright background cuts diagonally upward and stays darker than the color field behind it.',
+        'The bridge rail against the bright background keeps the passage directional because the far end narrows as it reaches the hotter orange band.',
+        'The darker bridge support below the bridge rail against the bright background holds the diagonal to the ground instead of letting it float loose.',
+        'The foliage on both sides of the bridge rail against the bright background breaks into softer shapes, so the hard rail carries the directional pressure.',
       ],
       strengthRead:
-        "The bridge's diagonal path creates a strong directional flow into the vibrant background, effectively suggesting movement and transition.",
-      preserve: 'Preserve the bridge as the pathway carrying the eye into the brighter background.',
+        'The bridge rail against the bright background is the physical carrier that keeps the directional push visible instead of merely decorative.',
+      preserve: 'Preserve the bridge rail against the bright background as the passage carrying that directional push.',
     };
 
     expect(() => validateEvidenceResult(evidence)).not.toThrow();

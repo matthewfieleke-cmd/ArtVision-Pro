@@ -42,7 +42,7 @@ const COMPOSITION_EVENT_PATTERN =
   /\b(narrows?|widens?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|positioned|placed)\b/i;
 
 const CONCEPTUAL_GENERIC_PATTERN =
-  /\b(journey|inviting|welcome|welcoming|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|festive|celebration|holiday|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch)\b/i;
+  /\b(journey|inviting|welcome|welcoming|idyllic|whimsical|tranquility|harmony|warmth|atmosphere|life and activity|life\b|activity|story|narrative|festive|celebration|holiday|cheerful|lively world|sense of time|exploration|viewer engagement|playful intent|whimsical touch|movement|motion|speed|urgency|momentum|drama|dramatic energy|expression|personality|emotion|attitude)\b/i;
 
 const CONCEPTUAL_CARRIER_OBJECT_PATTERN =
   /\b(against|where|under|between|cross(?:es|ing)?|cut(?:s|ting)?|narrow(?:s|ing)?|bend|bends|edge|shadow|smoke|chimney|roof|roofline|gable|eave|path|post|fence|patch|band|silhouette|wall|house|window|windows|door|doorway|wreath|bottle|glass|pump|cap|neck|label|liquid|floral|design|surface|head|face|shirt|chair|bridge|train|pole|poles|track|tracks|shoreline|shore|rocks|table|tables|umbrella|umbrellas|arch|arches|facade|building)\b/i;
@@ -143,9 +143,10 @@ export function weakWorkCompositionGuidance(): string[] {
   return [
     'For Composition and shape structure on weak work, EACH visibleEvidence line must name a structural passage and a shape event, such as what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts.',
     'For Composition and shape structure, at least one visibleEvidence line must repeat the anchor nouns and describe what changes on each side of that passage.',
-    'Composition evidence can come from any real shape passage: a path against a flower band, a chair back against a sitter, a window strip beside a head, or a roof edge against a wash.',
+    'Composition evidence can come from any real shape passage: a path against a flower band, a chair back against a sitter, a window strip beside a head, a train against the ground bands, leaning telegraph poles beside the engine, or a roof edge against a wash.',
     'Lines like "the trees balance the house", "the fence creates rhythm", or "the roof makes the composition stable" are still too generic unless they also name the exact shape passage and the visible difference being produced there.',
-    'For Composition and shape structure, avoid sentence stems like "creates a strong line", "adds structure", "creates rhythm", or "balances the scene". Replace them with event sentences such as "cuts the sky wash", "separates the garden from the sky", "leaves a wider band on one side", or "rises higher than the roof".',
+    'For figure-led or train-led scenes, avoid verdicts like "the figure creates presence", "the pose adds drama", or "the train creates movement". Replace them with event sentences naming the carrier passage, such as what the chair slat cuts off near the shoulder, how the shoulder drops against the pillow, how the engine cuts the ground bands, or how the telegraph poles repeat that diagonal.',
+    'For Composition and shape structure, avoid sentence stems like "creates a strong line", "adds structure", "creates rhythm", or "balances the scene". Replace them with event sentences such as "cuts the sky wash", "separates the garden from the sky", "leaves a wider band on one side", "rises higher than the roof", or "tilts harder than the neighboring pole".',
   ];
 }
 
@@ -166,6 +167,8 @@ export function weakWorkCompositionRepairExamples(): string[] {
     'For cafe or street scenes, write "the path narrowing into the cafe tables leaves a wider pale ground shape on the left than on the right before it reaches the seated group."',
     'For cafe or street scenes, write "the nearest building arch lands just behind the cafe tables and repeats their curve higher up the wall."',
     'For figure or interior work, write "the chair back cuts a tall vertical band between the window strip and the sitter, and the middle slat leaves a smaller gap above the shoulder than the outer edge does."',
+    'For figure-led scenes, write "the dropped shoulder against the pillow leaves a thinner light strip above the collar than along the forearm, so the body tilt reads through one exact passage."',
+    'For train-led scenes, write "the engine cuts diagonally across the flatter ground bands, and the nearest telegraph pole leans with that diagonal so the push stays visible above the track."',
     'Do not write composition fillers like "the trees balance the house" or "the fence line creates rhythm" by themselves. Rewrite them as concrete events in a specific passage.',
     'Rewrite "the roof edge creates a strong horizontal line" as "the roof edge cuts the sky wash and leaves a thinner blue strip above the house than above the trees."',
     'Rewrite "the fence line creates a horizontal division" as "the fence line separates the garden from the sky and leaves a smaller blue band above the roof than above the tree mass."',
@@ -176,6 +179,8 @@ export function weakWorkRepairExamples(): string[] {
   return [
     'Use anchors like "the path bend where it meets the house shadow", "the chimney smoke against the blue wash", or "the flower patch where it meets the path edge".',
     'For cafe or street scenes, use anchors like "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables".',
+    'For figure-led scenes, use anchors like "the chair back beside the sitter", "the shoulder edge against the pillow", "the head against the dark wall", or "the forearm across the white sheet".',
+    'For train-led scenes, use anchors like "the engine against the pale sky", "the train across the ground bands", "the smoke trail above the roofline", or "the leaning telegraph poles beside the train".',
     'Write top-level evidence in plain visual language, e.g. "The painting appears to organize the scene around a path, a small house, and bright flower bands."',
     'Do not use artist-name comparisons for weak work unless the criterion evidence already proves exceptional control.',
     ...weakWorkCompositionRepairExamples(),

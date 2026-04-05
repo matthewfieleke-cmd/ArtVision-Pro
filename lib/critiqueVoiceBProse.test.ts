@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  renderGroundedTeacherNextSteps,
+  renderStructuredVoiceBStep,
+} from './critiqueVoiceBProse.js';
+
+describe('renderStructuredVoiceBStep', () => {
+  it('avoids repeating the passage lead when the issue already names the anchor', () => {
+    const rendered = renderStructuredVoiceBStep({
+      index: 0,
+      area: 'the jaw edge against the dark collar',
+      issue: 'the jaw edge against the dark collar is no crisper than the softer cheek edge into the wall',
+      move: 'sharpen the jaw-to-collar break while losing the cheek edge into the wall a little more',
+      outcome: 'the face claims first attention while the useful cheek softness still stays atmospheric',
+    });
+
+    expect(rendered).toBe(
+      '1. The jaw edge against the dark collar is no crisper than the softer cheek edge into the wall. Sharpen the jaw-to-collar break while losing the cheek edge into the wall a little more so the face claims first attention while the useful cheek softness still stays atmospheric.'
+    );
+  });
+
+  it('still introduces the passage when the issue itself does not name it', () => {
+    const rendered = renderStructuredVoiceBStep({
+      area: 'the foreground chair back around the sitter',
+      issue: 'the route breaks too abruptly through the middle slat',
+      move: 'group the middle slat more clearly with the outer scaffold',
+      outcome: 'the chair passage reads as one scaffold instead of two competing interruptions',
+    });
+
+    expect(rendered).toBe(
+      'In the foreground chair back around the sitter, the route breaks too abruptly through the middle slat. Group the middle slat more clearly with the outer scaffold so the chair passage reads as one scaffold instead of two competing interruptions.'
+    );
+  });
+});
+
+describe('renderGroundedTeacherNextSteps', () => {
+  it('avoids the repeated "In area, area..." phrasing when the current read already starts with the anchor', () => {
+    const rendered = renderGroundedTeacherNextSteps({
+      area: 'the branch edge against the pale sky',
+      currentRead:
+        'the branch edge against the pale sky stays sharp at the fork while the nearby branch edge softens into the cloud',
+      move:
+        'sharpen the branch edge against the pale sky a little more while losing a nearby edge in that same passage',
+      expectedRead: 'the forked branch reads as the single strongest accent in that passage',
+    });
+
+    expect(rendered).toBe(
+      'The branch edge against the pale sky stays sharp at the fork while the nearby branch edge softens into the cloud. Sharpen the branch edge against the pale sky a little more while losing a nearby edge in that same passage so the forked branch reads as the single strongest accent in that passage.'
+    );
+  });
+});
