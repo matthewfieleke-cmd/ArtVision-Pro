@@ -7,7 +7,6 @@ import { CritiquePipelineError, type CritiqueDebugInfo } from '../lib/critiqueEr
 import { sameAdvice } from '../lib/critiqueGrounding.js';
 import { runOpenAICritique } from '../lib/openaiCritique.ts';
 import type { CritiqueResultDTO } from '../lib/critiqueTypes.js';
-import { LATEST_UPLOAD_FIXTURES } from './latestUploadFixtures.ts';
 
 type CatalogFixture = {
   id: string;
@@ -23,7 +22,7 @@ type CatalogFixture = {
 type BenchmarkFixture = {
   id: string;
   title: string;
-  medium: 'Oil on Canvas' | 'Drawing' | 'Watercolor' | 'Pastel';
+  medium: 'Oil on Canvas' | 'Drawing' | 'Watercolor' | 'Pastel' | 'Acrylic';
   source: 'catalog' | 'upload';
   imagePath: string;
   style?: string;
@@ -113,6 +112,60 @@ const BENCHMARK_UPLOAD_FIXTURES: BenchmarkFixture[] = [
     imagePath: 'Abstract1 Small.png',
     reviewGoal: 'Student-like abstract coverage in the fixed benchmark.',
     tags: ['abstract', 'developing', 'upload'],
+  },
+  {
+    id: 'upload-acrylic-strong-01',
+    title: 'Acrylic Strong 01',
+    medium: 'Acrylic',
+    source: 'upload',
+    imagePath: 'Acrylic_Strong_01.png',
+    reviewGoal: 'Strong acrylic medium benchmark with unmistakable handling.',
+    tags: ['acrylic', 'strong', 'medium-benchmark'],
+  },
+  {
+    id: 'upload-acrylic-developing-01',
+    title: 'Acrylic Developing 01',
+    medium: 'Acrylic',
+    source: 'upload',
+    imagePath: 'Acrylic_Developing_01.png',
+    reviewGoal: 'Developing acrylic benchmark for medium-aware failure modes.',
+    tags: ['acrylic', 'developing', 'medium-benchmark'],
+  },
+  {
+    id: 'upload-stilllife-strong-01',
+    title: 'Still Life Strong 01',
+    medium: 'Oil on Canvas',
+    source: 'upload',
+    imagePath: 'StillLife_Strong_01.png',
+    reviewGoal: 'Strong still-life benchmark for subject-agnostic object-study critique.',
+    tags: ['still-life', 'strong', 'object-study'],
+  },
+  {
+    id: 'upload-stilllife-developing-01',
+    title: 'Still Life Developing 01',
+    medium: 'Oil on Canvas',
+    source: 'upload',
+    imagePath: 'StillLife_Developing_01.png',
+    reviewGoal: 'Developing still-life benchmark for object-study grounding and generic-language stress.',
+    tags: ['still-life', 'developing', 'object-study'],
+  },
+  {
+    id: 'upload-representational-novice-01',
+    title: 'Representational Novice 01',
+    medium: 'Oil on Canvas',
+    source: 'upload',
+    imagePath: 'Representational_Novice_01.png',
+    reviewGoal: 'Novice representational benchmark for broad structural failure modes.',
+    tags: ['representational', 'novice-like', 'benchmark-gap'],
+  },
+  {
+    id: 'upload-abstract-novice-01',
+    title: 'Abstract Novice 01',
+    medium: 'Oil on Canvas',
+    source: 'upload',
+    imagePath: 'Abstract_Novice_01.png',
+    reviewGoal: 'Novice abstract benchmark for weak non-objective structure and intent.',
+    tags: ['abstract', 'novice-like', 'benchmark-gap'],
   },
 ];
 

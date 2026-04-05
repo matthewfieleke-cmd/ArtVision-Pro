@@ -86,14 +86,21 @@ Start with these fixture ids from `docs/critique-qa-fixtures.json`:
 - `expressionism-kirchner-street`
 - `abstract-kandinsky-vii`
 
-Then extend that pass with:
+Current fixed benchmark additions outside the catalog set:
 
-- one additional strong realism example
-- one stylized but competent example
-- one developing or student-level example
-- one novice-like example when available
+- `Oil3.JPEG`
+- `Watercolor2.png`
+- `Drawing1 Small.png`
+- `Pastel1 Small.png`
+- `Abstract1 Small.png`
+- `Acrylic_Strong_01.png`
+- `Acrylic_Developing_01.png`
+- `StillLife_Strong_01.png`
+- `StillLife_Developing_01.png`
+- `Representational_Novice_01.png`
+- `Abstract_Novice_01.png`
 
-The goal is stable before/after comparison, not maximum variety.
+The goal is stable before/after comparison with explicit medium, subject, and quality-stress coverage rather than maximum variety.
 
 ### Suggested review structure per painting
 
