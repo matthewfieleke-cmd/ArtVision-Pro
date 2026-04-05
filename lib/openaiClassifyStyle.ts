@@ -1,4 +1,5 @@
 import { buildHighDetailImageMessage } from './openaiVisionContent.js';
+import { resolveOpenAIModel } from './openaiModels.js';
 
 const STYLE_ENUM = [
   'Realism',
@@ -49,7 +50,7 @@ export async function runOpenAIClassifyStyle(
   imageDataUrl: string,
   options?: { model?: string }
 ): Promise<ClassifyStyleResult> {
-  const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
+  const model = resolveOpenAIModel('classification', options?.model);
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

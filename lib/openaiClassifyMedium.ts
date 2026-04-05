@@ -1,4 +1,5 @@
 import { buildHighDetailImageMessage } from './openaiVisionContent.js';
+import { resolveOpenAIModel } from './openaiModels.js';
 
 const MEDIUM_ENUM = [
   'Oil on Canvas',
@@ -48,7 +49,7 @@ export async function runOpenAIClassifyMedium(
   imageDataUrl: string,
   options?: { model?: string }
 ): Promise<ClassifyMediumResult> {
-  const model = options?.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o';
+  const model = resolveOpenAIModel('classification', options?.model);
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

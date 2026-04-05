@@ -127,6 +127,23 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence is too generic/);
   });
 
+  it('rejects conceptual visibleEvidence that repeats the anchor but only states interpretive effect', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the path leading to the house',
+      visibleEvidence: [
+        'The path leading to the house creates a directional flow through the painting.',
+        'The path leading to the house draws attention to the structure.',
+        'The path leading to the house gives the scene a welcoming sense of arrival.',
+        'The path leading to the house emphasizes the importance of the house.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Visible evidence is too generic/);
+  });
+
   it('rejects evaluative weak-landscape anchors even when the evidence repeats them', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[1] = {
@@ -144,7 +161,7 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).toThrow(/Invalid evidence anchor/);
   });
 
-  it('rejects conceptual anchors that name a route rather than a carrier relationship', () => {
+  it('accepts conceptual route anchors when the evidence keeps the route visually specific', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
       ...evidence.criterionEvidence[0]!,
@@ -158,7 +175,30 @@ describe('validateEvidenceResult', () => {
       ],
     };
 
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+    expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
+  });
+
+  it('accepts recoverable soft conceptual anchors in lenient mode when visible evidence contains a concrete carrier passage', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the diagonal alignment of telegraph poles',
+      visibleEvidence: [
+        "The telegraph poles lean diagonally against the train's path and repeat that push across the scene.",
+        "The smoke trail above the engine follows the train's path against the pale sky and keeps the motion visible.",
+        "The engine stays darkest where the train's path meets the pale sky, so that passage holds the pressure.",
+        "The leaning poles beside the engine tilt harder than the roofline, making the directional force legible in one passage.",
+      ],
+      strengthRead:
+        "The telegraph poles leaning against the train's path make the directional force legible rather than merely described.",
+      preserve:
+        "Preserve the telegraph poles against the train's path as the passage carrying the directional pressure.",
+    };
+
     expect(() => validateEvidenceResult(evidence)).toThrow(/Conceptual evidence anchor is too soft/);
+    expect(() => validateEvidenceResult(evidence, { mode: 'lenient' })).not.toThrow();
   });
 
   it('accepts conceptual anchors built from concrete visible carriers like a reflection in water', () => {
@@ -182,6 +222,32 @@ describe('validateEvidenceResult', () => {
         "The sun's reflection in the water is the concrete carrier that makes the dawn read immediate rather than merely described.",
       preserve:
         "Preserve the sun's reflection in the water as the passage that carries the painting's felt arrival of light.",
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
+  });
+
+  it('accepts flower-based conceptual anchors when the evidence keeps the visible relation concrete', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      ...neutralizeCompositionEvidence(),
+      criterion: 'Composition and shape structure',
+    };
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the flowers against the green background',
+      visibleEvidence: [
+        'The flowers against the green background stay lighter than the leaves behind them, so the bouquet reads first.',
+        'The flowers against the green background bunch tighter near the vase rim and open wider near the top edge.',
+        'The vase shoulder below the flowers against the green background keeps the bouquet tied to the table instead of floating loose.',
+        'The darker leaf band behind the flowers against the green background breaks around the petals and keeps the bouquet legible.',
+      ],
+      strengthRead:
+        'The flowers against the green background are the visible carrier that makes the bouquet read as the painting’s main pressure point.',
+      preserve:
+        'Preserve the flowers against the green background as the passage that keeps the bouquet legible and forward.',
     };
 
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
@@ -552,7 +618,7 @@ describe('validateEvidenceResult', () => {
     expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
-  it('rejects house-scene conceptual strength language that slips into welcoming or festive summary', () => {
+  it('accepts house-scene conceptual interpretation when it stays tied to a concrete entrance passage', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[0] = {
       ...evidence.criterionEvidence[0]!,
@@ -570,7 +636,7 @@ describe('validateEvidenceResult', () => {
         'Preserve the welcoming festive atmosphere around the entrance.',
     };
 
-    expect(() => validateEvidenceResult(evidence)).toThrow(/strengthRead is too generic|preserve is too generic/);
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
   it('accepts harbor-scene composition evidence when it names concrete structural elements and events', () => {

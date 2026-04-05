@@ -1,4 +1,4 @@
-export type CritiqueStageName = 'evidence' | 'voice_a' | 'voice_b' | 'final';
+export type CritiqueStageName = 'evidence' | 'calibration' | 'voice_a' | 'voice_b' | 'final';
 
 export type CritiquePipelineErrorPayload = {
   error: string;

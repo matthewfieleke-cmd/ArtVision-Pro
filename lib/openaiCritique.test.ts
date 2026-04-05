@@ -178,6 +178,39 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('the red door under the lit window');
   });
 
+  it('explicitly rewrites interpretation-first conceptual evidence toward visible events', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: ['Visible evidence is too generic for Intent and necessity'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence is too generic for Intent and necessity'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Intent and necessity',
+                anchor: 'the path leading to the house',
+                visibleEvidencePreview: [
+                  'The path leading to the house creates a directional flow through the painting.',
+                  'The path leading to the house draws attention to the structure.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('For conceptual visibleEvidence lines, naming the anchor is NOT enough.');
+    expect(note).toContain('creates a directional flow');
+    expect(note).toContain('rewrite');
+    expect(note).toContain('what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what');
+  });
+
   it('includes figure-led and train-led repair guidance when retries drift into drama or movement summaries', () => {
     const error = new CritiqueValidationError('Evidence stage validation failed.', {
       stage: 'evidence',
@@ -221,5 +254,92 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('Do NOT write train summaries like "the train creates movement"');
     expect(note).toContain('the shoulder edge against the pillow');
     expect(note).toContain('the leaning telegraph poles beside the train');
+  });
+
+  it('escalates repeated generic composition failures instead of repeating the same rewrite guidance', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: ['Visible evidence is too generic for Composition and shape structure'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence is too generic for Composition and shape structure'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Composition and shape structure',
+                anchor: 'the horizon line dividing the sky and sea',
+                visibleEvidencePreview: ['The horizon line creates a balanced composition.'],
+              },
+            ],
+          },
+          {
+            attempt: 2,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence is too generic for Composition and shape structure'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Composition and shape structure',
+                anchor: 'the beach chair against the sand',
+                visibleEvidencePreview: ['The beach chair adds interest and balance to the composition.'],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('Escalation for repeated failure:');
+    expect(note).toContain('Replace the ENTIRE criterion block for any repeated failure');
+    expect(note).toContain('at least TWO visibleEvidence lines for that criterion must describe a structural event');
+    expect(note).toContain('Latest preview for repeatedly failing Composition and shape structure');
+    expect(note).toContain('Previous anchor: "the beach chair against the sand"');
+  });
+
+  it('escalates repeated conceptual failures toward carrier grammar instead of theme labels', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: ['Conceptual evidence anchor is too soft for Presence, point of view, and human force'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['strengthRead is too generic for Presence, point of view, and human force'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Presence, point of view, and human force',
+                anchor: "the train's dominant presence in the scene",
+                visibleEvidencePreview: ['The train creates power and movement across the image.'],
+              },
+            ],
+          },
+          {
+            attempt: 2,
+            error: 'Evidence stage validation failed.',
+            details: ['Conceptual evidence anchor is too soft for Presence, point of view, and human force'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Presence, point of view, and human force',
+                anchor: "the train's dominant presence against the landscape",
+                visibleEvidencePreview: ['The train dominates the scene and creates energy.'],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('Escalation for repeated failure:');
+    expect(note).toContain('rewrite it as a more pointable visible carrier');
+    expect(note).toContain('"[path] leading to [object]"');
+    expect(note).toContain('Do NOT reuse pure theme labels like "movement", "presence", "power", "energy", "atmosphere", "mood", or "dominant presence"');
+    expect(note).toContain('Latest preview for repeatedly failing Presence, point of view, and human force');
+    expect(note).toContain(`Previous anchor: "the train's dominant presence against the landscape"`);
   });
 });

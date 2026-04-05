@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { getCriterionMasterSignals } from '../shared/masterCriteriaRubric.js';
+import { resolveOpenAIModel } from './openaiModels.js';
 import { splitNumberedSteps } from './numberedSteps.js';
 import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewEditTypes.js';
 import {
@@ -448,7 +449,7 @@ export async function runOpenAIPreviewEdit(
   if (body.target.editPlan?.editability === 'no') {
     throw new Error('This criterion is not available for AI edit on this painting.');
   }
-  const model = process.env.OPENAI_IMAGE_EDIT_MODEL ?? 'gpt-image-1';
+  const model = resolveOpenAIModel('imageEdit');
   const { mime: inputMime, buffer: inputBuffer } = parseDataUrl(body.imageDataUrl.trim());
   const { width: origW, height: origH } = await getImageDimensions(inputBuffer);
   const editSize = pickImagesEditSize(origW, origH);

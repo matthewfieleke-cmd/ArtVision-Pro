@@ -29,6 +29,16 @@ import {
   noopCritiqueInstrumenter,
 } from './critiqueInstrumentation.js';
 import { weakWorkCompositionRepairExamples, weakWorkRepairExamples } from './critiqueWeakWorkContracts.js';
+import { getOpenAIStageModelMap } from './openaiModels.js';
+import {
+  createFailedStageSnapshot,
+  createPipelineMetadata,
+  createSkippedStageSnapshot,
+  createSucceededStageSnapshot,
+  stageIdFromErrorStage,
+} from './critiquePipeline.js';
+import { composeFallbackCritique } from './critiqueFallback.js';
+import type { CritiquePipelineStageId } from '../shared/critiqueContract.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 
@@ -65,10 +75,51 @@ function extractCriterionEvidencePreview(raw: unknown): Array<{
     }));
 }
 
-function criterionEvidencePreviewFromError(error: unknown): CritiqueCriterionEvidencePreview[] {
+function criterionEvidencePreviewFromAttempts(
+  attempts: CritiqueDebugInfo[]
+): CritiqueCriterionEvidencePreview[] {
+  const byCriterion = new Map<string, CritiqueCriterionEvidencePreview>();
+  for (const attempt of [...attempts].reverse()) {
+    for (const preview of attempt.criterionEvidencePreview ?? []) {
+      if (!byCriterion.has(preview.criterion)) {
+        byCriterion.set(preview.criterion, preview);
+      }
+    }
+  }
+  return Array.from(byCriterion.values());
+}
+
+function evidenceAttemptsFromContext(
+  error: unknown,
+  attemptHistory?: CritiqueDebugInfo[]
+): CritiqueDebugInfo[] {
+  if (attemptHistory && attemptHistory.length > 0) return attemptHistory;
   if (!(error instanceof CritiquePipelineError)) return [];
-  const previews = error.debug?.attempts?.[0]?.criterionEvidencePreview;
-  return Array.isArray(previews) ? previews : [];
+  return Array.isArray(error.debug?.attempts) ? error.debug.attempts : [];
+}
+
+function criterionEvidencePreviewFromError(
+  error: unknown,
+  attemptHistory?: CritiqueDebugInfo[]
+): CritiqueCriterionEvidencePreview[] {
+  return criterionEvidencePreviewFromAttempts(evidenceAttemptsFromContext(error, attemptHistory));
+}
+
+function repeatedFailureCriteria(
+  attempts: CritiqueDebugInfo[],
+  matcher: (detail: string) => string | undefined
+): string[] {
+  const counts = new Map<string, number>();
+  for (const attempt of attempts) {
+    for (const detail of attempt.details) {
+      const criterion = matcher(detail)?.trim();
+      if (!criterion) continue;
+      counts.set(criterion, (counts.get(criterion) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .filter(([, count]) => count >= 2)
+    .map(([criterion]) => criterion);
 }
 
 function formatCriterionEvidencePreview(
@@ -183,6 +234,12 @@ function singleAttemptDebugPayload(args: {
   };
 }
 
+type EvidenceStageRunResult = {
+  evidence: ReturnType<typeof validateEvidenceResult>;
+  failedAttempts: CritiqueDebugInfo[];
+  successAttempt: number;
+};
+
 async function runCritiqueEvidenceStage(
   apiKey: string,
   args: {
@@ -295,9 +352,13 @@ async function runCritiqueEvidenceStage(
 
 const MAX_STAGE_ATTEMPTS = 3;
 
-export function buildEvidenceRepairNote(error: unknown): string {
+export function buildEvidenceRepairNote(
+  error: unknown,
+  attemptHistory?: CritiqueDebugInfo[]
+): string {
   const details = errorDetails(error);
-  const criterionPreviews = criterionEvidencePreviewFromError(error);
+  const attempts = evidenceAttemptsFromContext(error, attemptHistory);
+  const criterionPreviews = criterionEvidencePreviewFromError(error, attemptHistory);
   const weakWorkExamples = weakWorkRepairExamples().map((rule) => `- ${rule}`).join('\n');
   const weakWorkCompositionExamples = weakWorkCompositionRepairExamples()
     .map((rule) => `- ${rule}`)
@@ -336,6 +397,25 @@ export function buildEvidenceRepairNote(error: unknown): string {
     unsupportedAnchorCriteria,
     'Previous anchor-support preview for'
   );
+  const repeatedGenericCompositionCriteria = repeatedFailureCriteria(
+    attempts,
+    (detail) =>
+      /^(?:Visible evidence|strengthRead|preserve) is too generic for (Composition and shape structure)$/.exec(
+        detail
+      )?.[1]
+  );
+  const repeatedConceptualCriteria = repeatedFailureCriteria(
+    attempts,
+    (detail) =>
+      /^(?:Conceptual evidence anchor is too soft for|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for) (Intent and necessity|Presence, point of view, and human force)$/.exec(
+        detail
+      )?.[1]
+  );
+  const repeatedFailurePreviewBlock = formatCriterionEvidencePreview(
+    criterionPreviews,
+    [...repeatedGenericCompositionCriteria, ...repeatedConceptualCriteria],
+    'Latest preview for repeatedly failing'
+  );
 
   return `Previous evidence attempt failed: ${errorMessage(error)}\n${errorDetails(error)
     .map((detail) => `- ${detail}`)
@@ -344,6 +424,7 @@ export function buildEvidenceRepairNote(error: unknown): string {
 Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
+- For conceptual criteria, the anchor does NOT need to use an approved noun list. It needs to be pointable in the painting and restated concretely in the visibleEvidence lines.
 - On object studies or architecture, conceptual anchors still need a physical carrier passage: a pump head against a bottle neck, a floral label on the bottle, a red door under a lit window, or a roofline against the night sky.
 - Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.
 - Do NOT use flattering anchor labels such as "the arrangement of flowers", "the cozy house", "the vibrant garden", "the idyllic setting", or "the narrative journey of the path". Name the visible object pair or junction instead.
@@ -365,13 +446,16 @@ Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
 
 Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - For Intent and necessity or Presence, point of view, and human force, do NOT use phrases like "narrative journey", "inviting atmosphere", "idyllic setting", "warmth", "life and activity", or "sense of story" unless the same sentence also names the exact visible carrier relationship that creates that read.
-- Do NOT write "the path leading to the house" or "the smoke from the chimney" as sufficient conceptual evidence on a weak landscape. Prefer "the path bend where it meets the house shadow" or "the chimney smoke against the blue wash."
+- For conceptual visibleEvidence lines, naming the anchor is NOT enough. The sentence must also describe a visible event in that passage: what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what.
+- Rewrite interpretation-first sentences like "the path leading to the house creates a directional flow", "the house draws attention", or "the red door under the lit window creates a welcoming mood" into event-first sentences that say what is visibly happening where.
+- Route carriers like "the path leading to the house" are acceptable only if the evidence then names what that path is visibly doing: where it narrows, bends, meets the doorway, or separates against nearby shapes.
 - Do NOT write "the outdoor seating area", "the cafe atmosphere", or "the path leading through the scene" as sufficient conceptual evidence on a cafe or street scene. Prefer "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables."
 - Do NOT write figure summaries like "the pose creates emotion", "the figure has personality", "the sitter feels contemplative", or "the posture adds drama" as sufficient conceptual evidence. Prefer "the shoulder edge against the pillow", "the head against the dark wall", or "the forearm across the white sheet."
 - Do NOT write train summaries like "the train creates movement", "the scene has momentum", "the engine feels dramatic", or "the poles add speed" as sufficient conceptual evidence. Prefer "the engine against the pale sky", "the train across the ground bands", "the smoke trail above the roofline", or "the leaning telegraph poles beside the train."
 - Do NOT write object-study summaries like "the bottle feels elegant", "the object blends nature and technology", "the house feels festive", or "the windows create warmth" as sufficient conceptual evidence. Prefer "the floral label on the glass bottle", "the pump head against the bottle neck", "the red door under the lit window", or "the lit window against the dark facade."
 - Do NOT write house-scene summaries like "the house feels welcoming", "the festive mood reads clearly", "the holiday atmosphere comes through", or "the windows create warmth" as sufficient conceptual evidence or strengthRead language. Prefer "the red door under the lit window", "the lit window against the dark facade", or "the roofline above the window stack."
 - strengthRead and preserve must also name that same visible carrier passage, not a mood summary. If the criterion is conceptual, reuse the anchor nouns directly in strengthRead and preserve.
+- strengthRead may interpret the result of the passage, but visibleEvidence must stay at event level first. Do not use visibleEvidence lines that only report the takeaway.
 - For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact path bend, roof edge, fence post, flower band, or other structural passage creating that effect.
 - For Composition and shape structure in cafe or street scenes, replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language such as "the path narrowing into the cafe tables leaves a wider ground shape on one side" or "the nearest building arch lands behind the tables and repeats their curve higher up the wall."
 - For Composition and shape structure in figure-led or train-led scenes, replace summaries like "the pose adds drama", "the figure creates presence", "the train creates movement", or "the poles create rhythm" with event language such as "the chair slat leaves a smaller gap above the shoulder than at the elbow" or "the engine cuts across the ground bands while the nearest pole leans with that same diagonal."
@@ -400,6 +484,17 @@ Critical repair for Surface and medium handling:
 - Do NOT use anchors like "brushwork", "paint handling", "surface quality", or any painting-wide surface label.
 - Choose one locatable mark-bearing passage instead, such as a hatch field against a smoother shirt passage, a loaded highlight stroke against a darker rim, or a dry scumble crossing a shadow.
 - At least one visibleEvidence line for Surface and medium handling must repeat the same concrete nouns from that anchor and then describe the mark behavior visible there.`
+    : ''}${repeatedGenericCompositionCriteria.length > 0 || repeatedConceptualCriteria.length > 0
+    ? `
+
+Escalation for repeated failure:
+- One or more criteria have already failed more than once. Do NOT paraphrase the same anchor or sentence stems again.
+- Replace the ENTIRE criterion block for any repeated failure: choose a new anchor, rewrite all visibleEvidence lines, and rewrite strengthRead/preserve so they reuse the new anchor nouns directly.
+- If ${repeatedGenericCompositionCriteria.length > 0 ? repeatedGenericCompositionCriteria.join(', ') : 'Composition and shape structure'} has failed more than once, at least TWO visibleEvidence lines for that criterion must describe a structural event with verbs like "narrows", "widens", "cuts", "leaves a gap", "stacks", "overlaps", "aligns", or "tilts".
+- If ${repeatedConceptualCriteria.length > 0 ? repeatedConceptualCriteria.join(', ') : 'a conceptual criterion'} has failed more than once, rewrite it as a more pointable visible carrier. Good forms include "[object] against [object]", "[object] beside [object]", "[object] across [object]", "[object] under [object]", "[object] where it meets [object]", or "[path] leading to [object]" when the evidence then describes the visible path behavior concretely.
+- Do NOT reuse pure theme labels like "movement", "presence", "power", "energy", "atmosphere", "mood", or "dominant presence" as the whole anchor for a repeated conceptual failure.
+- For repeated conceptual generic-evidence failures, replace every interpretation-first visibleEvidence line with a sentence that names the carrier passage and one visible event in it.
+- If the previous anchor was generic, replacing one adjective is NOT enough. Replace the carrier passage itself.${repeatedFailurePreviewBlock}`
     : ''}`;
 }
 
@@ -411,19 +506,24 @@ async function runCritiqueEvidenceStageWithRetries(
     medium: string;
     userContent: VisionUserMessagePart[];
   }
-): Promise<ReturnType<typeof validateEvidenceResult>> {
+): Promise<EvidenceStageRunResult> {
   let repairNote: string | undefined;
   let lastError: unknown;
   const attemptDebug: CritiqueDebugInfo[] = [];
 
   for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
     try {
-      return await runCritiqueEvidenceStage(apiKey, {
+      const evidence = await runCritiqueEvidenceStage(apiKey, {
         attempt,
         ...args,
         repairNote,
         allowLenientValidation: attempt === MAX_STAGE_ATTEMPTS,
       });
+      return {
+        evidence,
+        failedAttempts: attemptDebug,
+        successAttempt: attempt,
+      };
     } catch (error) {
       lastError = error;
       const debug =
@@ -444,7 +544,7 @@ async function runCritiqueEvidenceStageWithRetries(
           cause: error,
         });
       }
-      repairNote = buildEvidenceRepairNote(error);
+      repairNote = buildEvidenceRepairNote(error, attemptDebug);
     }
   }
 
@@ -461,11 +561,13 @@ export async function runOpenAICritique(
   body: CritiqueRequestBody,
   options?: { model?: string }
 ): Promise<CritiqueResultDTO> {
-  const model =
-    options?.model ??
-    process.env.OPENAI_CRITIQUE_MODEL ??
-    process.env.OPENAI_MODEL ??
-    'gpt-4o';
+  const stageModels = getOpenAIStageModelMap({
+    evidence: options?.model,
+    calibration: options?.model,
+    voiceA: options?.model,
+    voiceB: options?.model,
+    validation: options?.model,
+  });
   const trimmedUserTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const titleLine =
@@ -504,64 +606,163 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
 
-  const evidence = await instrumenter.time('evidence', () =>
+  const evidenceRun = await instrumenter.time('evidence', () =>
     runCritiqueEvidenceStageWithRetries(apiKey, {
-      model,
+      model: stageModels.evidence,
       style: body.style,
       medium: body.medium,
       userContent,
     })
   );
-  const calibration = await instrumenter.time('calibration', () =>
-    runCritiqueCalibrationStage(apiKey, model, body.style, body.medium, evidence, userContent)
-  );
+  const evidence = evidenceRun.evidence;
 
-  const base = await runCritiqueWritingStage(
-    apiKey,
-    model,
-    body.style,
-    body,
-    evidence,
-    calibration,
-    instrumenter
-  );
-  const calibrated = applyCalibrationToCritique(base, calibration);
-  const withCompletion = {
-    ...calibrated,
-    completionRead: {
-      state: evidence.completionRead.state,
-      confidence: evidence.completionRead.confidence,
-      cues: evidence.completionRead.cues,
-      rationale: evidence.completionRead.rationale,
-    },
-  };
-
-  const guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
-
-  if (critiqueNeedsFreshEvidenceRead(guarded)) {
-    if (instrumenter.enabled) {
-      logGroundingGateFailure(guarded);
-    }
-    throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
-      stage: 'final',
-      details: [
-        'The final critique no longer stayed aligned to the anchored evidence passages.',
-        'A fresh retry would risk degrading silently, so the pipeline failed closed.',
-      ],
-    });
-  }
-
+  let guarded: CritiqueResultDTO;
+  let fallbackCause: CritiquePipelineError | undefined;
   try {
-    assertCritiqueQualityGate(guarded);
-  } catch (error) {
-    if (instrumenter.enabled && error instanceof CritiqueRuntimeEvalError) {
-      logQualityGateFailure(guarded);
+    const calibration = await instrumenter.time('calibration', async () => {
+      try {
+        return await runCritiqueCalibrationStage(
+          apiKey,
+          stageModels.calibration,
+          body.style,
+          body.medium,
+          evidence,
+          userContent
+        );
+      } catch (error) {
+        if (error instanceof CritiquePipelineError) throw error;
+        throw new CritiqueValidationError('Calibration stage failed.', {
+          stage: 'calibration',
+          details: errorDetails(error),
+          cause: error,
+        });
+      }
+    });
+
+    const base = await runCritiqueWritingStage(
+      apiKey,
+      {
+        voiceA: stageModels.voiceA,
+        voiceB: stageModels.voiceB,
+        validation: stageModels.validation,
+      },
+      body.style,
+      body,
+      evidence,
+      calibration,
+      instrumenter
+    );
+    const calibrated = applyCalibrationToCritique(base, calibration);
+    const withCompletion = {
+      ...calibrated,
+      completionRead: {
+        state: evidence.completionRead.state,
+        confidence: evidence.completionRead.confidence,
+        cues: evidence.completionRead.cues,
+        rationale: evidence.completionRead.rationale,
+      },
+    };
+
+    guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
+
+    if (critiqueNeedsFreshEvidenceRead(guarded)) {
+      if (instrumenter.enabled) {
+        logGroundingGateFailure(guarded);
+      }
+      throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
+        stage: 'final',
+        details: [
+          'The final critique no longer stayed aligned to the anchored evidence passages.',
+          'A fresh retry would risk degrading silently, so the pipeline failed closed.',
+        ],
+      });
     }
-    throw error;
+
+    try {
+      assertCritiqueQualityGate(guarded);
+    } catch (error) {
+      if (instrumenter.enabled && error instanceof CritiqueRuntimeEvalError) {
+        logQualityGateFailure(guarded);
+      }
+      throw error;
+    }
+  } catch (error) {
+    if (error instanceof CritiquePipelineError && error.stage !== 'evidence') {
+      fallbackCause = error;
+      guarded = composeFallbackCritique({
+        style: body.style,
+        medium: body.medium,
+        evidence,
+        paintingTitle: trimmedUserTitle || undefined,
+        failureStage: error.stage,
+      });
+    } else {
+      throw error;
+    }
   }
-  instrumenter.logSummary({ model });
+  instrumenter.logSummary({
+    models: {
+      evidence: stageModels.evidence,
+      calibration: stageModels.calibration,
+      voiceA: stageModels.voiceA,
+      voiceB: stageModels.voiceB,
+      validation: stageModels.validation,
+    },
+  });
 
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
-  return trimmedTitle ? { ...guarded, paintingTitle: trimmedTitle } : guarded;
+  const existingPipeline = guarded.pipeline;
+  const fallbackFailureStage = fallbackCause ? stageIdFromErrorStage(fallbackCause.stage) : undefined;
+  const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
+  const failureOrderIndex =
+    fallbackFailureStage ? stageOrder.indexOf(fallbackFailureStage) : -1;
+  const withStages = {
+    evidence: createSucceededStageSnapshot({
+      stage: 'evidence',
+      model: stageModels.evidence,
+      failedAttempts: evidenceRun.failedAttempts,
+      successAttempt: evidenceRun.successAttempt,
+    }),
+    ...Object.fromEntries(
+      stageOrder.map((stageId, index) => {
+        const model =
+          stageId === 'calibration'
+            ? stageModels.calibration
+            : stageId === 'voice_a'
+              ? stageModels.voiceA
+              : stageId === 'voice_b'
+                ? stageModels.voiceB
+                : stageModels.validation;
+
+        if (!fallbackCause) {
+          return [stageId, createSucceededStageSnapshot({ stage: stageId, model })];
+        }
+
+        if (index < failureOrderIndex) {
+          return [stageId, createSucceededStageSnapshot({ stage: stageId, model })];
+        }
+
+        if (index === failureOrderIndex) {
+          return [stageId, createFailedStageSnapshot({ error: fallbackCause, model })];
+        }
+
+        return [stageId, createSkippedStageSnapshot({ stage: stageId, model })];
+      })
+    ),
+    ...(existingPipeline?.stages?.fallback
+      ? {
+          fallback: existingPipeline.stages.fallback,
+        }
+      : {}),
+  };
+  const withPipeline = {
+    ...guarded,
+    pipeline: createPipelineMetadata({
+      resultTier: existingPipeline?.resultTier ?? 'full',
+      completedWithFallback: existingPipeline?.completedWithFallback ?? false,
+      stages: withStages,
+    }),
+  };
+  return trimmedTitle ? { ...withPipeline, paintingTitle: trimmedTitle } : withPipeline;
 }

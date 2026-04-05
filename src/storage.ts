@@ -1,5 +1,5 @@
 import { canonicalCriterionLabel } from '../shared/criteria';
-import { migrateCritiqueSimpleFeedback } from './critiqueCoach';
+import { adaptCritiqueResult } from './critiqueResultAdapter';
 import type { CritiqueCategory, CritiqueResult, SavedPainting, SavedPreviewEdit } from './types';
 
 const KEY = 'artvision-pro-paintings-v1';
@@ -10,13 +10,10 @@ function migrateCritiqueCategory(category: CritiqueCategory): CritiqueCategory {
 }
 
 function migrateCritiqueResult(critique: CritiqueResult): CritiqueResult {
-  const simple =
-    critique.simple !== undefined ? migrateCritiqueSimpleFeedback(critique.simple) : undefined;
-  return {
+  return adaptCritiqueResult({
     ...critique,
     categories: critique.categories.map(migrateCritiqueCategory),
-    ...(simple ? { simple } : {}),
-  };
+  });
 }
 
 function migrateVersionPreviewEdits(version: {

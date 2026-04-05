@@ -36,6 +36,7 @@ import {
   hasNeutralWeakWorkTopLevelText,
   hasSpecificConceptualCarrierAnchor,
   hasWeakCompositionGenericText,
+  hasWeakConceptualEvidenceLine,
   hasWeakConceptualGenericText,
   hasWeakWorkGenericEvidenceLine,
   isConceptualCriterion,
@@ -120,6 +121,29 @@ function fallbackStrongestVisibleQualities(
     2,
     4
   );
+}
+
+function recoverLenientEvidenceAnchor(
+  criterion: CriterionLabel,
+  rawAnchor: string,
+  visibleEvidence: string[],
+  strengthRead: string,
+  tensionRead: string,
+  preserve: string
+): string {
+  const candidates = uniqueNonEmptyLines(
+    [rawAnchor, ...visibleEvidence, strengthRead, tensionRead, preserve].map((line) => line.trim()),
+    1,
+    12
+  );
+
+  if (isConceptualCriterion(criterion)) {
+    const conceptualCarrier = candidates.find((candidate) => hasSpecificConceptualCarrierAnchor(candidate));
+    if (conceptualCarrier) return conceptualCarrier;
+  }
+
+  const concreteAnchor = candidates.find((candidate) => isConcreteAnchor(candidate));
+  return concreteAnchor ?? rawAnchor;
 }
 
 function evidenceForCriterion(
@@ -539,15 +563,23 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     ) {
       throw new Error(`Invalid evidence fields for ${expected}`);
     }
-    const anchor = r.anchor.trim();
+    let anchor = r.anchor.trim();
     const visibleEvidence = r.visibleEvidence as string[];
     let strengthRead = r.strengthRead.trim();
     let preserve = r.preserve.trim();
+    if (!isConcreteAnchor(anchor) && mode === 'lenient') {
+      anchor = recoverLenientEvidenceAnchor(expected, anchor, visibleEvidence, strengthRead, r.tensionRead.trim(), preserve);
+    }
     if (!isConcreteAnchor(anchor)) {
       throw new Error(`Invalid evidence anchor for ${expected}`);
     }
     if (isConceptualCriterion(expected) && !hasSpecificConceptualCarrierAnchor(anchor)) {
-      throw new Error(`Conceptual evidence anchor is too soft for ${expected}`);
+      if (mode === 'lenient') {
+        anchor = recoverLenientEvidenceAnchor(expected, anchor, visibleEvidence, strengthRead, r.tensionRead.trim(), preserve);
+      }
+      if (!hasSpecificConceptualCarrierAnchor(anchor)) {
+        throw new Error(`Conceptual evidence anchor is too soft for ${expected}`);
+      }
     }
     const hasDirectAnchorSupport = visibleEvidence.some((line) => anchorSupportedByEvidenceLine(anchor, line));
     const hasAggregateAnchorSupport =
@@ -566,7 +598,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     }
     if (
       isConceptualCriterion(expected) &&
-      visibleEvidence.filter((line) => hasWeakConceptualGenericText(line)).length >= (mode === 'strict' ? 3 : 5)
+      visibleEvidence.filter((line) => hasWeakConceptualEvidenceLine(line)).length >= (mode === 'strict' ? 3 : 5)
     ) {
       throw new Error(`Visible evidence is too generic for ${expected}`);
     }
@@ -1036,6 +1068,16 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
   if (cn !== null && (typeof cn !== 'string' || cn.length === 0)) {
     throw new Error('Invalid comparisonNote');
   }
+  const analysisSource =
+    o.analysisSource === 'fallback'
+      ? 'fallback'
+      : o.analysisSource === 'api'
+        ? 'api'
+        : 'api';
+  const pipeline =
+    o.pipeline && typeof o.pipeline === 'object'
+      ? (o.pipeline as CritiqueResultDTO['pipeline'])
+      : undefined;
   const photoQuality = o.photoQuality;
   if (!photoQuality || typeof photoQuality !== 'object') throw new Error('Invalid photoQuality');
   const pq = photoQuality as Record<string, unknown>;
@@ -1086,8 +1128,9 @@ export function validateCritiqueResult(raw: unknown): CritiqueResultDTO {
       issues: pq.issues as string[],
       tips: pq.tips as string[],
     },
-    analysisSource: 'api',
+    analysisSource,
     suggestedPaintingTitles,
-    ...(typeof cn === 'string' && cn.length > 0 ? { comparisonNote: cn } : {}),
+    ...(cn === null ? { comparisonNote: null } : typeof cn === 'string' && cn.length > 0 ? { comparisonNote: cn } : {}),
+    ...(pipeline ? { pipeline } : {}),
   };
 }

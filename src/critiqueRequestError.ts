@@ -213,6 +213,7 @@ export function isCritiquePipelineErrorPayload(
     typeof candidate.error === 'string' &&
     typeof candidate.errorName === 'string' &&
     (candidate.stage === 'evidence' ||
+      candidate.stage === 'calibration' ||
       candidate.stage === 'voice_a' ||
       candidate.stage === 'voice_b' ||
       candidate.stage === 'final') &&

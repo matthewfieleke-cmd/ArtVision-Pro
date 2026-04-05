@@ -36,7 +36,9 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
 2. **Add the secret in Vercel**  
    Project → **Settings → Environment Variables**:
    - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
-   - Optional: `OPENAI_MODEL` (default `gpt-4o` for chat/classify). For critique only, you can set `OPENAI_CRITIQUE_MODEL` instead (falls back to `OPENAI_MODEL`).
+   - Optional: `OPENAI_MODEL` (default `gpt-4o` for shared chat/classify fallback).
+   - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
+   - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`.
 
 3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
 

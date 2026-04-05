@@ -22,6 +22,60 @@ export type PhotoQualityAssessment = {
   tips: string[];
 };
 
+export type CritiqueResultTier = 'full' | 'validated_reduced' | 'minimal_safe';
+
+export type CritiquePipelineStageId =
+  | 'classification'
+  | 'evidence'
+  | 'calibration'
+  | 'voice_a'
+  | 'voice_b'
+  | 'validation'
+  | 'fallback';
+
+export type CritiquePipelineStageStatus =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'skipped'
+  | 'fallback_succeeded';
+
+export type CritiquePipelineAttempt = {
+  attempt: number;
+  status: CritiquePipelineStageStatus;
+  model?: string;
+  error?: string;
+  details?: string[];
+  repairNotePreview?: string;
+  rawPreview?: string;
+  criterionEvidencePreview?: CritiquePipelineCriterionEvidencePreview[];
+  startedAt?: string;
+  completedAt?: string;
+};
+
+export type CritiquePipelineCriterionEvidencePreview = {
+  criterion: string;
+  anchor?: string;
+  visibleEvidencePreview?: string[];
+};
+
+export type CritiquePipelineStageSnapshot = {
+  stage: CritiquePipelineStageId;
+  status: CritiquePipelineStageStatus;
+  model?: string;
+  promptVersion?: string;
+  attempts?: CritiquePipelineAttempt[];
+};
+
+export type CritiquePipelineMetadata = {
+  schemaVersion: number;
+  pipelineVersion: string;
+  resultTier: CritiqueResultTier;
+  completedWithFallback: boolean;
+  stages?: Partial<Record<CritiquePipelineStageId, CritiquePipelineStageSnapshot>>;
+};
+
 export type VoiceBStep = {
   area: string;
   currentRead: string;
@@ -125,11 +179,12 @@ export type CritiqueResult = {
   summary: string;
   overallSummary?: OverallSummaryCard;
   simpleFeedback?: CritiqueSimpleFeedback;
-  comparisonNote?: string;
+  comparisonNote?: string | null;
   paintingTitle?: string;
   suggestedPaintingTitles?: SuggestedTitle[];
-  analysisSource?: 'api';
+  analysisSource?: 'api' | 'fallback';
   overallConfidence?: CritiqueConfidence;
   photoQuality?: PhotoQualityAssessment;
   completionRead?: CompletionRead;
+  pipeline?: CritiquePipelineMetadata;
 };

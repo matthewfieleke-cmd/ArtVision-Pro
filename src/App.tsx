@@ -111,10 +111,12 @@ function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCateg
   return categories.reduce((a, b) => (safeRank(a) <= safeRank(b) ? a : b));
 }
 
-function critiqueStageLabel(stage: 'evidence' | 'voice_a' | 'voice_b' | 'final' | undefined): string | null {
+function critiqueStageLabel(stage: 'evidence' | 'calibration' | 'voice_a' | 'voice_b' | 'final' | undefined): string | null {
   switch (stage) {
     case 'evidence':
       return 'Evidence extraction';
+    case 'calibration':
+      return 'Calibration review';
     case 'voice_a':
       return 'Voice A critic analysis';
     case 'voice_b':

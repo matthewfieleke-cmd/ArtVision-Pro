@@ -1669,7 +1669,11 @@ function mergeVoiceStages(
 
 export async function runCritiqueWritingStage(
   apiKey: string,
-  model: string,
+  models: {
+    voiceA: string;
+    voiceB: string;
+    validation?: string;
+  },
   style: string,
   body: CritiqueRequestBody,
   evidence: CritiqueEvidenceDTO,
@@ -1677,10 +1681,10 @@ export async function runCritiqueWritingStage(
   instrumenter: CritiqueInstrumenter = noopCritiqueInstrumenter
 ): Promise<CritiqueResultDTO> {
   const voiceA = await instrumenter.time('writing_voice_a', () =>
-    runCritiqueVoiceAStage(apiKey, model, style, body, evidence, calibration)
+    runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, calibration)
   );
   const voiceB = await instrumenter.time('writing_voice_b', () =>
-    runCritiqueVoiceBStage(apiKey, model, style, body, evidence, voiceA, calibration)
+    runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, voiceA, calibration)
   );
   const merged = mergeVoiceStages(voiceA, voiceB);
   const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);

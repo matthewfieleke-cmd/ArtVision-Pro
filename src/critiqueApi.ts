@@ -1,6 +1,6 @@
 import type { CritiqueResult, Medium, Style } from './types';
 import { readApiJson } from './apiJson';
-import { finalizeCritiqueResult, migrateCritiqueSimpleFeedback } from './critiqueCoach';
+import { adaptCritiqueResult } from './critiqueResultAdapter';
 import type { CritiquePipelineErrorPayload } from '../lib/critiqueErrors.js';
 import {
   createCritiqueRequestError,
@@ -81,16 +81,8 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
     const critique = data as CritiqueResult & {
       simpleFeedback?: CritiqueResult['simple'];
     };
-    const normalized: CritiqueResult = {
-      ...critique,
-      ...(critique.simpleFeedback
-        ? {
-            simple: migrateCritiqueSimpleFeedback(critique.simpleFeedback) ?? critique.simpleFeedback,
-          }
-        : {}),
-    };
-    return finalizeCritiqueResult(normalized, {
-      photoQuality: normalized.photoQuality,
+    return adaptCritiqueResult(critique, {
+      photoQuality: critique.photoQuality,
     });
   } catch (error) {
     if (isAbortError(error)) throw error;
