@@ -176,7 +176,7 @@ export function repairVoiceAStageGrounding(
     if (reasons.length > 0) {
       salvagedCriteria.push({
         stage: 'voice_a',
-        criterion: category.criterion,
+        criterion: category.criterion as CritiquePipelineSalvagedCriterion['criterion'],
         reason: reasons.join('; '),
       });
     }

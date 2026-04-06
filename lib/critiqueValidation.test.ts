@@ -99,7 +99,7 @@ describe('validateEvidenceResult', () => {
         {
           id: 'p2',
           label: 'the foreground chair back around the sitter',
-          role: 'composition',
+          role: 'structure',
           visibleFacts: ['The foreground chair back around the sitter creates the main vertical scaffold.'],
         },
         {
@@ -117,7 +117,7 @@ describe('validateEvidenceResult', () => {
         {
           id: 'p5',
           label: 'the near table leg against the floor shadow',
-          role: 'drawing',
+          role: 'structure',
           visibleFacts: ['The near table leg against the floor shadow kicks outward slightly at the floor.'],
         },
         {
@@ -143,7 +143,7 @@ describe('validateEvidenceResult', () => {
         {
           passageId: 'p1',
           passage: "the chair bars cutting across the sitter's torso",
-          signalType: 'overlap',
+          signalType: 'shape',
           event: "The chair bars cut across the sitter's torso and keep the figure partially blocked.",
         },
         {
