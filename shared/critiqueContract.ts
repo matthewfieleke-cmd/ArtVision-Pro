@@ -60,6 +60,12 @@ export type CritiquePipelineCriterionEvidencePreview = {
   visibleEvidencePreview?: string[];
 };
 
+export type CritiquePipelineSalvagedCriterion = {
+  stage: 'evidence' | 'voice_a' | 'voice_b' | 'validation';
+  criterion: CriterionLabel;
+  reason: string;
+};
+
 export type CritiquePipelineStageSnapshot = {
   stage: CritiquePipelineStageId;
   status: CritiquePipelineStageStatus;
@@ -74,6 +80,7 @@ export type CritiquePipelineMetadata = {
   resultTier: CritiqueResultTier;
   completedWithFallback: boolean;
   stages?: Partial<Record<CritiquePipelineStageId, CritiquePipelineStageSnapshot>>;
+  salvagedCriteria?: CritiquePipelineSalvagedCriterion[];
 };
 
 export type VoiceBStep = {

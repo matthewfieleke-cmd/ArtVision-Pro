@@ -1,5 +1,9 @@
 import type { CriterionLabel } from '../shared/criteria.js';
-import { groundingContentTokens } from './critiqueGrounding.js';
+import {
+  groundingContentTokens,
+  hasVisibleEventLanguage,
+  sharesConcreteLanguage,
+} from './critiqueGrounding.js';
 import { normalizeWhitespace } from './critiqueTextRules.js';
 
 export type WeakWorkEvidenceFamily =
@@ -36,9 +40,6 @@ const GENERIC_EVIDENCE_ABSTRACT_OUTCOME_PATTERN =
 const GENERIC_EVIDENCE_STRUCTURAL_VERB_PATTERN =
   /\b(break|shift|overlap|drag|turn|cut|touch|repeat|separate|merge|align|stack|widen|narrow|tilt|lean|step|bridge)\b/i;
 
-const GENERIC_EVIDENCE_VISIBLE_EVENT_PATTERN =
-  /\b(narrows?|widens?|bends?|cuts?|cross(?:es|ing)?|leaves?|opens?|closes?|steps?|breaks?|repeats?|aligns?|tilts?|stacks?|drops?|rises?|sits?|lands?|pinches?|separates?|overlaps?|intersects?|echo(?:es)?|stays?|lighter|darker|warmer|cooler|softer|harder|sharper|thinner|wider|smaller|larger|leans?|compress(?:es|ing)?|frames?|bridges?)\b/i;
-
 const GENERIC_EVIDENCE_INTERPRETIVE_EFFECT_PATTERN =
   /\b(directional flow|guides? the eye|guides? attention|draws? the eye|draws? attention|emphasiz(?:es?|ing) (?:its|their|the) importance|importance\b|prominence\b|creates? presence|gives? presence|creates? atmosphere|gives? atmosphere|emotional center|social focus|sense of arrival)\b/i;
 
@@ -62,6 +63,8 @@ const CONCEPTUAL_STRONG_VISUAL_RELATION_PATTERN =
 
 const CONCEPTUAL_CARRIER_ALLOW_PATTERN =
   /\b(physical carrier|visible carrier|passage that (?:carries|keeps|makes))\b/i;
+const CONCEPTUAL_READ_LINK_PATTERN =
+  /\b(makes?\s+\w+\s+read|keeps?\s+\w+\s+(?:legible|visible|present)|holds?\s+\w+|anchors?\s+\w+|pins?\s+\w+|ties?\s+\w+|carries?\s+\w+|drives?\s+\w+|pushes?\s+\w+|pulls?\s+\w+|communicat(?:es?|ing)\b|renders?\b|lets?\s+\w+\s+read|because)\b/i;
 
 function hasGroundedPassageLanguage(text: string, minimumTokens: number = 3): boolean {
   const normalized = normalizeWeakWorkText(text);
@@ -89,7 +92,7 @@ export function hasWeakWorkGenericEvidenceLine(text: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return true;
   const lacksJunctionLanguage = !hasGroundedPassageLanguage(normalized);
-  const lacksVisibleEvent = !GENERIC_EVIDENCE_VISIBLE_EVENT_PATTERN.test(normalized);
+  const lacksVisibleEvent = !hasVisibleEventLanguage(normalized);
   const genericSummary =
     GENERIC_EVIDENCE_ACTION_PATTERN.test(normalized) &&
     !hasGroundedPassageLanguage(normalized);
@@ -149,14 +152,21 @@ export function hasSpecificConceptualCarrierAnchor(text: string): boolean {
   return groundingContentTokens(normalized).length >= 2 && /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|on|in|with|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?(?:\s+into)?|overlap(?:s|ping)?)\b/i.test(normalized);
 }
 
-export function hasWeakConceptualGenericText(text: string): boolean {
+export function hasWeakConceptualGenericText(text: string, anchorText?: string): boolean {
   const normalized = normalizeWeakWorkText(text);
   if (!normalized) return true;
+  const normalizedAnchor = anchorText ? normalizeWeakWorkText(anchorText) : '';
   const hasVisualCarrierCue =
     groundingContentTokens(normalized).length >= 2 &&
-    /\b(against|where(?:\s+\w+){0,3}\s+meets?|meets?|under|between|across|along|around|above|below|behind|beside|beneath|through|toward|towards|into|inside|within|over|on|in|with|leading to|leading toward|leading towards|leads to|leads toward|framing|framed by|cross(?:es|ing)?|cut(?:s|ting)?(?:\s+across)?|narrow(?:s|ing)?(?:\s+toward)?|bend|bends|turn(?:s|ing)?(?:\s+into)?|overlap(?:s|ping)?)\b/i.test(normalized);
+    (CONCEPTUAL_VISUAL_RELATION_PATTERN.test(normalized) ||
+      Boolean(normalizedAnchor) &&
+        (normalized.includes(normalizedAnchor) || sharesConcreteLanguage(normalized, normalizedAnchor, 2)));
   const usesCarrierInterpretationGrammar = CONCEPTUAL_CARRIER_ALLOW_PATTERN.test(normalized);
-  return CONCEPTUAL_GENERIC_PATTERN.test(normalized) && (!hasVisualCarrierCue || !usesCarrierInterpretationGrammar);
+  const usesConceptualReadLink = CONCEPTUAL_READ_LINK_PATTERN.test(normalized);
+  return (
+    CONCEPTUAL_GENERIC_PATTERN.test(normalized) &&
+    (!hasVisualCarrierCue || (!usesCarrierInterpretationGrammar && !usesConceptualReadLink))
+  );
 }
 
 export function hasWeakConceptualEvidenceLine(text: string): boolean {
@@ -166,7 +176,7 @@ export function hasWeakConceptualEvidenceLine(text: string): boolean {
     groundingContentTokens(normalized).length >= 2 &&
     CONCEPTUAL_STRONG_VISUAL_RELATION_PATTERN.test(normalized);
   const hasVisibleEventCue =
-    GENERIC_EVIDENCE_VISIBLE_EVENT_PATTERN.test(normalized) ||
+    hasVisibleEventLanguage(normalized) ||
     GENERIC_EVIDENCE_CONCRETE_PATTERN.test(normalized);
   const interpretationWithoutEvent =
     (CONCEPTUAL_GENERIC_PATTERN.test(normalized) ||

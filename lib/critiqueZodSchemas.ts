@@ -258,6 +258,9 @@ const photoQualityReadSchema = z.object({
 });
 
 const observationPassageSchema = z.object({
+  id: z.string().regex(/^p\d{1,2}$/).describe(
+    'Stable passage id such as "p1" or "p2". Later stages will reuse this passage by id and copy the label verbatim when it fits.'
+  ),
   label: z.string().min(10).describe(
     'One locatable visible passage in the painting, written as a physical carrier phrase such as "the jaw edge against the dark collar" or "the reflection crossing the harbor water".'
   ),
@@ -270,8 +273,11 @@ const observationPassageSchema = z.object({
 });
 
 const observationEventSchema = z.object({
+  passageId: z.string().regex(/^p\d{1,2}$/).describe(
+    'The stable passage id this event belongs to.'
+  ),
   passage: z.string().min(10).describe(
-    'The passage label this event belongs to.'
+    'The exact passage label this event belongs to, copied verbatim from passages[].label.'
   ),
   event: z.string().min(16).describe(
     'One visible event in that passage, written in event-first language.'
@@ -282,8 +288,11 @@ const observationEventSchema = z.object({
 });
 
 const observationCarrierSchema = z.object({
+  passageId: z.string().regex(/^p\d{1,2}$/).describe(
+    'The stable passage id for this intent or presence carrier.'
+  ),
   passage: z.string().min(10).describe(
-    'One physical carrier passage for intent or presence.'
+    'One physical carrier passage for intent or presence, copied verbatim from passages[].label.'
   ),
   reason: z.string().min(16).describe(
     'Why this passage seems to carry intent or presence, still grounded in visible form.'
@@ -300,8 +309,11 @@ export const observationBankSchema = z.object({
 
 const criterionEvidenceSchema = z.object({
   criterion: criterionEnum,
+  observationPassageId: z.string().regex(/^p\d{1,2}$/).describe(
+    'The observation-bank passages[].id chosen for this criterion. Choose one reusable shared passage and copy its label verbatim into anchor.'
+  ),
   anchor: z.string().min(12).describe(
-    'One specific locatable anchor for this criterion: a concrete passage or junction in THIS painting that downstream stages must keep referring back to. Example: "the jaw edge against the dark collar" or "the orange sleeve where it meets the blue-gray wall".'
+    'One specific locatable anchor for this criterion: copy the chosen observation-bank passage label verbatim when it genuinely fits this criterion. Do not paraphrase it into a broader summary.'
   ),
   visibleEvidence: z.array(
     z.string().describe(

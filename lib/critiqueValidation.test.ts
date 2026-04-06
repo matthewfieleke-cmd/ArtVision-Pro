@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CritiqueGroundingError, CritiqueValidationError } from './critiqueErrors';
+import type { ObservationBank } from './critiqueZodSchemas';
 import {
   makeCritiqueEvidenceFixture,
   makeCritiqueResultFixture,
@@ -84,6 +85,125 @@ describe('validateEvidenceResult', () => {
     };
   }
 
+  function makeObservationBankFixture(): ObservationBank {
+    return {
+      passages: [
+        {
+          id: 'p1',
+          label: "the chair bars cutting across the sitter's torso",
+          role: 'intent',
+          visibleFacts: [
+            "The chair bars cutting across the sitter's torso divide the center of the picture.",
+          ],
+        },
+        {
+          id: 'p2',
+          label: 'the foreground chair back around the sitter',
+          role: 'composition',
+          visibleFacts: ['The foreground chair back around the sitter creates the main vertical scaffold.'],
+        },
+        {
+          id: 'p3',
+          label: "the wall behind the sitter's head",
+          role: 'value',
+          visibleFacts: ["The wall behind the sitter's head stays close in value to the crown."],
+        },
+        {
+          id: 'p4',
+          label: 'the lower-left floor-to-wall turn',
+          role: 'color',
+          visibleFacts: ['The lower-left floor-to-wall turn carries the room’s warm note.'],
+        },
+        {
+          id: 'p5',
+          label: 'the near table leg against the floor shadow',
+          role: 'drawing',
+          visibleFacts: ['The near table leg against the floor shadow kicks outward slightly at the floor.'],
+        },
+        {
+          id: 'p6',
+          label: 'the jaw edge against the dark collar',
+          role: 'edge',
+          visibleFacts: ['The jaw edge against the dark collar is no crisper than the softer cheek edge.'],
+        },
+        {
+          id: 'p7',
+          label: 'the wall hatching beside the smoother shirt',
+          role: 'surface',
+          visibleFacts: ['The wall hatching beside the smoother shirt repeats one short diagonal too uniformly.'],
+        },
+        {
+          id: 'p8',
+          label: "the sitter's downturned head against the dark wall",
+          role: 'presence',
+          visibleFacts: ["The sitter's downturned head against the dark wall carries the scene's pressure."],
+        },
+      ],
+      visibleEvents: [
+        {
+          passageId: 'p1',
+          passage: "the chair bars cutting across the sitter's torso",
+          signalType: 'overlap',
+          event: "The chair bars cut across the sitter's torso and keep the figure partially blocked.",
+        },
+        {
+          passageId: 'p2',
+          passage: 'the foreground chair back around the sitter',
+          signalType: 'shape',
+          event: 'The middle slat cuts the route more abruptly than the outer chair silhouette.',
+        },
+        {
+          passageId: 'p3',
+          passage: "the wall behind the sitter's head",
+          signalType: 'value',
+          event: "The wall behind the sitter's head stays close in value to the crown.",
+        },
+        {
+          passageId: 'p4',
+          passage: 'the lower-left floor-to-wall turn',
+          signalType: 'color',
+          event: 'The floor stays warmer than the wall where the two planes meet.',
+        },
+        {
+          passageId: 'p5',
+          passage: 'the near table leg against the floor shadow',
+          signalType: 'shape',
+          event: 'The table leg kicks outward slightly before it meets the floor shadow.',
+        },
+        {
+          passageId: 'p6',
+          passage: 'the jaw edge against the dark collar',
+          signalType: 'edge',
+          event: 'The jaw edge against the dark collar stays no crisper than the cheek into the wall.',
+        },
+        {
+          passageId: 'p7',
+          passage: 'the wall hatching beside the smoother shirt',
+          signalType: 'surface',
+          event: 'The wall hatching repeats one short diagonal stroke more uniformly than the shirt handling does.',
+        },
+        {
+          passageId: 'p8',
+          passage: "the sitter's downturned head against the dark wall",
+          signalType: 'value',
+          event: "The head stays darker against the wall and holds the inward pressure there.",
+        },
+      ],
+      mediumCues: [
+        'Short hatched marks and smoother shirt passages suggest a dry medium with varied pressure.',
+        'The surface stays matte and layered rather than glossy.',
+      ],
+      photoCaveats: [],
+      intentCarriers: [
+        {
+          passageId: 'p1',
+          passage: "the chair bars cutting across the sitter's torso",
+          reason: 'That obstruction is the physical passage making the withheld intent legible.',
+        },
+      ],
+    };
+  }
+
   it('accepts minimal-abstraction surface anchors when visible evidence restates the same passage with equivalent concrete terms', () => {
     const evidence = neutralizeTopLevelEvidence();
     evidence.criterionEvidence[1] = {
@@ -147,6 +267,103 @@ describe('validateEvidenceResult', () => {
     expect(validated.criterionEvidence[0]?.visibleEvidence[0]).toBe(
       'The path leading to the house narrows before the doorway and stays lighter than the flower patch beside it.'
     );
+  });
+
+  it('canonicalizes anchor text from observationPassageId when a shared observation passage is provided', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      observationPassageId: 'p2',
+      anchor: 'the chair scaffold around the figure',
+      visibleEvidence: [
+        'The foreground chair back around the sitter cuts a tall vertical band through the center-left of the picture.',
+        'The middle slat in the foreground chair back around the sitter cuts the route more abruptly than the outer silhouette.',
+        'The outer chair silhouette leaves a wider gap above the shoulder than the middle slat does.',
+        'The window strip at left, the chair back, and the sitter stack into three readable vertical bands.',
+      ],
+      strengthRead:
+        'The foreground chair back around the sitter already gives the rectangle a strong vertical scaffold and a clear central interruption.',
+      tensionRead:
+        'The middle slat in the foreground chair back around the sitter interrupts the route too abruptly, so one shape pulls harder than the larger scaffold needs.',
+      preserve: 'Preserve the three-band scaffold between window strip, chair back, and sitter.',
+      confidence: 'high',
+    };
+
+    const validated = validateEvidenceResult(evidence, { observationBank: makeObservationBankFixture() });
+
+    expect(validated.criterionEvidence[1]?.anchor).toBe('the foreground chair back around the sitter');
+    expect(validated.criterionEvidence[1]?.observationPassageId).toBe('p2');
+  });
+
+  it('uses curated four-line salvage in lenient mode instead of keeping a bloated generic composition list', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      observationPassageId: 'p2',
+      anchor: 'the foreground chair back around the sitter',
+      visibleEvidence: [
+        'The foreground chair back around the sitter creates a strong composition.',
+        'The foreground chair back around the sitter guides the eye through the scene.',
+        'The foreground chair back around the sitter adds structure and balance.',
+        'The foreground chair back around the sitter makes the design feel stable.',
+        'The foreground chair back around the sitter creates rhythm in the picture.',
+        'The foreground chair back around the sitter organizes the whole image.',
+      ],
+      strengthRead: 'The foreground chair back around the sitter gives the picture a clear scaffold.',
+      tensionRead: 'This criterion reads resolved at the level the painting is working at.',
+      preserve: 'Preserve the foreground chair back around the sitter as the main scaffold.',
+      confidence: 'high',
+    };
+
+    const validated = validateEvidenceResult(evidence, {
+      mode: 'lenient',
+      observationBank: makeObservationBankFixture(),
+    });
+
+    expect(validated.criterionEvidence[1]?.visibleEvidence).toHaveLength(4);
+    expect(validated.criterionEvidence[1]?.visibleEvidence[0]?.toLowerCase()).toContain(
+      'the foreground chair back around the sitter'
+    );
+    expect(validated.salvagedCriteria).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'evidence',
+          criterion: 'Composition and shape structure',
+        }),
+      ])
+    );
+    expect(
+      validated.criterionEvidence[1]?.visibleEvidence.some((line) =>
+        /\b(cuts?|narrows?|widens?|stacks?|overlaps?|aligns?|tilts?|leaves?)\b/i.test(line)
+      )
+    ).toBe(true);
+  });
+
+  it('does not mark lenient evidence as salvaged when the raw criterion already passes unchanged', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      observationPassageId: 'p2',
+      ...neutralizeCompositionEvidence(),
+    };
+
+    const validated = validateEvidenceResult(evidence, {
+      mode: 'lenient',
+      observationBank: makeObservationBankFixture(),
+    });
+
+    expect(validated.criterionEvidence[1]?.visibleEvidence).toEqual(
+      evidence.criterionEvidence[1]?.visibleEvidence
+    );
+    expect(
+      validated.salvagedCriteria?.some(
+        (entry) =>
+          entry.stage === 'evidence' && entry.criterion === 'Composition and shape structure'
+      ) ?? false
+    ).toBe(false);
   });
 
   it('rejects equivalence collisions that only reconstruct the anchor across multiple nearby lines', () => {
@@ -214,6 +431,23 @@ describe('validateEvidenceResult', () => {
         'The arrangement of flowers in the foreground is cut by the path as it bends toward the house.',
         'The arrangement of flowers in the foreground sits below the fence and tree band.',
         'The arrangement of flowers in the foreground stays brighter than the path beside it.',
+      ],
+    };
+
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Invalid evidence anchor/);
+  });
+
+  it('rejects summary-like transition anchors before support validation starts', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[1] = {
+      ...evidence.criterionEvidence[1]!,
+      criterion: 'Composition and shape structure',
+      anchor: 'transition from flowers to background',
+      visibleEvidence: [
+        'The flower edge against the gray field breaks more abruptly on the right than on the left.',
+        'The yellow petals overlap the cooler gray field and leave a thinner gap above the upper bloom.',
+        'The red dahlia sits in front of the gray field and keeps the bouquet from flattening into one band.',
+        'The leaf cluster below the yellow flowers stays darker than the gray field behind it.',
       ],
     };
 
@@ -370,7 +604,7 @@ describe('validateEvidenceResult', () => {
       preserve: 'Preserve the speed and drama of the train.',
     };
 
-    expect(() => validateEvidenceResult(evidence)).toThrow(/Conceptual evidence anchor is too soft|Visible evidence is too generic|strengthRead is too generic|preserve is too generic/);
+    expect(() => validateEvidenceResult(evidence)).toThrow(/Invalid evidence anchor|Conceptual evidence anchor is too soft|Visible evidence is too generic|strengthRead is too generic|preserve is too generic/);
   });
 
   it('rejects figure-led conceptual summaries that name emotion or personality instead of the carrier passage', () => {
@@ -500,6 +734,27 @@ describe('validateEvidenceResult', () => {
     };
 
     expect(() => validateEvidenceResult(evidence)).toThrow(/strengthRead is too generic|preserve is too generic/);
+  });
+
+  it('accepts concrete conceptual strength and preserve lines when they keep the anchor nouns and a specific read-link', () => {
+    const evidence = neutralizeTopLevelEvidence();
+    evidence.criterionEvidence[0] = {
+      ...evidence.criterionEvidence[0]!,
+      criterion: 'Intent and necessity',
+      anchor: 'the lit window against the dark facade',
+      visibleEvidence: [
+        'The lit window against the dark facade contrasts with the darker wall around it, so the opening stays legible at a distance.',
+        'The lit window against the dark facade sits above the red door and keeps the entrance passage stacked rather than scattered.',
+        'The porch roof drops just below the lit window against the dark facade and compresses the brighter opening into the upper wall band.',
+        'The snow band stays cooler than the lit window against the dark facade, leaving the warmer opening to hold the pressure.',
+      ],
+      strengthRead:
+        'The lit window against the dark facade communicates the house’s human pressure because that brighter opening stays active inside the cooler wall.',
+      preserve:
+        'Preserve the lit window against the dark facade because that contrast keeps the entrance pressure visible.',
+    };
+
+    expect(() => validateEvidenceResult(evidence)).not.toThrow();
   });
 
   it('rejects flattering top-level evidence prose on weak work', () => {

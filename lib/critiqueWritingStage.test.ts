@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeKnownVoiceBVerbDrift,
   normalizeVoiceBMoveForSchema,
+  repairVoiceAStageGrounding,
   synthesizeVoiceBSummaryFromCategories,
 } from './critiqueWritingStage';
+import { makeCritiqueEvidenceFixture, makeVoiceAStageFixture } from './critiqueTestFixtures';
+import { validateVoiceAStageOutput } from './critiqueValidation';
 
 describe('normalizeKnownVoiceBVerbDrift', () => {
   it('rewrites generic color-transition enhancement into an allowed concrete move', () => {
@@ -159,6 +162,35 @@ describe('normalizeVoiceBMoveForSchema', () => {
   });
 });
 
+describe('repairVoiceAStageGrounding', () => {
+  it('repairs drifted category evidence signals and analysis from anchored evidence', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const voiceA = makeVoiceAStageFixture();
+    voiceA.categories[6] = {
+      ...voiceA.categories[6]!,
+      phase2: {
+        criticsAnalysis: 'The handling feels expressive overall.',
+      },
+      evidenceSignals: ['Good texture.', 'Interesting marks.'],
+    };
+
+    const repaired = repairVoiceAStageGrounding(voiceA, evidence);
+
+    expect(repaired.salvagedCriteria).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'voice_a',
+          criterion: 'Surface and medium handling',
+        }),
+      ])
+    );
+    expect(() => validateVoiceAStageOutput(repaired.voiceA, evidence)).not.toThrow();
+    expect(repaired.voiceA.categories[6]?.evidenceSignals[0]).toContain(
+      'wall hatching beside the smoother shirt'
+    );
+  });
+});
+
 describe('synthesizeVoiceBSummaryFromCategories', () => {
   it('builds concrete fallback priorities and studio changes from grounded category plans', () => {
     const evidence = {
@@ -180,6 +212,7 @@ describe('synthesizeVoiceBSummaryFromCategories', () => {
       criterionEvidence: [
         {
           criterion: 'Edge and focus control' as const,
+          observationPassageId: 'p1',
           anchor: 'the branch edge against the pale sky',
           visibleEvidence: [
             'The branch edge against the pale sky stays sharp at the fork, while the nearby branch edge softens into the cloud.',
@@ -192,6 +225,7 @@ describe('synthesizeVoiceBSummaryFromCategories', () => {
         },
         {
           criterion: 'Composition and shape structure' as const,
+          observationPassageId: 'p2',
           anchor: 'the seated figure under the tree trunk',
           visibleEvidence: [
             'The seated figure under the tree trunk sits lower than the standing figure and leaves a wider rock band to the left.',

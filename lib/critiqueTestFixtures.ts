@@ -7,6 +7,7 @@ import type { VoiceAStageResult, VoiceBStageResult } from './critiqueZodSchemas.
 type CriterionFixture = {
   criterion: CriterionLabel;
   level: RatingLevelLabel;
+  observationPassageId: string;
   anchor: string;
   evidencePointer: string;
   region: { x: number; y: number; width: number; height: number };
@@ -37,6 +38,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Intent and necessity',
     level: 'Advanced',
+    observationPassageId: 'p1',
     anchor: "the chair bars cutting across the sitter's torso",
     evidencePointer: "the obstruction feels intentional, but the darkest inner bar still lands too bluntly across the sitter's torso",
     region: { x: 0.2, y: 0.26, width: 0.36, height: 0.34 },
@@ -88,6 +90,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Composition and shape structure',
     level: 'Advanced',
+    observationPassageId: 'p2',
     anchor: 'the foreground chair back around the sitter',
     evidencePointer: 'the middle slat interrupts the route from the chair silhouette to the sitter more abruptly than the surrounding shape scaffold',
     region: { x: 0.16, y: 0.18, width: 0.32, height: 0.46 },
@@ -139,6 +142,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Value and light structure',
     level: 'Intermediate',
+    observationPassageId: 'p3',
     anchor: "the wall behind the sitter's head",
     evidencePointer: "the wall behind the sitter's head sits too close in value to the crown and upper hair mass",
     region: { x: 0.48, y: 0.08, width: 0.2, height: 0.24 },
@@ -190,6 +194,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Color relationships',
     level: 'Advanced',
+    observationPassageId: 'p4',
     anchor: 'the lower-left floor-to-wall turn',
     evidencePointer: 'the warmest floor patch at the lower-left floor-to-wall turn jumps slightly hotter than the rest of the muted room palette',
     region: { x: 0.0, y: 0.56, width: 0.34, height: 0.28 },
@@ -241,6 +246,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Drawing, proportion, and spatial form',
     level: 'Intermediate',
+    observationPassageId: 'p5',
     anchor: 'the near table leg against the floor shadow',
     evidencePointer: 'the near table leg against the floor shadow kicks outward slightly before it meets the floor plane',
     region: { x: 0.56, y: 0.56, width: 0.14, height: 0.2 },
@@ -292,6 +298,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Edge and focus control',
     level: 'Intermediate',
+    observationPassageId: 'p6',
     anchor: 'the jaw edge against the dark collar',
     evidencePointer: 'the jaw edge against the dark collar is no crisper than the softer cheek edge into the wall',
     region: { x: 0.5, y: 0.18, width: 0.16, height: 0.16 },
@@ -343,6 +350,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Surface and medium handling',
     level: 'Advanced',
+    observationPassageId: 'p7',
     anchor: 'the wall hatching beside the smoother shirt',
     evidencePointer: 'the wall hatching beside the smoother shirt repeats one short stroke shape too uniformly',
     region: { x: 0.38, y: 0.18, width: 0.26, height: 0.28 },
@@ -394,6 +402,7 @@ const seatedInteriorCriteria: CriterionFixture[] = [
   {
     criterion: 'Presence, point of view, and human force',
     level: 'Advanced',
+    observationPassageId: 'p8',
     anchor: "the sitter's downturned head against the dark wall",
     evidencePointer: "the brightest shirt note just below the chin steals a little pressure from the sitter's downturned head against the dark wall",
     region: { x: 0.46, y: 0.12, width: 0.24, height: 0.28 },
@@ -486,6 +495,7 @@ export function makeCritiqueEvidenceFixture(): CritiqueEvidenceDTO {
     comparisonObservations: [],
     criterionEvidence: criterionFixtures().map((fixture) => ({
       criterion: fixture.criterion,
+      observationPassageId: fixture.observationPassageId,
       anchor: fixture.anchor,
       visibleEvidence: fixture.visibleEvidence,
       strengthRead: fixture.strengthRead,

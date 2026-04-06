@@ -168,10 +168,22 @@ function normalizedContains(haystack: string, needle: string): boolean {
 const GROUNDING_RELATION_CUE_PATTERN =
   /\b(against|between|beside|under|over|above|below|behind|before|after|near|where|meets?|meeting|along|across|through|into|toward|around|inside|outside|beneath|within|with|than)\b/i;
 const GROUNDING_VISIBLE_EVENT_PATTERN =
-  /\b(narrows?|widens?|cuts?|leaves?|stacks?|overlaps?|aligns?|tilts?|bends?|passes?|stays?|sits?|breaks?|turns?|meets?|crosses?|repeats?|rises?|drops?|lands?|compresses?|leans?|holds?|separates?|contrasts?|opens?|closes?|curves?|echoes?|frames?|interrupts?|follows?|bridges?|steps?|pulls?)\b/i;
+  /\b(narrows?|widens?|cuts?|leaves?|stacks?|overlaps?|aligns?|tilts?|bends?|passes?|stays?|sits?|breaks?|turns?|meets?|crosses?|repeats?|rises?|drops?|lands?|compresses?|leans?|holds?|separates?|contrasts?|opens?|closes?|curves?|echoes?|frames?|interrupts?|follows?|bridges?|steps?|pulls?|lighter|darker|warmer|cooler|softer|harder|sharper|thinner|wider|smaller|larger)\b/i;
+const GROUNDING_SPATIAL_CUE_PATTERN =
+  /\b(left|right|upper|lower|top|bottom|center|middle|foreground|background)\b/i;
 
 export function hasVisibleEventLanguage(text: string): boolean {
   return GROUNDING_VISIBLE_EVENT_PATTERN.test(normalizeWhitespace(text));
+}
+
+export function hasPassageAnchorCue(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return false;
+  return (
+    GROUNDING_RELATION_CUE_PATTERN.test(normalized) ||
+    hasVisibleEventLanguage(normalized) ||
+    GROUNDING_SPATIAL_CUE_PATTERN.test(normalized)
+  );
 }
 
 function evaluateAnchorSupportLine(anchor: string, line: string): AnchorSupportMatch | undefined {

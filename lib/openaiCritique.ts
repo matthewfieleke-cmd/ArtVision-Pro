@@ -33,8 +33,19 @@ import {
   critiqueInstrumentEnabled,
   noopCritiqueInstrumenter,
 } from './critiqueInstrumentation.js';
-import { weakWorkCompositionRepairExamples, weakWorkRepairExamples } from './critiqueWeakWorkContracts.js';
+import {
+  hasSpecificConceptualCarrierAnchor,
+  weakWorkCompositionRepairExamples,
+  weakWorkRepairExamples,
+} from './critiqueWeakWorkContracts.js';
 import { getOpenAIStageModelMap } from './openaiModels.js';
+import {
+  findPrimaryAnchorSupportLine,
+  hasVisibleEventLanguage,
+  isConcreteAnchor,
+  sharesConcreteLanguage,
+} from './critiqueGrounding.js';
+import { normalizeWhitespace } from './critiqueTextRules.js';
 import {
   createFailedStageSnapshot,
   createPipelineMetadata,
@@ -47,6 +58,100 @@ import type { CritiquePipelineStageId } from '../shared/critiqueContract.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 const OBSERVATION_MAX_TOKENS = 2600;
+const OBSERVATION_SIGNAL_PATTERNS: Record<ObservationBank['visibleEvents'][number]['signalType'], RegExp> = {
+  shape:
+    /\b(shape|shapes|silhouette|silhouettes|contour|contours|band|bands|mass|masses|block|blocks|vertical|horizontal|diagonal|curve|curves|angle|angles|gap|gaps|interval|intervals|overlap|overlaps|tilt|tilts?|lean|leans?|cut|cuts?|cross|crosses?|stack|stacks?|frame|frames?)\b/i,
+  value:
+    /\b(light|lights|dark|darks|bright|dim|pale|shadow|shadows|highlight|highlights|midtone|midtones|contrast|contrasts?|lighter|darker)\b/i,
+  color:
+    /\b(color|colour|colors|colours|hue|hues|chroma|saturation|temperature|warm|warmer|cool|cooler|red|orange|yellow|green|blue|violet|purple|gray|grey|brown)\b/i,
+  edge:
+    /\b(edge|edges|boundary|boundaries|contour|contours|soft|softer|hard|harder|sharp|sharper|crisp|blur|blurred|feathered|lost|found)\b/i,
+  space:
+    /\b(space|spatial|depth|plane|planes|foreground|background|behind|below|above|in front of|near|far|distance|recede|recedes?|advance|advances?|overlap|overlaps?|stack|stacks?)\b/i,
+  surface:
+    /\b(surface|texture|textures|textured|smooth|rough|grain|drag|scumble|hatch|hatching|wash|washes|stroke|strokes|brushwork|opaque|transparent|dry|wet|thick|thin)\b/i,
+};
+const OBSERVATION_GENERIC_EVENT_PATTERN =
+  /\b(importance|important|mood|story|narrative|atmosphere|energy|presence|force|emotion|feeling|vibe|overall effect)\b/i;
+const OBSERVATION_RELATION_CUE_PATTERN =
+  /\b(against|between|where|meets?|under|over|above|below|behind|beside|across|through|toward|around|near|inside|outside|within)\b/i;
+
+function normalizeObservationText(text: string): string {
+  return normalizeWhitespace(text).toLowerCase();
+}
+
+function observationEventHasSignalLanguage(
+  event: ObservationBank['visibleEvents'][number]
+): boolean {
+  const text = event.event;
+  if (hasVisibleEventLanguage(text)) return true;
+  if (OBSERVATION_SIGNAL_PATTERNS[event.signalType].test(text)) return true;
+  if (OBSERVATION_RELATION_CUE_PATTERN.test(text) && !OBSERVATION_GENERIC_EVENT_PATTERN.test(text)) return true;
+  return false;
+}
+
+function validateObservationBankGrounding(observationBank: ObservationBank): ObservationBank {
+  const passagesById = new Map<string, ObservationBank['passages'][number]>();
+
+  for (const passage of observationBank.passages) {
+    if (passagesById.has(passage.id)) {
+      throw new Error(`Observation stage validation failed: duplicate passage id ${passage.id}`);
+    }
+    if (!isConcreteAnchor(passage.label)) {
+      throw new Error(`Observation stage validation failed: passage label is too soft (${passage.id})`);
+    }
+    if (
+      !passage.visibleFacts.some((fact) => sharesConcreteLanguage(fact, passage.label, 2)) &&
+      !passage.visibleFacts.some((fact) => sharesConcreteLanguage(fact, passage.label, 1))
+    ) {
+      throw new Error(`Observation stage validation failed: passage facts drifted from ${passage.id}`);
+    }
+    if (
+      (passage.role === 'intent' || passage.role === 'presence') &&
+      !hasSpecificConceptualCarrierAnchor(passage.label)
+    ) {
+      throw new Error(`Observation stage validation failed: conceptual passage is too soft (${passage.id})`);
+    }
+    passagesById.set(passage.id, passage);
+  }
+
+  for (const event of observationBank.visibleEvents) {
+    const passage = passagesById.get(event.passageId);
+    if (!passage) {
+      throw new Error(`Observation stage validation failed: unknown passage id ${event.passageId} in visibleEvents`);
+    }
+    if (normalizeObservationText(event.passage) !== normalizeObservationText(passage.label)) {
+      throw new Error(`Observation stage validation failed: visibleEvents passage label drifted for ${event.passageId}`);
+    }
+    if (!observationEventHasSignalLanguage(event)) {
+      throw new Error(`Observation stage validation failed: visibleEvents entry lacks visual signal language for ${event.passageId}`);
+    }
+    if (!sharesConcreteLanguage(event.event, passage.label, 1)) {
+      throw new Error(`Observation stage validation failed: visibleEvents entry drifted from ${event.passageId}`);
+    }
+  }
+
+  for (const carrier of observationBank.intentCarriers) {
+    const passage = passagesById.get(carrier.passageId);
+    if (!passage) {
+      throw new Error(`Observation stage validation failed: unknown passage id ${carrier.passageId} in intentCarriers`);
+    }
+    if (normalizeObservationText(carrier.passage) !== normalizeObservationText(passage.label)) {
+      throw new Error(`Observation stage validation failed: intentCarriers passage label drifted for ${carrier.passageId}`);
+    }
+    if (!hasSpecificConceptualCarrierAnchor(carrier.passage)) {
+      throw new Error(`Observation stage validation failed: intent carrier is too soft for ${carrier.passageId}`);
+    }
+  }
+
+  return observationBank;
+}
+
+function isRecoverableObservationGroundingError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /^Observation stage validation failed: /.test(message);
+}
 
 function summarizeRawForLog(raw: unknown): string {
   try {
@@ -311,7 +416,19 @@ async function runCritiqueObservationStage(
   if (!parsed.success) {
     throw new Error(`Observation stage validation failed: ${parsed.error.message}`);
   }
-  return parsed.data;
+  try {
+    return validateObservationBankGrounding(parsed.data);
+  } catch (error) {
+    if (isRecoverableObservationGroundingError(error)) {
+      console.warn('[critique observation grounding warning]', {
+        error: errorMessage(error),
+        details: errorDetails(error),
+        rawPreview: summarizeRawForLog(parsed.data),
+      });
+      return parsed.data;
+    }
+    throw error;
+  }
 }
 
 async function runCritiqueEvidenceStage(
@@ -382,16 +499,16 @@ async function runCritiqueEvidenceStage(
   try {
     const raw = JSON.parse(text);
     try {
-      return validateEvidenceResult(raw);
+      return validateEvidenceResult(raw, { observationBank: args.observationBank });
     } catch (error) {
       if (args.allowLenientValidation) {
         const message = error instanceof Error ? error.message : '';
         const canUseLenientFallback =
-          /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for|Visible evidence does not support anchor for|Conceptual evidence anchor is too soft for/.test(
+          /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for|Visible evidence does not support anchor for|Conceptual evidence anchor is too soft for|Observation passage id does not match anchor for|Invalid observation passage id for/.test(
             message
           );
         if (canUseLenientFallback) {
-          return validateEvidenceResult(raw, { mode: 'lenient' });
+          return validateEvidenceResult(raw, { mode: 'lenient', observationBank: args.observationBank });
         }
       }
       throw error;
@@ -506,6 +623,7 @@ Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
 - For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
 - For conceptual criteria, the anchor does NOT need to use an approved noun list. It needs to be pointable in the painting and restated concretely in the visibleEvidence lines.
+- For Intent and necessity or Presence, point of view, and human force, do NOT reuse a composition anchor unless the evidence explicitly shows why that same passage carries the intent, pressure, or human address rather than merely organizing the picture.
 - On object studies or architecture, conceptual anchors still need a physical carrier passage: a pump head against a bottle neck, a floral label on the bottle, a red door under a lit window, or a roofline against the night sky.
 - Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.
 - Do NOT use flattering anchor labels such as "the arrangement of flowers", "the cozy house", "the vibrant garden", "the idyllic setting", or "the narrative journey of the path". Name the visible object pair or junction instead.
@@ -531,6 +649,7 @@ Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - For Intent and necessity or Presence, point of view, and human force, do NOT use phrases like "narrative journey", "inviting atmosphere", "idyllic setting", "warmth", "life and activity", or "sense of story" unless the same sentence also names the exact visible carrier relationship that creates that read.
 - For any listed conceptual criterion, make the FIRST visibleEvidence line an anchor-echo support line. Restate the same anchored passage there and describe one visible event in that same sentence.
 - For conceptual visibleEvidence lines, naming the anchor is NOT enough. The sentence must also describe a visible event in that passage: what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what.
+- For conceptual criteria, at least one visibleEvidence line must explain why this exact passage carries the intent, pressure, or human force instead of a nearby structural passage. If the line only proves structure, it is still wrong for Intent or Presence.
 - Rewrite interpretation-first sentences like "the path leading to the house creates a directional flow", "the house draws attention", or "the red door under the lit window creates a welcoming mood" into event-first sentences that say what is visibly happening where.
 - Rewrite focal-summary lines like "the vibrant bouquet against the stylized leaf background creates a strong focal point" into event-first lines such as "the vibrant bouquet against the stylized leaf background stays lighter than the leaf shapes behind it and bunches tighter above the vase rim."
 - Route carriers like "the path leading to the house" are acceptable only if the evidence then names what that path is visibly doing: where it narrows, bends, meets the doorway, or separates against nearby shapes.
@@ -545,6 +664,9 @@ Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - For Composition and shape structure in cafe or street scenes, replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language such as "the path narrowing into the cafe tables leaves a wider ground shape on one side" or "the nearest building arch lands behind the tables and repeats their curve higher up the wall."
 - For Composition and shape structure in figure-led or train-led scenes, replace summaries like "the pose adds drama", "the figure creates presence", "the train creates movement", or "the poles create rhythm" with event language such as "the chair slat leaves a smaller gap above the shoulder than at the elbow" or "the engine cuts across the ground bands while the nearest pole leans with that same diagonal."
 - For Composition and shape structure, write a shape event, not a verdict: what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts in that exact passage.
+- On abstract, simplified, or still-life passages, phrases like "layered structure", "adds complexity", "creates movement", "grounds the composition", or "provides a base" are still too generic unless the same sentence names the exact forms and the visible event between them.
+- Replace weak still-life wording like "the dark shapes under the banana provide a structural base" with event wording such as "the banana overlaps the dark shapes and leaves a thinner dark strip on one side than on the other."
+- Replace abstract wording like "the overlapping colors add movement and complexity" with event wording such as "the red shape overlaps the purple block and leaves a narrower strip at the top edge than at the side."
 - For Composition and shape structure on object studies or architecture, do NOT stop at verdicts like "the bottle is centered", "the house is well-balanced", or "the roof creates structure". Write the visible event instead: what aligns, tilts, lands, repeats, leaves a wider side, or steps against a neighboring passage.
 - On seascapes, harbors, or other strong paintings, the same rule still applies: prefer "the reflection cuts through the harbor bands", "the boat silhouette sits left of the reflection", or "the masts echo that vertical above the horizon" over verdicts like "the reflection organizes the composition" or "the boat creates balance."
 - If one visibleEvidence line is already concrete, keep it and rewrite the generic filler lines so the full list stays at junction/event level.
@@ -577,6 +699,7 @@ Escalation for repeated failure:
 - Replace the ENTIRE criterion block for any repeated failure: choose a new anchor, rewrite all visibleEvidence lines, and rewrite strengthRead/preserve so they reuse the new anchor nouns directly.
 - If ${repeatedGenericCompositionCriteria.length > 0 ? repeatedGenericCompositionCriteria.join(', ') : 'Composition and shape structure'} has failed more than once, at least TWO visibleEvidence lines for that criterion must describe a structural event with verbs like "narrows", "widens", "cuts", "leaves a gap", "stacks", "overlaps", "aligns", or "tilts".
 - If ${repeatedConceptualCriteria.length > 0 ? repeatedConceptualCriteria.join(', ') : 'a conceptual criterion'} has failed more than once, rewrite it as a more pointable visible carrier. Good forms include "[object] against [object]", "[object] beside [object]", "[object] across [object]", "[object] under [object]", "[object] where it meets [object]", or "[path] leading to [object]" when the evidence then describes the visible path behavior concretely.
+- If a repeated conceptual failure keeps reusing the same composition carrier, replace it with the passage that actually holds the intent, pressure, or address. Do not keep the same diagonal, pole row, horizon, or overlap unless you can prove that it carries the conceptual read rather than only structure.
 - Do NOT reuse pure theme labels like "movement", "presence", "power", "energy", "atmosphere", "mood", or "dominant presence" as the whole anchor for a repeated conceptual failure.
 - For repeated conceptual generic-evidence failures, replace every interpretation-first visibleEvidence line with a sentence that names the carrier passage and one visible event in it.
 - If the previous anchor was generic, replacing one adjective is NOT enough. Replace the carrier passage itself.${repeatedFailurePreviewBlock}`
@@ -860,6 +983,10 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       resultTier: existingPipeline?.resultTier ?? 'full',
       completedWithFallback: existingPipeline?.completedWithFallback ?? false,
       stages: withStages,
+      salvagedCriteria: [
+        ...(existingPipeline?.salvagedCriteria ?? []),
+        ...(evidence.salvagedCriteria ?? []),
+      ],
     }),
   };
   return trimmedTitle ? { ...withPipeline, paintingTitle: trimmedTitle } : withPipeline;

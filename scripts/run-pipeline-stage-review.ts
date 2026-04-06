@@ -43,6 +43,9 @@ type BenchmarkRecord = {
   resultTier?: string | null;
   completedWithFallback: boolean;
   evidenceSuccess: boolean;
+  evidenceSalvaged: boolean;
+  voiceASalvaged: boolean;
+  salvagedCriterionCount: number;
   conceptualGenericFailure: boolean;
   genericLanguageFailure: boolean;
   downstreamDrift: boolean;
@@ -276,6 +279,9 @@ function formatRate(count: number, total: number): string {
 function metricSummary(records: BenchmarkRecord[]) {
   const producedCritiques = records.filter((record) => record.outcome === 'success').length;
   const evidenceSuccessCount = records.filter((record) => record.evidenceSuccess).length;
+  const evidenceSalvagedCount = records.filter((record) => record.evidenceSalvaged).length;
+  const voiceASalvagedCount = records.filter((record) => record.voiceASalvaged).length;
+  const salvagedCriterionCount = records.reduce((sum, record) => sum + record.salvagedCriterionCount, 0);
   const fallbackCount = records.filter((record) => record.completedWithFallback).length;
   const conceptualGenericCount = records.filter((record) => record.conceptualGenericFailure).length;
   const genericLanguageCount = records.filter((record) => record.genericLanguageFailure).length;
@@ -286,6 +292,9 @@ function metricSummary(records: BenchmarkRecord[]) {
     totalFixtures: records.length,
     producedCritiques,
     evidenceSuccessRate: formatRate(evidenceSuccessCount, records.length),
+    evidenceSalvageRate: formatRate(evidenceSalvagedCount, records.length),
+    voiceASalvageRate: formatRate(voiceASalvagedCount, records.length),
+    salvagedCriterionCount,
     fallbackRate: formatRate(fallbackCount, records.length),
     conceptualGenericFailureRate: formatRate(conceptualGenericCount, records.length),
     genericLanguageFailureRate: formatRate(genericLanguageCount, records.length),
@@ -332,6 +341,9 @@ function markdownReport(fixtures: BenchmarkFixture[], records: BenchmarkRecord[]
   lines.push(`- total fixtures: ${overall.totalFixtures}`);
   lines.push(`- produced critiques: ${overall.producedCritiques}`);
   lines.push(`- evidence success rate: ${overall.evidenceSuccessRate}`);
+  lines.push(`- evidence salvage rate: ${overall.evidenceSalvageRate}`);
+  lines.push(`- Voice A salvage rate: ${overall.voiceASalvageRate}`);
+  lines.push(`- salvaged criteria: ${overall.salvagedCriterionCount}`);
   lines.push(`- fallback rate: ${overall.fallbackRate}`);
   lines.push(`- conceptual generic failure rate: ${overall.conceptualGenericFailureRate}`);
   lines.push(`- generic language failure rate: ${overall.genericLanguageFailureRate}`);
@@ -344,6 +356,9 @@ function markdownReport(fixtures: BenchmarkFixture[], records: BenchmarkRecord[]
     lines.push(`### ${style}`);
     lines.push('');
     lines.push(`- evidence success rate: ${summary.evidenceSuccessRate}`);
+    lines.push(`- evidence salvage rate: ${summary.evidenceSalvageRate}`);
+    lines.push(`- Voice A salvage rate: ${summary.voiceASalvageRate}`);
+    lines.push(`- salvaged criteria: ${summary.salvagedCriterionCount}`);
     lines.push(`- fallback rate: ${summary.fallbackRate}`);
     lines.push(`- conceptual generic failure rate: ${summary.conceptualGenericFailureRate}`);
     lines.push(`- generic language failure rate: ${summary.genericLanguageFailureRate}`);
@@ -357,6 +372,9 @@ function markdownReport(fixtures: BenchmarkFixture[], records: BenchmarkRecord[]
     lines.push(`### ${medium}`);
     lines.push('');
     lines.push(`- evidence success rate: ${summary.evidenceSuccessRate}`);
+    lines.push(`- evidence salvage rate: ${summary.evidenceSalvageRate}`);
+    lines.push(`- Voice A salvage rate: ${summary.voiceASalvageRate}`);
+    lines.push(`- salvaged criteria: ${summary.salvagedCriterionCount}`);
     lines.push(`- fallback rate: ${summary.fallbackRate}`);
     lines.push(`- conceptual generic failure rate: ${summary.conceptualGenericFailureRate}`);
     lines.push(`- generic language failure rate: ${summary.genericLanguageFailureRate}`);
@@ -377,6 +395,9 @@ function markdownReport(fixtures: BenchmarkFixture[], records: BenchmarkRecord[]
     lines.push(`- result tier: ${record.resultTier ?? 'n/a'}`);
     lines.push(`- completed with fallback: ${record.completedWithFallback ? 'yes' : 'no'}`);
     lines.push(`- evidence success: ${record.evidenceSuccess ? 'yes' : 'no'}`);
+    lines.push(`- evidence salvaged: ${record.evidenceSalvaged ? 'yes' : 'no'}`);
+    lines.push(`- Voice A salvaged: ${record.voiceASalvaged ? 'yes' : 'no'}`);
+    lines.push(`- salvaged criterion count: ${record.salvagedCriterionCount}`);
     lines.push(`- conceptual generic failure seen: ${record.conceptualGenericFailure ? 'yes' : 'no'}`);
     lines.push(`- generic language failure seen: ${record.genericLanguageFailure ? 'yes' : 'no'}`);
     lines.push(`- downstream drift seen: ${record.downstreamDrift ? 'yes' : 'no'}`);
@@ -451,6 +472,9 @@ async function main() {
         resultTier: critique.pipeline?.resultTier ?? null,
         completedWithFallback: critique.pipeline?.completedWithFallback ?? false,
         evidenceSuccess: critique.pipeline?.stages?.evidence?.status === 'succeeded',
+        evidenceSalvaged: (critique.pipeline?.salvagedCriteria ?? []).some((item) => item.stage === 'evidence'),
+        voiceASalvaged: (critique.pipeline?.salvagedCriteria ?? []).some((item) => item.stage === 'voice_a'),
+        salvagedCriterionCount: critique.pipeline?.salvagedCriteria?.length ?? 0,
         conceptualGenericFailure: evidenceDetails.some((detail) =>
           CONCEPTUAL_GENERIC_FAILURE_PATTERN.test(detail)
         ),
@@ -474,6 +498,9 @@ async function main() {
         resultTier: null,
         completedWithFallback: false,
         evidenceSuccess: pipelineError?.stage !== 'evidence',
+        evidenceSalvaged: false,
+        voiceASalvaged: false,
+        salvagedCriterionCount: 0,
         conceptualGenericFailure: evidenceDetails.some((detail) =>
           CONCEPTUAL_GENERIC_FAILURE_PATTERN.test(detail)
         ),

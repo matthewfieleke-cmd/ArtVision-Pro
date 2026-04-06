@@ -21,6 +21,7 @@ export function createPipelineMetadata(args?: {
   resultTier?: CritiqueResultTier;
   completedWithFallback?: boolean;
   stages?: Partial<Record<CritiquePipelineStageId, CritiquePipelineStageSnapshot>>;
+  salvagedCriteria?: CritiquePipelineMetadata['salvagedCriteria'];
 }): CritiquePipelineMetadata {
   return {
     schemaVersion: CRITIQUE_PIPELINE_SCHEMA_VERSION,
@@ -28,6 +29,7 @@ export function createPipelineMetadata(args?: {
     resultTier: args?.resultTier ?? 'full',
     completedWithFallback: args?.completedWithFallback ?? false,
     stages: args?.stages,
+    ...(args?.salvagedCriteria?.length ? { salvagedCriteria: args.salvagedCriteria } : {}),
   };
 }
 

@@ -1,6 +1,6 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
 import { CRITERIA_ORDER, canonicalCriterionLabel, type CriterionLabel } from '../shared/criteria.js';
-import type { CritiqueCategory } from '../shared/critiqueContract.js';
+import type { CritiqueCategory, CritiquePipelineSalvagedCriterion } from '../shared/critiqueContract.js';
 import {
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_B_COMPOSITE_TEACHERS,
@@ -40,6 +40,7 @@ import {
 import {
   findPrimaryAnchorSupportLine,
   sharesConcreteLanguage,
+  tracesShortEvidenceSignal,
   tracesToPrimarySupportLine,
   tracesToVisibleEvidence,
 } from './critiqueGrounding.js';
@@ -65,6 +66,8 @@ import {
   isGenericTeacherText,
 } from './critiqueTextRules.js';
 import { renderGroundedTeacherNextSteps } from './critiqueVoiceBProse.js';
+import { normalizeWhitespace } from './critiqueTextRules.js';
+import { createPipelineMetadata } from './critiquePipeline.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -91,6 +94,114 @@ function completionToneBlock(evidence: CritiqueEvidenceDTO): string {
 
 - Finish state is ambiguous: balance structure-level and selective advice; name what would change your mind in one more session vs. what is already reading resolved.`;
 }
+
+function uniqueNonEmptyLines(lines: Array<string | undefined>, min: number, max: number): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const line of lines) {
+    const normalized = typeof line === 'string' ? line.trim() : '';
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= max) break;
+  }
+  return result.length >= min ? result : result;
+}
+
+function sentence(text: string): string {
+  const normalized = normalizeWhitespace(text).replace(/\.+$/, '');
+  if (!normalized) return '';
+  return `${normalized}.`;
+}
+
+function buildVoiceAVisualInventory(entry: CritiqueEvidenceDTO['criterionEvidence'][number]): string {
+  return uniqueNonEmptyLines(entry.visibleEvidence.slice(0, 3), 2, 3).map(sentence).join(' ');
+}
+
+function buildVoiceACriticsAnalysis(entry: CritiqueEvidenceDTO['criterionEvidence'][number]): string {
+  const tension =
+    /resolved at the level the painting is working at/i.test(entry.tensionRead)
+      ? undefined
+      : entry.tensionRead;
+  return uniqueNonEmptyLines(
+    [entry.strengthRead, tension, entry.visibleEvidence[0]],
+    2,
+    3
+  )
+    .map(sentence)
+    .join(' ');
+}
+
+function buildVoiceAEvidenceSignals(entry: CritiqueEvidenceDTO['criterionEvidence'][number]): string[] {
+  return uniqueNonEmptyLines(
+    [entry.visibleEvidence[0], entry.visibleEvidence[1], entry.strengthRead],
+    2,
+    4
+  );
+}
+
+export function repairVoiceAStageGrounding(
+  voiceA: VoiceAStageResult,
+  evidence: CritiqueEvidenceDTO
+): {
+  voiceA: VoiceAStageResult;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+} {
+  const salvagedCriteria: CritiquePipelineSalvagedCriterion[] = [];
+  const repairedCategories = voiceA.categories.map((category) => {
+    const entry = evidence.criterionEvidence.find((item) => item.criterion === category.criterion);
+    if (!entry) return category;
+
+    let visualInventory = category.phase1.visualInventory;
+    let criticsAnalysis = category.phase2.criticsAnalysis;
+    let evidenceSignals = [...category.evidenceSignals];
+    const reasons: string[] = [];
+
+    if (!tracesToVisibleEvidence(visualInventory, entry)) {
+      visualInventory = buildVoiceAVisualInventory(entry);
+      reasons.push('repaired phase1 visual inventory from anchored evidence');
+    }
+    if (!tracesToPrimarySupportLine(criticsAnalysis, entry)) {
+      criticsAnalysis = buildVoiceACriticsAnalysis(entry);
+      reasons.push('repaired phase2 analysis from anchored evidence');
+    }
+    if (
+      !evidenceSignals.every((signal) => tracesShortEvidenceSignal(signal, entry)) ||
+      evidenceSignals.some((signal) => normalizeWhitespace(signal).length < 12)
+    ) {
+      evidenceSignals = buildVoiceAEvidenceSignals(entry);
+      reasons.push('repaired evidenceSignals from visible evidence');
+    }
+
+    if (reasons.length > 0) {
+      salvagedCriteria.push({
+        stage: 'voice_a',
+        criterion: category.criterion,
+        reason: reasons.join('; '),
+      });
+    }
+
+    return {
+      ...category,
+      phase1: { visualInventory },
+      phase2: { criticsAnalysis },
+      evidenceSignals,
+    };
+  });
+
+  return {
+    voiceA: {
+      ...voiceA,
+      categories: repairedCategories,
+    },
+    salvagedCriteria,
+  };
+}
+
+type VoiceAStageRunResult = {
+  voiceA: VoiceAStageResult;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+};
 
 function formatCalibrationCaps(calibration?: CritiqueCalibrationDTO): string {
   if (!calibration) return '';
@@ -1421,7 +1532,7 @@ export async function runCritiqueVoiceAStage(
   evidence: CritiqueEvidenceDTO,
   observationBank: ObservationBank,
   calibration?: CritiqueCalibrationDTO
-): Promise<VoiceAStageResult> {
+): Promise<VoiceAStageRunResult> {
   let repairNote: string | undefined;
   let lastError: unknown;
 
@@ -1449,7 +1560,23 @@ export async function runCritiqueVoiceAStage(
           details: [parsed.error.message],
         });
       }
-      return validateVoiceAStageOutput(parsed.data as VoiceAStageResult, evidence);
+      try {
+        return {
+          voiceA: validateVoiceAStageOutput(parsed.data as VoiceAStageResult, evidence),
+          salvagedCriteria: [],
+        };
+      } catch (error) {
+        if (!(error instanceof CritiqueValidationError) && error instanceof Error) {
+          const repaired = repairVoiceAStageGrounding(parsed.data as VoiceAStageResult, evidence);
+          if (repaired.salvagedCriteria.length > 0) {
+            return {
+              voiceA: validateVoiceAStageOutput(repaired.voiceA, evidence),
+              salvagedCriteria: repaired.salvagedCriteria,
+            };
+          }
+        }
+        throw error;
+      }
     } catch (error) {
       lastError = error;
       if (!(error instanceof CritiqueValidationError)) {
@@ -1715,13 +1842,21 @@ export async function runCritiqueWritingStage(
   calibration?: CritiqueCalibrationDTO,
   instrumenter: CritiqueInstrumenter = noopCritiqueInstrumenter
 ): Promise<CritiqueResultDTO> {
-  const voiceA = await instrumenter.time('writing_voice_a', () =>
+  const voiceARun = await instrumenter.time('writing_voice_a', () =>
     runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
   );
+  const voiceA = voiceARun.voiceA;
   const voiceB = await instrumenter.time('writing_voice_b', () =>
     runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceA, calibration)
   );
   const merged = mergeVoiceStages(voiceA, voiceB);
   const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
-  return validated;
+  return voiceARun.salvagedCriteria.length > 0
+    ? {
+        ...validated,
+        pipeline: createPipelineMetadata({
+          salvagedCriteria: voiceARun.salvagedCriteria,
+        }),
+      }
+    : validated;
 }

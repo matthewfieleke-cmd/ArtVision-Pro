@@ -25,6 +25,7 @@ import {
 import {
   anchorSupportedByEvidenceLine,
   findPrimaryAnchorSupportLine,
+  hasVisibleEventLanguage,
   isConcreteAnchor,
   sameAdvice,
   sharesConcreteLanguage,
@@ -47,6 +48,7 @@ import { hydrateVoiceBCanonicalCategory } from './critiqueVoiceBCanonical.js';
 import type {
   VoiceAStageResult,
   VoiceBStageResult,
+  ObservationBank,
 } from './critiqueZodSchemas.js';
 
 export type CritiqueEvidenceDTO = {
@@ -67,6 +69,7 @@ export type CritiqueEvidenceDTO = {
   comparisonObservations: string[];
   criterionEvidence: Array<{
     criterion: (typeof CRITERIA_ORDER)[number];
+    observationPassageId: string;
     anchor: string;
     visibleEvidence: string[];
     strengthRead: string;
@@ -74,12 +77,18 @@ export type CritiqueEvidenceDTO = {
     preserve: string;
     confidence: 'low' | 'medium' | 'high';
   }>;
+  salvagedCriteria?: Array<{
+    stage: 'evidence' | 'voice_a' | 'voice_b' | 'validation';
+    criterion: (typeof CRITERIA_ORDER)[number];
+    reason: string;
+  }>;
 };
 
 type EvidenceValidationMode = 'strict' | 'lenient';
 
 type EvidenceValidationOptions = {
   mode?: EvidenceValidationMode;
+  observationBank?: ObservationBank;
 };
 
 function uniqueNonEmptyLines(lines: Array<string | undefined>, min: number, max: number): string[] {
@@ -145,6 +154,248 @@ function recoverLenientEvidenceAnchor(
 
   const concreteAnchor = candidates.find((candidate) => isConcreteAnchor(candidate));
   return concreteAnchor ?? rawAnchor;
+}
+
+function resolveObservationPassageForCriterion(
+  observationBank: ObservationBank | undefined,
+  observationPassageId: string,
+  anchor: string,
+  mode: EvidenceValidationMode
+): { observationPassageId: string; anchor: string } {
+  if (!observationBank) {
+    return {
+      observationPassageId,
+      anchor,
+    };
+  }
+
+  const normalizedAnchor = normalizeWhitespace(anchor);
+  const byId = observationBank.passages.find((passage) => passage.id === observationPassageId);
+  const byIdPlausiblyMatches =
+    !!byId &&
+    (normalizeWhitespace(byId.label).toLowerCase() === normalizedAnchor.toLowerCase() ||
+      normalizeWhitespace(byId.label).toLowerCase().includes(normalizedAnchor.toLowerCase()) ||
+      normalizedAnchor.toLowerCase().includes(normalizeWhitespace(byId.label).toLowerCase()) ||
+      sharesConcreteLanguage(byId.label, normalizedAnchor, 2));
+  const matchingByAnchor = observationBank.passages.find((passage) => {
+    const normalizedLabel = normalizeWhitespace(passage.label);
+    return (
+      normalizedLabel.length > 0 &&
+      normalizedAnchor.length > 0 &&
+      (normalizedLabel.toLowerCase() === normalizedAnchor.toLowerCase() ||
+        normalizedLabel.toLowerCase().includes(normalizedAnchor.toLowerCase()) ||
+        normalizedAnchor.toLowerCase().includes(normalizedLabel.toLowerCase()) ||
+        sharesConcreteLanguage(normalizedLabel, normalizedAnchor, 2))
+    );
+  });
+
+  const resolved = byIdPlausiblyMatches ? byId : matchingByAnchor ?? byId;
+  if (!resolved) {
+    throw new Error(`Invalid observation passage id for ${anchor || 'criterion evidence'}`);
+  }
+
+  if (mode === 'strict' && byId && !byIdPlausiblyMatches && matchingByAnchor && matchingByAnchor.id !== observationPassageId) {
+    throw new Error(`Observation passage id does not match anchor for ${anchor || 'criterion evidence'}`);
+  }
+
+  return {
+    observationPassageId: resolved.id,
+    anchor: resolved.label,
+  };
+}
+
+function sentenceCase(text: string): string {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return normalized;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function extractObservationPredicate(text: string): string {
+  const normalized = normalizeWhitespace(text).replace(/[.]+$/, '');
+  if (!normalized) return normalized;
+  const predicateMatch = normalized.match(
+    /\b(is|are|stays?|sits?|cuts?|crosses?|aligns?|tilts?|bends?|stacks?|separates?|meets?|narrows?|widens?|repeats?|passes?|lands?|leans?|opens?|closes?|rises?|drops?|turns?|curves?|breaks?|contrasts?|echoes?|follows?|shows?|uses?|has|have|keeps?)\b/i
+  );
+  if (!predicateMatch || predicateMatch.index === undefined) return normalized;
+  return normalized.slice(predicateMatch.index);
+}
+
+function buildObservationAnchorEchoLine(anchor: string, source: string): string {
+  const normalizedAnchor = normalizeWhitespace(anchor).replace(/[.]+$/, '');
+  const normalizedSource = normalizeWhitespace(source).replace(/[.]+$/, '');
+  if (!normalizedAnchor || !normalizedSource) return normalizedSource;
+  if (anchorSupportedByEvidenceLine(normalizedAnchor, normalizedSource)) {
+    return normalizedSource.endsWith('.') ? normalizedSource : `${normalizedSource}.`;
+  }
+
+  const predicate = extractObservationPredicate(normalizedSource);
+  if (!predicate) {
+    return `${sentenceCase(normalizedAnchor)}.`;
+  }
+  return `${sentenceCase(normalizedAnchor)} ${predicate.replace(/^[,.\s]+/, '')}.`;
+}
+
+function compositionEventRewrite(anchor: string, source: string): string {
+  const normalizedAnchor = normalizeWhitespace(anchor).replace(/[.]+$/, '');
+  const normalizedSource = normalizeWhitespace(source).replace(/[.]+$/, '');
+  if (!normalizedAnchor || !normalizedSource) return sentenceCase(normalizedSource);
+
+  const lowered = normalizedSource.toLowerCase();
+  if (/\b(cuts?|crosses?|narrows?|widens?|stacks?|overlaps?|aligns?|tilts?|leaves?|lands?|steps?|separates?|repeats?)\b/.test(lowered)) {
+    return buildObservationAnchorEchoLine(normalizedAnchor, normalizedSource);
+  }
+  if (/\blead(?:s|ing)? the eye\b/.test(lowered)) {
+    return `${sentenceCase(normalizedAnchor)} leads toward the neighboring passage and leaves a clearer route across the picture.`;
+  }
+  if (/\bdistance|depth|perspective\b/.test(lowered)) {
+    return `${sentenceCase(normalizedAnchor)} narrows toward the farther passage and leaves a smaller interval at the horizon.`;
+  }
+  if (/\bmovement|dynamic|energy\b/.test(lowered)) {
+    return `${sentenceCase(normalizedAnchor)} tilts harder than the neighboring field and pushes the eye across the next interval.`;
+  }
+  return `${sentenceCase(normalizedAnchor)} cuts across the neighboring field and leaves a different interval on each side.`;
+}
+
+function observationEvidenceCandidates(
+  observationBank: ObservationBank | undefined,
+  observationPassageId: string,
+  anchor: string,
+  criterion: CriterionLabel
+): string[] {
+  if (!observationBank) return [];
+  const passage = observationBank.passages.find((entry) => entry.id === observationPassageId);
+  if (!passage) return [];
+
+  const rawCandidates = [
+    ...observationBank.visibleEvents
+      .filter((event) => event.passageId === observationPassageId)
+      .map((event) => event.event),
+    ...passage.visibleFacts,
+  ];
+
+  const scored = rawCandidates
+    .map((candidate) => {
+      const line =
+        criterion === 'Composition and shape structure'
+          ? compositionEventRewrite(anchor, candidate)
+          : buildObservationAnchorEchoLine(anchor, candidate);
+      let score = 0;
+      if (anchorSupportedByEvidenceLine(anchor, line)) score += 6;
+      if (hasVisibleEventLanguage(line)) score += 4;
+      if (sharesConcreteLanguage(line, anchor, 2)) score += 3;
+      if (!hasWeakWorkGenericEvidenceLine(line)) score += 2;
+      if (criterion === 'Composition and shape structure' && !hasWeakCompositionGenericText(line)) score += 3;
+      if (isConceptualCriterion(criterion) && !hasWeakConceptualEvidenceLine(line)) score += 4;
+      return { line, score };
+    })
+    .filter((entry) => entry.line.length > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return uniqueNonEmptyLines(
+    scored.map((entry) => entry.line),
+    0,
+    4
+  );
+}
+
+function repairLenientCriterionEvidence(args: {
+  criterion: CriterionLabel;
+  observationPassageId: string;
+  anchor: string;
+  visibleEvidence: string[];
+  strengthRead: string;
+  preserve: string;
+  observationBank?: ObservationBank;
+}): {
+  visibleEvidence: string[];
+  strengthRead: string;
+  preserve: string;
+  wasSalvaged: boolean;
+  reason?: string;
+} {
+  const linePassesCriterion = (line: string): boolean => {
+    if (args.criterion === 'Composition and shape structure') {
+      return !hasWeakCompositionGenericText(line);
+    }
+    if (isConceptualCriterion(args.criterion)) {
+      return !hasWeakConceptualEvidenceLine(line);
+    }
+    return !hasWeakWorkGenericEvidenceLine(line);
+  };
+  const rawPrimarySupport = findPrimaryAnchorSupportLine(args.anchor, args.visibleEvidence);
+  const weakVisibleEvidenceCount = args.visibleEvidence.filter((line) => !linePassesCriterion(line)).length;
+  const needsVisibleEvidenceRepair =
+    !rawPrimarySupport ||
+    !linePassesCriterion(rawPrimarySupport.line) ||
+    weakVisibleEvidenceCount >= 3;
+  const needsConceptualTextRepair =
+    isConceptualCriterion(args.criterion) &&
+    (hasWeakConceptualGenericText(args.strengthRead, args.anchor) ||
+      hasWeakConceptualGenericText(args.preserve, args.anchor));
+  if (!needsVisibleEvidenceRepair && !needsConceptualTextRepair) {
+    return {
+      visibleEvidence: args.visibleEvidence,
+      strengthRead: args.strengthRead,
+      preserve: args.preserve,
+      wasSalvaged: false,
+    };
+  }
+
+  const synthesizedEvidence = observationEvidenceCandidates(
+    args.observationBank,
+    args.observationPassageId,
+    args.anchor,
+    args.criterion
+  );
+
+  const supportFirst = synthesizedEvidence.find((line) => anchorSupportedByEvidenceLine(args.anchor, line));
+  const existingConcrete = args.visibleEvidence.filter((line) => linePassesCriterion(line));
+  const synthesizedConcrete = synthesizedEvidence.filter((line) => linePassesCriterion(line));
+  const curatedEvidence = uniqueNonEmptyLines(
+    [
+      supportFirst,
+      ...synthesizedConcrete,
+      ...existingConcrete,
+      ...synthesizedEvidence,
+      ...args.visibleEvidence,
+    ],
+    4,
+    4
+  );
+  const supportLine =
+    findPrimaryAnchorSupportLine(args.anchor, curatedEvidence)?.line ??
+    synthesizedEvidence.find((line) => anchorSupportedByEvidenceLine(args.anchor, line));
+
+  const repairedStrengthRead =
+    isConceptualCriterion(args.criterion) && hasWeakConceptualGenericText(args.strengthRead, args.anchor)
+      ? supportLine ?? synthesizedEvidence[0] ?? args.anchor
+      : args.strengthRead;
+  const repairedPreserve =
+    isConceptualCriterion(args.criterion) && hasWeakConceptualGenericText(args.preserve, args.anchor)
+      ? `Preserve the visible relationship in ${args.anchor}.`
+      : args.preserve;
+  const replacedWeakLines =
+    needsVisibleEvidenceRepair &&
+    curatedEvidence.some((line) => synthesizedEvidence.includes(line)) &&
+    args.visibleEvidence.some((line) => !curatedEvidence.includes(line));
+  const repairedConceptualText =
+    needsConceptualTextRepair &&
+    (repairedStrengthRead !== args.strengthRead || repairedPreserve !== args.preserve);
+  const wasSalvaged = replacedWeakLines || repairedConceptualText;
+  const reason =
+    args.criterion === 'Composition and shape structure'
+      ? 'replaced weak composition evidence with observation-bank structural events'
+      : isConceptualCriterion(args.criterion)
+        ? 'replaced generic conceptual evidence with observation-bank carrier evidence'
+        : 'replaced weak evidence with observation-bank support';
+
+  return {
+    visibleEvidence: curatedEvidence,
+    strengthRead: repairedStrengthRead,
+    preserve: repairedPreserve,
+    wasSalvaged,
+    ...(wasSalvaged ? { reason } : {}),
+  };
 }
 
 function evidenceForCriterion(
@@ -542,6 +793,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
   const comparisonObservations = (o.comparisonObservations as string[]).map((line) =>
     neutralizeWeakWorkComparisonObservation(line)
   );
+  const salvagedCriteria: NonNullable<CritiqueEvidenceDTO['salvagedCriteria']> = [];
   const criterionEvidence = o.criterionEvidence;
   if (!Array.isArray(criterionEvidence) || criterionEvidence.length !== CRITERIA_ORDER.length) {
     throw new Error('Invalid evidence: criterionEvidence length');
@@ -554,6 +806,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
       throw new Error(`Invalid evidence criterion at index ${i}`);
     }
     if (
+      typeof r.observationPassageId !== 'string' ||
       typeof r.anchor !== 'string' ||
       !Array.isArray(r.visibleEvidence) ||
       r.visibleEvidence.length < 4 ||
@@ -571,10 +824,40 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     ) {
       throw new Error(`Invalid evidence fields for ${expected}`);
     }
+    let observationPassageId = r.observationPassageId.trim();
     let anchor = r.anchor.trim();
-    const visibleEvidence = (r.visibleEvidence as string[]).map((line) => line.trim());
+    let visibleEvidence = (r.visibleEvidence as string[]).map((line) => line.trim());
     let strengthRead = r.strengthRead.trim();
     let preserve = r.preserve.trim();
+    const resolvedObservationPassage = resolveObservationPassageForCriterion(
+      options.observationBank,
+      observationPassageId,
+      anchor,
+      mode
+    );
+    observationPassageId = resolvedObservationPassage.observationPassageId;
+    anchor = resolvedObservationPassage.anchor;
+    if (mode === 'lenient') {
+      const repaired = repairLenientCriterionEvidence({
+        criterion: expected,
+        observationPassageId,
+        anchor,
+        visibleEvidence,
+        strengthRead,
+        preserve,
+        observationBank: options.observationBank,
+      });
+      visibleEvidence = repaired.visibleEvidence;
+      strengthRead = repaired.strengthRead;
+      preserve = repaired.preserve;
+      if (repaired.wasSalvaged && repaired.reason) {
+        salvagedCriteria.push({
+          stage: 'evidence',
+          criterion: expected,
+          reason: repaired.reason,
+        });
+      }
+    }
     if (!isConcreteAnchor(anchor) && mode === 'lenient') {
       anchor = recoverLenientEvidenceAnchor(expected, anchor, visibleEvidence, strengthRead, r.tensionRead.trim(), preserve);
     }
@@ -612,13 +895,13 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     ) {
       throw new Error(`Visible evidence is too generic for ${expected}`);
     }
-    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(strengthRead)) {
+    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(strengthRead, anchor)) {
       if (mode === 'strict') {
         throw new Error(`strengthRead is too generic for ${expected}`);
       }
       strengthRead = visibleEvidence[0] ?? anchor;
     }
-    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(preserve)) {
+    if (isConceptualCriterion(expected) && hasWeakConceptualGenericText(preserve, anchor)) {
       if (mode === 'strict') {
         throw new Error(`preserve is too generic for ${expected}`);
       }
@@ -626,6 +909,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     }
     return {
       criterion: expected,
+      observationPassageId,
       anchor,
       visibleEvidence: normalizedVisibleEvidence,
       strengthRead,
@@ -678,6 +962,7 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
     },
     comparisonObservations,
     criterionEvidence: normalized,
+    ...(salvagedCriteria.length > 0 ? { salvagedCriteria } : {}),
   };
 }
 

@@ -47,6 +47,8 @@ export const GENERIC_ANCHOR_PATTERNS: RegExp[] = [
   /^\s*the cozy .+\s*$/i,
   /^\s*the idyllic .+\s*$/i,
   /^\s*the vibrant (garden|setting|scene|flowers?)\b.*$/i,
+  /^\s*transition from .+\bto\b.+$/i,
+  /^\s*(?:the\s+)?(?:interaction|alignment|movement|energy|presence|atmosphere|mood|story|narrative|power|force|gesture|relationship)\s+of .+$/i,
 ];
 
 /**

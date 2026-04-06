@@ -375,4 +375,34 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('Latest preview for repeatedly failing Presence, point of view, and human force');
     expect(note).toContain(`Previous anchor: "the train's dominant presence against the landscape"`);
   });
+
+  it('warns conceptual retries not to reuse a composition carrier without proving conceptual force', () => {
+    const error = new CritiqueValidationError('Evidence stage validation failed.', {
+      stage: 'evidence',
+      details: ['Visible evidence is too generic for Intent and necessity'],
+      debug: {
+        attempts: [
+          {
+            attempt: 1,
+            error: 'Evidence stage validation failed.',
+            details: ['Visible evidence is too generic for Intent and necessity'],
+            criterionEvidencePreview: [
+              {
+                criterion: 'Intent and necessity',
+                anchor: 'the telegraph poles against the landscape',
+                visibleEvidencePreview: [
+                  'The telegraph poles against the landscape create a dynamic diagonal line, suggesting movement and direction.',
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const note = buildEvidenceRepairNote(error);
+
+    expect(note).toContain('do NOT reuse a composition anchor unless the evidence explicitly shows why that same passage carries the intent');
+    expect(note).toContain('If the line only proves structure, it is still wrong for Intent or Presence.');
+  });
 });
