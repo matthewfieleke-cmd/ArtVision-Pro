@@ -133,6 +133,18 @@ function fallbackStrongestVisibleQualities(
   );
 }
 
+function sentenceCase(text: string): string {
+  const normalized = normalizeWhitespace(text);
+  if (!normalized) return normalized;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function sentence(text: string): string {
+  const normalized = normalizeWhitespace(text).replace(/[.]+$/, '');
+  if (!normalized) return normalized;
+  return `${sentenceCase(normalized)}.`;
+}
+
 function recoverLenientEvidenceAnchor(
   criterion: CriterionLabel,
   rawAnchor: string,
@@ -202,12 +214,6 @@ function resolveObservationPassageForCriterion(
     observationPassageId: resolved.id,
     anchor: resolved.label,
   };
-}
-
-function sentenceCase(text: string): string {
-  const normalized = normalizeWhitespace(text);
-  if (!normalized) return normalized;
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 function extractObservationPredicate(text: string): string {
@@ -395,6 +401,132 @@ function repairLenientCriterionEvidence(args: {
     preserve: repairedPreserve,
     wasSalvaged,
     ...(wasSalvaged ? { reason } : {}),
+  };
+}
+
+function syntheticTensionRead(criterion: CriterionLabel, anchor: string): string {
+  if (isConceptualCriterion(criterion)) {
+    return sentence(`The visible carrier in ${anchor} still needs a clearer event-level explanation of why that passage holds the read`);
+  }
+  if (criterion === 'Composition and shape structure') {
+    return sentence(`The structural event in ${anchor} still needs a clearer interval or overlap read`);
+  }
+  return 'This criterion reads resolved at the level the painting is working at.';
+}
+
+function synthesizeEvidenceEntryFromObservation(
+  criterion: CriterionLabel,
+  observationBank: ObservationBank
+): CritiqueEvidenceDTO['criterionEvidence'][number] {
+  const preferredRoleByCriterion: Partial<Record<CriterionLabel, ObservationBank['passages'][number]['role']>> = {
+    'Intent and necessity': 'intent',
+    'Composition and shape structure': 'structure',
+    'Value and light structure': 'value',
+    'Color relationships': 'color',
+    'Drawing, proportion, and spatial form': 'structure',
+    'Edge and focus control': 'edge',
+    'Surface and medium handling': 'surface',
+    'Presence, point of view, and human force': 'presence',
+  };
+  const preferredRole = preferredRoleByCriterion[criterion];
+  const scoreConceptualCarrier = (
+    carrier: ObservationBank['intentCarriers'][number]
+  ): number => {
+    const passage = observationBank.passages.find((entry) => entry.id === carrier.passageId);
+    if (!passage) return -Infinity;
+    let score = 0;
+    if (passage.role === preferredRole) score += 10;
+    if (passage.role === 'intent' || passage.role === 'presence') score += 7;
+    if (passage.role === 'value' || passage.role === 'edge' || passage.role === 'surface' || passage.role === 'color') {
+      score += 4;
+    }
+    if (passage.role === 'structure') score -= 4;
+    if (/\b(pressure|presence|force|vulnerability|isolation|withheld|address|tension|commitment)\b/i.test(carrier.reason)) {
+      score += 4;
+    }
+    if (/\b(speed|movement|motion|energy|depth|distance|scale|balance|composition)\b/i.test(carrier.reason)) {
+      score -= 3;
+    }
+    return score;
+  };
+  const preferredCarrier =
+    isConceptualCriterion(criterion)
+      ? observationBank.intentCarriers
+          .slice()
+          .sort((left, right) => scoreConceptualCarrier(right) - scoreConceptualCarrier(left))[0]
+      : undefined;
+
+  const passage =
+    (preferredCarrier &&
+      observationBank.passages.find((entry) => entry.id === preferredCarrier.passageId)) ||
+    observationBank.passages.find((entry) => entry.role === preferredRole) ||
+    observationBank.passages[0];
+
+  if (!passage) {
+    throw new Error(`Unable to synthesize evidence for ${criterion}`);
+  }
+
+  const anchor = passage.label;
+  const visibleEvidence = uniqueNonEmptyLines(
+    observationEvidenceCandidates(observationBank, passage.id, anchor, criterion),
+    4,
+    4
+  );
+  const supportLine =
+    findPrimaryAnchorSupportLine(anchor, visibleEvidence)?.line ??
+    visibleEvidence[0] ??
+    anchor;
+  const carrierReason =
+    preferredCarrier?.reason && sharesConcreteLanguage(preferredCarrier.passage, anchor, 2)
+      ? hasWeakConceptualGenericText(preferredCarrier.reason, anchor)
+        ? sentence(supportLine)
+        : sentence(preferredCarrier.reason)
+      : sentence(`The visible relationship in ${anchor} carries this criterion most clearly`);
+
+  return {
+    criterion,
+    observationPassageId: passage.id,
+    anchor,
+    visibleEvidence,
+    strengthRead: isConceptualCriterion(criterion) ? carrierReason : sentence(supportLine),
+    tensionRead: syntheticTensionRead(criterion, anchor),
+    preserve: sentence(`Preserve the visible relationship in ${anchor}`),
+    confidence: 'medium',
+  };
+}
+
+export function synthesizeEvidenceFromObservationBank(
+  observationBank: ObservationBank
+): CritiqueEvidenceDTO {
+  const criterionEvidence = CRITERIA_ORDER.map((criterion) =>
+    synthesizeEvidenceEntryFromObservation(criterion, observationBank)
+  );
+  return {
+    intentHypothesis: fallbackIntentHypothesis(criterionEvidence),
+    strongestVisibleQualities: fallbackStrongestVisibleQualities(criterionEvidence),
+    mainTensions: uniqueNonEmptyLines(
+      criterionEvidence.map((entry) => entry.tensionRead),
+      2,
+      4
+    ),
+    completionRead: {
+      state: 'uncertain',
+      confidence: 'medium',
+      cues: ['Evidence was synthesized deterministically from the observation bank after evidence retries failed.'],
+      rationale: 'The pipeline preserved a critique-safe read from the observation bank when stage-1 evidence generation did not stabilize.',
+    },
+    photoQualityRead: {
+      level: 'fair',
+      summary: 'The final evidence pass was synthesized from the observation bank rather than accepted raw from stage 1.',
+      issues: ['Stage-1 evidence retries did not stabilize, so the observation bank was used as the final evidence source.'],
+    },
+    comparisonObservations: [],
+    criterionEvidence,
+    salvagedCriteria: criterionEvidence.map((entry) => ({
+      stage: 'evidence',
+      criterion: entry.criterion,
+      reason: 'synthesized deterministic evidence from observation bank after evidence retries failed',
+    })),
   };
 }
 

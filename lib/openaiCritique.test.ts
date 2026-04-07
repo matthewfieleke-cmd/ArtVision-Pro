@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { CritiqueValidationError } from './critiqueErrors.js';
-import { buildEvidenceRepairNote } from './openaiCritique.js';
+import { buildEvidenceRepairNote, parseObservationStageResult } from './openaiCritique.js';
 
 describe('buildEvidenceRepairNote', () => {
   it('includes failing criterion evidence preview when generic evidence needs rewriting', () => {
@@ -53,7 +53,7 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('intentHypothesis, strongestVisibleQualities, and comparisonObservations must stay provisional and evidence-led for weak work.');
   });
 
-  it('includes cafe-scene repair guidance when evidence retries fail', () => {
+  it('includes universal repair guidance when evidence retries fail', () => {
     const error = new CritiqueValidationError('Evidence stage validation failed.', {
       stage: 'evidence',
       details: [
@@ -92,16 +92,16 @@ describe('buildEvidenceRepairNote', () => {
 
     const note = buildEvidenceRepairNote(error);
 
-    expect(note).toContain('For cafe or street scenes, prefer anchors shaped like "the cafe tables with yellow umbrellas"');
+    expect(note).toContain('Do NOT use flattering or summary anchor labels');
     expect(note).toContain(
-      'Do NOT write "the outdoor seating area", "the cafe atmosphere", or "the path leading through the scene" as sufficient conceptual evidence'
+      'Do NOT write summary evidence like "the area creates mood", "the form has personality", "the scene has momentum", or "the passage adds warmth" as sufficient conceptual evidence.'
     );
     expect(note).toContain(
-      'replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language'
+      'For Composition and shape structure, write a shape event, not a verdict'
     );
   });
 
-  it('includes object-study repair guidance when conceptual anchors and composition evidence drift generic', () => {
+  it('includes universal conceptual-anchor guidance when anchors and composition evidence drift generic', () => {
     const error = new CritiqueValidationError('Evidence stage validation failed.', {
       stage: 'evidence',
       details: [
@@ -140,10 +140,9 @@ describe('buildEvidenceRepairNote', () => {
 
     const note = buildEvidenceRepairNote(error);
 
-    expect(note).toContain('On object studies or architecture, conceptual anchors still need a physical carrier passage');
-    expect(note).toContain('Do NOT use object-summary anchors like "the beauty of the bottle"');
-    expect(note).toContain('Do NOT write object-study summaries like "the bottle feels elegant"');
-    expect(note).toContain('a pump head against a bottle neck');
+    expect(note).toContain('For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force');
+    expect(note).toContain('Do NOT use flattering or summary anchor labels');
+    expect(note).toContain('Do NOT write summary evidence like "the area creates mood"');
   });
 
   it('tells unsupported-anchor retries to put the anchor-echo support line first', () => {
@@ -178,7 +177,7 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('the same line must restate the anchor passage and describe one visible event there');
   });
 
-  it('includes house-scene repair guidance when conceptual retries drift into holiday mood language', () => {
+  it('includes universal mood-summary repair guidance when conceptual retries drift into atmosphere language', () => {
     const error = new CritiqueValidationError('Evidence stage validation failed.', {
       stage: 'evidence',
       details: ['Visible evidence is too generic for Intent and necessity'],
@@ -205,9 +204,8 @@ describe('buildEvidenceRepairNote', () => {
 
     const note = buildEvidenceRepairNote(error);
 
-    expect(note).toContain('Do NOT use house-scene summaries like "the welcoming house"');
-    expect(note).toContain('Do NOT write house-scene summaries like "the house feels welcoming"');
-    expect(note).toContain('the red door under the lit window');
+    expect(note).toContain('Do NOT use flattering or summary anchor labels');
+    expect(note).toContain('strengthRead and preserve must also name that same visible carrier passage');
   });
 
   it('explicitly rewrites interpretation-first conceptual evidence toward visible events', () => {
@@ -244,7 +242,7 @@ describe('buildEvidenceRepairNote', () => {
     expect(note).toContain('what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what');
   });
 
-  it('includes figure-led and train-led repair guidance when retries drift into drama or movement summaries', () => {
+  it('includes universal repair guidance when retries drift into drama or movement summaries', () => {
     const error = new CritiqueValidationError('Evidence stage validation failed.', {
       stage: 'evidence',
       details: [
@@ -283,10 +281,9 @@ describe('buildEvidenceRepairNote', () => {
 
     const note = buildEvidenceRepairNote(error);
 
-    expect(note).toContain('Do NOT write figure summaries like "the pose creates emotion"');
-    expect(note).toContain('Do NOT write train summaries like "the train creates movement"');
-    expect(note).toContain('the shoulder edge against the pillow');
-    expect(note).toContain('the leaning telegraph poles beside the train');
+    expect(note).toContain('Do NOT write summary evidence like "the area creates mood", "the form has personality", "the scene has momentum", or "the passage adds warmth" as sufficient conceptual evidence.');
+    expect(note).toContain('For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest"');
+    expect(note).toContain('For Composition and shape structure, write a shape event, not a verdict');
   });
 
   it('escalates repeated generic composition failures instead of repeating the same rewrite guidance', () => {
@@ -404,5 +401,125 @@ describe('buildEvidenceRepairNote', () => {
 
     expect(note).toContain('do NOT reuse a composition anchor unless the evidence explicitly shows why that same passage carries the intent');
     expect(note).toContain('If the line only proves structure, it is still wrong for Intent or Presence.');
+  });
+});
+
+describe('parseObservationStageResult', () => {
+  it('sorts intent carriers best-first for conceptual reuse', () => {
+    const raw = {
+      passages: [
+        {
+          id: 'p1',
+          label: "the train's front against the sky",
+          role: 'value',
+          visibleFacts: ['The train front stays darker than the sky.', 'The engine silhouette stays concentrated at the front.'],
+        },
+        {
+          id: 'p2',
+          label: 'the smoke above the train',
+          role: 'edge',
+          visibleFacts: ['The smoke softens into the sky.', 'The smoke spreads above the engine roofline.'],
+        },
+        {
+          id: 'p3',
+          label: 'the telegraph poles against the landscape',
+          role: 'structure',
+          visibleFacts: ['The poles tilt beside the train.', 'The poles repeat into the distance.'],
+        },
+        {
+          id: 'p4',
+          label: "the train's wheels against the track",
+          role: 'surface',
+          visibleFacts: ['The wheels land darker than the track marks.', 'The track stays thinner beneath the wheels.'],
+        },
+        {
+          id: 'p5',
+          label: 'the darker landscape under the train',
+          role: 'value',
+          visibleFacts: ['The land stays darker than the sky.', 'The train sits over that darker band.'],
+        },
+      ],
+      visibleEvents: [
+        {
+          passageId: 'p1',
+          passage: "the train's front against the sky",
+          event: "The train's front stays darker than the sky and holds the machine's pressure there.",
+          signalType: 'value',
+        },
+        {
+          passageId: 'p2',
+          passage: 'the smoke above the train',
+          event: 'The smoke softens into the sky above the roofline.',
+          signalType: 'edge',
+        },
+        {
+          passageId: 'p3',
+          passage: 'the telegraph poles against the landscape',
+          event: 'The poles tilt beside the train and repeat into the distance.',
+          signalType: 'shape',
+        },
+        {
+          passageId: 'p4',
+          passage: "the train's wheels against the track",
+          event: "The train's wheels land darker than the track marks below them.",
+          signalType: 'surface',
+        },
+        {
+          passageId: 'p5',
+          passage: 'the darker landscape under the train',
+          event: 'The darker landscape holds below the lighter sky.',
+          signalType: 'value',
+        },
+        {
+          passageId: 'p1',
+          passage: "the train's front against the sky",
+          event: "The engine cuts into the lighter sky and holds the machine's pressure there.",
+          signalType: 'shape',
+        },
+        {
+          passageId: 'p2',
+          passage: 'the smoke above the train',
+          event: 'The smoke widens above the roofline and disperses into the sky.',
+          signalType: 'shape',
+        },
+        {
+          passageId: 'p4',
+          passage: "the train's wheels against the track",
+          event: 'The wheels sit heavier than the thinner track marks under them.',
+          signalType: 'shape',
+        },
+        {
+          passageId: 'p5',
+          passage: 'the darker landscape under the train',
+          event: 'The landscape band runs darker beneath the engine silhouette.',
+          signalType: 'value',
+        },
+      ],
+      mediumCues: ['Dry drawing marks and strong contrast.', 'The medium reads direct and linear rather than painterly.'],
+      photoCaveats: [],
+      intentCarriers: [
+        {
+          passageId: 'p3',
+          passage: 'the telegraph poles against the landscape',
+          reason: 'The tilted poles suggest speed and movement through the scene.',
+        },
+        {
+          passageId: 'p2',
+          passage: 'the smoke above the train',
+          reason: 'The smoke keeps motion visible above the engine.',
+        },
+        {
+          passageId: 'p1',
+          passage: "the train's front against the sky",
+          reason: "The train's front stays darker and heavier than the sky, so the machine's pressure holds there.",
+        },
+      ],
+    };
+
+    const parsed = parseObservationStageResult(raw);
+
+    expect(parsed.intentCarriers[0]?.passageId).toBe('p1');
+    expect(parsed.intentCarriers[1]?.passageId).toBe('p2');
+    expect(parsed.intentCarriers[2]?.passageId).toBe('p3');
   });
 });

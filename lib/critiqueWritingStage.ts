@@ -1,5 +1,11 @@
 import { ARTISTS_BY_STYLE, type StyleKey } from '../shared/artists.js';
-import { CRITERIA_ORDER, canonicalCriterionLabel, type CriterionLabel } from '../shared/criteria.js';
+import {
+  CRITERIA_ORDER,
+  RATING_LEVELS,
+  canonicalCriterionLabel,
+  type CriterionLabel,
+  type RatingLevelLabel,
+} from '../shared/criteria.js';
 import type { CritiqueCategory, CritiquePipelineSalvagedCriterion } from '../shared/critiqueContract.js';
 import {
   VOICE_A_COMPOSITE_EXPERTS,
@@ -140,6 +146,262 @@ function buildVoiceAEvidenceSignals(entry: CritiqueEvidenceDTO['criterionEvidenc
   );
 }
 
+const SYNTHESIZED_ANCHOR_REGION = { x: 0.18, y: 0.18, width: 0.36, height: 0.28 } as const;
+
+function readsResolvedTension(text: string): boolean {
+  return /resolved at the level the painting is working at/i.test(text);
+}
+
+function nextRatingLevel(level: RatingLevelLabel): RatingLevelLabel | undefined {
+  const index = RATING_LEVELS.indexOf(level);
+  return index >= 0 && index < RATING_LEVELS.length - 1 ? RATING_LEVELS[index + 1] : undefined;
+}
+
+function synthesizedVoiceALevel(
+  entry: CritiqueEvidenceDTO['criterionEvidence'][number],
+  evidence: CritiqueEvidenceDTO
+): RatingLevelLabel {
+  let level: RatingLevelLabel =
+    entry.confidence === 'high'
+      ? readsResolvedTension(entry.tensionRead)
+        ? 'Advanced'
+        : 'Intermediate'
+      : entry.confidence === 'medium'
+        ? 'Intermediate'
+        : 'Beginner';
+
+  if (evidence.photoQualityRead.level !== 'good' && level === 'Advanced') {
+    level = 'Intermediate';
+  }
+  if (evidence.completionRead.state !== 'likely_finished' && level === 'Advanced') {
+    level = 'Intermediate';
+  }
+  return level;
+}
+
+function synthesizedSubskills(
+  entry: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level: RatingLevelLabel
+): Array<{ label: string; score: number; level: RatingLevelLabel }> {
+  const numericLevel =
+    level === 'Master' ? 0.92 : level === 'Advanced' ? 0.74 : level === 'Intermediate' ? 0.5 : 0.28;
+
+  const labels = buildVoiceAEvidenceSignals(entry)
+    .slice(0, 2)
+    .map((signal) => normalizeWhitespace(signal).replace(/\.$/, '').slice(0, 48))
+    .filter(Boolean);
+
+  if (labels.length >= 2) {
+    return labels.map((label, index) => ({
+      label,
+      score: Math.max(0, Math.min(1, numericLevel - index * 0.04)),
+      level,
+    }));
+  }
+
+  return [
+    { label: 'Anchored evidence control', score: numericLevel, level },
+    { label: 'Criterion-specific decision-making', score: Math.max(0, numericLevel - 0.06), level },
+  ];
+}
+
+function anchorTitleSeed(anchor: string): string {
+  const seed = anchor
+    .toLowerCase()
+    .replace(/\b(the|a|an|and|against|under|over|above|below|across|where|meets?|with|of|to|in|on|by|for)\b/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((part) => part.length > 2)
+    .slice(0, 3)
+    .join(' ');
+  return upperCaseFirst(seed || 'Anchored passage');
+}
+
+function synthesizeSuggestedPaintingTitles(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO
+): VoiceAStageResult['suggestedPaintingTitles'] {
+  const structureAnchor =
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Composition and shape structure')?.anchor ??
+    evidence.criterionEvidence[0]?.anchor ??
+    'Anchored passage';
+  const tactileAnchor =
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Surface and medium handling')?.anchor ??
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Edge and focus control')?.anchor ??
+    structureAnchor;
+  const intentAnchor =
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Intent and necessity')?.anchor ??
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Presence, point of view, and human force')
+      ?.anchor ??
+    structureAnchor;
+
+  return [
+    {
+      category: 'formalist',
+      title: `${anchorTitleSeed(structureAnchor)} Study`,
+      rationale: sentence(
+        `This title comes from the structural anchor ${structureAnchor}, which carries the clearest compositional read in the evidence`
+      ),
+    },
+    {
+      category: 'tactile',
+      title: `${anchorTitleSeed(tactileAnchor)} Surface`,
+      rationale: sentence(
+        `This title follows the handling passage ${tactileAnchor} and keeps the ${medium} surface read in view`
+      ),
+    },
+    {
+      category: 'intent',
+      title: `${anchorTitleSeed(intentAnchor)} Tension`,
+      rationale: sentence(
+        `This title names the passage ${intentAnchor}, where the evidence places the strongest intent or presence pressure`
+      ),
+    },
+  ];
+}
+
+function synthesizedOverallConfidence(evidence: CritiqueEvidenceDTO): 'low' | 'medium' | 'high' {
+  const highCount = evidence.criterionEvidence.filter((entry) => entry.confidence === 'high').length;
+  if (evidence.photoQualityRead.level === 'poor') return 'low';
+  if (evidence.photoQualityRead.level === 'good' && highCount >= 5) return 'high';
+  return 'medium';
+}
+
+function synthesizedPhotoQuality(evidence: CritiqueEvidenceDTO): VoiceAStageResult['photoQuality'] {
+  return {
+    level: evidence.photoQualityRead.level,
+    summary: evidence.photoQualityRead.summary,
+    issues: evidence.photoQualityRead.issues,
+    tips:
+      evidence.photoQualityRead.level === 'good'
+        ? []
+        : ['Retake the photo in even light with the full painting square to the camera.'],
+  };
+}
+
+function synthesizedNextTarget(
+  criterion: CriterionLabel,
+  level: RatingLevelLabel
+): string {
+  const next = nextRatingLevel(level);
+  return next
+    ? `Push ${criterion.toLowerCase()} toward ${next} by making the anchored passage read more decisively.`
+    : `Preserve the current ${criterion.toLowerCase()} authority without widening the move elsewhere.`;
+}
+
+function sortedEntriesForSynthesis(evidence: CritiqueEvidenceDTO): CritiqueEvidenceDTO['criterionEvidence'] {
+  const rank = { high: 0, medium: 1, low: 2 } as const;
+  return [...evidence.criterionEvidence].sort((left, right) => {
+    const confidenceGap = rank[left.confidence] - rank[right.confidence];
+    if (confidenceGap !== 0) return confidenceGap;
+    return Number(readsResolvedTension(left.tensionRead)) - Number(readsResolvedTension(right.tensionRead));
+  });
+}
+
+function synthesizeVoiceATopline(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO
+): Pick<VoiceAStageResult, 'summary' | 'overallSummary' | 'studioAnalysis'> {
+  const ranked = sortedEntriesForSynthesis(evidence);
+  const strongest = ranked[0] ?? evidence.criterionEvidence[0]!;
+  const secondary = ranked[1] ?? strongest;
+  const tensionCarrier =
+    evidence.criterionEvidence.find((entry) => !readsResolvedTension(entry.tensionRead)) ?? ranked[ranked.length - 1]!;
+
+  return {
+    summary: uniqueNonEmptyLines([strongest.visibleEvidence[0], strongest.strengthRead], 1, 2)
+      .map(sentence)
+      .join(' '),
+    overallSummary: {
+      analysis: uniqueNonEmptyLines(
+        [
+          `Through a ${style} reading in ${medium}, ${strongest.visibleEvidence[0]}`,
+          secondary.visibleEvidence[0],
+          `The clearest remaining threshold sits in ${tensionCarrier.anchor}, where ${normalizeWhitespace(tensionCarrier.tensionRead).replace(/\.$/, '')}`,
+        ],
+        2,
+        3
+      )
+        .map(sentence)
+        .join(' '),
+    },
+    studioAnalysis: {
+      whatWorks: uniqueNonEmptyLines(
+        [strongest.visibleEvidence[0], strongest.strengthRead, secondary.visibleEvidence[0]],
+        2,
+        4
+      )
+        .map(sentence)
+        .join(' '),
+      whatCouldImprove: uniqueNonEmptyLines(
+        [
+          tensionCarrier.visibleEvidence[0],
+          tensionCarrier.tensionRead,
+          evidence.criterionEvidence.find(
+            (entry) => entry !== tensionCarrier && !readsResolvedTension(entry.tensionRead)
+          )?.visibleEvidence[0],
+        ],
+        2,
+        4
+      )
+        .map(sentence)
+        .join(' '),
+    },
+  };
+}
+
+function synthesizedVoiceASalvage(reason: string): CritiquePipelineSalvagedCriterion[] {
+  return CRITERIA_ORDER.map((criterion) => ({
+    stage: 'voice_a' as const,
+    criterion,
+    reason,
+  }));
+}
+
+export function synthesizeVoiceAStageFromEvidence(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO
+): VoiceAStageRunResult {
+  const categories: VoiceAStageResult['categories'] = evidence.criterionEvidence.map((entry) => {
+    const level = synthesizedVoiceALevel(entry, evidence);
+    return {
+      criterion: entry.criterion,
+      level,
+      phase1: {
+        visualInventory: buildVoiceAVisualInventory(entry),
+      },
+      phase2: {
+        criticsAnalysis: buildVoiceACriticsAnalysis(entry),
+      },
+      confidence: entry.confidence,
+      evidenceSignals: buildVoiceAEvidenceSignals(entry),
+      preserve: sentence(entry.preserve),
+      nextTarget: synthesizedNextTarget(entry.criterion, level),
+      subskills: synthesizedSubskills(entry, level),
+    };
+  });
+
+  const topline = synthesizeVoiceATopline(style, medium, evidence);
+  const synthesized: VoiceAStageResult = {
+    summary: topline.summary,
+    suggestedPaintingTitles: synthesizeSuggestedPaintingTitles(style, medium, evidence),
+    overallSummary: topline.overallSummary,
+    studioAnalysis: topline.studioAnalysis,
+    comparisonNote: null,
+    overallConfidence: synthesizedOverallConfidence(evidence),
+    photoQuality: synthesizedPhotoQuality(evidence),
+    categories,
+  };
+
+  return {
+    voiceA: validateVoiceAStageOutput(synthesized, evidence),
+    salvagedCriteria: synthesizedVoiceASalvage('synthesized full Voice A from anchored evidence after retries exhausted'),
+  };
+}
+
 export function repairVoiceAStageGrounding(
   voiceA: VoiceAStageResult,
   evidence: CritiqueEvidenceDTO
@@ -200,6 +462,11 @@ export function repairVoiceAStageGrounding(
 
 type VoiceAStageRunResult = {
   voiceA: VoiceAStageResult;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+};
+
+type VoiceBStageRunResult = {
+  voiceB: VoiceBStageResult;
   salvagedCriteria: CritiquePipelineSalvagedCriterion[];
 };
 
@@ -675,6 +942,136 @@ export function synthesizeVoiceBSummaryFromCategories(
         level
       )
     ),
+  };
+}
+
+function synthesizedVoiceBExpectedRead(
+  entry: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level: RatingLevelLabel
+): string {
+  if (level === 'Master') {
+    return `the strongest relationship in ${entry.anchor} stays intact without losing its current authority.`;
+  }
+
+  switch (entry.criterion) {
+    case 'Composition and shape structure':
+      return `the scaffold in ${entry.anchor} reads more clearly without breaking the larger arrangement.`;
+    case 'Value and light structure':
+      return `the light-dark separation in ${entry.anchor} reads sooner without flattening the surrounding value scaffold.`;
+    case 'Color relationships':
+      return `the color relationship in ${entry.anchor} stays more cohesive without one accent jumping too hard.`;
+    case 'Drawing, proportion, and spatial form':
+      return `the spatial read in ${entry.anchor} feels more convincing without disturbing the larger form.`;
+    case 'Edge and focus control':
+      return `the focus hierarchy in ${entry.anchor} lands sooner without over-sharpening the whole picture.`;
+    case 'Surface and medium handling':
+      return `the handling in ${entry.anchor} feels more controlled while staying true to the medium.`;
+    case 'Intent and necessity':
+      return `the painting's intent reads more decisively through ${entry.anchor}.`;
+    case 'Presence, point of view, and human force':
+      return `the human pressure in ${entry.anchor} reads more clearly without becoming overstated.`;
+  }
+}
+
+function synthesizedVoiceBCategory(
+  entry: CritiqueEvidenceDTO['criterionEvidence'][number],
+  level: RatingLevelLabel
+): VoiceBCategoryResult {
+  const anchor = {
+    areaSummary: entry.anchor,
+    evidencePointer: primarySupportLineForCriterion(entry) ?? entry.visibleEvidence[0] ?? entry.strengthRead,
+    region: SYNTHESIZED_ANCHOR_REGION,
+  };
+  const plan = {
+    currentRead: anchor.evidencePointer,
+    move:
+      level === 'Master'
+        ? `preserve the strongest relationship in ${entry.anchor}.`
+        : fallbackVoiceBMoveForCriterion({
+            criterion: entry.criterion,
+            anchor: { areaSummary: entry.anchor },
+            level,
+          }),
+    expectedRead: synthesizedVoiceBExpectedRead(entry, level),
+    preserve: entry.preserve,
+    editability: level === 'Master' ? ('no' as const) : ('yes' as const),
+  };
+
+  const teacherNextSteps =
+    level === 'Master'
+      ? `Don't change a thing. Preserve ${anchor.evidencePointer.replace(/[.!?]+$/, '')} in ${entry.anchor}.`
+      : renderGroundedTeacherNextSteps({
+          area: anchor.areaSummary,
+          currentRead: plan.currentRead,
+          move: plan.move,
+          expectedRead: plan.expectedRead,
+        });
+
+  return deriveLegacyVoiceBFields(
+    normalizeVoiceBCategoryGrounding(
+      {
+        criterion: entry.criterion,
+        anchor,
+        plan,
+        phase3: {
+          teacherNextSteps,
+        },
+      },
+      entry,
+      level
+    )
+  );
+}
+
+function synthesizedVoiceBSalvage(
+  criteria: readonly CriterionLabel[],
+  reason: string
+): CritiquePipelineSalvagedCriterion[] {
+  return criteria.map((criterion) => ({
+    stage: 'voice_b' as const,
+    criterion,
+    reason,
+  }));
+}
+
+function synthesizeVoiceBCategoriesForCriteria(
+  evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult,
+  criteria: readonly CriterionLabel[]
+): { categories: VoiceBCategoryResult[]; salvagedCriteria: CritiquePipelineSalvagedCriterion[] } {
+  return {
+    categories: criteria.map((criterion) => {
+      const criterionEvidence = summaryEvidenceForCriterion(evidence, criterion);
+      const level = voiceALevelForCriterion(voiceA, criterion) as RatingLevelLabel;
+      return synthesizedVoiceBCategory(criterionEvidence, level);
+    }),
+    salvagedCriteria: synthesizedVoiceBSalvage(
+      criteria,
+      'synthesized Voice B category plan from anchored evidence after retries exhausted'
+    ),
+  };
+}
+
+export function synthesizeVoiceBStageFromEvidence(
+  evidence: CritiqueEvidenceDTO,
+  voiceA: VoiceAStageResult
+): VoiceBStageRunResult {
+  const synthesizedCategories = synthesizeVoiceBCategoriesForCriteria(evidence, voiceA, CRITERIA_ORDER);
+  const orderedCategories = orderedVoiceBCategories(synthesizedCategories.categories);
+  const summary = synthesizeVoiceBSummaryFromCategories(evidence, voiceA, orderedCategories);
+  const voiceB = validateVoiceBStageOutput(
+    {
+      overallSummary: summary.overallSummary,
+      studioChanges: summary.studioChanges,
+      categories: orderedCategories,
+    },
+    voiceA,
+    evidence
+  );
+
+  return {
+    voiceB,
+    salvagedCriteria: synthesizedCategories.salvagedCriteria,
   };
 }
 
@@ -1583,11 +1980,7 @@ export async function runCritiqueVoiceAStage(
         logSchemaAttemptFailure({ stage: 'voice_a', attempt }, error);
       }
       if (attempt === MAX_STAGE_ATTEMPTS) {
-        throw new CritiqueRetryExhaustedError('Voice A stage exhausted retries.', attempt, {
-          stage: 'voice_a',
-          details: errorDetails(error),
-          cause: error,
-        });
+        return synthesizeVoiceAStageFromEvidence(style, body.medium, evidence);
       }
       repairNote = buildRepairNote(
         `Previous Voice A attempt failed: ${errorMessage(error)}`,
@@ -1612,8 +2005,9 @@ export async function runCritiqueVoiceBStage(
   observationBank: ObservationBank,
   voiceA: VoiceAStageResult,
   calibration?: CritiqueCalibrationDTO
-): Promise<VoiceBStageResult> {
+): Promise<VoiceBStageRunResult> {
   const acceptedCategories: VoiceBCategoryResult[] = [];
+  const salvagedCriteria: CritiquePipelineSalvagedCriterion[] = [];
   const criterionBatches = chunkCriteria(CRITERIA_ORDER, VOICE_B_CRITERIA_PER_PASS);
 
   for (const [batchIndex, criteria] of criterionBatches.entries()) {
@@ -1680,12 +2074,20 @@ export async function runCritiqueVoiceBStage(
           logSchemaAttemptFailure({ stage: 'voice_b', attempt, criteria }, error);
         }
         if (attempt === MAX_STAGE_ATTEMPTS) {
-          const criteriaLabel = criteria.join(', ');
-          throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
-            stage: 'voice_b',
-            details: [`Criteria batch failed: ${criteriaLabel}`, ...errorDetails(error)],
-            cause: error,
-          });
+          const synthesizedBatch = synthesizeVoiceBCategoriesForCriteria(evidence, voiceA, criteria);
+          const combined = validateVoiceBStageOutput(
+            {
+              overallSummary: { topPriorities: [] },
+              studioChanges: [],
+              categories: [...acceptedCategories, ...synthesizedBatch.categories],
+            } as VoiceBStageResult,
+            voiceA,
+            evidence
+          );
+          acceptedCategories.splice(0, acceptedCategories.length, ...combined.categories);
+          salvagedCriteria.push(...synthesizedBatch.salvagedCriteria);
+          lastError = undefined;
+          break;
         }
         repairNote = buildVoiceBRepairNote(
           `Previous Voice B attempt failed for criteria: ${criteria.join(', ')}. ${errorMessage(error)}`,
@@ -1740,9 +2142,12 @@ export async function runCritiqueVoiceBStage(
         evidence
       );
       return {
-        overallSummary: validated.overallSummary,
-        studioChanges: validated.studioChanges,
-        categories: orderedCategories,
+        voiceB: {
+          overallSummary: validated.overallSummary,
+          studioChanges: validated.studioChanges,
+          categories: orderedCategories,
+        },
+        salvagedCriteria,
       };
     } catch (error) {
       lastSummaryError = error;
@@ -1750,32 +2155,28 @@ export async function runCritiqueVoiceBStage(
         logSchemaAttemptFailure({ stage: 'voice_b_summary', attempt }, error);
       }
       if (attempt === MAX_STAGE_ATTEMPTS) {
-        if (error instanceof CritiqueValidationError) {
-          const synthesized = synthesizeVoiceBSummaryFromCategories(
-            evidence,
-            voiceA,
-            orderedCategories
-          );
-          const validated = validateVoiceBStageOutput(
-            {
-              overallSummary: synthesized.overallSummary,
-              studioChanges: synthesized.studioChanges,
-              categories: orderedCategories,
-            },
-            voiceA,
-            evidence
-          );
-          return {
+        const synthesized = synthesizeVoiceBSummaryFromCategories(
+          evidence,
+          voiceA,
+          orderedCategories
+        );
+        const validated = validateVoiceBStageOutput(
+          {
+            overallSummary: synthesized.overallSummary,
+            studioChanges: synthesized.studioChanges,
+            categories: orderedCategories,
+          },
+          voiceA,
+          evidence
+        );
+        return {
+          voiceB: {
             overallSummary: validated.overallSummary,
             studioChanges: validated.studioChanges,
             categories: orderedCategories,
-          };
-        }
-        throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', attempt, {
-          stage: 'voice_b',
-          details: ['Voice B summary pass failed.', ...errorDetails(error)],
-          cause: error,
-        });
+          },
+          salvagedCriteria,
+        };
       }
       summaryRepairNote = buildRepairNote(
         `Previous Voice B summary attempt failed: ${errorMessage(error)}`,
@@ -1784,11 +2185,28 @@ export async function runCritiqueVoiceBStage(
     }
   }
 
-  throw new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
-    stage: 'voice_b',
-    details: ['Voice B summary pass failed.', ...errorDetails(lastSummaryError)],
-    cause: lastSummaryError,
-  });
+  const synthesized = synthesizeVoiceBSummaryFromCategories(
+    evidence,
+    voiceA,
+    orderedCategories
+  );
+  const validated = validateVoiceBStageOutput(
+    {
+      overallSummary: synthesized.overallSummary,
+      studioChanges: synthesized.studioChanges,
+      categories: orderedCategories,
+    },
+    voiceA,
+    evidence
+  );
+  return {
+    voiceB: {
+      overallSummary: validated.overallSummary,
+      studioChanges: validated.studioChanges,
+      categories: orderedCategories,
+    },
+    salvagedCriteria,
+  };
 }
 
 function mergeVoiceStages(
@@ -1828,6 +2246,13 @@ function mergeVoiceStages(
   };
 }
 
+export function mergeVoiceStagesForTesting(
+  voiceA: VoiceAStageResult,
+  voiceB: VoiceBStageResult
+): unknown {
+  return mergeVoiceStages(voiceA, voiceB);
+}
+
 export async function runCritiqueWritingStage(
   apiKey: string,
   models: {
@@ -1846,17 +2271,38 @@ export async function runCritiqueWritingStage(
     runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
   );
   const voiceA = voiceARun.voiceA;
-  const voiceB = await instrumenter.time('writing_voice_b', () =>
+  const voiceBRun = await instrumenter.time('writing_voice_b', () =>
     runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceA, calibration)
   );
-  const merged = mergeVoiceStages(voiceA, voiceB);
-  const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
-  return voiceARun.salvagedCriteria.length > 0
-    ? {
-        ...validated,
-        pipeline: createPipelineMetadata({
-          salvagedCriteria: voiceARun.salvagedCriteria,
-        }),
-      }
-    : validated;
+  const collectedSalvage = [...voiceARun.salvagedCriteria, ...voiceBRun.salvagedCriteria];
+
+  try {
+    const merged = mergeVoiceStages(voiceA, voiceBRun.voiceB);
+    const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
+    return collectedSalvage.length > 0
+      ? {
+          ...validated,
+          pipeline: createPipelineMetadata({
+            salvagedCriteria: collectedSalvage,
+          }),
+        }
+      : validated;
+  } catch {
+    const synthesizedVoiceA = synthesizeVoiceAStageFromEvidence(style, body.medium, evidence);
+    const synthesizedVoiceB = synthesizeVoiceBStageFromEvidence(evidence, synthesizedVoiceA.voiceA);
+    const rescued = validateCritiqueGrounding(
+      validateCritiqueResult(mergeVoiceStages(synthesizedVoiceA.voiceA, synthesizedVoiceB.voiceB)),
+      evidence
+    );
+    return {
+      ...rescued,
+      pipeline: createPipelineMetadata({
+        salvagedCriteria: [
+          ...collectedSalvage,
+          ...synthesizedVoiceA.salvagedCriteria,
+          ...synthesizedVoiceB.salvagedCriteria,
+        ],
+      }),
+    };
+  }
 }

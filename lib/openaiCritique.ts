@@ -13,7 +13,10 @@ import {
   type ObservationBank,
 } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
-import { validateEvidenceResult } from './critiqueValidation.js';
+import {
+  synthesizeEvidenceFromObservationBank,
+  validateEvidenceResult,
+} from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
   CritiquePipelineError,
@@ -35,8 +38,6 @@ import {
 } from './critiqueInstrumentation.js';
 import {
   hasSpecificConceptualCarrierAnchor,
-  weakWorkCompositionRepairExamples,
-  weakWorkRepairExamples,
 } from './critiqueWeakWorkContracts.js';
 import { getOpenAIStageModelMap } from './openaiModels.js';
 import {
@@ -161,6 +162,76 @@ function summarizeRawForLog(raw: unknown): string {
   } catch {
     return '[unserializable raw payload]';
   }
+}
+
+function conceptualCarrierGuidance(observationBank: ObservationBank): string {
+  const ranked = observationBank.intentCarriers
+    .map((carrier) => {
+      const passage = observationBank.passages.find((entry) => entry.id === carrier.passageId);
+      if (!passage) return undefined;
+      let score = 0;
+      if (passage.role === 'intent' || passage.role === 'presence') score += 8;
+      if (passage.role === 'value' || passage.role === 'edge' || passage.role === 'surface' || passage.role === 'color') {
+        score += 4;
+      }
+      if (passage.role === 'structure') score -= 4;
+      if (/\b(pressure|presence|force|vulnerability|isolation|withheld|address|tension|commitment)\b/i.test(carrier.reason)) {
+        score += 4;
+      }
+      if (/\b(speed|movement|motion|energy|depth|distance|scale|balance|composition)\b/i.test(carrier.reason)) {
+        score -= 3;
+      }
+      return {
+        passage: carrier.passage,
+        reason: carrier.reason,
+        role: passage.role,
+        score,
+      };
+    })
+    .filter(
+      (entry): entry is { passage: string; reason: string; role: ObservationBank['passages'][number]['role']; score: number } =>
+        Boolean(entry)
+    )
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  if (ranked.length === 0) return '';
+  return `Preferred conceptual carriers from the observation bank (use these first for Intent and Presence if they genuinely fit):
+${ranked
+  .map(
+    (entry, index) =>
+      `${index + 1}. ${entry.passage} [role=${entry.role}] — ${entry.reason}`
+  )
+  .join('\n')}
+- If a structure-heavy passage only proves speed, balance, distance, or movement, do not use it for Intent or Presence unless you explicitly show why the pressure stays there instead of in a more direct carrier.`;
+}
+
+function sortObservationBankIntentCarriers(observationBank: ObservationBank): ObservationBank {
+  if (observationBank.intentCarriers.length < 2) return observationBank;
+  const scoredCarriers = observationBank.intentCarriers
+    .map((carrier, index) => {
+      const passage = observationBank.passages.find((entry) => entry.id === carrier.passageId);
+      if (!passage) return { carrier, index, score: -Infinity };
+      let score = 0;
+      if (passage.role === 'intent' || passage.role === 'presence') score += 8;
+      if (passage.role === 'value' || passage.role === 'edge' || passage.role === 'surface' || passage.role === 'color') {
+        score += 4;
+      }
+      if (passage.role === 'structure') score -= 4;
+      if (/\b(pressure|presence|force|vulnerability|isolation|withheld|address|tension|commitment)\b/i.test(carrier.reason)) {
+        score += 4;
+      }
+      if (/\b(speed|movement|motion|energy|depth|distance|scale|balance|composition|focal point)\b/i.test(carrier.reason)) {
+        score -= 3;
+      }
+      return { carrier, index, score };
+    })
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((entry) => entry.carrier);
+  return {
+    ...observationBank,
+    intentCarriers: scoredCarriers,
+  };
 }
 
 function extractCriterionEvidencePreview(raw: unknown): Array<{
@@ -352,6 +423,26 @@ type EvidenceStageRunResult = {
   successAttempt: number;
 };
 
+export function parseObservationStageResult(raw: unknown): ObservationBank {
+  const parsed = observationBankSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`Observation stage validation failed: ${parsed.error.message}`);
+  }
+  try {
+    return sortObservationBankIntentCarriers(validateObservationBankGrounding(parsed.data));
+  } catch (error) {
+    if (isRecoverableObservationGroundingError(error)) {
+      console.warn('[critique observation grounding warning]', {
+        error: errorMessage(error),
+        details: errorDetails(error),
+        rawPreview: summarizeRawForLog(parsed.data),
+      });
+      return sortObservationBankIntentCarriers(parsed.data);
+    }
+    throw error;
+  }
+}
+
 async function runCritiqueObservationStage(
   apiKey: string,
   args: {
@@ -411,24 +502,7 @@ async function runCritiqueObservationStage(
   } catch {
     throw new Error('Observation stage returned non-JSON');
   }
-
-  const parsed = observationBankSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(`Observation stage validation failed: ${parsed.error.message}`);
-  }
-  try {
-    return validateObservationBankGrounding(parsed.data);
-  } catch (error) {
-    if (isRecoverableObservationGroundingError(error)) {
-      console.warn('[critique observation grounding warning]', {
-        error: errorMessage(error),
-        details: errorDetails(error),
-        rawPreview: summarizeRawForLog(parsed.data),
-      });
-      return parsed.data;
-    }
-    throw error;
-  }
+  return parseObservationStageResult(raw);
 }
 
 async function runCritiqueEvidenceStage(
@@ -444,6 +518,7 @@ async function runCritiqueEvidenceStage(
     allowLenientValidation?: boolean;
   }
 ): Promise<ReturnType<typeof validateEvidenceResult>> {
+  const conceptualCarrierText = conceptualCarrierGuidance(args.observationBank);
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -473,6 +548,14 @@ async function runCritiqueEvidenceStage(
               type: 'text',
               text: `Shared observation bank (reuse these passages and events where they genuinely fit):\n${JSON.stringify(args.observationBank)}`,
             },
+            ...(conceptualCarrierText
+              ? [
+                  {
+                    type: 'text' as const,
+                    text: conceptualCarrierText,
+                  },
+                ]
+              : []),
           ],
         },
       ],
@@ -557,10 +640,6 @@ export function buildEvidenceRepairNote(
   const details = errorDetails(error);
   const attempts = evidenceAttemptsFromContext(error, attemptHistory);
   const criterionPreviews = criterionEvidencePreviewFromError(error, attemptHistory);
-  const weakWorkExamples = weakWorkRepairExamples().map((rule) => `- ${rule}`).join('\n');
-  const weakWorkCompositionExamples = weakWorkCompositionRepairExamples()
-    .map((rule) => `- ${rule}`)
-    .join('\n');
   const surfaceAnchorFailure = details.some((detail) =>
     /Invalid evidence anchor for Surface and medium handling|Visible evidence does not support anchor for Surface and medium handling/.test(
       detail
@@ -621,18 +700,11 @@ export function buildEvidenceRepairNote(
 
 Critical anchor rule:
 - Every criterion anchor must name one physical passage or junction on the canvas, not a painting-wide abstraction.
-- For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: a face against a wall, a path into an opening, a hand against cloth, a silhouette against ground.
+- For Intent and necessity or Presence, point of view, and human force, anchor to the visible carrier of that intent or force: one form against another form, one edge against a field, one band meeting another band, or one passage pressing into another.
 - For conceptual criteria, the anchor does NOT need to use an approved noun list. It needs to be pointable in the painting and restated concretely in the visibleEvidence lines.
 - For Intent and necessity or Presence, point of view, and human force, do NOT reuse a composition anchor unless the evidence explicitly shows why that same passage carries the intent, pressure, or human address rather than merely organizing the picture.
-- On object studies or architecture, conceptual anchors still need a physical carrier passage: a pump head against a bottle neck, a floral label on the bottle, a red door under a lit window, or a roofline against the night sky.
 - Replace abstract anchors like "the overall mood", "the composition overall", "the story", or "the emotional tone" with a single locatable passage the user could point to.
-- Do NOT use flattering anchor labels such as "the arrangement of flowers", "the cozy house", "the vibrant garden", "the idyllic setting", or "the narrative journey of the path". Name the visible object pair or junction instead.
-- Do NOT use object-summary anchors like "the beauty of the bottle", "the elegance of the object", "the festive house", "the decorated house", or "the holiday mood". Name the visible carrier passage instead.
-- Do NOT use house-scene summaries like "the welcoming house", "the festive mood", "the holiday atmosphere", or "the warmth inside". Name the door/window/roofline carrier passage instead.
-- For weak landscapes or garden scenes, prefer anchors shaped like "the path bend under the red house", "the roof edge against the blue wash", "the flower patch where it meets the path edge", or "the fence post against the foliage".
-- For cafe or street scenes, prefer anchors shaped like "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", "the path narrowing into the cafe tables", or "the nearest building arch behind the cafe tables".
-- For figure-led scenes, prefer anchors shaped like "the chair back beside the sitter", "the shoulder edge against the pillow", "the head against the dark wall", or "the forearm across the white sheet".
-- For train-led scenes, prefer anchors shaped like "the engine against the pale sky", "the train across the ground bands", "the smoke trail above the roofline", or "the leaning telegraph poles beside the train".${unsupportedAnchorCriteria.length > 0
+- Do NOT use flattering or summary anchor labels such as "the inviting arrangement", "the dominant presence", "the dramatic scene", or "the narrative journey". Name the visible object pair or junction instead.${unsupportedAnchorCriteria.length > 0
     ? `
 
 Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
@@ -641,7 +713,7 @@ Critical anchor-support fix for ${unsupportedAnchorCriteria.join(', ')}:
 - Nearby passages do NOT count as support just because they share scene tokens; the same line must restate the anchor passage and describe one visible event there.
 - Do not anchor to one relationship and then list only nearby but differently named passages.
 - If the anchor names a grouping, overlap, scaffold, gap, band, or junction, one visibleEvidence line must name that same grouping, overlap, scaffold, gap, band, or junction again using the same objects or zones.
-- For weak landscape anchors, repeat BOTH sides of the relationship in one evidence line. Example: if the anchor is "the purple flower patch where it meets the path edge", one visibleEvidence line must mention both the purple flower patch and the path edge again in the same sentence.${unsupportedAnchorPreviewBlock}`
+- If the anchor names a relationship, repeat BOTH sides of the relationship in one evidence line. Example: if the anchor is "the lighter patch where it meets the darker band", one visibleEvidence line must mention both the lighter patch and the darker band again in the same sentence.${unsupportedAnchorPreviewBlock}`
     : ''}${genericEvidenceCriteria.length > 0
     ? `
 
@@ -650,40 +722,31 @@ Critical generic-language fix for ${genericEvidenceCriteria.join(', ')}:
 - For any listed conceptual criterion, make the FIRST visibleEvidence line an anchor-echo support line. Restate the same anchored passage there and describe one visible event in that same sentence.
 - For conceptual visibleEvidence lines, naming the anchor is NOT enough. The sentence must also describe a visible event in that passage: what narrows, bends, meets, overlaps, sits below, stays lighter/darker, or separates against what.
 - For conceptual criteria, at least one visibleEvidence line must explain why this exact passage carries the intent, pressure, or human force instead of a nearby structural passage. If the line only proves structure, it is still wrong for Intent or Presence.
-- Rewrite interpretation-first sentences like "the path leading to the house creates a directional flow", "the house draws attention", or "the red door under the lit window creates a welcoming mood" into event-first sentences that say what is visibly happening where.
-- Rewrite focal-summary lines like "the vibrant bouquet against the stylized leaf background creates a strong focal point" into event-first lines such as "the vibrant bouquet against the stylized leaf background stays lighter than the leaf shapes behind it and bunches tighter above the vase rim."
-- Route carriers like "the path leading to the house" are acceptable only if the evidence then names what that path is visibly doing: where it narrows, bends, meets the doorway, or separates against nearby shapes.
-- Do NOT write "the outdoor seating area", "the cafe atmosphere", or "the path leading through the scene" as sufficient conceptual evidence on a cafe or street scene. Prefer "the cafe tables with yellow umbrellas", "the seated figures under the yellow umbrellas", or "the nearest building arch behind the cafe tables."
-- Do NOT write figure summaries like "the pose creates emotion", "the figure has personality", "the sitter feels contemplative", or "the posture adds drama" as sufficient conceptual evidence. Prefer "the shoulder edge against the pillow", "the head against the dark wall", or "the forearm across the white sheet."
-- Do NOT write train summaries like "the train creates movement", "the scene has momentum", "the engine feels dramatic", or "the poles add speed" as sufficient conceptual evidence. Prefer "the engine against the pale sky", "the train across the ground bands", "the smoke trail above the roofline", or "the leaning telegraph poles beside the train."
-- Do NOT write object-study summaries like "the bottle feels elegant", "the object blends nature and technology", "the house feels festive", or "the windows create warmth" as sufficient conceptual evidence. Prefer "the floral label on the glass bottle", "the pump head against the bottle neck", "the red door under the lit window", or "the lit window against the dark facade."
-- Do NOT write house-scene summaries like "the house feels welcoming", "the festive mood reads clearly", "the holiday atmosphere comes through", or "the windows create warmth" as sufficient conceptual evidence or strengthRead language. Prefer "the red door under the lit window", "the lit window against the dark facade", or "the roofline above the window stack."
+- Rewrite interpretation-first sentences like "the passage creates a directional flow", "the shape draws attention", or "the warm area creates atmosphere" into event-first sentences that say what is visibly happening where.
+- Rewrite focal-summary lines like "the brighter cluster against the darker field creates a strong focal point" into event-first lines such as "the brighter cluster against the darker field stays lighter than the shapes behind it and bunches tighter above the lower edge."
+- Route carriers like "the band leading inward" are acceptable only if the evidence then names what that band is visibly doing: where it narrows, bends, meets another passage, or separates against nearby shapes.
+- Do NOT write summary evidence like "the area creates mood", "the form has personality", "the scene has momentum", or "the passage adds warmth" as sufficient conceptual evidence.
 - strengthRead and preserve must also name that same visible carrier passage, not a mood summary. If the criterion is conceptual, reuse the anchor nouns directly in strengthRead and preserve.
 - strengthRead may interpret the result of the passage, but visibleEvidence must stay at event level first. Do not use visibleEvidence lines that only report the takeaway.
-- For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact path bend, roof edge, fence post, flower band, or other structural passage creating that effect.
-- For Composition and shape structure in cafe or street scenes, replace summaries like "the path guides the eye", "the tables create rhythm", or "the umbrellas create a focal point" with event language such as "the path narrowing into the cafe tables leaves a wider ground shape on one side" or "the nearest building arch lands behind the tables and repeats their curve higher up the wall."
-- For Composition and shape structure in figure-led or train-led scenes, replace summaries like "the pose adds drama", "the figure creates presence", "the train creates movement", or "the poles create rhythm" with event language such as "the chair slat leaves a smaller gap above the shoulder than at the elbow" or "the engine cuts across the ground bands while the nearest pole leans with that same diagonal."
+- For Composition and shape structure, do NOT use stock phrases like "balanced composition", "dynamic tension", "guides the eye", or "adds interest" unless the same sentence names the exact passage creating that effect.
 - For Composition and shape structure, write a shape event, not a verdict: what narrows, widens, cuts, leaves a gap, stacks, overlaps, aligns, or tilts in that exact passage.
 - On abstract, simplified, or still-life passages, phrases like "layered structure", "adds complexity", "creates movement", "grounds the composition", or "provides a base" are still too generic unless the same sentence names the exact forms and the visible event between them.
-- Replace weak still-life wording like "the dark shapes under the banana provide a structural base" with event wording such as "the banana overlaps the dark shapes and leaves a thinner dark strip on one side than on the other."
-- Replace abstract wording like "the overlapping colors add movement and complexity" with event wording such as "the red shape overlaps the purple block and leaves a narrower strip at the top edge than at the side."
-- For Composition and shape structure on object studies or architecture, do NOT stop at verdicts like "the bottle is centered", "the house is well-balanced", or "the roof creates structure". Write the visible event instead: what aligns, tilts, lands, repeats, leaves a wider side, or steps against a neighboring passage.
-- On seascapes, harbors, or other strong paintings, the same rule still applies: prefer "the reflection cuts through the harbor bands", "the boat silhouette sits left of the reflection", or "the masts echo that vertical above the horizon" over verdicts like "the reflection organizes the composition" or "the boat creates balance."
+- Replace wording like "the darker shape provides a structural base" with event wording such as "the lighter form overlaps the darker shape and leaves a thinner dark strip on one side than on the other."
+- Replace wording like "the overlapping colors add movement and complexity" with event wording such as "the brighter shape overlaps the darker block and leaves a narrower strip at the top edge than at the side."
+- For Composition and shape structure, do NOT stop at verdicts like "the object is centered", "the form is well-balanced", or "the edge creates structure". Write the visible event instead: what aligns, tilts, lands, repeats, leaves a wider side, or steps against a neighboring passage.
 - If one visibleEvidence line is already concrete, keep it and rewrite the generic filler lines so the full list stays at junction/event level.
-- Rewrite the quoted lines below instead of paraphrasing the same generic idea again.${genericEvidencePreviewBlock}
-${weakWorkCompositionExamples}`
+- Rewrite the quoted lines below instead of paraphrasing the same generic idea again.${genericEvidencePreviewBlock}`
     : ''}${topLevelToneFailure
     ? `
 
 Critical top-level tone fix:
 - intentHypothesis, strongestVisibleQualities, and comparisonObservations must stay provisional and evidence-led for weak work.
-- Do NOT open with "whimsical charm", "idyllic rural life", "lively atmosphere", or artist praise like "Monet's garden scenes" unless the criterion evidence already proves unusually strong control.
+- Do NOT open with charm, atmosphere, narrative, or artist-praise language unless the criterion evidence already proves unusually strong control.
 - Describe what is visibly happening in plain terms before making any flattering style comparison.
 - Safe rewrite pattern for weak work:
   - intentHypothesis = "The painting appears to organize the scene around [visible things]."
-  - strongestVisibleQualities = plain statements about path / house / flower band / sky wash / edge contrast, not mood praise.
-  - comparisonObservations = omit artist-name praise unless the criterion evidence clearly shows exceptional control.
-${weakWorkExamples}`
+  - strongestVisibleQualities = plain statements about visible bands / forms / edge contrast / value shifts, not mood praise.
+  - comparisonObservations = omit artist-name praise unless the criterion evidence clearly shows exceptional control.`
     : ''}${surfaceAnchorFailure
     ? `
 
@@ -747,23 +810,24 @@ async function runCritiqueEvidenceStageWithRetries(
       attemptDebug.push(debug);
       logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_STAGE_ATTEMPTS) {
-        throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', attempt, {
-          stage: 'evidence',
-          details: errorDetails(error),
-          debug: { attempts: attemptDebug },
-          cause: error,
-        });
+        const synthesizedEvidence = synthesizeEvidenceFromObservationBank(args.observationBank);
+        return {
+          evidence: synthesizedEvidence,
+          observationBank: args.observationBank,
+          failedAttempts: attemptDebug,
+          successAttempt: attempt,
+        };
       }
       repairNote = buildEvidenceRepairNote(error, attemptDebug);
     }
   }
 
-  throw new CritiqueRetryExhaustedError('Evidence stage exhausted retries.', MAX_STAGE_ATTEMPTS, {
-    stage: 'evidence',
-    details: errorDetails(lastError),
-    debug: { attempts: attemptDebug },
-    cause: lastError,
-  });
+  return {
+    evidence: synthesizeEvidenceFromObservationBank(args.observationBank),
+    observationBank: args.observationBank,
+    failedAttempts: attemptDebug,
+    successAttempt: MAX_STAGE_ATTEMPTS,
+  };
 }
 
 export async function runOpenAICritique(
@@ -850,12 +914,11 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
           userContent
         );
       } catch (error) {
-        if (error instanceof CritiquePipelineError) throw error;
-        throw new CritiqueValidationError('Calibration stage failed.', {
-          stage: 'calibration',
+        console.warn('[critique calibration warning]', {
+          error: errorMessage(error),
           details: errorDetails(error),
-          cause: error,
         });
+        return undefined;
       }
     });
 
@@ -873,7 +936,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       calibration,
       instrumenter
     );
-    const calibrated = applyCalibrationToCritique(base, calibration);
+    const calibrated = calibration ? applyCalibrationToCritique(base, calibration) : base;
     const withCompletion = {
       ...calibrated,
       completionRead: {

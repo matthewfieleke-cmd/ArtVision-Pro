@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  mergeVoiceStagesForTesting,
   normalizeKnownVoiceBVerbDrift,
   normalizeVoiceBMoveForSchema,
   repairVoiceAStageGrounding,
+  synthesizeVoiceAStageFromEvidence,
+  synthesizeVoiceBStageFromEvidence,
   synthesizeVoiceBSummaryFromCategories,
 } from './critiqueWritingStage';
 import { makeCritiqueEvidenceFixture, makeVoiceAStageFixture } from './critiqueTestFixtures';
-import { validateVoiceAStageOutput } from './critiqueValidation';
+import {
+  validateCritiqueGrounding,
+  validateCritiqueResult,
+  validateVoiceAStageOutput,
+  validateVoiceBStageOutput,
+} from './critiqueValidation';
 
 describe('normalizeKnownVoiceBVerbDrift', () => {
   it('rewrites generic color-transition enhancement into an allowed concrete move', () => {
@@ -188,6 +196,40 @@ describe('repairVoiceAStageGrounding', () => {
     expect(repaired.voiceA.categories[6]?.evidenceSignals[0]).toContain(
       'wall hatching beside the smoother shirt'
     );
+  });
+});
+
+describe('synthesizeVoiceAStageFromEvidence', () => {
+  it('builds a grounded Voice A stage when model output is unavailable', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+
+    const synthesized = synthesizeVoiceAStageFromEvidence('Realism', 'Oil on Canvas', evidence);
+
+    expect(() => validateVoiceAStageOutput(synthesized.voiceA, evidence)).not.toThrow();
+    expect(synthesized.salvagedCriteria).toHaveLength(8);
+  });
+});
+
+describe('synthesizeVoiceBStageFromEvidence', () => {
+  it('builds grounded Voice B teaching plans when model output is unavailable', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const voiceA = synthesizeVoiceAStageFromEvidence('Realism', 'Oil on Canvas', evidence).voiceA;
+
+    const synthesized = synthesizeVoiceBStageFromEvidence(evidence, voiceA);
+
+    expect(() => validateVoiceBStageOutput(synthesized.voiceB, voiceA, evidence)).not.toThrow();
+    expect(synthesized.salvagedCriteria).toHaveLength(8);
+  });
+
+  it('builds a full merged critique that passes final validation when both writing voices are synthesized', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const voiceA = synthesizeVoiceAStageFromEvidence('Realism', 'Oil on Canvas', evidence).voiceA;
+    const voiceB = synthesizeVoiceBStageFromEvidence(evidence, voiceA).voiceB;
+
+    const merged = mergeVoiceStagesForTesting(voiceA, voiceB);
+    const validated = validateCritiqueResult(merged);
+
+    expect(() => validateCritiqueGrounding(validated, evidence)).not.toThrow();
   });
 });
 

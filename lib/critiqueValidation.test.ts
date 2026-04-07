@@ -9,6 +9,7 @@ import {
   makeVoiceBStageFixture,
 } from './critiqueTestFixtures';
 import {
+  synthesizeEvidenceFromObservationBank,
   validateCritiqueGrounding,
   validateEvidenceResult,
   validateVoiceAStageOutput,
@@ -364,6 +365,120 @@ describe('validateEvidenceResult', () => {
           entry.stage === 'evidence' && entry.criterion === 'Composition and shape structure'
       ) ?? false
     ).toBe(false);
+  });
+
+  it('prefers non-structural conceptual carriers when synthesizing evidence from the observation bank', () => {
+    const observationBank: ObservationBank = {
+      passages: [
+        {
+          id: 'p1',
+          label: "the train's front against the sky",
+          role: 'value',
+          visibleFacts: ["The train's front stays darker than the sky behind it.", "The sky gives the engine a clear silhouette."],
+        },
+        {
+          id: 'p2',
+          label: 'the smoke above the train',
+          role: 'edge',
+          visibleFacts: ['The smoke softens into the sky above the roofline.', 'The smoke spreads wider than the engine below it.'],
+        },
+        {
+          id: 'p3',
+          label: 'the telegraph poles along the track',
+          role: 'structure',
+          visibleFacts: ['The poles tilt beside the track.', 'The poles recede into the distance.'],
+        },
+        {
+          id: 'p4',
+          label: 'the train wheels against the track',
+          role: 'surface',
+          visibleFacts: ['The wheels land darker than the suggested track marks.', 'The track stays lighter and thinner under the wheels.'],
+        },
+        {
+          id: 'p5',
+          label: 'the landscape under the train',
+          role: 'value',
+          visibleFacts: ['The landscape sits darker than the sky.', 'The train reads against that darker ground.'],
+        },
+      ],
+      visibleEvents: [
+        {
+          passageId: 'p1',
+          passage: "the train's front against the sky",
+          signalType: 'value',
+          event: "The train's front stays darker than the sky and keeps the machine's pressure concentrated there.",
+        },
+        {
+          passageId: 'p2',
+          passage: 'the smoke above the train',
+          signalType: 'edge',
+          event: 'The smoke softens into the sky above the train roofline.',
+        },
+        {
+          passageId: 'p3',
+          passage: 'the telegraph poles along the track',
+          signalType: 'shape',
+          event: 'The telegraph poles tilt beside the track and repeat into the distance.',
+        },
+        {
+          passageId: 'p4',
+          passage: 'the train wheels against the track',
+          signalType: 'surface',
+          event: 'The train wheels land darker than the track marks below them.',
+        },
+        {
+          passageId: 'p5',
+          passage: 'the landscape under the train',
+          signalType: 'value',
+          event: 'The darker landscape holds below the lighter sky.',
+        },
+        {
+          passageId: 'p1',
+          passage: "the train's front against the sky",
+          signalType: 'shape',
+          event: "The engine cuts into the lighter sky and holds the machine's main weight there.",
+        },
+        {
+          passageId: 'p2',
+          passage: 'the smoke above the train',
+          signalType: 'shape',
+          event: 'The smoke widens above the roofline and disperses faster than the engine below it.',
+        },
+        {
+          passageId: 'p4',
+          passage: 'the train wheels against the track',
+          signalType: 'shape',
+          event: 'The wheels sit heavier than the thin track marks under them.',
+        },
+      ],
+      mediumCues: [
+        'The drawing relies on strong dark-light contrast and assertive linear marks.',
+        'The medium reads dry and direct rather than painterly.',
+      ],
+      photoCaveats: [],
+      intentCarriers: [
+        {
+          passageId: 'p3',
+          passage: 'the telegraph poles along the track',
+          reason: 'The tilted poles emphasize speed and movement across the scene.',
+        },
+        {
+          passageId: 'p2',
+          passage: 'the smoke above the train',
+          reason: 'The smoke softens into the sky and keeps the motion visible above the machine.',
+        },
+        {
+          passageId: 'p1',
+          passage: "the train's front against the sky",
+          reason: "The train's front stays darker and heavier than the sky, so the machine's pressure holds there.",
+        },
+      ],
+    };
+
+    const synthesized = synthesizeEvidenceFromObservationBank(observationBank);
+
+    expect(synthesized.criterionEvidence[0]?.anchor).toBe("the train's front against the sky");
+    expect(synthesized.criterionEvidence[7]?.anchor).toBe("the train's front against the sky");
   });
 
   it('rejects equivalence collisions that only reconstruct the anchor across multiple nearby lines', () => {

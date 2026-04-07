@@ -210,22 +210,22 @@ export function weakWorkEvidenceGuidance(): string[] {
 
 export function weakWorkCompositionRepairExamples(): string[] {
   return [
-    'For composition evidence, write "the path before the doorway narrows and leaves a wider light band on the left than on the right."',
+    'For composition evidence, write "the narrow band before the opening tightens and leaves a wider light strip on one side than on the other."',
     'For composition evidence, write "the vertical edge against the pale field lands just behind the darker shape and leaves a thinner gap above it."',
-    'For composition evidence, write "the reflection cuts through the flatter water bands and leaves a wider dark shape on one side."',
-    'For composition evidence, write "the tilted form across the ground bands leans harder than the neighboring vertical and repeats that push above the horizon."',
+    'For composition evidence, write "the narrow vertical cuts through the flatter horizontal bands and leaves a wider dark shape on one side."',
+    'For composition evidence, write "the tilted form across the lower bands leans harder than the neighboring vertical and repeats that push above the boundary line."',
     'Do not write composition fillers like "creates balance", "creates rhythm", or "guides the eye" by themselves. Rewrite them as concrete events in a specific passage.',
-    'Rewrite "the roof edge creates a strong horizontal line" as "the roof edge cuts the pale wash and leaves a thinner strip above the form than beside it."',
-    'Rewrite "the fence line creates a horizontal division" as "the fence line separates one band from the next and leaves a smaller strip above the nearer shape than above the farther one."',
+    'Rewrite "the upper edge creates a strong horizontal line" as "the upper edge cuts the pale field and leaves a thinner strip above the form than beside it."',
+    'Rewrite "the dividing line creates a horizontal division" as "the dividing line separates one band from the next and leaves a smaller strip above the nearer shape than above the farther one."',
   ];
 }
 
 export function weakWorkRepairExamples(): string[] {
   return [
-    'Use anchors like "the path where it meets the doorway", "the vertical edge against the pale field", "the reflection across the water band", or "the loaded rim stroke against the table".',
-    'Rewrite "the path leading inward creates a directional flow" as "the path leading inward narrows before the opening and stays lighter than the band beside it."',
+    'Use anchors like "the band where it meets the opening", "the vertical edge against the pale field", "the narrow stroke across the darker strip", or "the loaded rim stroke against the flat passage".',
+    'Rewrite "the passage creates directional flow" as "the passage narrows before the opening and stays lighter than the band beside it."',
     'Rewrite "the warm accent creates a welcoming mood" as "the warm accent under the bright opening stays warmer than the surrounding band and sits below the lightest stack."',
-    'Write top-level evidence in plain visual language, e.g. "The painting appears to organize the scene around a narrow path, a bright opening, and a darker band crossing the lower half."',
+    'Write top-level evidence in plain visual language, e.g. "The painting appears to organize the scene around a narrow band, a bright opening, and a darker strip crossing the lower half."',
     'Do not use artist-name comparisons for weak work unless the criterion evidence already proves exceptional control.',
     ...weakWorkCompositionRepairExamples(),
   ];
