@@ -355,8 +355,8 @@ describe('synthesizeVoiceBSummaryFromCategories', () => {
 
     const summary = synthesizeVoiceBSummaryFromCategories(
       evidence as CritiqueEvidenceDTO,
-      voiceA as VoiceAStageResult,
-      categories as VoiceBStageResult['categories']
+      voiceA as unknown as VoiceAStageResult,
+      categories as unknown as VoiceBStageResult['categories']
     );
 
     expect(summary.overallSummary.topPriorities).toHaveLength(2);
