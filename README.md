@@ -38,7 +38,8 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
    - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
    - Optional: `OPENAI_MODEL` (default `gpt-4o` for shared chat/classify fallback).
    - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
-   - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`.
+   - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY` (optional prose-polish pass; defaults to `gpt-4o-mini`).
+   - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; same anchors/levels/plans; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
 
 3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
 

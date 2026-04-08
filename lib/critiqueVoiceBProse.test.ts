@@ -49,4 +49,32 @@ describe('renderGroundedTeacherNextSteps', () => {
       'The branch edge against the pale sky stays sharp at the fork while the nearby branch edge softens into the cloud. Sharpen the branch edge against the pale sky a little more while losing a nearby edge in that same passage so the forked branch reads as the single strongest accent in that passage.'
     );
   });
+
+  it('does not prefix "In {area}," when the current read already references most anchor words (paraphrased anchor)', () => {
+    const rendered = renderGroundedTeacherNextSteps({
+      area: 'the distant house against the horizon',
+      currentRead: 'the house is small and dark against the bright horizon, suggesting distance',
+      move: "darken the house's silhouette against the horizon to increase its presence",
+      expectedRead: 'the structure reads more clearly as a distant anchor in the field',
+    });
+
+    expect(rendered).toBe(
+      "The house is small and dark against the bright horizon, suggesting distance. Darken the house's silhouette against the horizon to increase its presence so the structure reads more clearly as a distant anchor in the field."
+    );
+    expect(rendered).not.toMatch(/^In the distant house against the horizon,/i);
+  });
+
+  it('does not stack a second outcome when the move already ends with a "reads sooner"-style result clause', () => {
+    const rendered = renderGroundedTeacherNextSteps({
+      area: 'the yellow roof against the dark trees',
+      currentRead: 'the yellow roof against the dark trees reads as the brightest value mass in the middle ground',
+      move: 'separate the light and dark passages in the yellow roof against the dark trees more clearly so the value structure reads sooner',
+      expectedRead: 'the light-dark separation reads sooner',
+    });
+
+    expect(rendered).toBe(
+      'The yellow roof against the dark trees reads as the brightest value mass in the middle ground. Separate the light and dark passages in the yellow roof against the dark trees more clearly so the value structure reads sooner.'
+    );
+    expect(rendered).not.toMatch(/reads sooner so /i);
+  });
 });

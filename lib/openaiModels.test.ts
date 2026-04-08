@@ -10,6 +10,7 @@ const ENV_KEYS = [
   'OPENAI_MODEL_CALIBRATION',
   'OPENAI_MODEL_WRITE',
   'OPENAI_MODEL_VALIDATE',
+  'OPENAI_MODEL_CLARITY',
   'OPENAI_MODEL_FALLBACK',
   'OPENAI_IMAGE_EDIT_MODEL',
 ] as const;
@@ -55,6 +56,7 @@ describe('resolveOpenAIModel', () => {
 
   it('falls back to built-in defaults when no env vars are set', () => {
     expect(resolveOpenAIModel('voiceB')).toBe('gpt-4o');
+    expect(resolveOpenAIModel('clarity')).toBe('gpt-4o-mini');
     expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-1');
   });
 });
@@ -72,6 +74,7 @@ describe('getOpenAIStageModelMap', () => {
       voiceA: 'writer-model',
       voiceB: 'writer-model',
       validation: 'critique-model',
+      clarity: 'shared-model',
       fallback: 'shared-model',
       imageEdit: 'gpt-image-1',
     });

@@ -5,6 +5,7 @@ export type OpenAIStageModelRole =
   | 'voiceA'
   | 'voiceB'
   | 'validation'
+  | 'clarity'
   | 'fallback'
   | 'imageEdit';
 
@@ -48,6 +49,11 @@ const STAGE_MODEL_CONFIG: Record<OpenAIStageModelRole, StageModelConfig> = {
     envKeys: ['OPENAI_MODEL_VALIDATE', 'OPENAI_CRITIQUE_MODEL', 'OPENAI_MODEL'],
     fallback: DEFAULT_CHAT_MODEL,
   },
+  clarity: {
+    role: 'clarity',
+    envKeys: ['OPENAI_MODEL_CLARITY', 'OPENAI_MODEL'],
+    fallback: 'gpt-4o-mini',
+  },
   fallback: {
     role: 'fallback',
     envKeys: ['OPENAI_MODEL_FALLBACK', 'OPENAI_MODEL_VALIDATE', 'OPENAI_MODEL'],
@@ -86,6 +92,7 @@ export function getOpenAIStageModelMap(overrides?: Partial<Record<OpenAIStageMod
     voiceA: resolveOpenAIModel('voiceA', overrides?.voiceA),
     voiceB: resolveOpenAIModel('voiceB', overrides?.voiceB),
     validation: resolveOpenAIModel('validation', overrides?.validation),
+    clarity: resolveOpenAIModel('clarity', overrides?.clarity),
     fallback: resolveOpenAIModel('fallback', overrides?.fallback),
     imageEdit: resolveOpenAIModel('imageEdit', overrides?.imageEdit),
   };

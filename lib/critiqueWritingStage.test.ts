@@ -10,11 +10,13 @@ import {
   synthesizeVoiceBSummaryFromCategories,
 } from './critiqueWritingStage';
 import { makeCritiqueEvidenceFixture, makeVoiceAStageFixture } from './critiqueTestFixtures';
+import type { VoiceAStageResult, VoiceBStageResult } from './critiqueZodSchemas';
 import {
   validateCritiqueGrounding,
   validateCritiqueResult,
   validateVoiceAStageOutput,
   validateVoiceBStageOutput,
+  type CritiqueEvidenceDTO,
 } from './critiqueValidation';
 
 describe('normalizeKnownVoiceBVerbDrift', () => {
@@ -352,9 +354,9 @@ describe('synthesizeVoiceBSummaryFromCategories', () => {
     ];
 
     const summary = synthesizeVoiceBSummaryFromCategories(
-      evidence as any,
-      voiceA as any,
-      categories as any
+      evidence as CritiqueEvidenceDTO,
+      voiceA as VoiceAStageResult,
+      categories as VoiceBStageResult['categories']
     );
 
     expect(summary.overallSummary.topPriorities).toHaveLength(2);

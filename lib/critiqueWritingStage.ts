@@ -6,7 +6,7 @@ import {
   type CriterionLabel,
   type RatingLevelLabel,
 } from '../shared/criteria.js';
-import type { CritiqueCategory, CritiquePipelineSalvagedCriterion } from '../shared/critiqueContract.js';
+import type { CritiquePipelineSalvagedCriterion } from '../shared/critiqueContract.js';
 import {
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_B_COMPOSITE_TEACHERS,
@@ -25,14 +25,11 @@ import {
 import {
   VOICE_A_OPENAI_SCHEMA,
   anchorSchema,
-  editPlanSchema,
   studioChangeSchema,
   type ObservationBank,
   type VoiceAStageResult,
   type VoiceBStageResult,
   voiceBCanonicalPlanSchema,
-  voiceBPlanSchema,
-  voiceBStepSchema,
   voiceAStageResultSchema,
   toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
@@ -58,13 +55,8 @@ import {
   errorDetails,
   errorMessage,
 } from './critiqueErrors.js';
-import { assertCritiqueQualityGate } from './critiqueEval.js';
 import { noopCritiqueInstrumenter, type CritiqueInstrumenter } from './critiqueInstrumentation.js';
-import {
-  deriveActionPlanStepFromCanonical,
-  deriveEditPlanFromCanonical,
-  deriveLegacyVoiceBPlanFromCanonical,
-} from './critiqueVoiceBCanonical.js';
+import { deriveEditPlanFromCanonical } from './critiqueVoiceBCanonical.js';
 import {
   CRITIQUE_CHANGE_VERB_PATTERN,
   CRITIQUE_DONT_CHANGE_PATTERN,
@@ -74,6 +66,7 @@ import {
 import { renderGroundedTeacherNextSteps } from './critiqueVoiceBProse.js';
 import { normalizeWhitespace } from './critiqueTextRules.js';
 import { createPipelineMetadata } from './critiquePipeline.js';
+import { withOpenAIRetries } from './openaiRetry.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -505,6 +498,8 @@ How Voice A drives the eight ratings (required workflow):
 - Then assign categories[].level for each criterion: that level MUST be the formal label (Beginner / Intermediate / Advanced / Master) for Voice A’s judgment in that criterion for this painting.
 - For each criterion, decide not just what band fits, but why the work is not one band lower and not one band higher according to the rubric language above.
 - Use the declared style and medium actively when calibrating every level. A competent watercolor softness, a useful pastel vibration, or an oil drag edge is not the same thing as weak control.
+- Tailor advice to the declared medium when it changes the rules (e.g., watercolor: reserve lights, wet-edge sequencing, paper stain limits; oil: layering, wet-into-wet vs scumble, impasto load)—without inventing techniques the evidence does not support.
+- User-facing sentences must not echo rubric jargon or internal criterion labels (no "criterion", "band", "rubric", "subskill", "phase 2"); speak as a critic to a painter.
 - Write studioAnalysis.whatWorks and whatCouldImprove as Voice A’s overall read, but ensure they do not contradict the per-criterion levels.
 
 ${completionToneBlock(evidence)}
@@ -586,6 +581,8 @@ Rules:
 - Your usefulness comes from precision, not from forced criticism.
 - The eight criteria should usually vary; uniformity across all eight is possible but uncommon. Do not smooth everything to one level out of politeness or uncertainty.
 - Voice B tone: teacherly coaching for a motivated serious hobbyist or art student. Lead with the clearest action, then explain it plainly.
+- Teach with the declared medium in mind (watercolor vs oil vs drawing): name moves that respect how that medium builds or corrects a passage; do not give oil-only advice for a watercolor read unless the evidence supports it.
+- Never use rubric-system words in user-facing lines (no "criterion", "band", "rubric", "subskill", "phase"); stay in plain studio language.
 - For every non-Master criterion, there is exactly ONE primary move. Return one canonical plan only, and make phase3.teacherNextSteps read as one polished paragraph about that one move.
 - For every Master criterion, give preserve-only guidance. Praise the exact visible relationship that is already exceptional and provide ZERO improvement instructions.
 - Distinctness is mandatory across the full eight-criterion set: do not recycle the same move, the same wording, or the same anchored passage across multiple criteria unless the painting truly makes that unavoidable.
@@ -1875,50 +1872,53 @@ async function runSchemaStage(
   systemPrompt: string,
   userPrompt: string,
   jsonSchema: unknown,
-  maxTokens: number = VOICE_A_MAX_TOKENS
+  maxTokens: number = VOICE_A_MAX_TOKENS,
+  retryLabel = 'voice-schema'
 ): Promise<unknown> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.18,
-      max_tokens: maxTokens,
-      response_format: {
-        type: 'json_schema',
-        json_schema: jsonSchema,
+  return withOpenAIRetries(retryLabel, async () => {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
+      body: JSON.stringify({
+        model,
+        temperature: 0.18,
+        max_tokens: maxTokens,
+        response_format: {
+          type: 'json_schema',
+          json_schema: jsonSchema,
+        },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    });
+
+    const json = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+      const err = json.error as { message?: string } | undefined;
+      throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+    }
+
+    const choices = json.choices as Array<{
+      message?: { content?: string };
+      finish_reason?: string;
+    }> | undefined;
+    const choice = choices?.[0];
+    if (choice?.finish_reason === 'length') {
+      throw new Error('Model response truncated (token limit reached)');
+    }
+    const text = choice?.message?.content;
+    if (!text || typeof text !== 'string') throw new Error('Empty model response');
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error('Model returned non-JSON');
+    }
   });
-
-  const json = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI error ${response.status}`);
-  }
-
-  const choices = json.choices as Array<{
-    message?: { content?: string };
-    finish_reason?: string;
-  }> | undefined;
-  const choice = choices?.[0];
-  if (choice?.finish_reason === 'length') {
-    throw new Error('Model response truncated (token limit reached)');
-  }
-  const text = choice?.message?.content;
-  if (!text || typeof text !== 'string') throw new Error('Empty model response');
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error('Model returned non-JSON');
-  }
 }
 
 export async function runCritiqueVoiceAStage(
@@ -1940,7 +1940,9 @@ export async function runCritiqueVoiceAStage(
         model,
         buildVoiceAPrompt(style, body.medium, evidence, observationBank, calibration),
         buildVoiceAUserPrompt(evidence, observationBank, repairNote),
-        VOICE_A_OPENAI_SCHEMA
+        VOICE_A_OPENAI_SCHEMA,
+        VOICE_A_MAX_TOKENS,
+        `voice_a-${attempt}`
       );
       const parsed = voiceAStageResultSchema.safeParse(raw);
       if (!parsed.success) {
@@ -2023,14 +2025,16 @@ export async function runCritiqueVoiceBStage(
       try {
         const raw = normalizeVoiceBCategoryBatchRaw(
           await runSchemaStage(
-          apiKey,
-          model,
-          buildVoiceBCategoryPassPrompt(style, body.medium, evidence, observationBank, voiceA, criteria, calibration),
-          buildVoiceBCategoryPassUserPrompt(evidence, observationBank, voiceA, criteria, repairNote),
-          batchOpenAiSchema,
-          VOICE_B_MAX_TOKENS
-          )
-        , voiceA);
+            apiKey,
+            model,
+            buildVoiceBCategoryPassPrompt(style, body.medium, evidence, observationBank, voiceA, criteria, calibration),
+            buildVoiceBCategoryPassUserPrompt(evidence, observationBank, voiceA, criteria, repairNote),
+            batchOpenAiSchema,
+            VOICE_B_MAX_TOKENS,
+            `voice_b-batch${batchIndex + 1}-a${attempt}`
+          ),
+          voiceA
+        );
         const parsed = batchSchema.safeParse(raw);
         if (!parsed.success) {
           logSchemaAttemptFailure(
@@ -2105,7 +2109,6 @@ export async function runCritiqueVoiceBStage(
 
   const orderedCategories = orderedVoiceBCategories(acceptedCategories);
   let summaryRepairNote: string | undefined;
-  let lastSummaryError: unknown;
 
   for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
     try {
@@ -2115,7 +2118,8 @@ export async function runCritiqueVoiceBStage(
         buildVoiceBSummaryPassPrompt(style, body.medium, evidence, observationBank, calibration),
         buildVoiceBSummaryPassUserPrompt(evidence, observationBank, voiceA, orderedCategories, summaryRepairNote),
         VOICE_B_SUMMARY_OPENAI_SCHEMA,
-        VOICE_B_MAX_TOKENS
+        VOICE_B_MAX_TOKENS,
+        `voice_b_summary-${attempt}`
       );
       const parsed = voiceBSummaryPassSchema.safeParse(raw);
       if (!parsed.success) {
@@ -2150,7 +2154,6 @@ export async function runCritiqueVoiceBStage(
         salvagedCriteria,
       };
     } catch (error) {
-      lastSummaryError = error;
       if (!(error instanceof CritiqueValidationError)) {
         logSchemaAttemptFailure({ stage: 'voice_b_summary', attempt }, error);
       }

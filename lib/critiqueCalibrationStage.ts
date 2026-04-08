@@ -1,4 +1,5 @@
 import { formatRubricForPrompt } from '../shared/masterCriteriaRubric.js';
+import { withOpenAIRetries } from './openaiRetry.js';
 import { CRITERIA_ORDER, RATING_LEVELS, type RatingLevelLabel } from '../shared/criteria.js';
 import type { CritiqueCategory, VoiceBStep } from '../shared/critiqueContract.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
@@ -110,6 +111,8 @@ Calibration rules:
   - competent_or_better = not obviously novice work
 - Look at the IMAGE first. Use the evidence JSON only as supporting context, not as a substitute for your own raw visual judgment.
 - maxLevel means the writer stage must not rate that criterion above this level.
+- When reasoning about control, keep medium in mind (watercolor reserve vs oil rework) so you do not mistake medium-typical behavior for novice weakness.
+- Do not output rubric jargon in reasons (no "band", "criterion label", "subskill"); write plain calibration notes the writer can follow.
 
 Per-criterion band rubric for this style:
 ${rubricBlock || '- No style-aware rubric block supplied.'}
@@ -128,54 +131,56 @@ export async function runCritiqueCalibrationStage(
   evidence: CritiqueEvidenceDTO,
   userContent: CalibrationUserContent
 ): Promise<CritiqueCalibrationDTO> {
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.1,
-      response_format: {
-        type: 'json_schema',
-        json_schema: CALIBRATION_SCHEMA,
+  return withOpenAIRetries('calibration', async () => {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      messages: [
-        {
-          role: 'system',
-          content: buildCalibrationPrompt(style, medium, evidence),
+      body: JSON.stringify({
+        model,
+        temperature: 0.1,
+        response_format: {
+          type: 'json_schema',
+          json_schema: CALIBRATION_SCHEMA,
         },
-        {
-          role: 'user',
-          content: userContent,
-        },
-      ],
-    }),
+        messages: [
+          {
+            role: 'system',
+            content: buildCalibrationPrompt(style, medium, evidence),
+          },
+          {
+            role: 'user',
+            content: userContent,
+          },
+        ],
+      }),
+    });
+
+    const json = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      const err = json.error as { message?: string } | undefined;
+      throw new Error(err?.message ?? `OpenAI error ${res.status}`);
+    }
+
+    const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
+    const text = choices?.[0]?.message?.content;
+    if (!text || typeof text !== 'string') throw new Error('Empty calibration response');
+    const parsed = JSON.parse(text) as CritiqueCalibrationDTO;
+    if (
+      parsed.overallClass !== 'novice_like' &&
+      parsed.overallClass !== 'developing' &&
+      parsed.overallClass !== 'competent_or_better'
+    ) {
+      throw new Error('Invalid calibration overallClass');
+    }
+    const criterionCaps = validateCriterionCaps(parsed.criterionCaps);
+    return {
+      ...parsed,
+      criterionCaps,
+    };
   });
-
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI error ${res.status}`);
-  }
-
-  const choices = json.choices as Array<{ message?: { content?: string } }> | undefined;
-  const text = choices?.[0]?.message?.content;
-  if (!text || typeof text !== 'string') throw new Error('Empty calibration response');
-  const parsed = JSON.parse(text) as CritiqueCalibrationDTO;
-  if (
-    parsed.overallClass !== 'novice_like' &&
-    parsed.overallClass !== 'developing' &&
-    parsed.overallClass !== 'competent_or_better'
-  ) {
-    throw new Error('Invalid calibration overallClass');
-  }
-  const criterionCaps = validateCriterionCaps(parsed.criterionCaps);
-  return {
-    ...parsed,
-    criterionCaps,
-  };
 }
 
 const LEVEL_RANK: Record<RatingLevelLabel, number> = {

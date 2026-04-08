@@ -41,7 +41,6 @@ import {
 } from './critiqueWeakWorkContracts.js';
 import { getOpenAIStageModelMap } from './openaiModels.js';
 import {
-  findPrimaryAnchorSupportLine,
   hasVisibleEventLanguage,
   isConcreteAnchor,
   sharesConcreteLanguage,
@@ -56,6 +55,12 @@ import {
 } from './critiquePipeline.js';
 import { composeFallbackCritique } from './critiqueFallback.js';
 import type { CritiquePipelineStageId } from '../shared/critiqueContract.js';
+import {
+  clarityPassEligible,
+  isClarityPassEnabled,
+  runClarityPass,
+} from './critiqueClarityPass.js';
+import { withOpenAIRetries } from './openaiRetry.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 const OBSERVATION_MAX_TOKENS = 2600;
@@ -452,57 +457,59 @@ async function runCritiqueObservationStage(
     userContent: VisionUserMessagePart[];
   }
 ): Promise<ObservationBank> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: args.model,
-      temperature: 0.1,
-      max_tokens: OBSERVATION_MAX_TOKENS,
-      response_format: {
-        type: 'json_schema',
-        json_schema: OBSERVATION_BANK_OPENAI_SCHEMA,
+  return withOpenAIRetries('observation', async () => {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      messages: [
-        {
-          role: 'system',
-          content: buildObservationStagePrompt(args.style, args.medium),
+      body: JSON.stringify({
+        model: args.model,
+        temperature: 0.1,
+        max_tokens: OBSERVATION_MAX_TOKENS,
+        response_format: {
+          type: 'json_schema',
+          json_schema: OBSERVATION_BANK_OPENAI_SCHEMA,
         },
-        {
-          role: 'user',
-          content: args.userContent,
-        },
-      ],
-    }),
+        messages: [
+          {
+            role: 'system',
+            content: buildObservationStagePrompt(args.style, args.medium),
+          },
+          {
+            role: 'user',
+            content: args.userContent,
+          },
+        ],
+      }),
+    });
+
+    const json = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+      const err = json.error as { message?: string } | undefined;
+      throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+    }
+
+    const choices = json.choices as Array<{
+      message?: { content?: string };
+      finish_reason?: string;
+    }> | undefined;
+    const choice = choices?.[0];
+    if (choice?.finish_reason === 'length') {
+      throw new Error('Observation response truncated (token limit reached)');
+    }
+    const text = choice?.message?.content;
+    if (!text || typeof text !== 'string') throw new Error('Empty observation response');
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new Error('Observation stage returned non-JSON');
+    }
+    return parseObservationStageResult(raw);
   });
-
-  const json = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI error ${response.status}`);
-  }
-
-  const choices = json.choices as Array<{
-    message?: { content?: string };
-    finish_reason?: string;
-  }> | undefined;
-  const choice = choices?.[0];
-  if (choice?.finish_reason === 'length') {
-    throw new Error('Observation response truncated (token limit reached)');
-  }
-  const text = choice?.message?.content;
-  if (!text || typeof text !== 'string') throw new Error('Empty observation response');
-
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    throw new Error('Observation stage returned non-JSON');
-  }
-  return parseObservationStageResult(raw);
 }
 
 async function runCritiqueEvidenceStage(
@@ -519,116 +526,118 @@ async function runCritiqueEvidenceStage(
   }
 ): Promise<ReturnType<typeof validateEvidenceResult>> {
   const conceptualCarrierText = conceptualCarrierGuidance(args.observationBank);
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: args.model,
-      temperature: 0.15,
-      max_tokens: EVIDENCE_MAX_TOKENS,
-      response_format: {
-        type: 'json_schema',
-        json_schema: EVIDENCE_OPENAI_SCHEMA,
+  return withOpenAIRetries(`evidence-attempt-${args.attempt}`, async () => {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      messages: [
-        {
-          role: 'system',
-          content: args.repairNote
-            ? `${buildEvidenceStagePrompt(args.style, args.medium)}\n\nCorrection required on retry:\n${args.repairNote}`
-            : buildEvidenceStagePrompt(args.style, args.medium),
+      body: JSON.stringify({
+        model: args.model,
+        temperature: 0.15,
+        max_tokens: EVIDENCE_MAX_TOKENS,
+        response_format: {
+          type: 'json_schema',
+          json_schema: EVIDENCE_OPENAI_SCHEMA,
         },
-        {
-          role: 'user',
-          content: [
-            ...args.userContent,
-            {
-              type: 'text',
-              text: `Shared observation bank (reuse these passages and events where they genuinely fit):\n${JSON.stringify(args.observationBank)}`,
-            },
-            ...(conceptualCarrierText
-              ? [
-                  {
-                    type: 'text' as const,
-                    text: conceptualCarrierText,
-                  },
-                ]
-              : []),
-          ],
-        },
-      ],
-    }),
-  });
+        messages: [
+          {
+            role: 'system',
+            content: args.repairNote
+              ? `${buildEvidenceStagePrompt(args.style, args.medium)}\n\nCorrection required on retry:\n${args.repairNote}`
+              : buildEvidenceStagePrompt(args.style, args.medium),
+          },
+          {
+            role: 'user',
+            content: [
+              ...args.userContent,
+              {
+                type: 'text',
+                text: `Shared observation bank (reuse these passages and events where they genuinely fit):\n${JSON.stringify(args.observationBank)}`,
+              },
+              ...(conceptualCarrierText
+                ? [
+                    {
+                      type: 'text' as const,
+                      text: conceptualCarrierText,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ],
+      }),
+    });
 
-  const json = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI error ${response.status}`);
-  }
+    const json = (await response.json()) as Record<string, unknown>;
+    if (!response.ok) {
+      const err = json.error as { message?: string } | undefined;
+      throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+    }
 
-  const choices = json.choices as Array<{
-    message?: { content?: string };
-    finish_reason?: string;
-  }> | undefined;
-  const choice = choices?.[0];
-  if (choice?.finish_reason === 'length') {
-    throw new Error('Evidence response truncated (token limit reached)');
-  }
-  const text = choice?.message?.content;
-  if (!text || typeof text !== 'string') throw new Error('Empty model response');
+    const choices = json.choices as Array<{
+      message?: { content?: string };
+      finish_reason?: string;
+    }> | undefined;
+    const choice = choices?.[0];
+    if (choice?.finish_reason === 'length') {
+      throw new Error('Evidence response truncated (token limit reached)');
+    }
+    const text = choice?.message?.content;
+    if (!text || typeof text !== 'string') throw new Error('Empty model response');
 
-  try {
-    const raw = JSON.parse(text);
     try {
-      return validateEvidenceResult(raw, { observationBank: args.observationBank });
-    } catch (error) {
-      if (args.allowLenientValidation) {
-        const message = error instanceof Error ? error.message : '';
-        const canUseLenientFallback =
-          /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for|Visible evidence does not support anchor for|Conceptual evidence anchor is too soft for|Observation passage id does not match anchor for|Invalid observation passage id for/.test(
-            message
-          );
-        if (canUseLenientFallback) {
-          return validateEvidenceResult(raw, { mode: 'lenient', observationBank: args.observationBank });
+      const raw = JSON.parse(text);
+      try {
+        return validateEvidenceResult(raw, { observationBank: args.observationBank });
+      } catch (error) {
+        if (args.allowLenientValidation) {
+          const message = error instanceof Error ? error.message : '';
+          const canUseLenientFallback =
+            /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for|Visible evidence does not support anchor for|Conceptual evidence anchor is too soft for|Observation passage id does not match anchor for|Invalid observation passage id for/.test(
+              message
+            );
+          if (canUseLenientFallback) {
+            return validateEvidenceResult(raw, { mode: 'lenient', observationBank: args.observationBank });
+          }
         }
+        throw error;
       }
-      throw error;
-    }
-  } catch (error) {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(text);
-    } catch {
-      raw = text;
-    }
-    if (error instanceof Error && error.message !== 'Model returned invalid evidence JSON') {
+    } catch (error) {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        raw = text;
+      }
+      if (error instanceof Error && error.message !== 'Model returned invalid evidence JSON') {
+        const debug = singleAttemptDebugPayload({
+          attempt: args.attempt,
+          error,
+          repairNote: args.repairNote,
+          raw,
+        });
+        throw new CritiqueValidationError('Evidence stage validation failed.', {
+          stage: 'evidence',
+          details: [error.message],
+          cause: error,
+          debug,
+        });
+      }
       const debug = singleAttemptDebugPayload({
         attempt: args.attempt,
         error,
         repairNote: args.repairNote,
         raw,
       });
-      throw new CritiqueValidationError('Evidence stage validation failed.', {
+      throw new CritiqueValidationError('Model returned invalid evidence JSON', {
         stage: 'evidence',
-        details: [error.message],
         cause: error,
         debug,
       });
     }
-    const debug = singleAttemptDebugPayload({
-      attempt: args.attempt,
-      error,
-      repairNote: args.repairNote,
-      raw,
-    });
-    throw new CritiqueValidationError('Model returned invalid evidence JSON', {
-      stage: 'evidence',
-      cause: error,
-      debug,
-    });
-  }
+  });
 }
 
 const MAX_STAGE_ATTEMPTS = 3;
@@ -780,7 +789,6 @@ async function runCritiqueEvidenceStageWithRetries(
   }
 ): Promise<EvidenceStageRunResult> {
   let repairNote: string | undefined;
-  let lastError: unknown;
   const attemptDebug: CritiqueDebugInfo[] = [];
 
   for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
@@ -798,7 +806,6 @@ async function runCritiqueEvidenceStageWithRetries(
         successAttempt: attempt,
       };
     } catch (error) {
-      lastError = error;
       const debug =
         error instanceof CritiqueValidationError && error.debug?.attempts?.[0]
           ? error.debug.attempts[0]
@@ -949,6 +956,12 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
     guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
 
+    if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
+      guarded = await instrumenter.time('clarity', () =>
+        runClarityPass(apiKey, stageModels.clarity, guarded)
+      );
+    }
+
     if (critiqueNeedsFreshEvidenceRead(guarded)) {
       if (instrumenter.enabled) {
         logGroundingGateFailure(guarded);
@@ -991,6 +1004,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       voiceA: stageModels.voiceA,
       voiceB: stageModels.voiceB,
       validation: stageModels.validation,
+      clarity: stageModels.clarity,
     },
   });
 

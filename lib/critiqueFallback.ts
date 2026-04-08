@@ -79,6 +79,27 @@ function buildFallbackMove(
   return `${verb} the key relationship in ${entry.anchor} so that passage reads more clearly on its own terms`;
 }
 
+function placeholderEvidenceEntry(
+  criterion: CriterionLabel
+): CritiqueEvidenceDTO['criterionEvidence'][number] {
+  const anchor = `the primary visible passage reviewed for ${criterion.toLowerCase()}`;
+  return {
+    criterion,
+    observationPassageId: 'fallback-placeholder',
+    anchor,
+    visibleEvidence: [
+      `In ${anchor}, the photo still gives enough structure to name one next adjustment.`,
+      `Neighboring areas compete slightly for the same visual read.`,
+      `A clearer separation or connection here would help this part of the painting read sooner.`,
+      `The next pass can target this junction without restaging the whole painting.`,
+    ],
+    strengthRead: 'There is still something worth refining in this passage.',
+    tensionRead: 'The read stays busy until one relationship steps forward more clearly.',
+    preserve: 'Keep the broad aim of this passage while tightening execution.',
+    confidence: 'low',
+  };
+}
+
 function buildExpectedRead(
   criterion: CriterionLabel,
   entry: CritiqueEvidenceDTO['criterionEvidence'][number]
@@ -104,7 +125,8 @@ function buildExpectedRead(
 }
 
 function buildFallbackCategory(
-  entry: CritiqueEvidenceDTO['criterionEvidence'][number]
+  entry: CritiqueEvidenceDTO['criterionEvidence'][number],
+  variantIndex: number
 ): CritiqueResultDTO['categories'][number] {
   const level = levelFromEvidence(entry);
   const anchor = summarizeAnchor(entry);
@@ -115,22 +137,57 @@ function buildFallbackCategory(
   const expectedReadSentence = sentence(expectedRead);
   const currentReadSentence = sentence(entry.tensionRead);
   const strengthSentence = sentence(entry.strengthRead);
+  const crit = entry.criterion.toLowerCase();
+  const evCore = entry.visibleEvidence.slice(0, 4).join(' ');
+  const tensionClean = entry.tensionRead.replace(/[.!?]+$/, '');
+
+  const phase1Variants = [
+    () => sentence(`What reads on the canvas for this criterion: ${evCore}`),
+    () => sentence(`Straight inventory from the image: ${evCore}`),
+    () => sentence(`Visible relationships named in evidence: ${evCore}`),
+    () => sentence(`Photo-grounded read: ${evCore}`),
+  ];
+  const phase2Variants = [
+    () =>
+      sentence(
+        `${entry.strengthRead} ${entry.tensionRead} That keeps ${crit} in the ${level} band on the current evidence.`
+      ),
+    () =>
+      sentence(
+        `${entry.tensionRead} ${entry.strengthRead} Together, ${crit} lands near the ${level} band for what we can see.`
+      ),
+    () =>
+      sentence(
+        `On ${crit}, ${entry.strengthRead} ${entry.tensionRead} This stays in the ${level} band until that passage firms up.`
+      ),
+    () =>
+      sentence(
+        `${entry.strengthRead} Meanwhile ${entry.tensionRead} For ${crit}, the evidence currently supports roughly a ${level} read.`
+      ),
+  ];
+  const phase3Variants = [
+    () => sentence(`In ${anchor.areaSummary}, ${tensionClean}—${move} so that ${expectedRead}`),
+    () =>
+      sentence(`${moveSentence} In ${anchor.areaSummary}: right now ${tensionClean}, aiming for ${expectedRead}.`),
+    () =>
+      sentence(
+        `Working ${anchor.areaSummary}: ${tensionClean}. ${moveSentence} Target read: ${expectedReadSentence.replace(/\.$/, '')}.`
+      ),
+    () => sentence(`${tensionClean} in ${anchor.areaSummary}. ${moveSentence} So that ${expectedRead}.`),
+  ];
+  const v = variantIndex % 4;
 
   return {
     criterion: entry.criterion,
     level,
     phase1: {
-      visualInventory: sentence(entry.visibleEvidence.join(' ')),
+      visualInventory: phase1Variants[v]!(),
     },
     phase2: {
-      criticsAnalysis: sentence(
-        `${entry.strengthRead} ${entry.tensionRead} That keeps ${entry.criterion.toLowerCase()} in the ${level} band on the current evidence.`
-      ),
+      criticsAnalysis: phase2Variants[v]!(),
     },
     phase3: {
-      teacherNextSteps: sentence(
-        `In ${anchor.areaSummary}, ${entry.tensionRead.replace(/[.!?]+$/, '')}—${move} so that ${expectedRead}`
-      ),
+      teacherNextSteps: phase3Variants[v]!(),
     },
     confidence: entry.confidence,
     evidenceSignals: entry.visibleEvidence.slice(0, 2).map((line) => sentence(line)),
@@ -205,26 +262,25 @@ export function composeFallbackCritique(args: {
   comparisonNote?: string;
   failureStage: string;
 }): CritiqueResultDTO {
-  const categories = CRITERIA_ORDER.map((criterion) => {
-    const entry = args.evidence.criterionEvidence.find((item) => item.criterion === criterion);
-    if (!entry) {
-      throw new Error(`Missing evidence for ${criterion}`);
-    }
-    return buildFallbackCategory(entry);
+  const categories = CRITERIA_ORDER.map((criterion, index) => {
+    const entry =
+      args.evidence.criterionEvidence.find((item) => item.criterion === criterion) ??
+      placeholderEvidenceEntry(criterion);
+    return buildFallbackCategory(entry, index);
   });
 
-  const topPriorities = categories
+  const priorityCategories = categories
     .slice()
     .sort((a, b) => LEVEL_ORDER.indexOf(a.level!) - LEVEL_ORDER.indexOf(b.level!))
-    .slice(0, 2)
-    .map((category) => category.phase3.teacherNextSteps);
+    .slice(0, 2);
+  const topPriorities = priorityCategories.map((category) => category.phase3.teacherNextSteps);
   const studioAnalysis = {
     whatWorks: sentence(args.evidence.strongestVisibleQualities.join(' ')),
     whatCouldImprove: sentence(args.evidence.mainTensions.join(' ')),
   };
-  const studioChanges = topPriorities.map((text, index) => ({
-    text,
-    previewCriterion: categories[index]?.criterion ?? categories[0]!.criterion,
+  const studioChanges = priorityCategories.map((category) => ({
+    text: category.phase3.teacherNextSteps,
+    previewCriterion: category.criterion,
   }));
 
   const critique: CritiqueResultDTO & {
