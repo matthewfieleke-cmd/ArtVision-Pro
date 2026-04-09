@@ -16,8 +16,15 @@ import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js'
 import { validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
+  buildEmergencyCritiqueEvidenceDTO,
+  buildEmergencyObservationBank,
+} from './critiqueEmergencyRecovery.js';
+import {
+  sortObservationBankIntentCarriers,
+  validateObservationBankGrounding,
+} from './critiqueObservationBankValidate.js';
+import {
   CritiquePipelineError,
-  CritiqueUninterpretableImageError,
   CritiqueRetryExhaustedError,
   CritiqueValidationError,
   type CritiqueCriterionEvidencePreview,
@@ -32,18 +39,12 @@ import {
   critiqueInstrumentEnabled,
   noopCritiqueInstrumenter,
 } from './critiqueInstrumentation.js';
-import {
-  hasSpecificConceptualCarrierAnchor,
-} from './critiqueWeakWorkContracts.js';
 import { getOpenAIStageModelMap } from './openaiModels.js';
-import {
-  hasVisibleEventLanguage,
-  isConcreteAnchor,
-  sharesConcreteLanguage,
-} from './critiqueGrounding.js';
-import { normalizeWhitespace } from './critiqueTextRules.js';
 import { createPipelineMetadata, createSucceededStageSnapshot } from './critiquePipeline.js';
-import type { CritiquePipelineStageId } from '../shared/critiqueContract.js';
+import type {
+  CritiquePipelineSalvagedCriterion,
+  CritiquePipelineStageId,
+} from '../shared/critiqueContract.js';
 import {
   clarityPassEligible,
   isClarityPassEnabled,
@@ -53,95 +54,6 @@ import { withOpenAIRetries } from './openaiRetry.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 const OBSERVATION_MAX_TOKENS = 2600;
-const OBSERVATION_SIGNAL_PATTERNS: Record<ObservationBank['visibleEvents'][number]['signalType'], RegExp> = {
-  shape:
-    /\b(shape|shapes|silhouette|silhouettes|contour|contours|band|bands|mass|masses|block|blocks|vertical|horizontal|diagonal|curve|curves|angle|angles|gap|gaps|interval|intervals|overlap|overlaps|tilt|tilts?|lean|leans?|cut|cuts?|cross|crosses?|stack|stacks?|frame|frames?)\b/i,
-  value:
-    /\b(light|lights|dark|darks|bright|dim|pale|shadow|shadows|highlight|highlights|midtone|midtones|contrast|contrasts?|lighter|darker)\b/i,
-  color:
-    /\b(color|colour|colors|colours|hue|hues|chroma|saturation|temperature|warm|warmer|cool|cooler|red|orange|yellow|green|blue|violet|purple|gray|grey|brown)\b/i,
-  edge:
-    /\b(edge|edges|boundary|boundaries|contour|contours|soft|softer|hard|harder|sharp|sharper|crisp|blur|blurred|feathered|lost|found)\b/i,
-  space:
-    /\b(space|spatial|depth|plane|planes|foreground|background|behind|below|above|in front of|near|far|distance|recede|recedes?|advance|advances?|overlap|overlaps?|stack|stacks?)\b/i,
-  surface:
-    /\b(surface|texture|textures|textured|smooth|rough|grain|drag|scumble|hatch|hatching|wash|washes|stroke|strokes|brushwork|opaque|transparent|dry|wet|thick|thin)\b/i,
-};
-const OBSERVATION_GENERIC_EVENT_PATTERN =
-  /\b(importance|important|mood|story|narrative|atmosphere|energy|presence|force|emotion|feeling|vibe|overall effect)\b/i;
-const OBSERVATION_RELATION_CUE_PATTERN =
-  /\b(against|between|where|meets?|under|over|above|below|behind|beside|across|through|toward|around|near|inside|outside|within)\b/i;
-
-function normalizeObservationText(text: string): string {
-  return normalizeWhitespace(text).toLowerCase();
-}
-
-function observationEventHasSignalLanguage(
-  event: ObservationBank['visibleEvents'][number]
-): boolean {
-  const text = event.event;
-  if (hasVisibleEventLanguage(text)) return true;
-  if (OBSERVATION_SIGNAL_PATTERNS[event.signalType].test(text)) return true;
-  if (OBSERVATION_RELATION_CUE_PATTERN.test(text) && !OBSERVATION_GENERIC_EVENT_PATTERN.test(text)) return true;
-  return false;
-}
-
-function validateObservationBankGrounding(observationBank: ObservationBank): ObservationBank {
-  const passagesById = new Map<string, ObservationBank['passages'][number]>();
-
-  for (const passage of observationBank.passages) {
-    if (passagesById.has(passage.id)) {
-      throw new Error(`Observation stage validation failed: duplicate passage id ${passage.id}`);
-    }
-    if (!isConcreteAnchor(passage.label)) {
-      throw new Error(`Observation stage validation failed: passage label is too soft (${passage.id})`);
-    }
-    if (
-      !passage.visibleFacts.some((fact) => sharesConcreteLanguage(fact, passage.label, 2)) &&
-      !passage.visibleFacts.some((fact) => sharesConcreteLanguage(fact, passage.label, 1))
-    ) {
-      throw new Error(`Observation stage validation failed: passage facts drifted from ${passage.id}`);
-    }
-    if (
-      (passage.role === 'intent' || passage.role === 'presence') &&
-      !hasSpecificConceptualCarrierAnchor(passage.label)
-    ) {
-      throw new Error(`Observation stage validation failed: conceptual passage is too soft (${passage.id})`);
-    }
-    passagesById.set(passage.id, passage);
-  }
-
-  for (const event of observationBank.visibleEvents) {
-    const passage = passagesById.get(event.passageId);
-    if (!passage) {
-      throw new Error(`Observation stage validation failed: unknown passage id ${event.passageId} in visibleEvents`);
-    }
-    if (normalizeObservationText(event.passage) !== normalizeObservationText(passage.label)) {
-      throw new Error(`Observation stage validation failed: visibleEvents passage label drifted for ${event.passageId}`);
-    }
-    if (!observationEventHasSignalLanguage(event)) {
-      throw new Error(`Observation stage validation failed: visibleEvents entry lacks visual signal language for ${event.passageId}`);
-    }
-    if (!sharesConcreteLanguage(event.event, passage.label, 1)) {
-      throw new Error(`Observation stage validation failed: visibleEvents entry drifted from ${event.passageId}`);
-    }
-  }
-
-  for (const carrier of observationBank.intentCarriers) {
-    const passage = passagesById.get(carrier.passageId);
-    if (!passage) {
-      throw new Error(`Observation stage validation failed: unknown passage id ${carrier.passageId} in intentCarriers`);
-    }
-    if (normalizeObservationText(carrier.passage) !== normalizeObservationText(passage.label)) {
-      throw new Error(`Observation stage validation failed: intentCarriers passage label drifted for ${carrier.passageId}`);
-    }
-    if (!hasSpecificConceptualCarrierAnchor(carrier.passage)) {
-      throw new Error(`Observation stage validation failed: intent carrier is too soft for ${carrier.passageId}`);
-    }
-  }
-
-  return observationBank;
-}
 
 function summarizeRawForLog(raw: unknown): string {
   try {
@@ -193,34 +105,6 @@ ${ranked
   )
   .join('\n')}
 - If a structure-heavy passage only proves speed, balance, distance, or movement, do not use it for Intent or Presence unless you explicitly show why the pressure stays there instead of in a more direct carrier.`;
-}
-
-function sortObservationBankIntentCarriers(observationBank: ObservationBank): ObservationBank {
-  if (observationBank.intentCarriers.length < 2) return observationBank;
-  const scoredCarriers = observationBank.intentCarriers
-    .map((carrier, index) => {
-      const passage = observationBank.passages.find((entry) => entry.id === carrier.passageId);
-      if (!passage) return { carrier, index, score: -Infinity };
-      let score = 0;
-      if (passage.role === 'intent' || passage.role === 'presence') score += 8;
-      if (passage.role === 'value' || passage.role === 'edge' || passage.role === 'surface' || passage.role === 'color') {
-        score += 4;
-      }
-      if (passage.role === 'structure') score -= 4;
-      if (/\b(pressure|presence|force|vulnerability|isolation|withheld|address|tension|commitment)\b/i.test(carrier.reason)) {
-        score += 4;
-      }
-      if (/\b(speed|movement|motion|energy|depth|distance|scale|balance|composition|focal point)\b/i.test(carrier.reason)) {
-        score -= 3;
-      }
-      return { carrier, index, score };
-    })
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .map((entry) => entry.carrier);
-  return {
-    ...observationBank,
-    intentCarriers: scoredCarriers,
-  };
 }
 
 function extractCriterionEvidencePreview(raw: unknown): Array<{
@@ -410,6 +294,8 @@ type EvidenceStageRunResult = {
   observationBank: ObservationBank;
   failedAttempts: CritiqueDebugInfo[];
   successAttempt: number;
+  /** Model evidence failed validation after retries; template evidence + full voice pipeline used. */
+  recoveredWithEmergencyEvidence?: boolean;
 };
 
 export function parseObservationStageResult(raw: unknown): ObservationBank {
@@ -565,13 +451,10 @@ async function runCritiqueEvidenceStage(
         return validateEvidenceResult(raw, { observationBank: args.observationBank });
       } catch (error) {
         if (args.allowLenientValidation) {
-          const message = error instanceof Error ? error.message : '';
-          const canUseLenientFallback =
-            /Evidence intentHypothesis is too flattering or style-biased for weak work|Evidence strongestVisibleQualities are too flattering or style-biased for weak work|Visible evidence is too generic for|strengthRead is too generic for|preserve is too generic for|Visible evidence does not support anchor for|Conceptual evidence anchor is too soft for|Observation passage id does not match anchor for|Invalid observation passage id for/.test(
-              message
-            );
-          if (canUseLenientFallback) {
+          try {
             return validateEvidenceResult(raw, { mode: 'lenient', observationBank: args.observationBank });
+          } catch {
+            throw error;
           }
         }
         throw error;
@@ -795,21 +678,28 @@ async function runCritiqueEvidenceStageWithRetries(
       attemptDebug.push(debug);
       logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_STAGE_ATTEMPTS) {
-        throw new CritiqueUninterpretableImageError({
-          details: [
-            'Evidence extraction could not produce a valid, canvas-grounded row for every criterion.',
-            errorMessage(error),
-          ],
-          cause: error,
+        console.warn('[critique evidence emergency template]', {
+          error: errorMessage(error),
+          attempts: MAX_STAGE_ATTEMPTS,
         });
+        const evidence = buildEmergencyCritiqueEvidenceDTO(
+          args.observationBank,
+          args.style,
+          args.medium
+        );
+        return {
+          evidence,
+          observationBank: args.observationBank,
+          failedAttempts: attemptDebug,
+          successAttempt: attempt,
+          recoveredWithEmergencyEvidence: true,
+        };
       }
       repairNote = buildEvidenceRepairNote(error, attemptDebug);
     }
   }
 
-  throw new CritiqueUninterpretableImageError({
-    details: ['Evidence stage exhausted retries without a valid result.'],
-  });
+  throw new Error('Evidence stage retry loop exited unexpectedly.');
 }
 
 export async function runOpenAICritique(
@@ -864,6 +754,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
 
+  let usedEmergencyObservation = false;
   let observationBank: ObservationBank;
   try {
     observationBank = await instrumenter.time('observation', () =>
@@ -875,13 +766,12 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       })
     );
   } catch (error) {
-    throw new CritiqueUninterpretableImageError({
-      details: [
-        'The observation pass could not build a reliable, image-grounded passage map for this photograph.',
-        errorMessage(error),
-      ],
-      cause: error,
+    console.warn('[critique observation emergency bank]', {
+      error: errorMessage(error),
+      details: errorDetails(error),
     });
+    observationBank = buildEmergencyObservationBank(body.style, body.medium);
+    usedEmergencyObservation = true;
   }
 
   const evidenceRun = await instrumenter.time('evidence', () =>
@@ -896,12 +786,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const evidence = evidenceRun.evidence;
 
   if (evidence.photoQualityRead.level === 'poor') {
-    throw new CritiqueUninterpretableImageError({
-      details: [
-        'The photograph is too unclear for a fair eight-criterion critique. Try again with even light, no heavy glare, and the full painting square to the camera.',
-        evidence.photoQualityRead.summary.trim() ||
-          'Blur, crop, or resolution limits prevented a reliable read of the canvas.',
-      ],
+    console.warn('[critique photo quality poor — continuing with full critique]', {
+      summary: evidence.photoQualityRead.summary,
     });
   }
 
@@ -989,6 +875,18 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const existingPipeline = guarded.pipeline;
+  const observationSalvaged: CritiquePipelineSalvagedCriterion[] = usedEmergencyObservation
+    ? [
+        {
+          stage: 'evidence',
+          criterion: 'Intent and necessity',
+          reason:
+            'Live observation did not validate; an internal passage grid was substituted so evidence and voice stages can still complete.',
+        },
+      ]
+    : [];
+  const usedDegradedPath =
+    usedEmergencyObservation || Boolean(evidenceRun.recoveredWithEmergencyEvidence);
   const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
   const withStages = {
     evidence: createSucceededStageSnapshot({
@@ -1020,11 +918,14 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const withPipeline = {
     ...guarded,
     pipeline: createPipelineMetadata({
-      resultTier: existingPipeline?.resultTier ?? 'full',
-      completedWithFallback: existingPipeline?.completedWithFallback ?? false,
+      resultTier: usedDegradedPath ? 'validated_reduced' : (existingPipeline?.resultTier ?? 'full'),
+      completedWithFallback:
+        (existingPipeline?.completedWithFallback ?? false) ||
+        usedDegradedPath,
       stages: withStages,
       salvagedCriteria: [
         ...(existingPipeline?.salvagedCriteria ?? []),
+        ...observationSalvaged,
         ...(evidence.salvagedCriteria ?? []),
       ],
     }),
