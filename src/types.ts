@@ -98,7 +98,7 @@ export type SavedPainting = {
   versions: PaintingVersion[];
 };
 
-export type TabId = 'home' | 'studio' | 'benchmarks' | 'profile';
+export type TabId = 'home' | 'studio' | 'benchmarks' | 'glossary' | 'profile';
 
 export type WizardStep = 'setup' | 'capture' | 'analyzing' | 'results';
 

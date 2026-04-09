@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { canonicalCriterionLabel, previewEditChipText, previewEditChipTitle } from '../shared/criteria';
 import { BottomNav } from './components/BottomNav';
+import { DesktopMainChrome } from './components/DesktopMainChrome';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { CritiquePanels } from './components/CritiquePanels';
 import { ImageCropModal } from './components/ImageCropModal';
@@ -49,6 +50,7 @@ import {
   recoverFromAnalysisError,
   switchToAutoStyle,
   switchToManualStyle,
+  toAnalysisUnavailableFromAnalyzing,
   updateWorkingTitle,
   type CritiqueFlow,
 } from './critiqueFlow';
@@ -59,12 +61,14 @@ import { useIsDesktop } from './hooks/useIsDesktop';
 import { usePreviewState } from './hooks/usePreviewState';
 import { advanceDailyMasterpieceIndex } from './dailyMasterpieceCycle';
 import {
+  CritiqueRequestError,
   createCritiqueRequestError,
   normalizeCritiqueRequestError,
 } from './critiqueRequestError';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
+import { GlossaryTab } from './screens/GlossaryTab';
 import { HomeTab } from './screens/HomeTab';
 import { ProfileTab } from './screens/ProfileTab';
 import { StudioTab } from './screens/StudioTab';
@@ -282,6 +286,14 @@ export default function App() {
     pendingCropRef.current = null;
     setPendingCrop(null);
   }, []);
+
+  /** Expose layout mode for styling hooks and assistive context (desktop = sidebar shell, mobile = bottom nav). */
+  useEffect(() => {
+    document.documentElement.dataset.layout = isDesktop ? 'desktop' : 'mobile';
+    return () => {
+      delete document.documentElement.dataset.layout;
+    };
+  }, [isDesktop]);
 
   /** Mobile: main tabs scroll with the window — reset when switching tab (not in critique flow). */
   useLayoutEffect(() => {
@@ -501,8 +513,14 @@ export default function App() {
       );
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
-      failRequest(normalizeCritiqueRequestError(e, 'critique'));
-      setFlow(recoverFromAnalysisError(startedFlow));
+      const normalized = normalizeCritiqueRequestError(e, 'critique');
+      if (normalized instanceof CritiqueRequestError && normalized.kind === 'uninterpretable') {
+        finishRequest();
+        setFlow(toAnalysisUnavailableFromAnalyzing(startedFlow));
+      } else {
+        failRequest(normalized);
+        setFlow(recoverFromAnalysisError(startedFlow));
+      }
     } finally {
       if (runId === analysisRunTokenRef.current) {
         analysisAbortRef.current = null;
@@ -961,31 +979,37 @@ export default function App() {
       }
     >
       {isDesktop ? (
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 bg-slate-100">
           <DesktopSidebar active={tab} onChange={handleDesktopSidebarChange} />
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 lg:px-10 lg:py-5">
-              {!flow && tab === 'home' && (
-                <HomeTab
-                  paintings={paintings}
-                  onNewCritique={startNewCritique}
-                  onOpenPainting={openPaintingFromHome}
-                  isDesktop
-                />
-              )}
-              {!flow && tab === 'studio' && (
-                <StudioTab
-                  paintings={paintings}
-                  selectedId={studioSelectedId}
-                  onSelectPainting={setStudioSelectedId}
-                  onBack={goHome}
-                  onDelete={deletePainting}
-                  onResubmit={startResubmit}
-                  isDesktop
-                />
-              )}
-              {!flow && tab === 'benchmarks' && <BenchmarksTab isDesktop />}
-              {!flow && tab === 'profile' && <ProfileTab isDesktop />}
+            <DesktopMainChrome activeTab={tab} />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 pt-0">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_24px_-4px_rgba(15,23,42,0.08)]">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-5 lg:px-10 lg:py-6">
+                  {!flow && tab === 'home' && (
+                    <HomeTab
+                      paintings={paintings}
+                      onNewCritique={startNewCritique}
+                      onOpenPainting={openPaintingFromHome}
+                      isDesktop
+                    />
+                  )}
+                  {!flow && tab === 'studio' && (
+                    <StudioTab
+                      paintings={paintings}
+                      selectedId={studioSelectedId}
+                      onSelectPainting={setStudioSelectedId}
+                      onBack={goHome}
+                      onDelete={deletePainting}
+                      onResubmit={startResubmit}
+                      isDesktop
+                    />
+                  )}
+                  {!flow && tab === 'benchmarks' && <BenchmarksTab isDesktop />}
+                  {!flow && tab === 'glossary' && <GlossaryTab isDesktop />}
+                  {!flow && tab === 'profile' && <ProfileTab isDesktop />}
+                </div>
+              </div>
             </div>
           </main>
         </div>
@@ -1047,6 +1071,7 @@ export default function App() {
               />
             )}
             {!flow && tab === 'benchmarks' && <BenchmarksTab />}
+            {!flow && tab === 'glossary' && <GlossaryTab />}
             {!flow && tab === 'profile' && <ProfileTab />}
           </main>
 
@@ -1063,12 +1088,18 @@ export default function App() {
       {flow && (
         <>
         <div
-          className={`fixed z-40 flex min-h-0 flex-col overflow-hidden bg-slate-50 ${
-            isDesktop ? 'inset-y-0 left-60 right-0' : 'inset-0 pt-[env(safe-area-inset-top)]'
+          className={`fixed z-40 flex min-h-0 flex-col overflow-hidden ${
+            isDesktop
+              ? 'inset-y-0 left-60 right-0 border-l border-slate-200/90 bg-slate-50 shadow-[-12px_0_40px_-12px_rgba(15,23,42,0.12)]'
+              : 'inset-0 bg-slate-50 pt-[env(safe-area-inset-top)]'
           }`}
         >
-          <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5 shadow-soft backdrop-blur-sm">
-            {!isDesktop && flow.step === 'results' ? (
+          <div
+            className={`flex shrink-0 items-center gap-3 border-b border-slate-200/90 bg-white px-4 py-3 shadow-sm backdrop-blur-sm ${
+              isDesktop ? 'pl-5' : ''
+            }`}
+          >
+            {!isDesktop && (flow.step === 'results' || flow.step === 'analysis_unavailable') ? (
               <button
                 type="button"
                 onClick={goHome}
@@ -1093,25 +1124,43 @@ export default function App() {
                     lastAutoSaveSigRef.current = null;
                     resetPreview();
                     setFlow(backFromResults(flow));
+                  } else if (flow.step === 'analysis_unavailable') {
+                    goHome();
                   } else closeFlow();
                 }}
-                className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+                className={`rounded-full p-2 text-slate-500 transition hover:bg-slate-100 ${
+                  isDesktop ? 'hover:text-slate-800' : ''
+                }`}
                 aria-label="Back"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
             )}
-            <p className="flex-1 text-center text-sm font-semibold text-slate-700">
-              {flow.step === 'setup' && 'Style & medium'}
-              {flow.step === 'capture' && (isDesktop ? 'Upload your painting' : 'Capture')}
-              {flow.step === 'analyzing' ? (
-                <>
-                  Analyzing
-                  <AnalyzingHeaderEllipsis />
-                </>
+            <div className={`min-w-0 flex-1 ${isDesktop ? 'text-left' : 'text-center'}`}>
+              <p
+                className={`font-semibold text-slate-900 ${isDesktop ? 'text-base' : 'text-center text-sm text-slate-700'}`}
+              >
+                {flow.step === 'setup' && 'Style & medium'}
+                {flow.step === 'capture' && (isDesktop ? 'Upload your painting' : 'Capture')}
+                {flow.step === 'analyzing' ? (
+                  <>
+                    Analyzing
+                    <AnalyzingHeaderEllipsis />
+                  </>
+                ) : null}
+                {flow.step === 'analysis_unavailable' && 'Unable to analyze'}
+                {flow.step === 'results' && 'Critique'}
+              </p>
+              {isDesktop ? (
+                <p className="mt-0.5 truncate text-xs text-slate-500">
+                  {flow.step === 'setup' && 'Choose style and medium, then upload or continue.'}
+                  {flow.step === 'capture' && 'Add a clear photo of the full painting.'}
+                  {flow.step === 'analyzing' && 'Evidence, critic review, and teaching plan are being generated.'}
+                  {flow.step === 'analysis_unavailable' && 'Try a clearer photograph and start again from Home.'}
+                  {flow.step === 'results' && 'Ratings, feedback, and optional preview edits.'}
+                </p>
               ) : null}
-              {flow.step === 'results' && 'Critique'}
-            </p>
+            </div>
             <span className="w-9 shrink-0" />
           </div>
 
@@ -1119,7 +1168,7 @@ export default function App() {
             ref={flowScrollRef}
             className={`min-h-0 flex-1 overflow-y-auto ${
               isDesktop
-                ? 'w-full px-8 pb-6 pt-4 lg:px-12'
+                ? 'w-full bg-white px-10 pb-8 pt-6 xl:px-14'
                 : 'px-4 pt-5 pb-[max(2rem,calc(1.25rem+env(safe-area-inset-bottom)))]'
             }`}
           >
@@ -1488,6 +1537,25 @@ export default function App() {
                     Connection may have paused in the background—retrying the vision request…
                   </p>
                 ) : null}
+              </div>
+            )}
+
+            {flow.step === 'analysis_unavailable' && (
+              <div className="flex min-h-[50vh] flex-col items-center justify-center gap-6 px-4 py-12 text-center">
+                <p className="max-w-md font-display text-xl font-normal leading-snug text-slate-900 md:text-2xl">
+                  Your painting is unable to be analyzed.
+                </p>
+                <p className="max-w-sm text-sm leading-relaxed text-slate-600">
+                  Try a clearer photo: even light, no heavy glare, full painting in frame, and sharp focus. Then run a new
+                  critique from Home.
+                </p>
+                <button
+                  type="button"
+                  onClick={goHome}
+                  className="rounded-2xl bg-violet-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition hover:bg-violet-500 active:scale-[0.99]"
+                >
+                  Back to Home
+                </button>
               </div>
             )}
 

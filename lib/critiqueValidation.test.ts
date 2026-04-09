@@ -189,10 +189,23 @@ describe('validateEvidenceResult', () => {
           signalType: 'value',
           event: "The head stays darker against the wall and holds the inward pressure there.",
         },
+        {
+          passageId: 'p3',
+          passage: "the wall behind the sitter's head",
+          signalType: 'value',
+          event: "The crown meets the wall in a narrow value band that stays softer than the chair edge.",
+        },
+        {
+          passageId: 'p6',
+          passage: 'the jaw edge against the dark collar',
+          signalType: 'edge',
+          event: 'The collar edge tucks under the jaw with a shorter dark accent on the viewer-left side.',
+        },
       ],
       mediumCues: [
         'Short hatched marks and smoother shirt passages suggest a dry medium with varied pressure.',
         'The surface stays matte and layered rather than glossy.',
+        'Edge breaks stay drawing-led rather than photographic.',
       ],
       photoCaveats: [],
       intentCarriers: [
@@ -200,6 +213,11 @@ describe('validateEvidenceResult', () => {
           passageId: 'p1',
           passage: "the chair bars cutting across the sitter's torso",
           reason: 'That obstruction is the physical passage making the withheld intent legible.',
+        },
+        {
+          passageId: 'p8',
+          passage: "the sitter's downturned head against the dark wall",
+          reason: "The downturned head presses into the wall passage so the body's withheld address stays visible there.",
         },
       ],
     };

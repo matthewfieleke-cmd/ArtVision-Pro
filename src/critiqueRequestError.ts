@@ -19,6 +19,7 @@ export type CritiqueRequestErrorKind =
   | 'grounding'
   | 'runtime_eval'
   | 'retry_exhausted'
+  | 'uninterpretable'
   | 'http'
   | 'unknown';
 
@@ -34,6 +35,8 @@ type CreateCritiqueRequestErrorArgs = {
   attempts?: number;
   backendErrorName?: string;
   debug?: CritiqueDebugPayload;
+  /** Server payload code for critique failures */
+  pipelineCode?: string;
 };
 
 export class CritiqueRequestError extends Error {
@@ -135,6 +138,8 @@ function inferKindFromBackendErrorName(
       return 'runtime_eval';
     case 'CritiqueRetryExhaustedError':
       return 'retry_exhausted';
+    case 'CritiqueUninterpretableImageError':
+      return 'uninterpretable';
     default:
       return undefined;
   }
@@ -161,6 +166,8 @@ function defaultUserMessage(
       return 'The critique was stopped by a quality check before results were shown. Please retry.';
     case 'retry_exhausted':
       return 'The critique service exhausted its retries before producing a safe result. Please try again.';
+    case 'uninterpretable':
+      return 'Your painting is unable to be analyzed.';
     case 'http':
       return operation === 'classify'
         ? 'Style detection failed before it could complete. Please retry or choose the style manually.'
@@ -178,7 +185,7 @@ function defaultUserMessage(
 }
 
 function defaultRetryable(kind: CritiqueRequestErrorKind): boolean {
-  return kind !== 'server_config' && kind !== 'aborted';
+  return kind !== 'server_config' && kind !== 'aborted' && kind !== 'uninterpretable';
 }
 
 export function createCritiqueRequestError(
@@ -187,6 +194,7 @@ export function createCritiqueRequestError(
   const technicalMessage = args.technicalMessage?.trim() || 'Unknown request failure';
   const kind =
     args.kind ??
+    (args.pipelineCode === 'UNINTERPRETABLE_IMAGE' ? 'uninterpretable' : undefined) ??
     inferKindFromBackendErrorName(args.backendErrorName) ??
     inferKind(technicalMessage, args.status);
   return new CritiqueRequestError({
@@ -220,6 +228,7 @@ export function isCritiquePipelineErrorPayload(
     Array.isArray(candidate.details) &&
     candidate.details.every((detail) => typeof detail === 'string') &&
     (candidate.attempts === undefined || typeof candidate.attempts === 'number') &&
+    (candidate.code === undefined || candidate.code === 'UNINTERPRETABLE_IMAGE') &&
     (candidate.debug === undefined ||
       (typeof candidate.debug === 'object' &&
         candidate.debug !== null &&

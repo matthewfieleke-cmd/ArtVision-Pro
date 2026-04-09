@@ -66,6 +66,7 @@ Rules (non-negotiable):
 - Sound like natural studio speech: a critic for diagnosis, a teacher for next steps—not a rubric checklist.
 - Avoid insider jargon unless plain: do not use "human pressure"; say presence, focus of attention, emotional weight, or similar plain painter language.
 - Do not add artist names, art history, or museum talk unless the input already had them.
+- For suggestedPaintingTitles, keep the same three categories and meanings, but rewrite titles and rationales so they sound like a painter’s working labels—not exhibition placards. No added poetry or stock suffixes unless the input already had them.
 - Preserve the meaning of numbered or listed steps; keep the same count of top priorities and studio changes.
 
 ${CLARITY_SUBSTANCE_GUIDANCE}

@@ -7,6 +7,8 @@ export type CritiquePipelineErrorPayload = {
   details: string[];
   attempts?: number;
   debug?: CritiqueDebugPayload;
+  /** When set, the client may show a dedicated “cannot analyze” experience (no critique payload). */
+  code?: 'UNINTERPRETABLE_IMAGE';
 };
 
 export type CritiqueCriterionEvidencePreview = {
@@ -90,6 +92,20 @@ export class CritiqueRetryExhaustedError extends CritiquePipelineError {
   }
 }
 
+/** Photo or pipeline cannot produce a grounded eight-criterion critique; client shows a simple message. */
+export class CritiqueUninterpretableImageError extends CritiquePipelineError {
+  readonly code = 'UNINTERPRETABLE_IMAGE' as const;
+
+  constructor(options?: { details?: string[]; cause?: unknown }) {
+    super('This painting photograph could not be analyzed with enough confidence.', {
+      stage: 'evidence',
+      details: options?.details ?? [],
+      cause: options?.cause,
+    });
+    this.name = 'CritiqueUninterpretableImageError';
+  }
+}
+
 export function serializeCritiquePipelineError(
   error: CritiquePipelineError
 ): CritiquePipelineErrorPayload {
@@ -99,6 +115,7 @@ export function serializeCritiquePipelineError(
     stage: error.stage,
     details: error.details,
     ...(error instanceof CritiqueRetryExhaustedError ? { attempts: error.attempts } : {}),
+    ...(error instanceof CritiqueUninterpretableImageError ? { code: error.code } : {}),
     ...(error.debug ? { debug: error.debug } : {}),
   };
 }

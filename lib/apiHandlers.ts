@@ -2,6 +2,7 @@ import type { CritiqueRequestBody } from './critiqueTypes.js';
 import type { PreviewEditRequestBody } from './previewEditTypes.js';
 import {
   CritiquePipelineError,
+  CritiqueUninterpretableImageError,
   type CritiquePipelineErrorPayload,
   serializeCritiquePipelineError,
 } from './critiqueErrors.js';
@@ -14,7 +15,7 @@ import { runPreviewEditWithDedup } from './previewEditJobStore.js';
 export type ApiResult =
   | { status: 200; body: unknown }
   | {
-      status: 400 | 404 | 405 | 500 | 503;
+      status: 400 | 404 | 405 | 422 | 500 | 503;
       body: { error: string } | CritiquePipelineErrorPayload;
     };
 
@@ -117,6 +118,13 @@ export async function handleApiRequest(args: {
           : route === 'classify-medium'
             ? 'Medium classification failed'
           : 'Classification failed';
+    if (route === 'critique' && error instanceof CritiqueUninterpretableImageError) {
+      console.warn('[critique uninterpretable image]', serializeCritiquePipelineError(error));
+      return {
+        status: 422,
+        body: serializeCritiquePipelineError(error),
+      };
+    }
     if (route === 'critique' && error instanceof CritiquePipelineError) {
       console.error('[critique pipeline error]', serializeCritiquePipelineError(error));
       return {

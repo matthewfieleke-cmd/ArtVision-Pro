@@ -55,6 +55,8 @@ function buildObservationPrompt(style: string, medium: string): string {
 
 Your job is NOT to critique and NOT to rate criteria. Your job is to build one compact observation bank that later stages can reuse.
 
+Never name specific artists, famous artworks, or art-historical figures. Describe only what is visible in this photograph.
+
 ${EVIDENCE_STAGE_CLOSE_READING}
 
 ${EVIDENCE_STAGE_ASSESSMENT_PROTOCOL}
@@ -89,15 +91,14 @@ Return JSON only.`;
 }
 
 function buildEvidencePrompt(style: string, medium: string): string {
-  const benchmarks = isStyleKey(style)
-    ? ARTISTS_BY_STYLE[style].join(', ')
-    : 'the masters listed for the selected style';
   const rubricBlock = isStyleKey(style) ? formatRubricForPrompt(style) : '';
   const weakWorkRules = weakWorkEvidenceGuidance().map((rule) => `- ${rule}`).join('\n');
   const weakWorkCompositionRules = weakWorkCompositionGuidance().map((rule) => `- ${rule}`).join('\n');
   return `You are stage 1 of a painting critique system.
 
 Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
+
+Never name specific artists, famous artworks, or art-historical figures; do not compare this image to named painters or movements.
 
 ${PIPELINE_STAGE_CONNECTION}
 
@@ -147,7 +148,7 @@ Edge / focus and surface / medium (avoid lazy defaults):
 Context:
 - Declared style: ${style}
 - Declared medium: ${medium}
-- Benchmarks for what "Master" means in this style: ${benchmarks}
+- Use the rubric bands below for what "Master" means in this declared style—without naming or comparing to any artist.
 
 Criterion-specific four-band rubric for this style (use visible evidence and the stated band boundaries, not generic vibe):
 ${rubricBlock}

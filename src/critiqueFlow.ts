@@ -46,6 +46,17 @@ export type AnalyzingFlow = (NewFlowBase & {
   imageDataUrl: string;
 });
 
+/** Server could not analyze the image; show a simple message (no critique payload). */
+export type AnalysisUnavailableFlow = (NewFlowBase & {
+  step: 'analysis_unavailable';
+  style: Style;
+  medium: Medium;
+}) | (ResubmitFlowBase & {
+  step: 'analysis_unavailable';
+  style: Style;
+  medium: Medium;
+});
+
 export type ResultsFlow = (NewFlowBase & {
   step: 'results';
   style: Style;
@@ -63,7 +74,7 @@ export type ResultsFlow = (NewFlowBase & {
   sessionPreviewEdits?: SavedPreviewEdit[];
 });
 
-export type CritiqueFlow = SetupFlow | CaptureFlow | AnalyzingFlow | ResultsFlow;
+export type CritiqueFlow = SetupFlow | CaptureFlow | AnalyzingFlow | AnalysisUnavailableFlow | ResultsFlow;
 
 function sharedFields(flow: CritiqueFlow): FlowShared {
   return {
@@ -241,6 +252,26 @@ export function beginAnalysis(flow: SetupFlow | CaptureFlow, imageDataUrl: strin
   };
 }
 
+export function toAnalysisUnavailableFromAnalyzing(flow: AnalyzingFlow): AnalysisUnavailableFlow {
+  if (flow.mode === 'resubmit') {
+    return {
+      ...sharedFields(flow),
+      mode: 'resubmit',
+      step: 'analysis_unavailable',
+      style: flow.style,
+      medium: flow.medium,
+      targetPainting: flow.targetPainting,
+    };
+  }
+  return {
+    ...sharedFields(flow),
+    mode: 'new',
+    step: 'analysis_unavailable',
+    style: flow.style,
+    medium: flow.medium,
+  };
+}
+
 export function completeAnalysis(
   flow: AnalyzingFlow,
   result: { imageDataUrl: string; critique: CritiqueResult; critiqueSource: CritiqueSource }
@@ -360,6 +391,7 @@ export function isCritiqueFlow(value: unknown): value is CritiqueFlow {
     candidate.step !== 'setup' &&
     candidate.step !== 'capture' &&
     candidate.step !== 'analyzing' &&
+    candidate.step !== 'analysis_unavailable' &&
     candidate.step !== 'results'
   ) {
     return false;
@@ -375,6 +407,10 @@ export function isCritiqueFlow(value: unknown): value is CritiqueFlow {
 
   if (candidate.step !== 'setup') {
     if (!candidate.style || !candidate.medium) return false;
+  }
+
+  if (candidate.step === 'analysis_unavailable') {
+    return true;
   }
 
   if (candidate.step === 'analyzing' || candidate.step === 'results') {

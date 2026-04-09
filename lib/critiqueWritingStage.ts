@@ -203,27 +203,43 @@ function synthesizedSubskills(
   ];
 }
 
-function anchorTitleSeed(anchor: string): string {
-  const seed = anchor
+/** Pulls a short noun-ish phrase from an anchor for working-title use (not title-case poetry). */
+function phraseFromAnchor(anchor: string, maxWords: number): string {
+  const words = anchor
     .toLowerCase()
-    .replace(/\b(the|a|an|and|against|under|over|above|below|across|where|meets?|with|of|to|in|on|by|for)\b/g, ' ')
+    .replace(
+      /\b(the|a|an|and|against|under|over|above|below|across|where|meets?|with|of|to|in|on|by|for|that|this|these|those|its|their|there|than|then|into|onto)\b/g,
+      ' '
+    )
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((part) => part.length > 2)
-    .slice(0, 3)
-    .join(' ');
-  return upperCaseFirst(seed || 'Anchored passage');
+    .slice(0, maxWords);
+  return words.join(' ');
 }
 
-function synthesizeSuggestedPaintingTitles(
-  style: string,
+function sentenceCaseTitle(phrase: string): string {
+  const t = phrase.replace(/\s+/g, ' ').trim();
+  if (!t) return 'Untitled';
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function shortClip(text: string, max: number): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+/** Deterministic fallback when Voice A cannot be produced from the model—plain labels, no “Study / Tension” templates. */
+export function synthesizeSuggestedPaintingTitles(
+  _style: string,
   medium: string,
   evidence: CritiqueEvidenceDTO
 ): VoiceAStageResult['suggestedPaintingTitles'] {
   const structureAnchor =
     evidence.criterionEvidence.find((entry) => entry.criterion === 'Composition and shape structure')?.anchor ??
     evidence.criterionEvidence[0]?.anchor ??
-    'Anchored passage';
+    'this composition';
   const tactileAnchor =
     evidence.criterionEvidence.find((entry) => entry.criterion === 'Surface and medium handling')?.anchor ??
     evidence.criterionEvidence.find((entry) => entry.criterion === 'Edge and focus control')?.anchor ??
@@ -234,27 +250,41 @@ function synthesizeSuggestedPaintingTitles(
       ?.anchor ??
     structureAnchor;
 
+  const structurePhrase = phraseFromAnchor(structureAnchor, 5) || 'forms and space';
+  const tactilePhrase = phraseFromAnchor(tactileAnchor, 5) || 'paint handling';
+  const hypothesisPhrase = phraseFromAnchor(evidence.intentHypothesis, 6);
+  let intentPhrase = phraseFromAnchor(intentAnchor, 5);
+  if (!intentPhrase || intentPhrase === structurePhrase) {
+    intentPhrase = hypothesisPhrase || intentPhrase;
+  }
+  if (intentPhrase === tactilePhrase) {
+    intentPhrase = hypothesisPhrase || intentPhrase;
+  }
+  if (!intentPhrase) {
+    intentPhrase = hypothesisPhrase || 'how it reads';
+  }
+
+  const formalistTitle = sentenceCaseTitle(structurePhrase);
+  const tactileTitle = sentenceCaseTitle(`${tactilePhrase} (${medium})`);
+  const intentTitle = sentenceCaseTitle(intentPhrase);
+
   return [
     {
       category: 'formalist',
-      title: `${anchorTitleSeed(structureAnchor)} Study`,
-      rationale: sentence(
-        `This title comes from the structural anchor ${structureAnchor}, which carries the clearest compositional read in the evidence`
-      ),
+      title: formalistTitle,
+      rationale: sentence(`Names the main structural read the critique pinned to ${shortClip(structureAnchor, 110)}.`),
     },
     {
       category: 'tactile',
-      title: `${anchorTitleSeed(tactileAnchor)} Surface`,
+      title: tactileTitle,
       rationale: sentence(
-        `This title follows the handling passage ${tactileAnchor} and keeps the ${medium} surface read in view`
+        `Highlights handling where the evidence is clearest—${shortClip(tactileAnchor, 90)}—in ${medium}.`
       ),
     },
     {
       category: 'intent',
-      title: `${anchorTitleSeed(intentAnchor)} Tension`,
-      rationale: sentence(
-        `This title names the passage ${intentAnchor}, where the evidence places the strongest intent or presence pressure`
-      ),
+      title: intentTitle,
+      rationale: sentence(`Tracks the intent or presence thread the critique emphasizes (${shortClip(intentAnchor, 90)}).`),
     },
   ];
 }
@@ -528,6 +558,7 @@ ${phaseVoiceAWorkflowRules()}
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
 - Non-redundancy: categories[].phase1.visualInventory must stay objective and distinct from categories[].phase2.criticsAnalysis. categories[].phase2.criticsAnalysis must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate the phase2 text verbatim.
+- suggestedPaintingTitles: three entries (formalist, tactile, intent). Write them like labels in a sketchbook—plain, specific, usually 2–8 words. Prefer sentence case or light title case, not Title Case on every word. Do not rely on stock endings or filler nouns ("Study", "Tension", "Symphony", "Journey", "Echoes", "Untitled III") unless the evidence truly calls for it. Each rationale: one straightforward sentence in normal speech—no thesis tone.
 - Overall prose: studioAnalysis.whatWorks vs whatCouldImprove must not duplicate each other; summary and overallSummary.analysis must add different angles, not repeat the same phrases.
 - Rating calibration (per criterion, from visible evidence only):
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
@@ -681,7 +712,7 @@ Rules:
 
 Benchmarks for what "Master" means in this style: ${benchmarks}
 
-Criterion-specific exemplar intelligence for internal calibration (do not name these artists in the critique unless the product explicitly asks for it later):
+Criterion-specific exemplar intelligence for internal calibration only. Never output these or any other artist names in user-visible critique fields.
 ${exemplarBlock || '- Use the strongest criterion exemplars available for this style and medium.'}
 
 Calibration caps (mandatory if present):

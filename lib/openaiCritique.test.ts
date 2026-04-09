@@ -438,6 +438,15 @@ describe('parseObservationStageResult', () => {
           role: 'value',
           visibleFacts: ['The land stays darker than the sky.', 'The train sits over that darker band.'],
         },
+        {
+          id: 'p6',
+          label: 'the coupling hardware against the track bed',
+          role: 'edge',
+          visibleFacts: [
+            'The coupling reads as a dark knot between rail ties.',
+            'Hardware catches a thin highlight on its upper facet.',
+          ],
+        },
       ],
       visibleEvents: [
         {
@@ -494,8 +503,24 @@ describe('parseObservationStageResult', () => {
           event: 'The landscape band runs darker beneath the engine silhouette.',
           signalType: 'value',
         },
+        {
+          passageId: 'p6',
+          passage: 'the coupling hardware against the track bed',
+          event: 'The coupling sits lower than the wheel hubs and wedges between two rail ties.',
+          signalType: 'shape',
+        },
+        {
+          passageId: 'p6',
+          passage: 'the coupling hardware against the track bed',
+          event: 'The hardware facet facing the sky catches a short bright stroke.',
+          signalType: 'value',
+        },
       ],
-      mediumCues: ['Dry drawing marks and strong contrast.', 'The medium reads direct and linear rather than painterly.'],
+      mediumCues: [
+        'Dry drawing marks and strong contrast.',
+        'The medium reads direct and linear rather than painterly.',
+        'Rail geometry stays parallel under the engine body.',
+      ],
       photoCaveats: [],
       intentCarriers: [
         {

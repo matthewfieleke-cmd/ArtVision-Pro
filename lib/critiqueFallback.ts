@@ -3,6 +3,7 @@ import { createPipelineMetadata } from './critiquePipeline.js';
 import { findPrimaryAnchorSupportLine } from './critiqueGrounding.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
+import { synthesizeSuggestedPaintingTitles } from './critiqueWritingStage.js';
 
 const LEVEL_ORDER: RatingLevelLabel[] = ['Beginner', 'Intermediate', 'Advanced', 'Master'];
 
@@ -10,14 +11,6 @@ function sentence(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
   return /[.!?]$/.test(normalized) ? normalized : `${normalized}.`;
-}
-
-function titleCase(text: string): string {
-  return text
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
 }
 
 function levelFromEvidence(entry: CritiqueEvidenceDTO['criterionEvidence'][number]): RatingLevelLabel {
@@ -319,23 +312,7 @@ export function composeFallbackCritique(args: {
           : ['Retake the photo in even light with the full painting square to the camera.'],
     },
     completionRead: args.evidence.completionRead,
-    suggestedPaintingTitles: [
-      {
-        category: 'formalist',
-        title: titleCase(`${args.style} Structure Study`),
-        rationale: sentence('The title reflects the most visible structural relationships identified in the fallback evidence review.'),
-      },
-      {
-        category: 'tactile',
-        title: titleCase(`${args.medium} Surface Study`),
-        rationale: sentence('The title names the medium and handling focus preserved in the fallback critique.'),
-      },
-      {
-        category: 'intent',
-        title: titleCase('Withheld Interior'),
-        rationale: sentence('The title reflects the strongest intent-level read available from the visible evidence alone.'),
-      },
-    ],
+    suggestedPaintingTitles: synthesizeSuggestedPaintingTitles(args.style, args.medium, args.evidence),
     analysisSource: 'fallback',
     pipeline: createPipelineMetadata({
       resultTier: 'validated_reduced',

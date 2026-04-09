@@ -166,10 +166,10 @@ export const suggestedTitleSchema = z.object({
     'Title category: formalist (structural/compositional), tactile (medium/surface/execution), or intent (mood/psychology/narrative).'
   ),
   title: z.string().describe(
-    'Title Case, no quotes. Must avoid cliché, overly poetic, or generic names. Ground in specific analysis data from THIS painting.'
+    'Short working title (often sentence case). No quotes. Avoid exhibition clichés and formulaic endings. Ground in THIS painting’s evidence.'
   ),
   rationale: z.string().describe(
-    '1–2 sentences explaining exactly how the specific scores and feedback for this painting generated this title.'
+    'One clear sentence on how the critique for this painting supports the title—plain speech, not thesis language.'
   ),
 });
 
@@ -178,7 +178,7 @@ export const voiceAStageResultSchema = z.object({
     'Voice A one-sentence synopsis for THIS painting only. Name at least one recognizable passage from the evidence.'
   ),
   suggestedPaintingTitles: z.array(suggestedTitleSchema).min(3).max(3).describe(
-    'Exactly three categorized title suggestions: one formalist, one tactile, one intent. Each with a rationale grounded in the criterion analysis.'
+    'Three sketchbook-style titles: formalist, tactile, intent. Modest and specific; rationales in normal speech.'
   ),
   overallSummary: z.object({
     analysis: z.string().describe(
@@ -300,11 +300,11 @@ const observationCarrierSchema = z.object({
 });
 
 export const observationBankSchema = z.object({
-  passages: z.array(observationPassageSchema).min(5).max(12),
-  visibleEvents: z.array(observationEventSchema).min(8).max(20),
-  mediumCues: z.array(z.string().min(12)).min(2).max(6),
+  passages: z.array(observationPassageSchema).min(6).max(12),
+  visibleEvents: z.array(observationEventSchema).min(10).max(22),
+  mediumCues: z.array(z.string().min(12)).min(3).max(6),
   photoCaveats: z.array(z.string().min(8)).min(0).max(4),
-  intentCarriers: z.array(observationCarrierSchema).min(1).max(4),
+  intentCarriers: z.array(observationCarrierSchema).min(2).max(4),
 });
 
 const criterionEvidenceSchema = z.object({

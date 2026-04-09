@@ -861,6 +861,30 @@ function fallbackSubskills(
   ];
 }
 
+const MAX_CRITERIA_PER_OBSERVATION_PASSAGE = 3;
+
+/** Prefer distinct observation-bank passages across criteria; retry/repair when the model collapses too many rows onto one id. */
+export function assertObservationPassageSpread(
+  criterionEvidence: CritiqueEvidenceDTO['criterionEvidence']
+): void {
+  const byId = new Map<string, string[]>();
+  for (const row of criterionEvidence) {
+    const id = row.observationPassageId.trim();
+    const list = byId.get(id) ?? [];
+    list.push(row.criterion);
+    byId.set(id, list);
+  }
+  for (const [id, criteria] of byId) {
+    if (criteria.length > MAX_CRITERIA_PER_OBSERVATION_PASSAGE) {
+      throw new Error(
+        `Evidence anchor spread: observation passage ${id} is used for ${criteria.length} criteria (${criteria.join(
+          ', '
+        )}). Use at most ${MAX_CRITERIA_PER_OBSERVATION_PASSAGE} criteria per passage id unless you remap weaker rows to other passages in the observation bank.`
+      );
+    }
+  }
+}
+
 export function validateEvidenceResult(raw: unknown, options: EvidenceValidationOptions = {}): CritiqueEvidenceDTO {
   const mode = options.mode ?? 'strict';
   if (!raw || typeof raw !== 'object') throw new Error('Invalid evidence API response');
@@ -1076,6 +1100,8 @@ export function validateEvidenceResult(raw: unknown, options: EvidenceValidation
   if (strongestVisibleQualities.length < 2 || strongestVisibleQualities.length > 4) {
     throw new Error('Invalid evidence: strongestVisibleQualities');
   }
+
+  assertObservationPassageSpread(normalized);
 
   return {
     intentHypothesis,

@@ -12,7 +12,7 @@ import {
 export function buildCritiqueSchemaInstruction(): string {
   return `Return JSON with:
 - summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
-- suggestedPaintingTitles: exactly 3 objects, each { category, title, rationale }. One "formalist" (from Composition, Value, Color, Drawing criteria — name the dominant structural element), one "tactile" (from Style, Medium, Surface, Edge criteria — name the physical execution), one "intent" (from Intent and Presence criteria — name the mood/psychology). Title Case, no quotes, no cliché or generic names. Each rationale: 1–2 sentences explaining how the specific criterion scores/feedback generated this title.
+- suggestedPaintingTitles: exactly 3 objects, each { category, title, rationale }. One "formalist" (Composition, Value, Color, Drawing — what holds the design), one "tactile" (Style, Medium, Surface, Edge — how it is materially built), one "intent" (Intent, Presence — how it feels or reads). Plain working titles: 2–8 words, sentence case or light title case, no quotes. Avoid exhibition clichés and repeated templates ("… Study", "… Tension", "Symphony of …"). Each rationale: one clear sentence tying the title to this painting’s evidence—no thesis tone.
 - overallSummary: { analysis, topPriorities } — analysis is Voice A only; topPriorities = 1–2 Voice B priorities
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A: composite art-historical critic (see full system prompt); do not name critics. Two paragraphs; every claim anchored in THIS painting (named passages from evidence). Must align with the eight category levels; no overlap between the two paragraphs.
 - studioChanges: 2–5 items, each { text, previewCriterion } — Voice B: composite studio teacher (see system prompt); responds to Voice A + evidence; do not name teachers. Each text names where and how on THIS canvas; previewCriterion from CRITERIA_ORDER.
@@ -37,7 +37,7 @@ ${phaseSchemaSummaryLines()}
 export function buildVoiceASchemaInstruction(): string {
   return `Return JSON with:
 - summary — Voice A one-sentence synopsis for THIS painting only; name at least one recognizable passage from the evidence rather than giving generic praise
-- suggestedPaintingTitles: exactly 3 objects { category, title, rationale }. One "formalist", one "tactile", one "intent". Title Case, no quotes, no cliché. Rationale explains how the specific criterion data generated the title.
+- suggestedPaintingTitles: exactly 3 objects { category, title, rationale }. One "formalist", one "tactile", one "intent". Sketchbook-plain titles (2–8 words); sentence case or light title case; no quotes; no stock poetic or template endings. Rationale: one sentence, grounded in this painting’s criterion data.
 - overallSummary: { analysis } — Voice A only
 - studioAnalysis: { whatWorks, whatCouldImprove } — Voice A only; two paragraphs must not duplicate each other
 - comparisonNote

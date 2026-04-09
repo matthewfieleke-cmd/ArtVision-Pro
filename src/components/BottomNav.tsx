@@ -1,9 +1,10 @@
-import { ImageIcon, BookOpen, User } from 'lucide-react';
+import { ImageIcon, BookOpen, BookText, User } from 'lucide-react';
 import type { TabId } from '../types';
 
 const LINK_TABS: { id: TabId; label: string; icon: typeof ImageIcon }[] = [
   { id: 'studio', label: 'Studio', icon: ImageIcon },
   { id: 'benchmarks', label: 'Masters', icon: BookOpen },
+  { id: 'glossary', label: 'Glossary', icon: BookText },
   { id: 'profile', label: 'Profile', icon: User },
 ];
 

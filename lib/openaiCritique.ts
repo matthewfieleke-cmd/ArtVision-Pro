@@ -13,15 +13,11 @@ import {
   type ObservationBank,
 } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
-import {
-  synthesizeEvidenceFromObservationBank,
-  validateEvidenceResult,
-} from './critiqueValidation.js';
+import { validateEvidenceResult } from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
   CritiquePipelineError,
-  CritiqueGroundingError,
-  CritiqueRuntimeEvalError,
+  CritiqueUninterpretableImageError,
   CritiqueRetryExhaustedError,
   CritiqueValidationError,
   type CritiqueCriterionEvidencePreview,
@@ -30,7 +26,7 @@ import {
   errorDetails,
   errorMessage,
 } from './critiqueErrors.js';
-import { assertCritiqueQualityGate } from './critiqueEval.js';
+import { evaluateCritiqueQuality } from './critiqueEval.js';
 import {
   createCritiqueInstrumenter,
   critiqueInstrumentEnabled,
@@ -46,14 +42,7 @@ import {
   sharesConcreteLanguage,
 } from './critiqueGrounding.js';
 import { normalizeWhitespace } from './critiqueTextRules.js';
-import {
-  createFailedStageSnapshot,
-  createPipelineMetadata,
-  createSkippedStageSnapshot,
-  createSucceededStageSnapshot,
-  stageIdFromErrorStage,
-} from './critiquePipeline.js';
-import { composeFallbackCritique } from './critiqueFallback.js';
+import { createPipelineMetadata, createSucceededStageSnapshot } from './critiquePipeline.js';
 import type { CritiquePipelineStageId } from '../shared/critiqueContract.js';
 import {
   clarityPassEligible,
@@ -152,11 +141,6 @@ function validateObservationBankGrounding(observationBank: ObservationBank): Obs
   }
 
   return observationBank;
-}
-
-function isRecoverableObservationGroundingError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : '';
-  return /^Observation stage validation failed: /.test(message);
 }
 
 function summarizeRawForLog(raw: unknown): string {
@@ -433,19 +417,7 @@ export function parseObservationStageResult(raw: unknown): ObservationBank {
   if (!parsed.success) {
     throw new Error(`Observation stage validation failed: ${parsed.error.message}`);
   }
-  try {
-    return sortObservationBankIntentCarriers(validateObservationBankGrounding(parsed.data));
-  } catch (error) {
-    if (isRecoverableObservationGroundingError(error)) {
-      console.warn('[critique observation grounding warning]', {
-        error: errorMessage(error),
-        details: errorDetails(error),
-        rawPreview: summarizeRawForLog(parsed.data),
-      });
-      return sortObservationBankIntentCarriers(parsed.data);
-    }
-    throw error;
-  }
+  return sortObservationBankIntentCarriers(validateObservationBankGrounding(parsed.data));
 }
 
 async function runCritiqueObservationStage(
@@ -654,6 +626,7 @@ export function buildEvidenceRepairNote(
       detail
     )
   );
+  const anchorSpreadFailure = details.some((detail) => /Evidence anchor spread:/.test(detail));
   const unsupportedAnchorCriteria = Array.from(
     new Set(
       details
@@ -775,6 +748,11 @@ Escalation for repeated failure:
 - Do NOT reuse pure theme labels like "movement", "presence", "power", "energy", "atmosphere", "mood", or "dominant presence" as the whole anchor for a repeated conceptual failure.
 - For repeated conceptual generic-evidence failures, replace every interpretation-first visibleEvidence line with a sentence that names the carrier passage and one visible event in it.
 - If the previous anchor was generic, replacing one adjective is NOT enough. Replace the carrier passage itself.${repeatedFailurePreviewBlock}`
+    : ''}${anchorSpreadFailure
+    ? `
+
+Critical observation-passage spread:
+- observationPassageId must not be shared by more than three criteria. Remap extra criteria to other passages from the observation bank so anchors spread across the canvas.`
     : ''}`;
 }
 
@@ -817,24 +795,21 @@ async function runCritiqueEvidenceStageWithRetries(
       attemptDebug.push(debug);
       logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_STAGE_ATTEMPTS) {
-        const synthesizedEvidence = synthesizeEvidenceFromObservationBank(args.observationBank);
-        return {
-          evidence: synthesizedEvidence,
-          observationBank: args.observationBank,
-          failedAttempts: attemptDebug,
-          successAttempt: attempt,
-        };
+        throw new CritiqueUninterpretableImageError({
+          details: [
+            'Evidence extraction could not produce a valid, canvas-grounded row for every criterion.',
+            errorMessage(error),
+          ],
+          cause: error,
+        });
       }
       repairNote = buildEvidenceRepairNote(error, attemptDebug);
     }
   }
 
-  return {
-    evidence: synthesizeEvidenceFromObservationBank(args.observationBank),
-    observationBank: args.observationBank,
-    failedAttempts: attemptDebug,
-    successAttempt: MAX_STAGE_ATTEMPTS,
-  };
+  throw new CritiqueUninterpretableImageError({
+    details: ['Evidence stage exhausted retries without a valid result.'],
+  });
 }
 
 export async function runOpenAICritique(
@@ -858,13 +833,15 @@ export async function runOpenAICritique(
 
   const titleSuggestionLine =
     trimmedUserTitle.length === 0
-      ? ` The artist has not supplied a title. You must still output suggestedPaintingTitles: exactly three categorized title objects. One "formalist" (from Composition, Value, Color, Drawing criteria—name the dominant structural element), one "tactile" (from Style, Medium, Surface, Edge criteria—name the physical execution), one "intent" (from Intent and Presence criteria—name the mood/psychology). Each { category, title, rationale }. Title Case, no quotes, no cliché. Rationale: 1–2 sentences explaining how the specific criterion data generated this title.`
+      ? ` The artist has not supplied a title. Output suggestedPaintingTitles: exactly three { category, title, rationale } objects—formalist (structure/layout), tactile (material handling), intent (mood/presence). Titles should sound like studio working labels: short, concrete, 2–8 words; sentence case or light title case; no quotes; avoid gallery clichés and repeated suffixes ("Study", "Tension", "Journey", etc.) unless truly apt. One plain-sentence rationale each, tied to this image’s evidence.`
       : '';
 
   const userContent: VisionUserMessagePart[] = [
     {
       type: 'text',
       text: `Analyze this painting for studio use. Style: ${body.style}. Medium: ${body.medium}.${titleLine}${titleSuggestionLine}
+
+Never name specific artists, famous artworks, or art-historical figures; do not compare this image to named painters or movements. Stay on what is visible in the photo.
 
 Ground every criterion in what is visible in the photo. Prefer "in the ___ area of the painting" over abstract wording.${
         body.previousCritique && body.previousImageDataUrl
@@ -887,14 +864,25 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
 
-  const observationBank = await instrumenter.time('observation', () =>
-    runCritiqueObservationStage(apiKey, {
-      model: stageModels.evidence,
-      style: body.style,
-      medium: body.medium,
-      userContent,
-    })
-  );
+  let observationBank: ObservationBank;
+  try {
+    observationBank = await instrumenter.time('observation', () =>
+      runCritiqueObservationStage(apiKey, {
+        model: stageModels.evidence,
+        style: body.style,
+        medium: body.medium,
+        userContent,
+      })
+    );
+  } catch (error) {
+    throw new CritiqueUninterpretableImageError({
+      details: [
+        'The observation pass could not build a reliable, image-grounded passage map for this photograph.',
+        errorMessage(error),
+      ],
+      cause: error,
+    });
+  }
 
   const evidenceRun = await instrumenter.time('evidence', () =>
     runCritiqueEvidenceStageWithRetries(apiKey, {
@@ -907,96 +895,86 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   );
   const evidence = evidenceRun.evidence;
 
-  let guarded: CritiqueResultDTO;
-  let fallbackCause: CritiquePipelineError | undefined;
-  try {
-    const calibration = await instrumenter.time('calibration', async () => {
-      try {
-        return await runCritiqueCalibrationStage(
-          apiKey,
-          stageModels.calibration,
-          body.style,
-          body.medium,
-          evidence,
-          userContent
-        );
-      } catch (error) {
-        console.warn('[critique calibration warning]', {
-          error: errorMessage(error),
-          details: errorDetails(error),
-        });
-        return undefined;
-      }
+  if (evidence.photoQualityRead.level === 'poor') {
+    throw new CritiqueUninterpretableImageError({
+      details: [
+        'The photograph is too unclear for a fair eight-criterion critique. Try again with even light, no heavy glare, and the full painting square to the camera.',
+        evidence.photoQualityRead.summary.trim() ||
+          'Blur, crop, or resolution limits prevented a reliable read of the canvas.',
+      ],
     });
-
-    const base = await runCritiqueWritingStage(
-      apiKey,
-      {
-        voiceA: stageModels.voiceA,
-        voiceB: stageModels.voiceB,
-        validation: stageModels.validation,
-      },
-      body.style,
-      body,
-      evidence,
-      observationBank,
-      calibration,
-      instrumenter
-    );
-    const calibrated = calibration ? applyCalibrationToCritique(base, calibration) : base;
-    const withCompletion = {
-      ...calibrated,
-      completionRead: {
-        state: evidence.completionRead.state,
-        confidence: evidence.completionRead.confidence,
-        cues: evidence.completionRead.cues,
-        rationale: evidence.completionRead.rationale,
-      },
-    };
-
-    guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
-
-    if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
-      guarded = await instrumenter.time('clarity', () =>
-        runClarityPass(apiKey, stageModels.clarity, guarded)
-      );
-    }
-
-    if (critiqueNeedsFreshEvidenceRead(guarded)) {
-      if (instrumenter.enabled) {
-        logGroundingGateFailure(guarded);
-      }
-      throw new CritiqueGroundingError('Critique drifted from its evidence anchors after generation.', {
-        stage: 'final',
-        details: [
-          'The final critique no longer stayed aligned to the anchored evidence passages.',
-          'A fresh retry would risk degrading silently, so the pipeline failed closed.',
-        ],
-      });
-    }
-
-    try {
-      assertCritiqueQualityGate(guarded);
-    } catch (error) {
-      if (instrumenter.enabled && error instanceof CritiqueRuntimeEvalError) {
-        logQualityGateFailure(guarded);
-      }
-      throw error;
-    }
-  } catch (error) {
-    if (error instanceof CritiquePipelineError && error.stage !== 'evidence') {
-      fallbackCause = error;
-      guarded = composeFallbackCritique({
-        style: body.style,
-        medium: body.medium,
-        evidence,
-        paintingTitle: trimmedUserTitle || undefined,
-        failureStage: error.stage,
-      });
-    } else {
-      throw error;
-    }
   }
+
+  let guarded: CritiqueResultDTO;
+  const calibration = await instrumenter.time('calibration', async () => {
+    try {
+      return await runCritiqueCalibrationStage(
+        apiKey,
+        stageModels.calibration,
+        body.style,
+        body.medium,
+        evidence,
+        userContent
+      );
+    } catch (error) {
+      console.warn('[critique calibration warning]', {
+        error: errorMessage(error),
+        details: errorDetails(error),
+      });
+      return undefined;
+    }
+  });
+
+  const base = await runCritiqueWritingStage(
+    apiKey,
+    {
+      voiceA: stageModels.voiceA,
+      voiceB: stageModels.voiceB,
+      validation: stageModels.validation,
+    },
+    body.style,
+    body,
+    evidence,
+    observationBank,
+    calibration,
+    instrumenter
+  );
+  const calibrated = calibration ? applyCalibrationToCritique(base, calibration) : base;
+  const withCompletion = {
+    ...calibrated,
+    completionRead: {
+      state: evidence.completionRead.state,
+      confidence: evidence.completionRead.confidence,
+      cues: evidence.completionRead.cues,
+      rationale: evidence.completionRead.rationale,
+    },
+  };
+
+  guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
+
+  if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
+    guarded = await instrumenter.time('clarity', () =>
+      runClarityPass(apiKey, stageModels.clarity, guarded)
+    );
+  }
+
+  if (critiqueNeedsFreshEvidenceRead(guarded)) {
+    if (instrumenter.enabled) {
+      logGroundingGateFailure(guarded);
+    }
+    console.warn(
+      '[critique] Grounding audit: some text may be weakly tied to evidence anchors; shipping critique.'
+    );
+  }
+
+  const quality = evaluateCritiqueQuality(guarded);
+  if (quality.blockingIssues.length > 0) {
+    if (instrumenter.enabled) {
+      logQualityGateFailure(guarded);
+    }
+    console.warn('[critique quality advisory]', quality.blockingIssues.join(' | '));
+  }
+
   instrumenter.logSummary({
     models: {
       evidence: stageModels.evidence,
@@ -1011,10 +989,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const existingPipeline = guarded.pipeline;
-  const fallbackFailureStage = fallbackCause ? stageIdFromErrorStage(fallbackCause.stage) : undefined;
   const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
-  const failureOrderIndex =
-    fallbackFailureStage ? stageOrder.indexOf(fallbackFailureStage) : -1;
   const withStages = {
     evidence: createSucceededStageSnapshot({
       stage: 'evidence',
@@ -1023,7 +998,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       successAttempt: evidenceRun.successAttempt,
     }),
     ...Object.fromEntries(
-      stageOrder.map((stageId, index) => {
+      stageOrder.map((stageId) => {
         const model =
           stageId === 'calibration'
             ? stageModels.calibration
@@ -1033,19 +1008,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
                 ? stageModels.voiceB
                 : stageModels.validation;
 
-        if (!fallbackCause) {
-          return [stageId, createSucceededStageSnapshot({ stage: stageId, model })];
-        }
-
-        if (index < failureOrderIndex) {
-          return [stageId, createSucceededStageSnapshot({ stage: stageId, model })];
-        }
-
-        if (index === failureOrderIndex) {
-          return [stageId, createFailedStageSnapshot({ error: fallbackCause, model })];
-        }
-
-        return [stageId, createSkippedStageSnapshot({ stage: stageId, model })];
+        return [stageId, createSucceededStageSnapshot({ stage: stageId, model })];
       })
     ),
     ...(existingPipeline?.stages?.fallback
