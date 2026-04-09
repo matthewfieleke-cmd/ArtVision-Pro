@@ -5,6 +5,7 @@ import type { CritiqueResultDTO } from './critiqueTypes.js';
 import { toOpenAIJsonSchema } from './critiqueZodSchemas.js';
 import { errorMessage } from './critiqueErrors.js';
 import { withOpenAIRetries } from './openaiRetry.js';
+import { CLARITY_SUBSTANCE_GUIDANCE } from './critiquePipelineGuidance.js';
 
 const CRIT_ENUM = CRITERIA_ORDER as unknown as [CriterionLabel, ...CriterionLabel[]];
 
@@ -66,6 +67,8 @@ Rules (non-negotiable):
 - Avoid insider jargon unless plain: do not use "human pressure"; say presence, focus of attention, emotional weight, or similar plain painter language.
 - Do not add artist names, art history, or museum talk unless the input already had them.
 - Preserve the meaning of numbered or listed steps; keep the same count of top priorities and studio changes.
+
+${CLARITY_SUBSTANCE_GUIDANCE}
 
 Output must match the JSON schema exactly. Only rewrite string fields; criterion labels in the JSON must match the input exactly.`;
 

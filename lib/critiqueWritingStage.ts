@@ -67,6 +67,11 @@ import { renderGroundedTeacherNextSteps } from './critiqueVoiceBProse.js';
 import { normalizeWhitespace } from './critiqueTextRules.js';
 import { createPipelineMetadata } from './critiquePipeline.js';
 import { withOpenAIRetries } from './openaiRetry.js';
+import {
+  PIPELINE_STAGE_CONNECTION,
+  VOICE_A_MATURE_ANALYSIS_GUIDANCE,
+  VOICE_B_CLEAR_TEACHING_GUIDANCE,
+} from './critiquePipelineGuidance.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -490,6 +495,10 @@ Your job in this stage:
 - Output ONLY Voice A fields: summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, and per-criterion level/phase1/phase2/confidence/evidenceSignals/preserve/nextTarget/subskills.
 - Do NOT output any Voice B fields in this stage: no topPriorities, no studioChanges, no anchors, no edit plans, no voiceBPlan, no actionPlanSteps, and no actionPlan.
 
+${PIPELINE_STAGE_CONNECTION}
+
+${VOICE_A_MATURE_ANALYSIS_GUIDANCE}
+
 Full criterion rubric for this declared style (use it actively when deciding each band):
 ${rubricBlock}
 
@@ -559,6 +568,10 @@ Your job in this stage:
 - Do NOT output Voice A fields in this stage: no levels, no feedback, no studioAnalysis, no summary analysis, no titles, no photoQuality, and no overallConfidence.
 - Treat the supplied Voice A JSON as fixed judgment. You are not re-grading the work; you are deciding the best next teaching move for each criterion from Voice A's judgment plus the evidence.
 - Treat Voice A's categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis.
+
+${PIPELINE_STAGE_CONNECTION}
+
+${VOICE_B_CLEAR_TEACHING_GUIDANCE}
 ${phaseVoiceBWorkflowRules()}
 - For each criterion, the evidence JSON already gives you one concrete anchor passage. Stay with that same visible passage. Output ONE shared anchored passage in categories[].anchor and ONE canonical teaching plan in categories[].plan. The prose, overlay region, and any derived AI edit fields must all point to that same visible passage.
 - Reuse the carrier passages and visible events from the observation bank when they fit; do not invent a nearby substitute passage once the shared observation bank has already identified a stronger carrier.

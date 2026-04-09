@@ -90,3 +90,5 @@ VITE_BASE=/YourRepo/ npm run build && npm run preview
 ```
 
 The app requires a reachable API for critique, style classification, and preview edits.
+
+**Critique quality (maintainers):** See `docs/CRITIQUE_PIPELINE_PHILOSOPHY.md` for the helpfulness bar and how stages connect. To print **advisory** repetition/length signals from a saved critique JSON: `npm run critique:signals -- path/to/critique.json`.

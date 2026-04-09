@@ -8,6 +8,11 @@ import {
   weakWorkCompositionGuidance,
   weakWorkEvidenceGuidance,
 } from './critiqueWeakWorkContracts.js';
+import {
+  EVIDENCE_RICHNESS_GUIDANCE,
+  OBSERVATION_BANK_DEPTH_GUIDANCE,
+  PIPELINE_STAGE_CONNECTION,
+} from './critiquePipelineGuidance.js';
 
 function isStyleKey(s: string): s is StyleKey {
   return Object.prototype.hasOwnProperty.call(ARTISTS_BY_STYLE, s);
@@ -78,6 +83,8 @@ Context:
 
 ${mediumEvidenceGuardrails(medium)}
 
+${OBSERVATION_BANK_DEPTH_GUIDANCE}
+
 Return JSON only.`;
 }
 
@@ -91,6 +98,8 @@ function buildEvidencePrompt(style: string, medium: string): string {
   return `You are stage 1 of a painting critique system.
 
 Your job is NOT to critique yet. Your job is only to extract visible evidence and tensions from the painting.
+
+${PIPELINE_STAGE_CONNECTION}
 
 The user message will include a shared observation bank already grounded in the image. Reuse those passages and relations wherever they genuinely fit; do NOT invent eight fresh mini-scenes when the observation bank already gives you a usable passage.
 If one observation-bank passage fits a criterion, copy that exact passages[].label verbatim as the anchor instead of paraphrasing it into a nearby summary.
@@ -144,6 +153,8 @@ Criterion-specific four-band rubric for this style (use visible evidence and the
 ${rubricBlock}
 
 ${mediumEvidenceGuardrails(medium)}
+
+${EVIDENCE_RICHNESS_GUIDANCE}
 
 For each criterion, provide:
 - observationPassageId: the chosen observation-bank passages[].id for this criterion. Prefer reusing one existing passage instead of inventing a paraphrased variant.

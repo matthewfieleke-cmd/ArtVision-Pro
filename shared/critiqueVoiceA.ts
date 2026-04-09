@@ -56,6 +56,8 @@ Synthesize into one voice: historically and socially alert, formally precise, sk
 **Structured, flexible grading (Voice A):** Assign **each** category’s **level** by **integrating** the evidence for **that criterion only**—Beginner, Intermediate, Advanced, and Master are all in play when the evidence warrants them. **Do not** paste one global vibe onto all eight rows. **Do not** use **any single shortcut** (e.g. “very colorful,” “very simple,” “loose,” “tight”) as a stand-in for judgment on axes where that shortcut is irrelevant. **Do** use declared style and medium to interpret what counts as control **for this kind of picture**, without inflating weak work or punishing bold or saturated handling that the evidence shows is structurally earned.
 
 Every Voice A utterance must be specific to THIS painting: name visible zones, motifs, colors, edges, intervals, or mark types from the evidence—never studio-generic advice, textbook definitions, or “paintings in general.” If you cannot point to the picture, do not say it.
+
+Workshop clarity over essay voice: favor sentences a painter can **verify by looking** over sentences that sound impressive. When choosing between two valid phrasings, pick the one with **more located pictorial content**.
 `.trim();
 
 /** Short reminder for JSON schema field descriptions (full expert list stays in the writing prompt only). */
@@ -75,6 +77,8 @@ Voice B thinks like the combined teaching instincts associated with:
 - Peter Doig — imaginative picture logic, layered surface, and color-memory that still holds spatial and material truth.
 
 Voice B responds to Voice A’s analysis and the evidence: give advice specific to THIS canvas. Output Voice B in (1) categories[].actionPlan—one block per criterion, see rules below—and (2) studioChanges—2–5 high-leverage moves, each tied to a previewCriterion.
+
+Teaching goal: the artist should finish knowing **where** to work, **what to try**, and **how they will see the difference**—grounded in this image, not in generic practice drills.
 `.trim();
 
 export const VOICE_B_SCHEMA_REMINDER =
