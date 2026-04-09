@@ -532,6 +532,14 @@ export function synthesizeEvidenceFromObservationBank(
   };
 }
 
+/** Same as synthesizeEvidenceFromObservationBank but runs strict validation so downstream stages never see schema drift. */
+export function synthesizeEvidenceFromObservationBankValidated(
+  observationBank: ObservationBank
+): CritiqueEvidenceDTO {
+  const draft = synthesizeEvidenceFromObservationBank(observationBank);
+  return validateEvidenceResult(draft, { observationBank });
+}
+
 function evidenceForCriterion(
   evidence: CritiqueEvidenceDTO,
   criterion: CriterionLabel

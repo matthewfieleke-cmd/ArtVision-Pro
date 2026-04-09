@@ -6,6 +6,7 @@ import {
 import { normalizeWhitespace } from './critiqueTextRules.js';
 import { hasSpecificConceptualCarrierAnchor } from './critiqueWeakWorkContracts.js';
 import type { ObservationBank } from './critiqueZodSchemas.js';
+import { observationBankSchema } from './critiqueZodSchemas.js';
 
 const OBSERVATION_SIGNAL_PATTERNS: Record<
   ObservationBank['visibleEvents'][number]['signalType'],
@@ -152,4 +153,13 @@ export function sortObservationBankIntentCarriers(observationBank: ObservationBa
     ...observationBank,
     intentCarriers: scoredCarriers,
   };
+}
+
+/**
+ * Last-resort observation parse: JSON schema only, no fictional template bank.
+ * Used only when strict grounding validation fails on the model’s output so we still keep image-derived passages.
+ */
+export function parseObservationBankLenient(raw: unknown): ObservationBank {
+  const parsed = observationBankSchema.parse(raw);
+  return sortObservationBankIntentCarriers(parsed);
 }

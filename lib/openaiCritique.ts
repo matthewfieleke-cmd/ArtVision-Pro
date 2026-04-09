@@ -13,13 +13,13 @@ import {
   type ObservationBank,
 } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
-import { validateEvidenceResult } from './critiqueValidation.js';
+import {
+  validateEvidenceResult,
+  synthesizeEvidenceFromObservationBankValidated,
+} from './critiqueValidation.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
-  buildEmergencyCritiqueEvidenceDTO,
-  buildEmergencyObservationBank,
-} from './critiqueEmergencyRecovery.js';
-import {
+  parseObservationBankLenient,
   sortObservationBankIntentCarriers,
   validateObservationBankGrounding,
 } from './critiqueObservationBankValidate.js';
@@ -294,9 +294,25 @@ type EvidenceStageRunResult = {
   observationBank: ObservationBank;
   failedAttempts: CritiqueDebugInfo[];
   successAttempt: number;
-  /** Model evidence failed validation after retries; template evidence + full voice pipeline used. */
-  recoveredWithEmergencyEvidence?: boolean;
+  /** Stage-1 evidence failed validation after retries; criterion rows were synthesized only from the image observation bank (no fictional template). */
+  recoveredWithObservationSynthesizedEvidence?: boolean;
 };
+
+const MAX_OBSERVATION_ATTEMPTS = 3;
+
+function buildObservationRepairNote(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  return `Previous observation attempt failed: ${msg}
+
+Regenerate the full observation bank JSON for THIS photograph only.
+
+Fix checklist:
+- passage labels must be pointable on the canvas (concrete thing vs thing / band vs field), not "overall mood", "the story", or "the composition overall".
+- Each visibleFacts line must reuse nouns from its passage label and describe a visible event there.
+- Each visibleEvents entry must copy passages[].label verbatim and describe a visible event with real signal language for its signalType.
+- intentCarriers must reference existing passage ids and name physical carriers, not mood-only summaries.
+- Spread passages across different areas; use stable ids p1, p2, … per schema.`;
+}
 
 export function parseObservationStageResult(raw: unknown): ObservationBank {
   const parsed = observationBankSchema.safeParse(raw);
@@ -306,16 +322,33 @@ export function parseObservationStageResult(raw: unknown): ObservationBank {
   return sortObservationBankIntentCarriers(validateObservationBankGrounding(parsed.data));
 }
 
-async function runCritiqueObservationStage(
+type ObservationStageRunMeta = {
+  failedAttempts: CritiqueDebugInfo[];
+  successAttempt: number;
+  usedLenientObservationParse: boolean;
+};
+
+async function fetchObservationStageJson(
   apiKey: string,
   args: {
     model: string;
     style: string;
     medium: string;
     userContent: VisionUserMessagePart[];
+    repairNote?: string;
   }
-): Promise<ObservationBank> {
+): Promise<unknown> {
   return withOpenAIRetries('observation', async () => {
+    const userParts: VisionUserMessagePart[] = args.repairNote
+      ? [
+          ...args.userContent,
+          {
+            type: 'text',
+            text: `Correction required on retry:\n${args.repairNote}`,
+          },
+        ]
+      : args.userContent;
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -337,7 +370,7 @@ async function runCritiqueObservationStage(
           },
           {
             role: 'user',
-            content: args.userContent,
+            content: userParts,
           },
         ],
       }),
@@ -360,14 +393,83 @@ async function runCritiqueObservationStage(
     const text = choice?.message?.content;
     if (!text || typeof text !== 'string') throw new Error('Empty observation response');
 
-    let raw: unknown;
     try {
-      raw = JSON.parse(text);
+      return JSON.parse(text);
     } catch {
       throw new Error('Observation stage returned non-JSON');
     }
-    return parseObservationStageResult(raw);
   });
+}
+
+async function runCritiqueObservationBankWithRetries(
+  apiKey: string,
+  args: {
+    model: string;
+    style: string;
+    medium: string;
+    userContent: VisionUserMessagePart[];
+  }
+): Promise<{ observationBank: ObservationBank } & ObservationStageRunMeta> {
+  let repairNote: string | undefined;
+  const attemptDebug: CritiqueDebugInfo[] = [];
+
+  for (let attempt = 1; attempt <= MAX_OBSERVATION_ATTEMPTS; attempt++) {
+    try {
+      const raw = await fetchObservationStageJson(apiKey, { ...args, repairNote });
+      try {
+        const observationBank = parseObservationStageResult(raw);
+        return {
+          observationBank,
+          failedAttempts: attemptDebug,
+          successAttempt: attempt,
+          usedLenientObservationParse: false,
+        };
+      } catch (parseError) {
+        if (attempt === MAX_OBSERVATION_ATTEMPTS) {
+          console.warn('[critique observation lenient parse — strict grounding failed]', {
+            error: errorMessage(parseError),
+            attempts: MAX_OBSERVATION_ATTEMPTS,
+          });
+          const observationBank = parseObservationBankLenient(raw);
+          attemptDebug.push({
+            attempt,
+            error: errorMessage(parseError),
+            details: errorDetails(parseError),
+            repairNotePreview: repairNote?.slice(0, 1200),
+          });
+          return {
+            observationBank,
+            failedAttempts: attemptDebug,
+            successAttempt: attempt,
+            usedLenientObservationParse: true,
+          };
+        }
+        const debug = buildEvidenceAttemptDebugInfo({
+          attempt,
+          error: parseError,
+          repairNote,
+          raw,
+        });
+        attemptDebug.push(debug);
+        logEvidenceAttemptFailure({ attempt, repairNote }, parseError, raw);
+        repairNote = buildObservationRepairNote(parseError);
+      }
+    } catch (error) {
+      const debug = buildEvidenceAttemptDebugInfo({
+        attempt,
+        error,
+        repairNote,
+      });
+      attemptDebug.push(debug);
+      logEvidenceAttemptFailure({ attempt, repairNote }, error);
+      if (attempt === MAX_OBSERVATION_ATTEMPTS) {
+        throw error;
+      }
+      repairNote = buildObservationRepairNote(error);
+    }
+  }
+
+  throw new Error('Observation stage retry loop exited unexpectedly.');
 }
 
 async function runCritiqueEvidenceStage(
@@ -678,21 +780,17 @@ async function runCritiqueEvidenceStageWithRetries(
       attemptDebug.push(debug);
       logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_STAGE_ATTEMPTS) {
-        console.warn('[critique evidence emergency template]', {
+        console.warn('[critique evidence synthesized from observation bank]', {
           error: errorMessage(error),
           attempts: MAX_STAGE_ATTEMPTS,
         });
-        const evidence = buildEmergencyCritiqueEvidenceDTO(
-          args.observationBank,
-          args.style,
-          args.medium
-        );
+        const evidence = synthesizeEvidenceFromObservationBankValidated(args.observationBank);
         return {
           evidence,
           observationBank: args.observationBank,
           failedAttempts: attemptDebug,
           successAttempt: attempt,
-          recoveredWithEmergencyEvidence: true,
+          recoveredWithObservationSynthesizedEvidence: true,
         };
       }
       repairNote = buildEvidenceRepairNote(error, attemptDebug);
@@ -754,25 +852,16 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
 
-  let usedEmergencyObservation = false;
-  let observationBank: ObservationBank;
-  try {
-    observationBank = await instrumenter.time('observation', () =>
-      runCritiqueObservationStage(apiKey, {
-        model: stageModels.evidence,
-        style: body.style,
-        medium: body.medium,
-        userContent,
-      })
-    );
-  } catch (error) {
-    console.warn('[critique observation emergency bank]', {
-      error: errorMessage(error),
-      details: errorDetails(error),
-    });
-    observationBank = buildEmergencyObservationBank(body.style, body.medium);
-    usedEmergencyObservation = true;
-  }
+  const observationRun = await instrumenter.time('observation', () =>
+    runCritiqueObservationBankWithRetries(apiKey, {
+      model: stageModels.evidence,
+      style: body.style,
+      medium: body.medium,
+      userContent,
+    })
+  );
+  const observationBank = observationRun.observationBank;
+  const usedLenientObservationParse = observationRun.usedLenientObservationParse;
 
   const evidenceRun = await instrumenter.time('evidence', () =>
     runCritiqueEvidenceStageWithRetries(apiKey, {
@@ -875,18 +964,18 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const trimmedTitle =
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const existingPipeline = guarded.pipeline;
-  const observationSalvaged: CritiquePipelineSalvagedCriterion[] = usedEmergencyObservation
+  const observationSalvaged: CritiquePipelineSalvagedCriterion[] = usedLenientObservationParse
     ? [
         {
           stage: 'evidence',
           criterion: 'Intent and necessity',
           reason:
-            'Live observation did not validate; an internal passage grid was substituted so evidence and voice stages can still complete.',
+            'Observation bank passed JSON schema but strict cross-field grounding checks failed after retries; passages remain the model’s read of the attached photograph (no fictional template grid).',
         },
       ]
     : [];
   const usedDegradedPath =
-    usedEmergencyObservation || Boolean(evidenceRun.recoveredWithEmergencyEvidence);
+    usedLenientObservationParse || Boolean(evidenceRun.recoveredWithObservationSynthesizedEvidence);
   const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
   const withStages = {
     evidence: createSucceededStageSnapshot({
