@@ -554,6 +554,7 @@ ${phaseVoiceAWorkflowRules()}
 - If the evidence suggests the work benefits from ambiguity, distributed attention, softness, or compression, preserve those qualities.
 - Voice A tone: rigorous but respectful. Be exact, unsentimental, and concrete, but never snide, inflated, or condescending.
 - The evidence JSON gives each criterion a concrete anchor passage. Stay traceable to that anchor and the listed visibleEvidence lines; do not drift to a different part of the painting.
+- **Per-criterion specificity (mandatory):** For each of the eight categories, phase1.visualInventory and phase2.criticsAnalysis must each (1) echo that row’s anchor with ≥3 shared concrete terms or include the anchor phrase, and (2) clearly use vocabulary from **at least two** of that row’s visibleEvidence lines. Summary, overallSummary.analysis, whatWorks, and whatCouldImprove must each tie to **multiple** different anchors from the evidence—not a single generic read.
 - Reuse the carrier passages and visible events from the observation bank when they fit; do not invent a fresh mini-scene for each criterion when the shared observation bank already names the passage.
 - Avoid generic opener verbs such as "captures," "effectively uses," "conveys," "enhances," or "aims to" unless followed immediately by a concrete visual reason in the same sentence.
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
@@ -632,6 +633,7 @@ Rules:
 - Distinctness is mandatory across the full eight-criterion set: do not recycle the same move, the same wording, or the same anchored passage across multiple criteria unless the painting truly makes that unavoidable.
 - Voice B non-redundancy: categories[].plan.currentRead, move, and expectedRead must each add different information. phase3.teacherNextSteps must be a tight rendering of categories[].plan only: do not add extra steps, synonyms, or repeated junctions that are not in that plan. Do not restate Voice A’s feedback verbatim.
 - Anchor fidelity is mandatory: categories[].plan.move and phase3.teacherNextSteps must stay on the SAME passage named by categories[].anchor.areaSummary. Do not diagnose one passage and then prescribe a move on a nearby but different object.
+- **Voice B specificity (mandatory):** phase3.teacherNextSteps must (1) echo anchor.areaSummary with ≥3 shared concrete terms or include the anchor phrase, (2) reuse wording from at least one visibleEvidence line for that criterion, and (3) open on the anchored passage before the imperative move (except Master rows, which begin with "Don’t change a thing." then name what is exemplary **in that anchor**). plan.currentRead must likewise echo the anchor with specific visible detail.
 - If the evidence anchor is "the boat's silhouette against the water", then the move must still name that boat-water edge or a directly adjacent passage inside it. Do not drift to "the horizon", "the background", "the whole harbor", or a generalized focal-area fix.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.

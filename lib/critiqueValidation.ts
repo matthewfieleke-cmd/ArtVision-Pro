@@ -24,9 +24,11 @@ import {
 } from './critiqueTextRules.js';
 import {
   anchorSupportedByEvidenceLine,
+  countEvidenceLineGroundingHits,
   findPrimaryAnchorSupportLine,
   hasVisibleEventLanguage,
   isConcreteAnchor,
+  proseEchoesAnchor,
   sameAdvice,
   sharesConcreteLanguage,
   tracesToPrimarySupportLine,
@@ -1134,17 +1136,25 @@ export function validateVoiceAStageOutput(
 ): VoiceAStageResult {
   const details: string[] = [];
 
-  if (countTraceableCriteria(voiceA.summary, evidence) < 1) {
-    details.push('Voice A summary is not traceable to any evidence anchor.');
+  if (countTraceableCriteria(voiceA.summary, evidence) < 2) {
+    details.push(
+      'Voice A summary must name concrete content tied to at least two different criterion anchors from the evidence (not a single vague read).'
+    );
   }
-  if (countTraceableCriteria(voiceA.overallSummary.analysis, evidence) < 2) {
-    details.push('Voice A overall summary is not grounded in at least two criterion anchors.');
+  if (countTraceableCriteria(voiceA.overallSummary.analysis, evidence) < 3) {
+    details.push(
+      'Voice A overall summary must weave in at least three distinct criterion anchors or their visibleEvidence lines—avoid one generic overview.'
+    );
   }
-  if (countTraceableCriteria(voiceA.studioAnalysis.whatWorks, evidence) < 1) {
-    details.push('Voice A whatWorks paragraph is not grounded in visible evidence.');
+  if (countTraceableCriteria(voiceA.studioAnalysis.whatWorks, evidence) < 2) {
+    details.push(
+      'Voice A whatWorks must reference at least two different anchored passages from the evidence, not one loose compliment.'
+    );
   }
-  if (countTraceableCriteria(voiceA.studioAnalysis.whatCouldImprove, evidence) < 1) {
-    details.push('Voice A whatCouldImprove paragraph is not grounded in visible evidence.');
+  if (countTraceableCriteria(voiceA.studioAnalysis.whatCouldImprove, evidence) < 2) {
+    details.push(
+      'Voice A whatCouldImprove must reference at least two different anchored passages from the evidence, not vague “areas to improve”.'
+    );
   }
 
   for (const category of voiceA.categories) {
@@ -1153,8 +1163,28 @@ export function validateVoiceAStageOutput(
     if (!tracesToVisibleEvidence(category.phase1.visualInventory, criterionEvidence)) {
       details.push(`${criterion}: phase1.visualInventory drifted from the evidence anchor.`);
     }
+    if (!proseEchoesAnchor(category.phase1.visualInventory, criterionEvidence.anchor, 3)) {
+      details.push(
+        `${criterion}: phase1.visualInventory must quote or closely echo this criterion's anchor (≥3 shared concrete terms or the anchor phrase itself).`
+      );
+    }
+    if (countEvidenceLineGroundingHits(category.phase1.visualInventory, criterionEvidence) < 2) {
+      details.push(
+        `${criterion}: phase1.visualInventory must pull detail from at least two different visibleEvidence lines for this criterion.`
+      );
+    }
     if (!tracesToPrimarySupportLine(category.phase2.criticsAnalysis, criterionEvidence)) {
       details.push(`${criterion}: phase2.criticsAnalysis is not traceable to visibleEvidence.`);
+    }
+    if (!proseEchoesAnchor(category.phase2.criticsAnalysis, criterionEvidence.anchor, 3)) {
+      details.push(
+        `${criterion}: phase2.criticsAnalysis must stay locked to this criterion's anchor (≥3 shared concrete terms or the anchor phrase itself).`
+      );
+    }
+    if (countEvidenceLineGroundingHits(category.phase2.criticsAnalysis, criterionEvidence) < 2) {
+      details.push(
+        `${criterion}: phase2.criticsAnalysis must engage at least two different visibleEvidence lines, not a single generic judgment.`
+      );
     }
     if (!category.evidenceSignals.every((signal) => tracesShortEvidenceSignal(signal, criterionEvidence))) {
       details.push(`${criterion}: one or more evidenceSignals are not traceable to visibleEvidence.`);
@@ -1213,11 +1243,31 @@ export function validateVoiceBStageOutput(
     if (!tracesToPrimarySupportLine(category.phase3.teacherNextSteps, criterionEvidence)) {
       details.push(`${criterion}: teacherNextSteps is not traceable to the evidence anchor.`);
     }
-    if (!textTracksAnchorPassage(category.phase3.teacherNextSteps, anchor.areaSummary)) {
-      details.push(`${criterion}: teacherNextSteps drifted away from the anchored passage.`);
+    if (!proseEchoesAnchor(category.phase3.teacherNextSteps, anchor.areaSummary, 3)) {
+      details.push(
+        `${criterion}: teacherNextSteps must name or echo the anchored passage (≥3 shared concrete terms with anchor.areaSummary or the anchor phrase itself).`
+      );
+    }
+    if (countEvidenceLineGroundingHits(category.phase3.teacherNextSteps, criterionEvidence) < 1) {
+      details.push(
+        `${criterion}: teacherNextSteps must reuse vocabulary from at least one visibleEvidence line for this criterion.`
+      );
     }
     if (!tracesToPrimarySupportLine(plan.currentRead, criterionEvidence)) {
       details.push(`${criterion}: plan.currentRead is not traceable to visibleEvidence.`);
+    }
+    if (!proseEchoesAnchor(plan.currentRead, anchor.areaSummary, 3)) {
+      details.push(
+        `${criterion}: plan.currentRead must echo the anchored passage with specific visible detail, not an abstract diagnosis.`
+      );
+    }
+    if (
+      !proseEchoesAnchor(plan.move, anchor.areaSummary, 2) &&
+      !sharesConcreteLanguage(plan.move, plan.currentRead, 2)
+    ) {
+      details.push(
+        `${criterion}: plan.move must stay on the anchored passage (either ≥2 shared terms with anchor.areaSummary or ≥2 shared terms with plan.currentRead).`
+      );
     }
     if (moveSwitchesToDifferentPassage(plan.move, plan.currentRead, anchor.areaSummary)) {
       details.push(`${criterion}: plan.move drifted away from the anchored passage.`);

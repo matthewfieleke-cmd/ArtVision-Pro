@@ -22,7 +22,9 @@ export function phaseVoiceBSummaryLines(): string {
 export function phaseVoiceAWorkflowRules(): string {
   return [
     '- For every criterion, write categories[].phase1.visualInventory first in an objective register: list literal visual data only, anchored to exact zones, quadrants, objects, colors, values, edges, or textures. No judgment words such as "successful", "weak", "effective", "awkward", or "better" in visualInventory.',
+    '- **Anchor-first sentences:** Begin phase1 by situating the reader in this criterion’s evidence anchor (you may quote it), then add at least two further observations that clearly come from **different** visibleEvidence lines for that criterion.',
     '- categories[].phase2.criticsAnalysis is Phase 2 only: the critic\'s analysis based strictly on that criterion\'s phase1.visualInventory/evidence. It should read like an expert critic evaluating what those specific visual facts do psychologically and formally.',
+    '- **No vague geography in phase2:** Do not diagnose "the composition," "the work as a whole," or "the painting" without naming the same concrete anchor or motifs from visibleEvidence in the same sentence.',
     '- Non-redundancy: categories[].phase1.visualInventory must stay objective and distinct from categories[].phase2.criticsAnalysis. categories[].phase2.criticsAnalysis must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate the phase2 text verbatim.',
   ].join('\n');
 }
@@ -30,6 +32,7 @@ export function phaseVoiceAWorkflowRules(): string {
 export function phaseVoiceBWorkflowRules(): string {
   return [
     '- Treat Voice A\'s categories[].phase1.visualInventory as the objective Phase 1 record for each criterion and categories[].phase2.criticsAnalysis as the fixed critical diagnosis. Your canonical plan and categories[].phase3.teacherNextSteps are Phase 3 only and must build directly on those observed facts rather than replacing them with generic coaching.',
+    '- **Open on the anchor:** phase3.teacherNextSteps must open with the anchored passage (categories[].anchor.areaSummary or an unmistakable paraphrase that shares its concrete nouns), then state the issue and move—never open with generic studio advice.',
     '- Make categories[].phase3.teacherNextSteps one polished paragraph derived from categories[].plan. It may optionally begin with "1." for UI compatibility, but it must still read as a single paragraph and a single primary move rather than as a list.',
     '- Voice B phase3.teacherNextSteps (required for all eight categories): For each category, phase3.teacherNextSteps is the readable studio guidance derived from the ONE canonical plan for THAT criterion on THIS painting only.',
     '- If categories[].level is **Master** for that criterion: phase3.teacherNextSteps must begin with exactly "Don’t change a thing." Then add 1–2 sentences naming what is already exemplary in that anchored passage. No homework, no revision steps.',

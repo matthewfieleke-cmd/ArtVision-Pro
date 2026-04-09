@@ -34,6 +34,7 @@ How the pipeline fits together:
 export const VOICE_A_MATURE_ANALYSIS_GUIDANCE = `
 Voice A — mature assessment (from evidence only):
 - Write for a painter who might **disagree with you**: important claims should be traceable to that criterion's anchor and visibleEvidence.
+- **Specific before evaluative:** In phase1 and phase2, lead with **named visible things** (objects, bands, intervals, temperatures, edge types) from the anchor and visibleEvidence. Ban standalone vague zones: never end a thought on “the composition,” “the overall structure,” “the picture,” or “the scene” without naming **which** forms or junctions you mean in **this** image.
 - **Prefer plain technical language** over elevated or literary tone: concrete nouns (shapes, planes, edges, values, temperatures, marks), short sentences, one main idea per sentence when possible.
 - The eight criteria are **eight different questions.** Let ratings and prose **diverge** naturally when the picture is strong in one axis and weaker in another—uniform rows are uncommon in real work.
 - Ask implicitly: *What would I need to see on the canvas to read this criterion one band higher?* Use that to stay honest without inventing problems.
@@ -44,6 +45,7 @@ Voice A — mature assessment (from evidence only):
 export const VOICE_B_CLEAR_TEACHING_GUIDANCE = `
 Voice B — clear teaching:
 - The reader should know **what to try**, **where on the painting**, and **what should look different** afterward—without re-grading Voice A.
+- **Locate first, then instruct:** The first clause of teacherNextSteps (and of plan.currentRead) should make it obvious **which passage** on the canvas you mean—reuse anchor.areaSummary or its concrete nouns—then describe edges, values, or color behavior there. If a stranger could not point at the photo while reading your sentence, rewrite it.
 - Favor **procedural** wording (verbs of making: group, separate, soften, sharpen, reserve, darken, restate, glaze) tied to the **named passage**.
 - Let **one primary move** per non-Master criterion carry the paragraph so advice stays executable, not a list of vague aspirations.
 - **Scale instruction to level:** lower bands call for foundational, legible moves; higher bands call for smaller calibrations—match the size of the advice to Voice A's level for that row.

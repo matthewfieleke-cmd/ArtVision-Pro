@@ -118,19 +118,19 @@ const voiceASubskillSchema = z.object({
 
 const critiquePhase1Schema = z.object({
   visualInventory: z.string().describe(
-    `Phase 1 — objective extraction only for THIS criterion. List the literal visible data first: named motifs, quadrants/regions, colors, shapes, edges, textures, and specific junctions. Ground every sentence in the supplied visibleEvidence and avoid judgment verbs such as "works", "fails", "successful", or "weak". ${VOICE_A_SCHEMA_REMINDER}`
+    `Phase 1 — objective extraction only for THIS criterion. Quote or paraphrase this criterion's anchor, then add detail from at least two different visibleEvidence lines. Name motifs, quadrants, colors, edges, intervals—never vague "the painting" or "the composition" without the anchored passage. No judgment verbs ("works", "fails", "weak"). ${VOICE_A_SCHEMA_REMINDER}`
   ),
 });
 
 const critiquePhase2Schema = z.object({
   criticsAnalysis: z.string().describe(
-    `Phase 2 — Voice A expert critics: 2–4 sentences for THIS criterion only. Analyze how effectively the artist handled this criterion based strictly on the phase1 visual inventory and this criterion's visibleEvidence in the supplied evidence JSON—name motifs, junctions, colors, edges, or intervals. State the rating rationale without repeating the same fact in two sentences. ${VOICE_A_SCHEMA_REMINDER}`
+    `Phase 2 — Voice A: 2–4 sentences tied to THIS criterion's anchor and visibleEvidence. Every sentence should let a reader locate the passage on the photo. No diagnosis of "the work as a whole" without naming concrete forms from the evidence. Rating rationale without repeating the same fact twice. ${VOICE_A_SCHEMA_REMINDER}`
   ),
 });
 
 const critiquePhase3Schema = z.object({
   teacherNextSteps: z.string().describe(
-    `Phase 3 — Voice B expert teachers: exactly ONE polished paragraph for this criterion, derived strictly from actionPlanSteps—no bullet list, no duplicate sentences, no pasted Voice A wording. It may optionally begin with "1." for UI compatibility, but it must still read as one paragraph and one primary move. ${VOICE_B_SCHEMA_REMINDER} Use the exact opener "Don't change a thing." ONLY if level is Master.`
+    `Phase 3 — Voice B: one paragraph, one primary move, anchored on this criterion's passage. Open by naming the anchored area (anchor.areaSummary or same concrete nouns), then teach. No generic "improve the composition" without that location. ${VOICE_B_SCHEMA_REMINDER} Use "Don't change a thing." ONLY if level is Master (then follow with what is exemplary in the anchored passage).`
   ),
 });
 
@@ -175,22 +175,22 @@ export const suggestedTitleSchema = z.object({
 
 export const voiceAStageResultSchema = z.object({
   summary: z.string().describe(
-    'Voice A one-sentence synopsis for THIS painting only. Name at least one recognizable passage from the evidence.'
+    'Voice A one-sentence synopsis: weave in concrete nouns from at least two different criterion anchors or visibleEvidence lines—no generic mood or composition summary alone.'
   ),
   suggestedPaintingTitles: z.array(suggestedTitleSchema).min(3).max(3).describe(
     'Three sketchbook-style titles: formalist, tactile, intent. Modest and specific; rationales in normal speech.'
   ),
   overallSummary: z.object({
     analysis: z.string().describe(
-      'Voice A overall summary for THIS painting only. Mention style and medium lens explicitly.'
+      'Voice A overall summary: mention style and medium, and name multiple specific passages or motifs from the evidence (not one vague overview).'
     ),
   }),
   studioAnalysis: z.object({
     whatWorks: z.string().describe(
-      `Voice A paragraph: specific strengths in THIS painting. ${VOICE_A_SCHEMA_REMINDER}`
+      `Voice A: strengths with named passages from evidence—at least two distinct anchored areas or evidence motifs. ${VOICE_A_SCHEMA_REMINDER}`
     ),
     whatCouldImprove: z.string().describe(
-      `Voice A paragraph: tensions or gaps in THIS painting. ${VOICE_A_SCHEMA_REMINDER}`
+      `Voice A: tensions with named passages—at least two distinct anchored areas; no "some areas" without naming them from evidence. ${VOICE_A_SCHEMA_REMINDER}`
     ),
   }),
   comparisonNote: z.string().nullable(),

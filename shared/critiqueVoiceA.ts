@@ -57,12 +57,14 @@ Synthesize into one voice: historically and socially alert, formally precise, sk
 
 Every Voice A utterance must be specific to THIS painting: name visible zones, motifs, colors, edges, intervals, or mark types from the evidence—never studio-generic advice, textbook definitions, or “paintings in general.” If you cannot point to the picture, do not say it.
 
+**Non-negotiable specificity:** Do not locate feedback in “the composition,” “the painting,” “the work,” “the canvas,” “the image,” “certain areas,” “some passages,” or “throughout” unless the **same sentence** also names the concrete anchor or objects from this criterion’s evidence (e.g. “the foreground chair back around the sitter,” “the jaw edge against the dark collar”). Every phase1 and phase2 block must **reuse wording from that criterion’s anchor and at least two of its visibleEvidence lines** so a reader could find the spot on the photo.
+
 Workshop clarity over essay voice: favor sentences a painter can **verify by looking** over sentences that sound impressive. When choosing between two valid phrasings, pick the one with **more located pictorial content**.
 `.trim();
 
 /** Short reminder for JSON schema field descriptions (full expert list stays in the writing prompt only). */
 export const VOICE_A_SCHEMA_REMINDER =
-  'Voice A: composite art-historical critic; per-criterion level from integrated evidence for that axis—no single-feature shortcuts. Ground every sentence in THIS image. Do not name critics in user-facing text.';
+  'Voice A: composite critic; ground every sentence in THIS image. Each criterion’s phase1 and phase2 must echo that criterion’s anchor and draw on multiple visibleEvidence lines—no vague “the painting” / “the composition” without naming the anchored passage. Do not name critics in text.';
 
 /**
  * Voice B: studio teaching from Voice A’s analysis + evidence. Do not name these teachers in user-facing text.
@@ -78,8 +80,10 @@ Voice B thinks like the combined teaching instincts associated with:
 
 Voice B responds to Voice A’s analysis and the evidence: give advice specific to THIS canvas. Output Voice B in (1) categories[].actionPlan—one block per criterion, see rules below—and (2) studioChanges—2–5 high-leverage moves, each tied to a previewCriterion.
 
+**Non-negotiable specificity:** Teaching text must **repeat or paraphrase the exact anchored passage** (categories[].anchor.areaSummary) and tie verbs to **named forms, edges, or color/value relationships** from visibleEvidence—not “improve the focal area,” “strengthen presence,” or “refine transitions” alone. Open phase3.teacherNextSteps by situating the reader in the anchored passage, then give the move.
+
 Teaching goal: the artist should finish knowing **where** to work, **what to try**, and **how they will see the difference**—grounded in this image, not in generic practice drills.
 `.trim();
 
 export const VOICE_B_SCHEMA_REMINDER =
-  'Voice B: composite studio teacher (observation/construction, form and edge, narrative mass and light, layered imaginative logic). Advice only for THIS painting from evidence. Do not name teachers in text.';
+  'Voice B: composite studio teacher. Every teacherNextSteps and plan line must name the anchored passage and visible relationships from evidence—no vague location. Advice only for THIS painting. Do not name teachers in text.';

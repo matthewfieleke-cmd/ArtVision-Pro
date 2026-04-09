@@ -333,6 +333,28 @@ export function tracesToPrimarySupportLine(
   return sharesConcreteLanguage(text, primarySupport, 2);
 }
 
+/**
+ * True if `prose` includes the anchor verbatim (case-insensitive) or shares at least
+ * `minSharedTokens` grounding tokens with the anchor — forces Voice A/B to stay on the named passage.
+ */
+export function proseEchoesAnchor(
+  prose: string,
+  anchor: string,
+  minSharedTokens: number = 3
+): boolean {
+  const p = normalizeWhitespace(prose);
+  const a = normalizeWhitespace(anchor);
+  if (!p || !a) return false;
+  if (p.toLowerCase().includes(a.toLowerCase())) return true;
+  return sharesConcreteLanguage(p, a, minSharedTokens);
+}
+
+/** Counts visibleEvidence lines that share concrete vocabulary with `prose` (per-criterion grounding depth). */
+export function countEvidenceLineGroundingHits(prose: string, evidence: GroundingEvidence): number {
+  if (!normalizeWhitespace(prose)) return 0;
+  return evidence.visibleEvidence.filter((line) => sharesConcreteLanguage(prose, line, 2)).length;
+}
+
 export function tracesShortEvidenceSignal(
   text: string,
   evidence: GroundingEvidence
