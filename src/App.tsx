@@ -31,6 +31,7 @@ import { fetchCritiqueFromApi } from './critiqueApi';
 import { fetchPreviewEdit } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchClassifyMediumFromApi } from './classifyMediumApi';
+import type { CritiqueStageName } from '../lib/critiqueErrors';
 import type { PreviewEditTarget } from '../lib/previewEditTypes.js';
 import { hydrateVoiceBCanonicalCategory } from '../lib/critiqueVoiceBCanonical.js';
 import {
@@ -115,7 +116,7 @@ function priorityCritiqueCategory(categories: CritiqueCategory[]): CritiqueCateg
   return categories.reduce((a, b) => (safeRank(a) <= safeRank(b) ? a : b));
 }
 
-function critiqueStageLabel(stage: 'evidence' | 'calibration' | 'voice_a' | 'voice_b' | 'final' | undefined): string | null {
+function critiqueStageLabel(stage: CritiqueStageName | undefined): string | null {
   switch (stage) {
     case 'evidence':
       return 'Evidence extraction';
@@ -124,6 +125,7 @@ function critiqueStageLabel(stage: 'evidence' | 'calibration' | 'voice_a' | 'voi
     case 'voice_a':
       return 'Voice A critic analysis';
     case 'voice_b':
+    case 'voice_b_summary':
       return 'Voice B teaching plan';
     case 'final':
       return 'Final quality gate';

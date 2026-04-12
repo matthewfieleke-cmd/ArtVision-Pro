@@ -1,5 +1,6 @@
 import {
   CritiqueGroundingError,
+  type CritiqueDebugInfo,
   type CritiqueDebugPayload,
   type CritiquePipelineErrorPayload,
   type CritiqueStageName,
@@ -105,6 +106,16 @@ function inferKind(message: string, status?: number): CritiqueRequestErrorKind {
     return 'network';
   }
   if (normalized.includes('exhausted retries')) return 'retry_exhausted';
+  if (
+    /\bopenai error 429\b/.test(normalized) ||
+    /\brate limit\b/.test(normalized) ||
+    normalized.includes('too many requests')
+  ) {
+    return 'retry_exhausted';
+  }
+  if (/\bopenai error 5\d\d\b/.test(normalized) || normalized.includes('service unavailable')) {
+    return 'server_config';
+  }
   if (
     normalized.includes('grounding') ||
     normalized.includes('missing evidence') ||
@@ -212,28 +223,108 @@ export function createCritiqueRequestError(
   });
 }
 
+const PIPELINE_ERROR_STAGES: readonly CritiqueStageName[] = [
+  'evidence',
+  'calibration',
+  'voice_a',
+  'voice_b',
+  'voice_b_summary',
+  'final',
+] as const;
+
+function normalizePipelineErrorStage(raw: unknown): CritiqueStageName {
+  if (typeof raw === 'string' && (PIPELINE_ERROR_STAGES as readonly string[]).includes(raw)) {
+    return raw as CritiqueStageName;
+  }
+  return 'final';
+}
+
+function sanitizeCritiqueDebugPayload(raw: unknown): CritiqueDebugPayload | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'object') return undefined;
+  const attemptsUnknown = (raw as { attempts?: unknown }).attempts;
+  if (!Array.isArray(attemptsUnknown)) return undefined;
+
+  const attempts: CritiqueDebugInfo[] = [];
+  for (const item of attemptsUnknown) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const attemptNum = typeof o.attempt === 'number' ? o.attempt : Number(o.attempt);
+    if (!Number.isFinite(attemptNum)) continue;
+    const err = typeof o.error === 'string' ? o.error : '';
+    const details = Array.isArray(o.details)
+      ? o.details.map((d) => (typeof d === 'string' ? d : JSON.stringify(d)))
+      : [];
+    attempts.push({
+      attempt: attemptNum,
+      error: err || 'Unknown error',
+      details,
+      ...(typeof o.repairNotePreview === 'string' ? { repairNotePreview: o.repairNotePreview } : {}),
+      ...(typeof o.rawPreview === 'string' ? { rawPreview: o.rawPreview } : {}),
+      ...(Array.isArray(o.criterionEvidencePreview)
+        ? {
+            criterionEvidencePreview: o.criterionEvidencePreview
+              .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === 'object')
+              .map((p) => ({
+                criterion: typeof p.criterion === 'string' ? p.criterion : '',
+                ...(typeof p.anchor === 'string' ? { anchor: p.anchor } : {}),
+                ...(Array.isArray(p.visibleEvidencePreview)
+                  ? {
+                      visibleEvidencePreview: p.visibleEvidencePreview
+                        .filter((l): l is string => typeof l === 'string')
+                        .slice(0, 8),
+                    }
+                  : {}),
+              })),
+          }
+        : {}),
+    });
+  }
+
+  return attempts.length > 0 ? { attempts } : undefined;
+}
+
+/**
+ * Parses server `/api/critique` error JSON leniently so we still show validation/grounding
+ * messages when `debug` shape drifts or `stage` includes internal ids.
+ */
+export function parseCritiquePipelineErrorPayload(value: unknown): CritiquePipelineErrorPayload | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.error !== 'string' || typeof candidate.errorName !== 'string') {
+    return null;
+  }
+  const detailsRaw = candidate.details;
+  const details = Array.isArray(detailsRaw)
+    ? detailsRaw.map((d) => (typeof d === 'string' ? d : JSON.stringify(d)))
+    : [];
+  const stage = normalizePipelineErrorStage(candidate.stage);
+  const attempts =
+    candidate.attempts === undefined
+      ? undefined
+      : typeof candidate.attempts === 'number'
+        ? candidate.attempts
+        : Number(candidate.attempts);
+  const safeAttempts = Number.isFinite(attempts as number) ? (attempts as number) : undefined;
+  const code =
+    candidate.code === 'UNINTERPRETABLE_IMAGE' ? ('UNINTERPRETABLE_IMAGE' as const) : undefined;
+  const debug = sanitizeCritiqueDebugPayload(candidate.debug);
+
+  return {
+    error: candidate.error,
+    errorName: candidate.errorName,
+    stage,
+    details,
+    ...(safeAttempts !== undefined ? { attempts: safeAttempts } : {}),
+    ...(code ? { code } : {}),
+    ...(debug ? { debug } : {}),
+  };
+}
+
 export function isCritiquePipelineErrorPayload(
   value: unknown
 ): value is CritiquePipelineErrorPayload {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Partial<CritiquePipelineErrorPayload>;
-  return (
-    typeof candidate.error === 'string' &&
-    typeof candidate.errorName === 'string' &&
-    (candidate.stage === 'evidence' ||
-      candidate.stage === 'calibration' ||
-      candidate.stage === 'voice_a' ||
-      candidate.stage === 'voice_b' ||
-      candidate.stage === 'final') &&
-    Array.isArray(candidate.details) &&
-    candidate.details.every((detail) => typeof detail === 'string') &&
-    (candidate.attempts === undefined || typeof candidate.attempts === 'number') &&
-    (candidate.code === undefined || candidate.code === 'UNINTERPRETABLE_IMAGE') &&
-    (candidate.debug === undefined ||
-      (typeof candidate.debug === 'object' &&
-        candidate.debug !== null &&
-        Array.isArray((candidate.debug as { attempts?: unknown }).attempts)))
-  );
+  return parseCritiquePipelineErrorPayload(value) !== null;
 }
 
 export function normalizeCritiqueRequestError(

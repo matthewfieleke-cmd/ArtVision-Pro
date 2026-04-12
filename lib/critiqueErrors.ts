@@ -1,4 +1,11 @@
-export type CritiqueStageName = 'evidence' | 'calibration' | 'voice_a' | 'voice_b' | 'final';
+export type CritiqueStageName =
+  | 'evidence'
+  | 'calibration'
+  | 'voice_a'
+  | 'voice_b'
+  /** Internal sub-step; serialized on some errors — treat like voice_b in clients. */
+  | 'voice_b_summary'
+  | 'final';
 
 export type CritiquePipelineErrorPayload = {
   error: string;

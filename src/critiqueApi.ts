@@ -4,8 +4,8 @@ import { adaptCritiqueResult } from './critiqueResultAdapter';
 import type { CritiquePipelineErrorPayload } from '../lib/critiqueErrors.js';
 import {
   createCritiqueRequestError,
-  isCritiquePipelineErrorPayload,
   normalizeCritiqueRequestError,
+  parseCritiquePipelineErrorPayload,
 } from './critiqueRequestError';
 import { isAbortError } from './analysisKeepAlive';
 
@@ -48,19 +48,18 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
       { error?: string } | CritiquePipelineErrorPayload | CritiqueResult
     >(res);
     if (!res.ok) {
-      if (isCritiquePipelineErrorPayload(data)) {
+      const pipelineError = parseCritiquePipelineErrorPayload(data);
+      if (pipelineError) {
         throw createCritiqueRequestError({
           operation: 'critique',
           status: res.status,
-          technicalMessage: data.error,
-          stage: data.stage,
-          details: data.details,
-          attempts: data.attempts,
-          backendErrorName: data.errorName,
-          pipelineCode: data.code,
-          debug: 'debug' in data && data.debug && typeof data.debug === 'object'
-            ? (data.debug as import('../lib/critiqueErrors.js').CritiqueDebugPayload)
-            : undefined,
+          technicalMessage: pipelineError.error,
+          stage: pipelineError.stage,
+          details: pipelineError.details,
+          attempts: pipelineError.attempts,
+          backendErrorName: pipelineError.errorName,
+          pipelineCode: pipelineError.code,
+          debug: pipelineError.debug,
         });
       }
       throw createCritiqueRequestError({

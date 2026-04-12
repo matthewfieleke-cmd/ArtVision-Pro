@@ -74,6 +74,7 @@ export function stageIdFromErrorStage(stage: CritiqueStageName): CritiquePipelin
     case 'voice_a':
       return 'voice_a';
     case 'voice_b':
+    case 'voice_b_summary':
       return 'voice_b';
     case 'final':
     default:
