@@ -77,7 +77,7 @@ export function PaintingOverlay({ anchor, containerRef }: Props) {
       />
       {coords ? (
         <div
-          className="anchor-stage-spot absolute box-border rounded-2xl border border-white/35 anchor-stage-glow"
+          className="anchor-stage-spot absolute box-border rounded-2xl border-2 border-white/70 anchor-stage-glow"
           style={{
             left: coords.left,
             top: coords.top,

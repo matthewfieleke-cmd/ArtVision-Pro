@@ -52,7 +52,7 @@ export const normalizedRegionSchema = z
       .describe('Height of the box as a fraction of full image height; y + height must not exceed 1.'),
   })
   .describe(
-    'Axis-aligned box in the SAME photo the critique analyzed. It must tightly cover the visible passage described by areaSummary and evidencePointer: include the concrete forms and relationships named there; avoid large unrelated empty areas. If the text names a relationship between two visible masses, span both so their junction lies inside the box.'
+    'Axis-aligned box in the SAME photo the critique analyzed. It must tightly cover the visible passage described by areaSummary and evidencePointer: include the concrete forms and relationships named there; avoid large unrelated empty areas. If the text names a relationship between two visible masses, span both so their junction lies inside the box. Match vertical band to the words: foreground / bridge / path / railing implies the box reaches toward the bottom of the frame; sky-only anchors sit higher. Prefer an elongated box along a named diagonal (bridge, path) rather than a centered square that misses the structure.'
   );
 
 export const anchorSchema = z.object({
