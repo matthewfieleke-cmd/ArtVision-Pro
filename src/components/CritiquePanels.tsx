@@ -1,4 +1,4 @@
-import { memo, useId, useState, type ReactNode } from 'react';
+import { memo, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { PaintingOverlay } from './PaintingOverlay';
@@ -175,6 +175,10 @@ function normalizeLabel(text: string): string {
   return text.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 function hasUsableSubskills(category: CritiqueCategory): boolean {
   if (!category.subskills?.length) return false;
 
@@ -208,6 +212,7 @@ function CategoryCard({
 }: CategoryCardProps) {
   const [open, setOpen] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
+  const anchorFrameRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
   const panelId = useId();
   const hasRating = Boolean(category.level);
@@ -276,7 +281,9 @@ function CategoryCard({
           {paintingImageSrc && category.anchor ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Referenced area</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Stage lighting (approximate region)
+                </p>
                 <button
                   type="button"
                   onClick={() => setShowOverlay((v) => !v)}
@@ -285,10 +292,20 @@ function CategoryCard({
                   {showOverlay ? 'Hide overlay' : 'Show overlay'}
                 </button>
               </div>
+              <div className="mt-1.5 space-y-1">
+                <p className="text-[11px] font-medium leading-snug text-slate-700">{category.anchor.areaSummary}</p>
+                {category.anchor.evidencePointer &&
+                normalizeWhitespace(category.anchor.evidencePointer) !==
+                  normalizeWhitespace(category.anchor.areaSummary) ? (
+                  <p className="line-clamp-2 text-[10px] leading-snug text-slate-500">
+                    {category.anchor.evidencePointer}
+                  </p>
+                ) : null}
+              </div>
               <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div className="relative">
+                <div ref={anchorFrameRef} className="relative">
                   <img src={paintingImageSrc} alt="" className="w-full object-contain bg-slate-100" />
-                  {showOverlay ? <PaintingOverlay anchor={category.anchor} /> : null}
+                  {showOverlay ? <PaintingOverlay anchor={category.anchor} containerRef={anchorFrameRef} /> : null}
                 </div>
               </div>
             </div>
