@@ -40,6 +40,7 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
    - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
    - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY` (optional prose-polish pass; defaults to `gpt-4o-mini`).
    - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; same anchors/levels/plans; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
+   - Optional: set `OPENAI_SKIP_ANCHOR_REGION_REFINE=true` to skip the extra vision pass that realigns stage-lighting boxes to the photograph (uses the validation-stage model; adds one chat completion with the image per critique).
 
 3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
 

@@ -17,6 +17,7 @@ import {
   validateEvidenceResult,
   synthesizeEvidenceFromObservationBankValidated,
 } from './critiqueValidation.js';
+import { refineCritiqueAnchorRegionsFromImage } from './critiqueAnchorRegionRefine.js';
 import { runCritiqueWritingStage } from './critiqueWritingStage.js';
 import {
   parseObservationBankLenient,
@@ -926,6 +927,15 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   };
 
   guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
+
+  guarded = await instrumenter.time('anchor_region_refine', () =>
+    refineCritiqueAnchorRegionsFromImage({
+      apiKey,
+      model: stageModels.validation,
+      imageDataUrl: body.imageDataUrl,
+      critique: guarded,
+    })
+  );
 
   if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
     guarded = await instrumenter.time('clarity', () =>

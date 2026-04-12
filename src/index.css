@@ -101,7 +101,7 @@
   }
 
   .anchor-stage-glow {
-    animation: anchor-stage-glow-pulse 2.8s ease-in-out infinite;
+    animation: anchor-stage-glow-pulse 1.75s ease-in-out infinite;
   }
 }
 
