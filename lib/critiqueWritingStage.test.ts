@@ -199,6 +199,26 @@ describe('repairVoiceAStageGrounding', () => {
       'wall hatching beside the smoother shirt'
     );
   });
+
+  it('repairs phase1 when it traces visibleEvidence but fails strict anchor echo', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const voiceA = makeVoiceAStageFixture();
+    voiceA.categories[6] = {
+      ...voiceA.categories[6]!,
+      phase1: {
+        visualInventory:
+          'The floor marks below vary direction more than the patterned wall area does, while the torso fabric stays smoother.',
+      },
+    };
+
+    const repaired = repairVoiceAStageGrounding(voiceA, evidence);
+
+    expect(repaired.salvagedCriteria.length).toBeGreaterThan(0);
+    expect(() => validateVoiceAStageOutput(repaired.voiceA, evidence)).not.toThrow();
+    expect(repaired.voiceA.categories[6]?.phase1.visualInventory).toContain(
+      'the wall hatching beside the smoother shirt'
+    );
+  });
 });
 
 describe('synthesizeVoiceAStageFromEvidence', () => {

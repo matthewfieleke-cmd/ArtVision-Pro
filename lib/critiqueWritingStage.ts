@@ -41,7 +41,9 @@ import {
   validateVoiceBStageOutput,
 } from './critiqueValidation.js';
 import {
+  countEvidenceLineGroundingHits,
   findPrimaryAnchorSupportLine,
+  proseEchoesAnchor,
   sharesConcreteLanguage,
   tracesShortEvidenceSignal,
   tracesToPrimarySupportLine,
@@ -116,6 +118,46 @@ function sentence(text: string): string {
   const normalized = normalizeWhitespace(text).replace(/\.+$/, '');
   if (!normalized) return '';
   return `${normalized}.`;
+}
+
+/**
+ * Validator requires prose to echo the evidence-stage anchor (substring or ≥N shared tokens).
+ * Model output can trace visibleEvidence yet still fail echo; prefixing the anchor guarantees pass.
+ */
+function ensureProseEchoesEvidenceAnchor(
+  prose: string,
+  entry: CritiqueEvidenceDTO['criterionEvidence'][number],
+  minSharedTokens: 2 | 3 = 3
+): string {
+  const anchor = normalizeWhitespace(entry.anchor).trim();
+  const body = normalizeWhitespace(prose).replace(/[.!?]+$/, '').trim();
+  if (!anchor) {
+    return body ? (body.endsWith('.') ? body : `${body}.`) : '';
+  }
+  if (body && proseEchoesAnchor(body, anchor, minSharedTokens)) {
+    return body.endsWith('.') ? body : `${body}.`;
+  }
+  const fused = body ? `${anchor}: ${body}` : `${anchor}.`;
+  const normalized = normalizeWhitespace(fused).trim();
+  return normalized.endsWith('.') ? normalized : `${normalized}.`;
+}
+
+function ensureProseEchoesAreaSummary(
+  prose: string,
+  areaSummary: string,
+  minSharedTokens: 2 | 3 = 3
+): string {
+  const anchor = normalizeWhitespace(areaSummary).trim();
+  const body = normalizeWhitespace(prose).replace(/[.!?]+$/, '').trim();
+  if (!anchor) {
+    return body ? (body.endsWith('.') ? body : `${body}.`) : '';
+  }
+  if (body && proseEchoesAnchor(body, anchor, minSharedTokens)) {
+    return body.endsWith('.') ? body : `${body}.`;
+  }
+  const fused = body ? `${anchor}: ${body}` : `${anchor}.`;
+  const normalized = normalizeWhitespace(fused).trim();
+  return normalized.endsWith('.') ? normalized : `${normalized}.`;
 }
 
 function buildVoiceAVisualInventory(entry: CritiqueEvidenceDTO['criterionEvidence'][number]): string {
@@ -395,14 +437,16 @@ export function synthesizeVoiceAStageFromEvidence(
 ): VoiceAStageRunResult {
   const categories: VoiceAStageResult['categories'] = evidence.criterionEvidence.map((entry) => {
     const level = synthesizedVoiceALevel(entry, evidence);
+    const visualInventory = ensureProseEchoesEvidenceAnchor(buildVoiceAVisualInventory(entry), entry);
+    const criticsAnalysis = ensureProseEchoesEvidenceAnchor(buildVoiceACriticsAnalysis(entry), entry);
     return {
       criterion: entry.criterion,
       level,
       phase1: {
-        visualInventory: buildVoiceAVisualInventory(entry),
+        visualInventory,
       },
       phase2: {
-        criticsAnalysis: buildVoiceACriticsAnalysis(entry),
+        criticsAnalysis,
       },
       confidence: entry.confidence,
       evidenceSignals: buildVoiceAEvidenceSignals(entry),
@@ -456,11 +500,35 @@ export function repairVoiceAStageGrounding(
       reasons.push('repaired phase2 analysis from anchored evidence');
     }
     if (
+      !proseEchoesAnchor(visualInventory, entry.anchor, 3) ||
+      countEvidenceLineGroundingHits(visualInventory, entry) < 2
+    ) {
+      visualInventory = buildVoiceAVisualInventory(entry);
+      reasons.push('repaired phase1 for anchor echo or multi-line evidence grounding');
+    }
+    visualInventory = ensureProseEchoesEvidenceAnchor(visualInventory, entry);
+    if (
+      !proseEchoesAnchor(criticsAnalysis, entry.anchor, 3) ||
+      countEvidenceLineGroundingHits(criticsAnalysis, entry) < 2
+    ) {
+      criticsAnalysis = buildVoiceACriticsAnalysis(entry);
+      reasons.push('repaired phase2 for anchor echo or multi-line evidence grounding');
+    }
+    criticsAnalysis = ensureProseEchoesEvidenceAnchor(criticsAnalysis, entry);
+    if (
       !evidenceSignals.every((signal) => tracesShortEvidenceSignal(signal, entry)) ||
       evidenceSignals.some((signal) => normalizeWhitespace(signal).length < 12)
     ) {
       evidenceSignals = buildVoiceAEvidenceSignals(entry);
       reasons.push('repaired evidenceSignals from visible evidence');
+    }
+
+    if (
+      reasons.length === 0 &&
+      (normalizeWhitespace(visualInventory) !== normalizeWhitespace(category.phase1.visualInventory) ||
+        normalizeWhitespace(criticsAnalysis) !== normalizeWhitespace(category.phase2.criticsAnalysis))
+    ) {
+      reasons.push('normalized phase1/phase2 anchor echo for strict grounding validation');
     }
 
     if (reasons.length > 0) {
@@ -1273,10 +1341,20 @@ function normalizeVoiceBCategoryGrounding(
   level?: VoiceBCategoryLike['level']
 ): VoiceBCategoryResult {
   const anchorArea = category.anchor.areaSummary;
-  const groundedCurrentRead = groundedVoiceBCurrentRead(category, criterionEvidence);
+  const groundedCurrentReadRaw = groundedVoiceBCurrentRead(category, criterionEvidence);
   const groundedEvidencePointer = groundedAnchorEvidencePointer(category, criterionEvidence);
-  const groundedMove = groundedVoiceBMove(category, groundedCurrentRead, level);
-  const teacherNextSteps = groundedTeacherNextSteps(category, criterionEvidence, groundedCurrentRead, groundedMove);
+  const groundedMoveRaw = groundedVoiceBMove(category, groundedCurrentReadRaw, level);
+  const currentRead = ensureProseEchoesAreaSummary(groundedCurrentReadRaw, anchorArea, 3);
+  const move = ensureProseEchoesAreaSummary(groundedMoveRaw, anchorArea, 2);
+  const categoryForTeacher = {
+    ...category,
+    plan: { ...category.plan, currentRead, move },
+  };
+  const teacherNextSteps = ensureProseEchoesAreaSummary(
+    groundedTeacherNextSteps(categoryForTeacher, criterionEvidence, currentRead, move),
+    anchorArea,
+    3
+  );
   const normalizedCategory: VoiceBCategoryResult = {
     ...category,
     anchor: {
@@ -1289,8 +1367,8 @@ function normalizeVoiceBCategoryGrounding(
     },
     plan: {
       ...category.plan,
-      currentRead: groundedCurrentRead,
-      move: groundedMove,
+      currentRead,
+      move,
     },
   };
   const legacyCategory = deriveLegacyVoiceBFields(normalizedCategory);
@@ -1306,15 +1384,15 @@ function normalizeVoiceBCategoryGrounding(
     voiceBPlan: legacyCategory.voiceBPlan
       ? {
           ...legacyCategory.voiceBPlan,
-          currentRead: groundedCurrentRead,
+          currentRead,
         }
       : undefined,
     actionPlanSteps: legacyCategory.actionPlanSteps?.map((step, index) =>
-      index === 0 ? { ...step, area: anchorArea, currentRead: groundedCurrentRead } : step
+      index === 0 ? { ...step, area: anchorArea, currentRead } : step
     ),
     plan: {
       ...legacyCategory.plan,
-      currentRead: groundedCurrentRead,
+      currentRead,
     },
   };
 }
