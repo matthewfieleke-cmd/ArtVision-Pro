@@ -40,7 +40,10 @@ Rules:
 - Look at the **actual photograph**. Each box must **contain the visible motifs** described in that row's text—not empty sky, random background, or a different object.
 - **Tight fit**: most pixels inside each box should belong to that passage. Prefer slightly too tight over swallowing unrelated areas.
 - **Vertical cues**: "foreground", "tables", "figures seated", "umbrellas", "path", "stairs", "bridge", "railing", "near the bottom" → box must extend **toward the bottom** of the frame (larger y + height). "Sky", "upper canopy only", "distant treetops" → box sits **higher**.
-- **Named colors/objects**: if the text names "yellow umbrellas", "red figure", "arched windows", the box must include **those** visible elements.
+- **Horizontal boundaries / junctions** (phrases like *where X meets Y*, *X meeting Y*, *horizon*, *shoreline*, *waterline*, *edge of the sea*, *sea and sky*): the box must **straddle that boundary**. Include pixels **on both sides** of the line (e.g. both water and sky) so the **actual dividing line** lies **inside** the rectangle. Do **not** place the box entirely in the sky when the text names the sea, the horizon, or both sides of a color break at the horizon—**center the band vertically on that line** and use enough height (often ~0.06–0.18 of image height) to capture the transition.
+- **Small scattered motifs** (flocks, distant birds, boats, figures, buoys, posts): find **every** instance that matches the description in the relevant band of the image; the box must be the **smallest axis-aligned rectangle that contains all of them**. A box that only covers empty sky while the described marks sit **outside** it is wrong. If marks sit in a cluster, center on the cluster, not on an unrelated patch of sky.
+- **Contrast pairs** (*A against B*, *A on B*): include **both** A and the adjacent B so the relationship is visible—often extend the box to span from the objects through the background they contrast with.
+- **Named colors/objects**: if the text names specific colors or objects, the box must include **those** visible elements.
 - **Groups of people**: if the text names multiple figures at a table, include **all** of them in one box.
 - **Diagonal structures** (bridge, path): use an **elongated** box along the structure, not a small centered square that misses it.
 - If a passage is ambiguous, choose the **most literal** reading that matches the nouns in the anchor text.
@@ -72,7 +75,7 @@ async function callVisionRefineRegions(
       },
       body: JSON.stringify({
         model,
-        temperature: 0.1,
+        temperature: 0.05,
         max_tokens: 1600,
         response_format: {
           type: 'json_schema',
