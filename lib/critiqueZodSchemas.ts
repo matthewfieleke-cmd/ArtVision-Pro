@@ -28,12 +28,32 @@ const studioVerbPattern =
 // Shared sub-objects
 // ---------------------------------------------------------------------------
 
-export const normalizedRegionSchema = z.object({
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().gt(0).max(1),
-  height: z.number().gt(0).max(1),
-});
+export const normalizedRegionSchema = z
+  .object({
+    x: z
+      .number()
+      .min(0)
+      .max(1)
+      .describe('Left edge of the bounding box in normalized image coordinates (0 = left, 1 = right).'),
+    y: z
+      .number()
+      .min(0)
+      .max(1)
+      .describe('Top edge of the bounding box in normalized image coordinates (0 = top, 1 = bottom).'),
+    width: z
+      .number()
+      .gt(0)
+      .max(1)
+      .describe('Width of the box as a fraction of full image width; x + width must not exceed 1.'),
+    height: z
+      .number()
+      .gt(0)
+      .max(1)
+      .describe('Height of the box as a fraction of full image height; y + height must not exceed 1.'),
+  })
+  .describe(
+    'Axis-aligned box in the SAME photo the critique analyzed. It must tightly cover the visible passage described by areaSummary and evidencePointer: include the concrete forms and relationships named there; avoid large unrelated empty areas. If the text names a relationship between two visible masses, span both so their junction lies inside the box.'
+  );
 
 export const anchorSchema = z.object({
   areaSummary: z.string().min(8).describe(
