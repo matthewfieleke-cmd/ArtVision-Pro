@@ -150,7 +150,7 @@ const critiquePhase2Schema = z.object({
 
 const critiquePhase3Schema = z.object({
   teacherNextSteps: z.string().describe(
-    `Phase 3 — Voice B: one paragraph, one primary move, anchored on this criterion's passage. Open by naming the anchored area (anchor.areaSummary or same concrete nouns), then teach. No generic "improve the composition" without that location. ${VOICE_B_SCHEMA_REMINDER} Use "Don't change a thing." ONLY if level is Master (then follow with what is exemplary in the anchored passage).`
+    `Phase 3 — Voice B: 2–3 short sentences, one primary move, plain studio English. Name the passage once (do not paste anchor.areaSummary as a title then repeat it). Lead with one concrete visible read, then an imperative move, then a brief outcome; avoid repeating the same mood words in lead and outcome. After "In [passage], " use lowercase for the next word unless a proper noun. ${VOICE_B_SCHEMA_REMINDER} Use "Don't change a thing." ONLY if level is Master (then follow with what is exemplary in the anchored passage).`
   ),
 });
 

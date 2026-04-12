@@ -11,6 +11,62 @@ function sentenceCase(text: string): string {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+/** After "In ", the following phrase should not look like a sentence break mid-line (use lowercase). */
+function lowerFirst(text: string): string {
+  const cleaned = cleanClause(text);
+  if (!cleaned) return '';
+  return cleaned.charAt(0).toLowerCase() + cleaned.slice(1);
+}
+
+/**
+ * When plan.currentRead (or issue) accidentally repeats anchor.areaSummary as a stacked title
+ * before the real read ("The purple wash across the foreground The wash transitions…"),
+ * drop the duplicate. Do not strip when the anchor phrase is the grammatical subject of one
+ * sentence ("the jaw edge … is no crisper…").
+ */
+function stripRedundantAnchorPrefix(text: string, area: string): string {
+  const cleaned = cleanClause(text);
+  const a = cleanClause(area);
+  if (!cleaned || !a) return cleaned;
+  const tLow = cleaned.toLowerCase();
+  const aLow = a.toLowerCase();
+  if (!tLow.startsWith(aLow)) return cleaned;
+  let rest = cleaned.slice(a.length).trim();
+  rest = rest.replace(/^[,;]\s*/, '');
+  if (rest.length < 6) return cleaned;
+  // Same sentence: "[anchor] is/reads/stays …" — keep full text.
+  if (/^(is|are|was|were|reads|stays|has|have|shows|creates|cuts|meets|sits|lies|runs|feels)\b/i.test(rest)) {
+    return cleaned;
+  }
+  // Second clause still largely repeats the anchor tokens (title pasted twice).
+  if (passageAlreadyReferenced(rest, area)) {
+    return cleaned;
+  }
+  return rest;
+}
+
+/** "[full anchor] The wash …" → drop repeated "The <noun>" when that noun already appears in the anchor. */
+function stripStackedTitleEcho(text: string, area: string): string {
+  const cleaned = cleanClause(text);
+  const a = cleanClause(area);
+  if (!cleaned || !a || cleaned.length <= a.length + 4) return cleaned;
+  if (!cleaned.toLowerCase().startsWith(a.toLowerCase())) return cleaned;
+  let rest = cleaned.slice(a.length).trim();
+  rest = rest.replace(/^[,;]\s*/, '');
+  const m = rest.match(/^the\s+([a-z]{3,})\b/i);
+  if (!m) return cleaned;
+  const noun = m[1]!.toLowerCase();
+  if (!new RegExp(`\\b${noun.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(a)) {
+    return cleaned;
+  }
+  rest = rest.replace(/^the\s+[a-z]{3,}\b\s*/i, '').trim();
+  return rest.length >= 8 ? rest : cleaned;
+}
+
+function sanitizeAnchoredLead(text: string, area: string): string {
+  return stripStackedTitleEcho(stripRedundantAnchorPrefix(text, area), area);
+}
+
 function comparable(text: string): string {
   return cleanClause(text).toLowerCase();
 }
@@ -138,6 +194,13 @@ function shouldAppendOutcomeAfterMove(move: string, expectedRead: string): boole
   return true;
 }
 
+function leadOverlapsExpectedRead(lead: string, expectedRead: string): boolean {
+  const l = comparable(lead);
+  const e = comparable(expectedRead);
+  if (!l || !e) return false;
+  return tokenOverlapRatio(l, e) >= 0.32;
+}
+
 export function renderStructuredVoiceBStep(args: {
   area: string;
   issue: string;
@@ -146,19 +209,20 @@ export function renderStructuredVoiceBStep(args: {
   index?: number;
 }): string {
   const area = cleanClause(args.area);
-  const issue = cleanClause(args.issue);
+  const issue = sanitizeAnchoredLead(cleanClause(args.issue), area);
   const move = cleanClause(args.move);
   const outcome = cleanClause(args.outcome);
   const prefix = typeof args.index === 'number' ? `${args.index + 1}. ` : '';
 
   const lead = passageAlreadyReferenced(issue, area)
     ? sentenceCase(issue)
-    : `In ${area}, ${issue}`;
+    : `In ${lowerFirst(area)}, ${lowerFirst(issue)}`;
 
   const moveSent = sentenceCase(move);
-  const tail = shouldAppendOutcomeAfterMove(move, outcome)
-    ? ` so ${cleanClause(outcome)}.`
-    : '.';
+  const tail =
+    shouldAppendOutcomeAfterMove(move, outcome) && !leadOverlapsExpectedRead(lead, outcome)
+      ? ` so ${cleanClause(outcome)}.`
+      : '.';
   return `${prefix}${lead}. ${moveSent}${tail}`;
 }
 
@@ -169,17 +233,18 @@ export function renderGroundedTeacherNextSteps(args: {
   expectedRead: string;
 }): string {
   const area = cleanClause(args.area);
-  const currentRead = cleanClause(args.currentRead);
+  const currentRead = sanitizeAnchoredLead(cleanClause(args.currentRead), area);
   const move = cleanClause(args.move);
   const expectedRead = cleanClause(args.expectedRead);
 
   const lead = passageAlreadyReferenced(currentRead, area)
     ? sentenceCase(currentRead)
-    : `In ${area}, ${currentRead}`;
+    : `In ${lowerFirst(area)}, ${lowerFirst(currentRead)}`;
 
   const moveSent = sentenceCase(move);
-  const tail = shouldAppendOutcomeAfterMove(move, expectedRead)
-    ? ` so ${cleanClause(expectedRead)}.`
-    : '.';
+  const tail =
+    shouldAppendOutcomeAfterMove(move, expectedRead) && !leadOverlapsExpectedRead(lead, expectedRead)
+      ? ` so ${cleanClause(expectedRead)}.`
+      : '.';
   return `${lead}. ${moveSent}${tail}`;
 }

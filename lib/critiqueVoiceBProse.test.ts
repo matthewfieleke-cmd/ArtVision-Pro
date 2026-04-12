@@ -35,6 +35,20 @@ describe('renderStructuredVoiceBStep', () => {
 });
 
 describe('renderGroundedTeacherNextSteps', () => {
+  it('removes a stacked "The <noun>" echo after a sentence-style anchor title', () => {
+    const rendered = renderGroundedTeacherNextSteps({
+      area: 'The purple wash across the foreground',
+      currentRead:
+        'The purple wash across the foreground The wash transitions smoothly into the lighter path, creating a gradient effect',
+      move: 'quiet the heaviest purple accents along the path edge so the path reads first',
+      expectedRead: 'the path stays the clearer lead while the wash still feels moody',
+    });
+
+    expect(rendered).toContain('transitions smoothly');
+    expect(rendered).not.toMatch(/foreground The wash/i);
+    expect(rendered.startsWith('In the purple wash across the foreground,')).toBe(true);
+  });
+
   it('avoids the repeated "In area, area..." phrasing when the current read already starts with the anchor', () => {
     const rendered = renderGroundedTeacherNextSteps({
       area: 'the branch edge against the pale sky',
