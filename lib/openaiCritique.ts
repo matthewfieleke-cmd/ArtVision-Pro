@@ -259,6 +259,34 @@ function logGroundingGateFailure(critique: CritiqueResultDTO): void {
   });
 }
 
+export function createObservationRetryExhaustedError(
+  error: unknown,
+  attemptDebug: CritiqueDebugInfo[]
+): CritiqueRetryExhaustedError {
+  return new CritiqueRetryExhaustedError('Observation stage exhausted retries.', MAX_OBSERVATION_ATTEMPTS, {
+    stage: 'evidence',
+    details: errorDetails(error),
+    cause: error,
+    ...(attemptDebug.length > 0 ? { debug: { attempts: attemptDebug } } : {}),
+  });
+}
+
+export async function runBestEffortCritiqueStage<T>(
+  stageLabel: string,
+  run: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    console.warn(`[critique ${stageLabel} warning]`, {
+      error: errorMessage(error),
+      details: errorDetails(error),
+    });
+    return fallback;
+  }
+}
+
 function buildEvidenceAttemptDebugInfo(args: {
   attempt: number;
   error: unknown;
@@ -464,7 +492,7 @@ async function runCritiqueObservationBankWithRetries(
       attemptDebug.push(debug);
       logEvidenceAttemptFailure({ attempt, repairNote }, error);
       if (attempt === MAX_OBSERVATION_ATTEMPTS) {
-        throw error;
+        throw createObservationRetryExhaustedError(error, attemptDebug);
       }
       repairNote = buildObservationRepairNote(error);
     }
@@ -928,18 +956,31 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
 
-  guarded = await instrumenter.time('anchor_region_refine', () =>
-    refineCritiqueAnchorRegionsFromImage({
-      apiKey,
-      model: stageModels.validation,
-      imageDataUrl: body.imageDataUrl,
-      critique: guarded,
-    })
-  );
+  {
+    const critiqueBeforeAnchorRefine = guarded;
+    guarded = await instrumenter.time('anchor_region_refine', () =>
+      runBestEffortCritiqueStage(
+        'anchor_region_refine',
+        () =>
+          refineCritiqueAnchorRegionsFromImage({
+            apiKey,
+            model: stageModels.validation,
+            imageDataUrl: body.imageDataUrl,
+            critique: critiqueBeforeAnchorRefine,
+          }),
+        critiqueBeforeAnchorRefine
+      )
+    );
+  }
 
   if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
+    const critiqueBeforeClarity = guarded;
     guarded = await instrumenter.time('clarity', () =>
-      runClarityPass(apiKey, stageModels.clarity, guarded)
+      runBestEffortCritiqueStage(
+        'clarity',
+        () => runClarityPass(apiKey, stageModels.clarity, critiqueBeforeClarity),
+        critiqueBeforeClarity
+      )
     );
   }
 

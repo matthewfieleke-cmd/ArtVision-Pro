@@ -24,6 +24,7 @@
     "critique:signals": "tsx scripts/run-critique-helpfulness-signals.ts",
     "prebuild": "node scripts/fetch-art-images.mjs && node scripts/generate-pwa-icons.mjs",
     "build": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
+    "build:ci": "tsc -b && tsc -p tsconfig.server.json --noEmit && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { CritiqueValidationError } from './critiqueErrors.js';
-import { buildEvidenceRepairNote, parseObservationStageResult } from './openaiCritique.js';
+import { CritiqueRetryExhaustedError, CritiqueValidationError } from './critiqueErrors.js';
+import {
+  buildEvidenceRepairNote,
+  createObservationRetryExhaustedError,
+  parseObservationStageResult,
+  runBestEffortCritiqueStage,
+} from './openaiCritique.js';
 
 describe('buildEvidenceRepairNote', () => {
   it('includes failing criterion evidence preview when generic evidence needs rewriting', () => {
@@ -401,6 +406,45 @@ describe('buildEvidenceRepairNote', () => {
 
     expect(note).toContain('do NOT reuse a composition anchor unless the evidence explicitly shows why that same passage carries the intent');
     expect(note).toContain('If the line only proves structure, it is still wrong for Intent or Presence.');
+  });
+});
+
+describe('createObservationRetryExhaustedError', () => {
+  it('wraps observation failures in a structured retry-exhausted pipeline error', () => {
+    const attempts = [
+      {
+        attempt: 1,
+        error: 'fetch failed',
+        details: ['network timeout'],
+      },
+      {
+        attempt: 2,
+        error: 'OpenAI error 503',
+        details: ['service unavailable'],
+      },
+    ];
+
+    const error = createObservationRetryExhaustedError(new Error('OpenAI error 503'), attempts);
+
+    expect(error).toBeInstanceOf(CritiqueRetryExhaustedError);
+    expect(error.stage).toBe('evidence');
+    expect(error.attempts).toBe(3);
+    expect(error.details).toEqual(['OpenAI error 503']);
+    expect(error.debug).toEqual({ attempts });
+  });
+});
+
+describe('runBestEffortCritiqueStage', () => {
+  it('returns the fallback value when an optional enhancement fails', async () => {
+    await expect(
+      runBestEffortCritiqueStage(
+        'clarity',
+        async () => {
+          throw new Error('OpenAI error 502');
+        },
+        'fallback critique'
+      )
+    ).resolves.toBe('fallback critique');
   });
 });
 

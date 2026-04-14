@@ -20,8 +20,8 @@ const REFINE_REGIONS_SCHEMA = toOpenAIJsonSchema(
 );
 
 function clampRegion(r: z.infer<typeof normalizedRegionSchema>): z.infer<typeof normalizedRegionSchema> {
-  let x = Math.min(1, Math.max(0, r.x));
-  let y = Math.min(1, Math.max(0, r.y));
+  const x = Math.min(1, Math.max(0, r.x));
+  const y = Math.min(1, Math.max(0, r.y));
   let width = Math.min(1, Math.max(0.02, r.width));
   let height = Math.min(1, Math.max(0.02, r.height));
   if (x + width > 1) width = Math.max(0.02, 1 - x);

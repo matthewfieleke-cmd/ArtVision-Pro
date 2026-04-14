@@ -752,7 +752,7 @@ function testCritiqueGuardrails(): void {
   assert.ok(guardedColorCategory);
   assert.match(
     guardedColorCategory!.phase3.teacherNextSteps,
-    /Smooth transitions between colors in the background to enhance harmony|Keep the lively atmosphere intact/
+    /Smooth transitions between colors in the background to enhance harmony|Keep the lively atmosphere intact|Soften abrupt color transitions in the background so the color relationship holds together without flattening/
   );
   assert.doesNotMatch(
     guardedColorCategory!.phase3.teacherNextSteps,
@@ -913,19 +913,28 @@ function testWritingPromptDemandsConcreteAnchors(): void {
     /Bad: "left side of the painting", "color transitions in clothing and background", "circular arrangement of figures around the table"\./
   );
   assert.match(prompt, /Better: "the leftmost seated woman’s face against the dark hedge"/);
-  assert.match(prompt, /Bad: "needs more depth", "some shadow areas could be more defined", "improve realism"\./);
   assert.match(
     prompt,
-    /Better: "the shadow behind the left cheek merges too evenly into the jacket so the head loses separation"\./
+    /\*\*Non-negotiable specificity:\*\* Teaching text must \*\*repeat or paraphrase the exact anchored passage\*\*/
+  );
+  assert.match(
+    prompt,
+    /Do not use abstract placeholders such as "certain edges", "small details", "the story", "color transitions", "focal area", "more realism", or "more depth"/
   );
   assert.match(prompt, /Voice B planning structure \(required for all eight categories\):/);
-  assert.match(prompt, /categories\[\]\.voiceBPlan is Voice B's teacher note to self/);
-  assert.match(prompt, /categories\[\]\.actionPlanSteps must contain exactly 1 high-leverage step/);
+  assert.match(prompt, /Voice B planning structure \(required for all eight categories\): First create categories\[\]\.plan/);
   assert.match(
     prompt,
-    /Make categories\[\]\.phase3\.teacherNextSteps one polished paragraph derived from categories\[\]\.actionPlanSteps/
+    /categories\[\]\.plan\.move must begin with a concrete studio verb/
   );
-  assert.match(prompt, /one paragraph and one primary move only/);
+  assert.match(
+    prompt,
+    /Make categories\[\]\.phase3\.teacherNextSteps one polished paragraph derived from categories\[\]\.plan/
+  );
+  assert.match(
+    prompt,
+    /single paragraph and a single primary move rather than as a list/
+  );
 }
 
 function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
@@ -940,11 +949,11 @@ function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
   );
   assert.match(
     prompt,
-    /Bad anchors: "brushwork", "paint handling", "surface quality", "the paint surface"\./
+    /anchor for Surface and medium handling is still a physical passage, not a material label\. Name where the mark behavior is happening: a hatch field against a smoother passage, a loaded edge against a dry drag, a scumble over a darker underlayer\./
   );
   assert.match(
     prompt,
-    /Better anchors: "the wall hatching where it meets the smoother shirt passage", "the dry scumble across the cheek turning into the green shadow under the eye", "the loaded highlight stroke on the vase rim against the dark table\."/
+    /The anchor must STILL name one locatable mark-bearing passage or boundary in the painting, not a medium label\./
   );
   assert.match(
     prompt,
