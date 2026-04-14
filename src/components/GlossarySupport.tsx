@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { GlossaryEntry, GlossarySection } from '../glossaryData';
 import { findGlossaryEntriesForText, GLOSSARY_SECTION_ORDER, searchGlossaryEntries } from '../glossaryData';
 
@@ -156,33 +156,84 @@ function InlineDefinition({
   open: boolean;
   onToggle: () => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
   return (
-    <span className="inline-block align-baseline">
+    <span className="relative inline">
       <button
+        ref={triggerRef}
         type="button"
         onClick={onToggle}
-        className="rounded-sm bg-violet-50/70 px-0.5 text-[0.98em] font-medium text-violet-700 transition hover:bg-violet-100/80"
+        className="inline cursor-pointer bg-transparent p-0 font-inherit leading-inherit tracking-inherit text-violet-700 transition-opacity hover:opacity-80"
         aria-expanded={open}
       >
         {matchedText}
       </button>
-      <span
-        className={`block overflow-hidden transition-all duration-200 ease-out ${
-          open ? 'mt-2 max-h-40 opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={onToggle}
-          className={`block w-full rounded-xl border border-violet-200/80 bg-violet-50/70 px-3 py-2 text-left text-xs leading-relaxed text-slate-700 shadow-sm transition-opacity duration-200 ${
-            open ? 'animate-fade-in' : ''
-          }`}
-          aria-label={`Hide definition for ${entry.term}`}
-        >
-          {entry.definition}
-        </button>
-      </span>
+      {open ? (
+        <FloatingDefinition
+          entry={entry}
+          anchorRef={triggerRef}
+          onToggle={onToggle}
+        />
+      ) : null}
     </span>
+  );
+}
+
+function FloatingDefinition({
+  entry,
+  anchorRef,
+  onToggle,
+}: {
+  entry: GlossaryEntry;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onToggle: () => void;
+}) {
+  const [style, setStyle] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+
+    const update = () => {
+      const rect = anchor.getBoundingClientRect();
+      const width = Math.min(280, Math.max(180, rect.width + 120));
+      const left = Math.min(
+        Math.max(12, rect.left + rect.width / 2 - width / 2),
+        window.innerWidth - width - 12
+      );
+      setStyle({
+        top: rect.bottom + 8,
+        left,
+        width,
+      });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [anchorRef]);
+
+  return (
+    style ? (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={`Hide definition for ${entry.term}`}
+        className="fixed z-50 animate-fade-in rounded-xl border border-violet-200/80 bg-white/95 px-3 py-2 text-left text-xs leading-relaxed text-slate-700 shadow-lg shadow-violet-200/30 backdrop-blur-sm"
+        style={{
+          top: `${style.top}px`,
+          left: `${style.left}px`,
+          width: `${style.width}px`,
+        }}
+      >
+        {entry.definition}
+      </button>
+    ) : null
   );
 }
 
