@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { GlossaryEntry, GlossarySection } from '../glossaryData';
 import { findGlossaryEntriesForText, GLOSSARY_SECTION_ORDER, searchGlossaryEntries } from '../glossaryData';
 
@@ -134,6 +134,135 @@ export function GlossaryDirectory({
         );
       })}
     </div>
+  );
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function longestFirst(entries: readonly GlossaryEntry[]): GlossaryEntry[] {
+  return [...entries].sort((left, right) => right.term.length - left.term.length);
+}
+
+function InlineDefinition({
+  entry,
+  open,
+  onToggle,
+}: {
+  entry: GlossaryEntry;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <span className="inline">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="rounded-sm border-b border-violet-300/80 bg-violet-50/70 px-0.5 text-[0.98em] font-medium text-violet-800 decoration-violet-400 underline-offset-2 transition hover:bg-violet-100/80"
+      >
+        {entry.term}
+      </button>
+      {open ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="mt-2 block w-full animate-fade-in rounded-xl border border-violet-200/80 bg-violet-50/70 px-3 py-2 text-left text-xs leading-relaxed text-slate-700 shadow-sm"
+        >
+          {entry.definition}
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+export function InlineGlossaryText({
+  text,
+  section,
+  className = 'whitespace-pre-line text-sm leading-relaxed text-slate-700',
+}: {
+  text: string;
+  section?: GlossarySection;
+  className?: string;
+}) {
+  const entries = useMemo(
+    () => longestFirst(findGlossaryEntriesForText([text], { section, limit: 12 })),
+    [section, text]
+  );
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  if (!text.trim() || entries.length === 0) {
+    return <p className={className}>{text}</p>;
+  }
+
+  const matchers = entries
+    .map((entry) => ({
+      entry,
+      regex: new RegExp(`\\b${escapeRegExp(entry.term)}\\b`, 'i'),
+    }))
+    .filter((candidate) => candidate.regex.test(text));
+
+  if (!matchers.length) {
+    return <p className={className}>{text}</p>;
+  }
+
+  const chunks: Array<{ kind: 'text'; value: string } | { kind: 'term'; entry: GlossaryEntry }> = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    let nextMatch:
+      | {
+          start: number;
+          end: number;
+          entry: GlossaryEntry;
+        }
+      | undefined;
+
+    for (const { entry, regex } of matchers) {
+      regex.lastIndex = 0;
+      const slice = text.slice(cursor);
+      const match = regex.exec(slice);
+      if (!match || match.index === undefined) continue;
+      const start = cursor + match.index;
+      const end = start + match[0].length;
+      if (
+        !nextMatch ||
+        start < nextMatch.start ||
+        (start === nextMatch.start && end - start > nextMatch.end - nextMatch.start)
+      ) {
+        nextMatch = { start, end, entry };
+      }
+    }
+
+    if (!nextMatch) {
+      chunks.push({ kind: 'text', value: text.slice(cursor) });
+      break;
+    }
+
+    if (nextMatch.start > cursor) {
+      chunks.push({ kind: 'text', value: text.slice(cursor, nextMatch.start) });
+    }
+
+    chunks.push({ kind: 'term', entry: nextMatch.entry });
+    cursor = nextMatch.end;
+  }
+
+  return (
+    <p className={className}>
+      {chunks.map((chunk, index) => {
+        if (chunk.kind === 'text') {
+          return <Fragment key={`text-${index}`}>{chunk.value}</Fragment>;
+        }
+        return (
+          <InlineDefinition
+            key={`term-${chunk.entry.id}-${index}`}
+            entry={chunk.entry}
+            open={openId === chunk.entry.id}
+            onToggle={() => setOpenId((current) => (current === chunk.entry.id ? null : chunk.entry.id))}
+          />
+        );
+      })}
+    </p>
   );
 }
 

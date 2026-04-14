@@ -1,10 +1,9 @@
 import { memo, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
-import { GlossaryDirectory, GlossaryTermChips } from './GlossarySupport';
+import { InlineGlossaryText } from './GlossarySupport';
 import { PaintingOverlay } from './PaintingOverlay';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
-import { splitNumberedSteps } from '../../lib/numberedSteps';
 import type {
   CompletionRead,
   CritiqueCategory,
@@ -32,59 +31,6 @@ type CritiquePanelsProps = {
   workingTitle?: string;
   onSelectSuggestedTitle?: (title: string) => void;
 };
-
-function ActionPlanBlock({ actionPlan }: { actionPlan: string }) {
-  const steps = splitNumberedSteps(actionPlan);
-  if (!steps.length) {
-    return <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">{actionPlan}</p>;
-  }
-  return (
-    <ol className="mt-1 space-y-2 pl-4 text-xs leading-relaxed text-slate-700">
-      {steps.map((step, idx) => (
-        <li key={`${idx}-${step}`} className="list-decimal">
-          {step}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function PhaseBlock({
-  label,
-  body,
-  tone = 'slate',
-}: {
-  label: string;
-  body?: string;
-  tone?: 'slate' | 'violet' | 'emerald';
-}) {
-  if (!body?.trim()) return null;
-  const styles =
-    tone === 'violet'
-      ? {
-          wrap: 'rounded-xl border border-violet-200 bg-violet-50/60 p-3',
-          label: 'text-violet-700',
-          body: 'text-slate-700',
-        }
-      : tone === 'emerald'
-        ? {
-            wrap: 'rounded-xl border border-emerald-200 bg-emerald-50/60 p-3',
-            label: 'text-emerald-700',
-            body: 'text-emerald-950/90',
-          }
-        : {
-            wrap: 'rounded-xl border border-slate-200 bg-slate-50/80 p-3',
-            label: 'text-slate-500',
-            body: 'text-slate-700',
-          };
-
-  return (
-    <div className={styles.wrap}>
-      <p className={`text-[10px] font-bold uppercase tracking-wider ${styles.label}`}>{label}</p>
-      <p className={`mt-1 whitespace-pre-line text-xs leading-relaxed ${styles.body}`}>{body}</p>
-    </div>
-  );
-}
 
 function completionBadgeClasses(state: WorkCompletionState): string {
   switch (state) {
@@ -312,25 +258,26 @@ function CategoryCard({
           ) : null}
           <div className="space-y-3">
             <div className="space-y-2">
-              <PhaseBlock
-                label="Critic's analysis"
-                body={category.phase2?.criticsAnalysis}
-                tone="violet"
-              />
-              <GlossaryTermChips
-                section={category.criterion}
-                texts={[category.phase2?.criticsAnalysis ?? '']}
-              />
+              <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Critic&apos;s analysis</p>
+                <div className="mt-1 text-xs leading-relaxed text-slate-700">
+                  <InlineGlossaryText
+                    text={category.phase2?.criticsAnalysis ?? ''}
+                    section={category.criterion}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-2 rounded-xl bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Teacher&apos;s next steps
               </p>
-              <ActionPlanBlock actionPlan={category.phase3?.teacherNextSteps ?? ''} />
-              <GlossaryTermChips
-                section={category.criterion}
-                texts={[category.phase3?.teacherNextSteps ?? '']}
-              />
+              <div className="mt-1 text-xs leading-relaxed text-slate-700">
+                <InlineGlossaryText
+                  text={category.phase3?.teacherNextSteps ?? ''}
+                  section={category.criterion}
+                />
+              </div>
             </div>
           </div>
           {hasUsableSubskills(category) ? (
@@ -438,11 +385,9 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
         >
           {summaryText ? (
             <div className="space-y-3">
-              <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{summaryText}</p>
-              <GlossaryDirectory
-                query="anchor passage value color temperature edge focal hierarchy presence"
-                section="All"
-              />
+              <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                <InlineGlossaryText text={summaryText} />
+              </div>
             </div>
           ) : null}
           <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
