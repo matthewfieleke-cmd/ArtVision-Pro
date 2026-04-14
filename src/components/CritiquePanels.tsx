@@ -1,6 +1,7 @@
 import { memo, useId, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
+import { GlossaryDirectory, GlossaryTermChips } from './GlossarySupport';
 import { PaintingOverlay } from './PaintingOverlay';
 import { confidenceLabel, levelWidth } from '../critiqueCoach';
 import { splitNumberedSteps } from '../../lib/numberedSteps';
@@ -310,16 +311,26 @@ function CategoryCard({
             </div>
           ) : null}
           <div className="space-y-3">
-            <PhaseBlock
-              label="Critic's analysis"
-              body={category.phase2?.criticsAnalysis}
-              tone="violet"
-            />
-            <div className="rounded-xl bg-slate-50 p-3">
+            <div className="space-y-2">
+              <PhaseBlock
+                label="Critic's analysis"
+                body={category.phase2?.criticsAnalysis}
+                tone="violet"
+              />
+              <GlossaryTermChips
+                section={category.criterion}
+                texts={[category.phase2?.criticsAnalysis ?? '']}
+              />
+            </div>
+            <div className="space-y-2 rounded-xl bg-slate-50 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Teacher&apos;s next steps
               </p>
               <ActionPlanBlock actionPlan={category.phase3?.teacherNextSteps ?? ''} />
+              <GlossaryTermChips
+                section={category.criterion}
+                texts={[category.phase3?.teacherNextSteps ?? '']}
+              />
             </div>
           </div>
           {hasUsableSubskills(category) ? (
@@ -426,7 +437,13 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
           className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
         >
           {summaryText ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{summaryText}</p>
+            <div className="space-y-3">
+              <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{summaryText}</p>
+              <GlossaryDirectory
+                query="anchor passage value color temperature edge focal hierarchy presence"
+                section="All"
+              />
+            </div>
           ) : null}
           <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Finished vs in progress</p>
