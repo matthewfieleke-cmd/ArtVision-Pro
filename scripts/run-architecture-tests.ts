@@ -961,6 +961,26 @@ function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
   );
 }
 
+function testAnchorRegionRefinePromptPrioritizesSpecificSmallTargets(): void {
+  const prompt = buildRefineSystemPromptForTesting();
+  assert.match(
+    prompt,
+    /\*\*Specific-object priority:\*\* when the anchor names one specific object or body part plus broader context, prioritize the specific named target first/
+  );
+  assert.match(
+    prompt,
+    /\*\*Text \/ sign \/ lettering rule:\*\* if the anchor names a sign, quoted word, letters, numbers, label, banner, or any text-bearing object/
+  );
+  assert.match(
+    prompt,
+    /\*\*No proxy substitution:\*\* do not replace the named target with a nearby object just because that nearby object is brighter, larger, more central, or easier to see/
+  );
+  assert.match(
+    prompt,
+    /\*\*Small-target rule:\*\* if the anchor names a small local object or passage/
+  );
+}
+
 function testEvidenceRepairNoteDemandsAnchorSupport(): void {
   const repair = buildEvidenceRepairNote(
     new Error('Visible evidence does not support anchor for Composition and shape structure')
