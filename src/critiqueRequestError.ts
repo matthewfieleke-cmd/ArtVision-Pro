@@ -158,8 +158,17 @@ function inferKindFromBackendErrorName(
 
 function defaultUserMessage(
   kind: CritiqueRequestErrorKind,
-  operation: CritiqueRequestOperation
+  operation: CritiqueRequestOperation,
+  stage?: CritiqueStageName
 ): string {
+  const stageLabel =
+    stage === 'evidence'
+      ? 'while reading painting evidence from the photo'
+      : stage === 'voice_a'
+        ? "while assembling the critic's analysis"
+        : stage === 'voice_b' || stage === 'voice_b_summary'
+          ? "while assembling the teacher's guidance"
+          : 'before the final critique could be completed';
   switch (kind) {
     case 'server_config':
       return 'The critique service is unavailable right now. Please try again later.';
@@ -170,13 +179,13 @@ function defaultUserMessage(
         ? 'Style detection returned an invalid response. Please retry or choose the style manually.'
         : 'The critique service returned an invalid response. Please retry with this image.';
     case 'validation':
-      return 'The critique was stopped because the AI response did not pass validation. Please retry.';
+      return `The critique was stopped ${stageLabel} because the response did not pass validation. Please retry.`;
     case 'grounding':
-      return 'The critique was stopped because the feedback could not be grounded in the uploaded painting. Please retry.';
+      return `The critique was stopped ${stageLabel} because the feedback could not be grounded in the uploaded painting. Please retry.`;
     case 'runtime_eval':
-      return 'The critique was stopped by a quality check before results were shown. Please retry.';
+      return `The critique was stopped ${stageLabel} by a quality check before results were shown. Please retry.`;
     case 'retry_exhausted':
-      return 'The critique service exhausted its retries before producing a safe result. Please try again.';
+      return `The critique service exhausted its retries ${stageLabel} before producing a safe result. Please try again.`;
     case 'uninterpretable':
       return 'Your painting is unable to be analyzed.';
     case 'http':
@@ -212,7 +221,7 @@ export function createCritiqueRequestError(
     operation: args.operation,
     kind,
     technicalMessage,
-    message: args.userMessage ?? defaultUserMessage(kind, args.operation),
+    message: args.userMessage ?? defaultUserMessage(kind, args.operation, args.stage),
     retryable: args.retryable ?? defaultRetryable(kind),
     status: args.status,
     stage: args.stage,

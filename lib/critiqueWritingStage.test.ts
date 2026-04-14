@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  extractFailingCriteriaFromCritiqueError,
+  extractVoiceAStageFromCritique,
   mergeVoiceStagesForTesting,
   normalizeKnownVoiceBVerbDrift,
   normalizeVoiceBMoveForSchema,
+  refreshCritiqueSummaryFromCategories,
+  repairCritiqueVoiceBFromEvidence,
   repairVoiceAStageGrounding,
   synthesizeVoiceAStageFromEvidence,
   synthesizeVoiceBStageFromEvidence,
   synthesizeVoiceBSummaryFromCategories,
 } from './critiqueWritingStage';
-import { makeCritiqueEvidenceFixture, makeVoiceAStageFixture } from './critiqueTestFixtures';
+import { makeCritiqueEvidenceFixture, makeCritiqueResultFixture, makeVoiceAStageFixture } from './critiqueTestFixtures';
 import type { VoiceAStageResult, VoiceBStageResult } from './critiqueZodSchemas';
 import {
   validateCritiqueGrounding,
@@ -18,6 +22,8 @@ import {
   validateVoiceBStageOutput,
   type CritiqueEvidenceDTO,
 } from './critiqueValidation';
+import { evaluateCritiqueQuality } from './critiqueEval';
+import { CritiqueGroundingError } from './critiqueErrors';
 
 describe('normalizeKnownVoiceBVerbDrift', () => {
   it('rewrites generic color-transition enhancement into an allowed concrete move', () => {
@@ -387,5 +393,79 @@ describe('synthesizeVoiceBSummaryFromCategories', () => {
     expect(summary.studioChanges[1]?.previewCriterion).toBe('Edge and focus control');
     expect(summary.studioChanges[1]?.text).toContain('the branch edge against the pale sky');
     expect(summary.studioChanges[1]?.text).toContain('edge');
+  });
+});
+
+describe('extractFailingCriteriaFromCritiqueError', () => {
+  it('extracts criterion names from grounding details', () => {
+    const error = new CritiqueGroundingError('Final critique failed evidence traceability validation.', {
+      stage: 'final',
+      details: [
+        'Color relationships: final teacher guidance drifted away from the anchored passage.',
+        'Edge and focus control: final teacher guidance is not traceable to visibleEvidence.',
+      ],
+    });
+
+    expect(extractFailingCriteriaFromCritiqueError(error)).toEqual(
+      expect.arrayContaining(['Color relationships', 'Edge and focus control'])
+    );
+  });
+});
+
+describe('repairCritiqueVoiceBFromEvidence', () => {
+  it('replaces generic Voice B teaching with anchored safe-mode guidance', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const critique = makeCritiqueResultFixture();
+    critique.categories[0] = {
+      ...critique.categories[0]!,
+      phase3: {
+        teacherNextSteps: '1. Improve the focal area and strengthen the overall impact.',
+      },
+    };
+    critique.simpleFeedback = {
+      ...critique.simpleFeedback!,
+      studioChanges: [
+        {
+          text: 'Define certain edges more clearly to enhance the focus hierarchy.',
+          previewCriterion: 'Edge and focus control',
+        },
+        {
+          text: 'Smooth out abrupt color transitions to enhance the realism of the painting.',
+          previewCriterion: 'Color relationships',
+        },
+      ],
+    };
+
+    const repaired = repairCritiqueVoiceBFromEvidence(critique, evidence);
+    const evaluation = evaluateCritiqueQuality(repaired.critique);
+
+    expect(() => validateCritiqueGrounding(repaired.critique, evidence)).not.toThrow();
+    expect(evaluation.blockingIssues).toEqual([]);
+    expect(repaired.salvagedCriteria.length).toBeGreaterThan(0);
+    expect(repaired.critique.categories[0]?.phase3.teacherNextSteps).toContain(
+      "the chair bars cutting across the sitter's torso"
+    );
+  });
+});
+
+describe('extractVoiceAStageFromCritique / refreshCritiqueSummaryFromCategories', () => {
+  it('rebuilds top priorities and studio changes from the current category set', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const critique = makeCritiqueResultFixture();
+
+    const extracted = extractVoiceAStageFromCritique(critique);
+    expect(extracted.categories).toHaveLength(8);
+
+    critique.categories[2] = {
+      ...critique.categories[2]!,
+      phase3: {
+        teacherNextSteps:
+          "1. In the wall behind the sitter's head, darken the wall a half-step just behind the crown so the head separates sooner.",
+      },
+    };
+
+    const refreshed = refreshCritiqueSummaryFromCategories(critique, evidence);
+    expect(refreshed.overallSummary?.topPriorities.length).toBeGreaterThan(0);
+    expect(refreshed.simpleFeedback?.studioChanges.length).toBeGreaterThan(0);
   });
 });

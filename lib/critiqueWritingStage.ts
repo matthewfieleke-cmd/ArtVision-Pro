@@ -2383,6 +2383,219 @@ export function mergeVoiceStagesForTesting(
   return mergeVoiceStages(voiceA, voiceB);
 }
 
+export function extractFailingCriteriaFromCritiqueError(error: unknown): CriterionLabel[] {
+  const texts = [
+    ...errorDetails(error),
+    ...(error instanceof Error ? [error.message] : []),
+  ];
+  const failing = new Set<CriterionLabel>();
+  for (const text of texts) {
+    for (const criterion of CRITERIA_ORDER) {
+      if (text.includes(criterion)) {
+        failing.add(criterion);
+      }
+    }
+    const indexMatch = text.match(/\bindex (\d+)\b/i);
+    if (indexMatch) {
+      const index = Number(indexMatch[1]);
+      if (Number.isInteger(index) && index >= 0 && index < CRITERIA_ORDER.length) {
+        failing.add(CRITERIA_ORDER[index]!);
+      }
+    }
+  }
+  return Array.from(failing);
+}
+
+export function extractVoiceAStageFromCritique(critique: CritiqueResultDTO): VoiceAStageResult {
+  return {
+    summary: critique.summary,
+    suggestedPaintingTitles: critique.suggestedPaintingTitles ?? [],
+    overallSummary: {
+      analysis: critique.overallSummary?.analysis ?? '',
+    },
+    studioAnalysis: {
+      whatWorks: critique.simpleFeedback?.studioAnalysis.whatWorks ?? '',
+      whatCouldImprove: critique.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '',
+    },
+    comparisonNote: critique.comparisonNote ?? null,
+    overallConfidence: critique.overallConfidence ?? 'medium',
+    photoQuality:
+      critique.photoQuality ?? {
+        level: 'fair',
+        summary: 'Photo quality metadata was unavailable during summary refresh.',
+        issues: [],
+        tips: [],
+      },
+    categories: critique.categories.map((category) => ({
+      criterion: category.criterion,
+      level: category.level ?? 'Intermediate',
+      phase1: category.phase1,
+      phase2: category.phase2,
+      confidence: category.confidence ?? 'medium',
+      evidenceSignals:
+        category.evidenceSignals && category.evidenceSignals.length >= 2
+          ? category.evidenceSignals
+          : [category.phase1.visualInventory, category.phase2.criticsAnalysis]
+              .map((line) => normalizeWhitespace(line))
+              .filter((line) => line.length >= 12)
+              .slice(0, 2),
+      preserve: category.preserve ?? '',
+      nextTarget: category.nextTarget ?? '',
+      subskills:
+        category.subskills && category.subskills.length >= 2
+          ? category.subskills
+          : [
+              { label: 'Anchored evidence control', score: 0.5, level: category.level ?? 'Intermediate' },
+              {
+                label: 'Criterion-specific decision-making',
+                score: 0.44,
+                level: category.level ?? 'Intermediate',
+              },
+            ],
+    })),
+  };
+}
+
+function replaceCritiqueCategories(
+  critique: CritiqueResultDTO,
+  replacements: Map<CriterionLabel, CritiqueResultDTO['categories'][number]>
+): CritiqueResultDTO {
+  return {
+    ...critique,
+    categories: critique.categories.map((category) => {
+      const replacement = replacements.get(category.criterion);
+      return replacement ?? category;
+    }),
+  };
+}
+
+export function refreshCritiqueSummaryFromCategories(
+  critique: CritiqueResultDTO,
+  evidence: CritiqueEvidenceDTO
+): CritiqueResultDTO {
+  const voiceA = extractVoiceAStageFromCritique(critique);
+  const summary = synthesizeVoiceBSummaryFromCategories(
+    evidence,
+    voiceA,
+    critique.categories as unknown as VoiceBStageResult['categories']
+  );
+  return {
+    ...critique,
+    overallSummary: {
+      analysis: critique.overallSummary?.analysis ?? voiceA.overallSummary.analysis,
+      topPriorities: summary.overallSummary.topPriorities,
+    },
+    simpleFeedback: {
+      studioAnalysis:
+        critique.simpleFeedback?.studioAnalysis ?? voiceA.studioAnalysis,
+      studioChanges: summary.studioChanges,
+    },
+  };
+}
+
+export function repairCritiqueVoiceBFromEvidence(
+  critique: CritiqueResultDTO,
+  evidence: CritiqueEvidenceDTO,
+  reasonPrefix: string = 'repaired Voice B from anchored evidence after recovery'
+): {
+  critique: CritiqueResultDTO;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+} {
+  const voiceA = extractVoiceAStageFromCritique(critique);
+  const synthesized = synthesizeVoiceBStageFromEvidence(evidence, voiceA);
+  const teacherByCriterion = new Map(
+    synthesized.voiceB.categories.map((category) => [category.criterion as CriterionLabel, category] as const)
+  );
+  const updated = {
+    ...critique,
+    categories: critique.categories.map((category) => {
+      const teacher = teacherByCriterion.get(category.criterion);
+      if (!teacher) return category;
+      return {
+        ...category,
+        phase3: teacher.phase3,
+        anchor: teacher.anchor,
+        plan: teacher.plan,
+        actionPlanSteps: teacher.actionPlanSteps,
+        voiceBPlan: teacher.voiceBPlan,
+        editPlan: teacher.editPlan,
+      };
+    }),
+  };
+  return {
+    critique: refreshCritiqueSummaryFromCategories(updated, evidence),
+    salvagedCriteria: synthesized.salvagedCriteria.map((entry) => ({
+      ...entry,
+      reason: `${reasonPrefix}; ${entry.reason}`,
+    })),
+  };
+}
+
+function repairMergedCritiqueByCriteria(args: {
+  merged: unknown;
+  style: string;
+  medium: string;
+  evidence: CritiqueEvidenceDTO;
+  error: unknown;
+}): {
+  critique: CritiqueResultDTO;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+} | null {
+  const failingCriteria = extractFailingCriteriaFromCritiqueError(args.error);
+  if (failingCriteria.length === 0 || failingCriteria.length >= CRITERIA_ORDER.length) {
+    return null;
+  }
+
+  if (!args.merged || typeof args.merged !== 'object') {
+    return null;
+  }
+  const rawCategories = (args.merged as { categories?: unknown }).categories;
+  if (!Array.isArray(rawCategories) || rawCategories.length !== CRITERIA_ORDER.length) {
+    return null;
+  }
+
+  const synthesizedVoiceA = synthesizeVoiceAStageFromEvidence(args.style, args.medium, args.evidence);
+  const synthesizedVoiceB = synthesizeVoiceBStageFromEvidence(args.evidence, synthesizedVoiceA.voiceA);
+  const safeCritique = validateCritiqueGrounding(
+    validateCritiqueResult(mergeVoiceStages(synthesizedVoiceA.voiceA, synthesizedVoiceB.voiceB)),
+    args.evidence
+  );
+  const safeByCriterion = new Map(
+    safeCritique.categories.map((category) => [category.criterion as CriterionLabel, category] as const)
+  );
+
+  const patchedRaw = {
+    ...(args.merged as Record<string, unknown>),
+    categories: rawCategories.map((category) => {
+      if (!category || typeof category !== 'object') return category;
+      const criterion = canonicalCriterionLabel((category as { criterion?: string }).criterion ?? '');
+      return criterion && safeByCriterion.has(criterion)
+        ? failingCriteria.includes(criterion)
+          ? safeByCriterion.get(criterion)!
+          : category
+        : category;
+    }),
+  };
+
+  try {
+    const validated = validateCritiqueResult(patchedRaw);
+    const refreshed = refreshCritiqueSummaryFromCategories(validated, args.evidence);
+    const grounded = validateCritiqueGrounding(refreshed, args.evidence);
+    const stage: CritiquePipelineSalvagedCriterion['stage'] = 'validation';
+    const reason = `${errorMessage(args.error)} — repaired this criterion with a conservative anchored fallback row`;
+    return {
+      critique: grounded,
+      salvagedCriteria: failingCriteria.map((criterion) => ({
+        stage,
+        criterion,
+        reason,
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function runCritiqueWritingStage(
   apiKey: string,
   models: {
@@ -2417,22 +2630,23 @@ export async function runCritiqueWritingStage(
           }),
         }
       : validated;
-  } catch {
-    const synthesizedVoiceA = synthesizeVoiceAStageFromEvidence(style, body.medium, evidence);
-    const synthesizedVoiceB = synthesizeVoiceBStageFromEvidence(evidence, synthesizedVoiceA.voiceA);
-    const rescued = validateCritiqueGrounding(
-      validateCritiqueResult(mergeVoiceStages(synthesizedVoiceA.voiceA, synthesizedVoiceB.voiceB)),
-      evidence
-    );
-    return {
-      ...rescued,
-      pipeline: createPipelineMetadata({
-        salvagedCriteria: [
-          ...collectedSalvage,
-          ...synthesizedVoiceA.salvagedCriteria,
-          ...synthesizedVoiceB.salvagedCriteria,
-        ],
-      }),
-    };
+  } catch (error) {
+    const merged = mergeVoiceStages(voiceA, voiceBRun.voiceB);
+    const repaired = repairMergedCritiqueByCriteria({
+      merged,
+      style,
+      medium: body.medium,
+      evidence,
+      error,
+    });
+    if (repaired) {
+      return {
+        ...repaired.critique,
+        pipeline: createPipelineMetadata({
+          salvagedCriteria: [...collectedSalvage, ...repaired.salvagedCriteria],
+        }),
+      };
+    }
+    throw error;
   }
 }

@@ -16,17 +16,26 @@ import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js'
 import {
   validateEvidenceResult,
   synthesizeEvidenceFromObservationBankValidated,
+  validateCritiqueGrounding,
 } from './critiqueValidation.js';
 import { refineCritiqueAnchorRegionsFromImage } from './critiqueAnchorRegionRefine.js';
-import { runCritiqueWritingStage } from './critiqueWritingStage.js';
+import {
+  extractFailingCriteriaFromCritiqueError,
+  refreshCritiqueSummaryFromCategories,
+  repairCritiqueVoiceBFromEvidence,
+  runCritiqueWritingStage,
+} from './critiqueWritingStage.js';
 import {
   parseObservationBankLenient,
   sortObservationBankIntentCarriers,
   validateObservationBankGrounding,
 } from './critiqueObservationBankValidate.js';
 import {
+  CritiqueGroundingError,
   CritiquePipelineError,
   CritiqueRetryExhaustedError,
+  CritiqueRuntimeEvalError,
+  CritiqueUninterpretableImageError,
   CritiqueValidationError,
   type CritiqueCriterionEvidencePreview,
   type CritiqueDebugPayload,
@@ -52,6 +61,7 @@ import {
   runClarityPass,
 } from './critiqueClarityPass.js';
 import { withOpenAIRetries } from './openaiRetry.js';
+import { composeFallbackCritique } from './critiqueFallback.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 const OBSERVATION_MAX_TOKENS = 2600;
@@ -284,6 +294,106 @@ export async function runBestEffortCritiqueStage<T>(
       details: errorDetails(error),
     });
     return fallback;
+  }
+}
+
+export type CritiqueRecoveryDisposition = 'recoverable' | 'safe_mode' | 'fatal';
+
+export function classifyCoreCritiqueRecovery(error: unknown): {
+  disposition: CritiqueRecoveryDisposition;
+  failureStage: 'evidence' | 'voice_a' | 'voice_b' | 'final';
+  reason: string;
+} {
+  if (error instanceof CritiqueUninterpretableImageError) {
+    return {
+      disposition: 'fatal',
+      failureStage: 'evidence',
+      reason: 'the photo could not be interpreted with enough confidence for a grounded critique',
+    };
+  }
+  if (error instanceof CritiqueValidationError || error instanceof CritiqueGroundingError) {
+    const failingCriteria = extractFailingCriteriaFromCritiqueError(error);
+    return {
+      disposition:
+        failingCriteria.length > 0 && failingCriteria.length < CRITERIA_ORDER.length
+          ? 'recoverable'
+          : 'safe_mode',
+      failureStage:
+        error.stage === 'evidence'
+          ? 'evidence'
+          : error.stage === 'voice_a'
+            ? 'voice_a'
+            : error.stage === 'voice_b' || error.stage === 'voice_b_summary'
+              ? 'voice_b'
+              : 'final',
+      reason: errorMessage(error),
+    };
+  }
+  if (error instanceof CritiqueRuntimeEvalError) {
+    return {
+      disposition: 'recoverable',
+      failureStage: 'final',
+      reason: errorMessage(error),
+    };
+  }
+  if (error instanceof CritiqueRetryExhaustedError || error instanceof CritiquePipelineError) {
+    return {
+      disposition: 'safe_mode',
+      failureStage:
+        error.stage === 'evidence'
+          ? 'evidence'
+          : error.stage === 'voice_a'
+            ? 'voice_a'
+            : error.stage === 'voice_b' || error.stage === 'voice_b_summary'
+              ? 'voice_b'
+              : 'final',
+      reason: errorMessage(error),
+    };
+  }
+  return {
+    disposition: 'safe_mode',
+    failureStage: 'final',
+    reason: errorMessage(error),
+  };
+}
+
+function replaceCritiqueCategoriesFromSafeMode(args: {
+  critique: CritiqueResultDTO;
+  safeModeCritique: CritiqueResultDTO;
+  evidence: ReturnType<typeof validateEvidenceResult>;
+  criteria: readonly (typeof CRITERIA_ORDER)[number][];
+  reason: string;
+}): {
+  critique: CritiqueResultDTO;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+} | null {
+  if (args.criteria.length === 0 || args.criteria.length >= CRITERIA_ORDER.length) {
+    return null;
+  }
+  const replacementByCriterion = new Map(
+    args.safeModeCritique.categories.map((category) => [category.criterion, category] as const)
+  );
+  const replaced = {
+    ...args.critique,
+    categories: args.critique.categories.map((category) =>
+      args.criteria.includes(category.criterion)
+        ? (replacementByCriterion.get(category.criterion) ?? category)
+        : category
+    ),
+  };
+  try {
+    const refreshed = refreshCritiqueSummaryFromCategories(replaced, args.evidence);
+    const grounded = validateCritiqueGrounding(refreshed, args.evidence);
+    return {
+      critique: grounded,
+      salvagedCriteria: args.criteria.map((criterion) => ({
+        stage: 'validation',
+        criterion,
+        reason: args.reason,
+      })),
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -909,7 +1019,17 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
+  const composeSafeModeCritiqueFor = (failureStage: 'evidence' | 'voice_a' | 'voice_b' | 'final') =>
+    composeFallbackCritique({
+      style: body.style,
+      medium: body.medium,
+      evidence,
+      paintingTitle: trimmedUserTitle || undefined,
+      failureStage,
+    });
+
   let guarded: CritiqueResultDTO;
+  const recoverySalvage: CritiquePipelineSalvagedCriterion[] = [];
   const calibration = await instrumenter.time('calibration', async () => {
     try {
       return await runCritiqueCalibrationStage(
@@ -929,20 +1049,35 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     }
   });
 
-  const base = await runCritiqueWritingStage(
-    apiKey,
-    {
-      voiceA: stageModels.voiceA,
-      voiceB: stageModels.voiceB,
-      validation: stageModels.validation,
-    },
-    body.style,
-    body,
-    evidence,
-    observationBank,
-    calibration,
-    instrumenter
-  );
+  const base = await instrumenter.time('writing', async () => {
+    try {
+      return await runCritiqueWritingStage(
+        apiKey,
+        {
+          voiceA: stageModels.voiceA,
+          voiceB: stageModels.voiceB,
+          validation: stageModels.validation,
+        },
+        body.style,
+        body,
+        evidence,
+        observationBank,
+        calibration,
+        instrumenter
+      );
+    } catch (error) {
+      const policy = classifyCoreCritiqueRecovery(error);
+      console.warn('[critique core recovery policy]', {
+        disposition: policy.disposition,
+        stage: policy.failureStage,
+        reason: policy.reason,
+      });
+      if (policy.disposition === 'fatal') {
+        throw error;
+      }
+      return composeSafeModeCritiqueFor(policy.failureStage);
+    }
+  });
   const calibrated = calibration ? applyCalibrationToCritique(base, calibration) : base;
   const withCompletion = {
     ...calibrated,
@@ -975,13 +1110,40 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
     const critiqueBeforeClarity = guarded;
-    guarded = await instrumenter.time('clarity', () =>
+    const clarified = await instrumenter.time('clarity', () =>
       runBestEffortCritiqueStage(
         'clarity',
         () => runClarityPass(apiKey, stageModels.clarity, critiqueBeforeClarity),
         critiqueBeforeClarity
       )
     );
+    guarded = critiqueNeedsFreshEvidenceRead(clarified) ? critiqueBeforeClarity : clarified;
+  }
+
+  try {
+    guarded = validateCritiqueGrounding(guarded, evidence);
+  } catch (error) {
+    const policy = classifyCoreCritiqueRecovery(error);
+    const safeModeCritique = composeSafeModeCritiqueFor(policy.failureStage);
+    const failingCriteria = extractFailingCriteriaFromCritiqueError(error);
+    const repaired =
+      policy.disposition === 'recoverable'
+        ? replaceCritiqueCategoriesFromSafeMode({
+            critique: guarded,
+            safeModeCritique,
+            evidence,
+            criteria: failingCriteria,
+            reason: `repaired final category from conservative safe-mode evidence after ${policy.reason}`,
+          })
+        : null;
+    if (repaired) {
+      guarded = repaired.critique;
+      recoverySalvage.push(...repaired.salvagedCriteria);
+    } else if (policy.disposition === 'fatal') {
+      throw error;
+    } else {
+      guarded = safeModeCritique;
+    }
   }
 
   if (critiqueNeedsFreshEvidenceRead(guarded)) {
@@ -993,12 +1155,31 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     );
   }
 
-  const quality = evaluateCritiqueQuality(guarded);
+  let quality = evaluateCritiqueQuality(guarded);
+  if (quality.blockingIssues.length > 0) {
+    if (quality.genericNextSteps || quality.vagueVoiceB || quality.duplicatedCoaching) {
+      const repairedVoiceB = repairCritiqueVoiceBFromEvidence(
+        guarded,
+        evidence,
+        'repaired full Voice B from anchored evidence after quality gate failure'
+      );
+      const repairedCritique = validateCritiqueGrounding(repairedVoiceB.critique, evidence);
+      const repairedQuality = evaluateCritiqueQuality(repairedCritique);
+      if (repairedQuality.blockingIssues.length < quality.blockingIssues.length) {
+        guarded = repairedCritique;
+        quality = repairedQuality;
+        recoverySalvage.push(...repairedVoiceB.salvagedCriteria);
+      }
+    }
+  }
+
   if (quality.blockingIssues.length > 0) {
     if (instrumenter.enabled) {
       logQualityGateFailure(guarded);
     }
-    console.warn('[critique quality advisory]', quality.blockingIssues.join(' | '));
+    console.warn('[critique quality recovery -> safe mode]', quality.blockingIssues.join(' | '));
+    guarded = composeSafeModeCritiqueFor('final');
+    quality = evaluateCritiqueQuality(guarded);
   }
 
   instrumenter.logSummary({
@@ -1026,7 +1207,10 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       ]
     : [];
   const usedDegradedPath =
-    usedLenientObservationParse || Boolean(evidenceRun.recoveredWithObservationSynthesizedEvidence);
+    usedLenientObservationParse ||
+    Boolean(evidenceRun.recoveredWithObservationSynthesizedEvidence) ||
+    Boolean(guarded.pipeline?.completedWithFallback) ||
+    recoverySalvage.length > 0;
   const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
   const withStages = {
     evidence: createSucceededStageSnapshot({
@@ -1058,7 +1242,12 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const withPipeline = {
     ...guarded,
     pipeline: createPipelineMetadata({
-      resultTier: usedDegradedPath ? 'validated_reduced' : (existingPipeline?.resultTier ?? 'full'),
+      resultTier:
+        existingPipeline?.resultTier === 'minimal_safe'
+          ? 'minimal_safe'
+          : usedDegradedPath
+            ? 'validated_reduced'
+            : (existingPipeline?.resultTier ?? 'full'),
       completedWithFallback:
         (existingPipeline?.completedWithFallback ?? false) ||
         usedDegradedPath,
@@ -1067,6 +1256,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
         ...(existingPipeline?.salvagedCriteria ?? []),
         ...observationSalvaged,
         ...(evidence.salvagedCriteria ?? []),
+        ...recoverySalvage,
       ],
     }),
   };

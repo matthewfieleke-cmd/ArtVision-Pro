@@ -315,7 +315,7 @@ export function composeFallbackCritique(args: {
     suggestedPaintingTitles: synthesizeSuggestedPaintingTitles(args.style, args.medium, args.evidence),
     analysisSource: 'fallback',
     pipeline: createPipelineMetadata({
-      resultTier: 'validated_reduced',
+      resultTier: 'minimal_safe',
       completedWithFallback: true,
       stages: {
         evidence: {

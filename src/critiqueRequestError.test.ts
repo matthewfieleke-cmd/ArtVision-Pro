@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseCritiquePipelineErrorPayload } from './critiqueRequestError';
+import { createCritiqueRequestError, parseCritiquePipelineErrorPayload } from './critiqueRequestError';
 
 describe('parseCritiquePipelineErrorPayload', () => {
   it('accepts pipeline errors when debug.attempts items omit string error', () => {
@@ -34,5 +34,29 @@ describe('parseCritiquePipelineErrorPayload', () => {
     });
 
     expect(parsed?.stage).toBe('voice_b_summary');
+  });
+});
+
+describe('createCritiqueRequestError', () => {
+  it('uses stage-specific messaging for critique retry exhaustion', () => {
+    const error = createCritiqueRequestError({
+      operation: 'critique',
+      kind: 'retry_exhausted',
+      technicalMessage: 'Observation stage exhausted retries.',
+      stage: 'evidence',
+    });
+
+    expect(error.message).toContain('while reading painting evidence from the photo');
+  });
+
+  it("uses stage-specific messaging for teacher-guidance validation failures", () => {
+    const error = createCritiqueRequestError({
+      operation: 'critique',
+      kind: 'validation',
+      technicalMessage: 'Voice B output failed teaching-plan validation.',
+      stage: 'voice_b',
+    });
+
+    expect(error.message).toContain("while assembling the teacher's guidance");
   });
 });
