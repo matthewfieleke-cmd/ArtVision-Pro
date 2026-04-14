@@ -969,6 +969,14 @@ function testAnchorRegionRefinePromptPrioritizesSpecificSmallTargets(): void {
   );
   assert.match(
     prompt,
+    /\*\*Object-first rule:\*\* when the anchor names a specific object plus a relation or surrounding context, the \*\*named object itself\*\* is the required center of the box/
+  );
+  assert.match(
+    prompt,
+    /\*\*Anchor hierarchy rule:\*\* if the anchor contains both an object noun and a relational phrase, the object noun has priority/
+  );
+  assert.match(
+    prompt,
     /\*\*Text \/ sign \/ lettering rule:\*\* if the anchor names a sign, quoted word, letters, numbers, label, banner, or any text-bearing object/
   );
   assert.match(
