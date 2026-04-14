@@ -712,6 +712,7 @@ Rules:
 - Never use rubric-system words in user-facing lines (no "criterion", "band", "rubric", "subskill", "phase"); stay in plain studio language.
 - For every non-Master criterion, there is exactly ONE primary move. Return one canonical plan only, and make phase3.teacherNextSteps read as one polished paragraph about that one move.
 - For every Master criterion, give preserve-only guidance. Praise the exact visible relationship that is already exceptional and provide ZERO improvement instructions.
+- Voice B syntax target: the strongest default shape is two short sentences. Sentence 1 = name the anchored passage and the visible problem there. Sentence 2 = one physical on-canvas move plus the expected read after the move. Avoid drifting back into review-summary language after you name the move.
 - Distinctness is mandatory across the full eight-criterion set: do not recycle the same move, the same wording, or the same anchored passage across multiple criteria unless the painting truly makes that unavoidable.
 - Voice B non-redundancy: categories[].plan.currentRead, move, and expectedRead must each add different information. phase3.teacherNextSteps must be a tight rendering of categories[].plan only: do not add extra steps, synonyms, or repeated junctions that are not in that plan. Do not restate Voice A’s feedback verbatim.
 - Anchor fidelity is mandatory: categories[].plan.move and phase3.teacherNextSteps must stay on the SAME passage named by categories[].anchor.areaSummary. Do not diagnose one passage and then prescribe a move on a nearby but different object.
@@ -719,7 +720,9 @@ Rules:
 - If the evidence anchor is "the boat's silhouette against the water", then the move must still name that boat-water edge or a directly adjacent passage inside it. Do not drift to "the horizon", "the background", "the whole harbor", or a generalized focal-area fix.
 - Voice B diction guardrails:
   - Begin with a concrete verb tied to a specific passage: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm.
+  - Prefer paint-action wording over review wording. Good verbs name a physical change: cool one patch, darken one strip, sharpen one edge, lose one edge, simplify one break, replace two or three repeated marks, restate one overlap.
   - Avoid vague teacher talk such as "explore," "develop," "improve the composition," "push the contrast," "add more depth," or "refine the edges" unless the sentence also names the exact passage and the exact directional change.
+  - Avoid generic maintenance verbs such as "adjust", "maintain", "enhance", or "refine" when a more physical move is possible. If you use one of those verbs, the same sentence must still name the exact patch, edge, stroke family, or value step to change.
   - If the work is strong, keep the advice modest and local; do not turn a small issue into a full repaint.
   - For Edge and focus control, the move must name a literal edge relationship: "[edge A] against [shape B]" plus what should change there. Bad: "improve focus", "clarify the focal point", "sharpen the main area", "separate the boat more". Good: "sharpen the boat's top edge against the pale water just right of the bow while leaving the far hull edge soft."
   - For Drawing, proportion, and spatial form, the move must stay on the anchored form relationship itself, not jump to a broader atmospheric or compositional fix.
@@ -823,6 +826,15 @@ Anti-pattern examples:
 
 - Bad: "Smooth out abrupt color transitions to enhance the realism of the painting."
 - Better: "Where the orange cheek turns into the cool green shadow under the eye, bridge the jump with a muted red-violet half-tone so the head turns in space instead of breaking into two flat color stickers."
+
+- Bad: "Adjust the balance between warm and cool colors in the landscape."
+- Better: "In the yellow field just below the bridge, cool the hottest yellow patch with a muted blue-violet so the warm-cool shift stays lively without jumping harder than the cooler band behind it."
+
+- Bad: "Group the main shape relationship in the bridge leading into the forest."
+- Better: "At the outer bridge edge against the lighter field, simplify the small contour breaks so the bridge reads as one clear route into the trees instead of several separate interruptions."
+
+- Bad: "Adjust the layering of pastel strokes to maintain consistency in texture."
+- Better: "In the upper foliage, replace two or three repeated soft pastel strokes with firmer broken marks so the tree mass keeps texture without turning powdery or blurred."
 
 - Bad: "Make the composition more dynamic."
 - Better: "The stillness is part of the work's effect. Instead of forcing more drama, adjust one directional cue so the eye moves more naturally through the existing calm."
@@ -1480,6 +1492,20 @@ export function normalizeKnownVoiceBVerbDrift(
     return `vary the color transitions in ${areaSummary} so adjacent color passages stay cohesive without flattening the palette.`;
   }
 
+  if (
+    criterion === 'Color relationships' &&
+    /^adjust(?:\s+the)?\s+balance between warm and cool colors/i.test(normalized)
+  ) {
+    return `cool the hottest warm patch in ${areaSummary} with a muted neighboring note so the warm-cool shift stays lively without overpowering nearby passages.`;
+  }
+
+  if (
+    criterion === 'Color relationships' &&
+    /\bmaintain vibrancy without overpowering the scene\b/i.test(normalized)
+  ) {
+    return `cool the hottest accent in ${areaSummary} a little so the color still feels lively without jumping harder than the surrounding palette.`;
+  }
+
   if (/^refine the transitions between light and dark areas/i.test(normalized)) {
     return `separate the light and dark passages in ${areaSummary} more clearly so the depth reads sooner.`;
   }
@@ -1494,6 +1520,13 @@ export function normalizeKnownVoiceBVerbDrift(
 
   if (/^refine the necessity of each figure'?s placement/i.test(normalized)) {
     return `group the least necessary figure placements in ${areaSummary} more tightly with the main cluster so the arrangement reads as one deliberate structure.`;
+  }
+
+  if (
+    criterion === 'Composition and shape structure' &&
+    /^group the main shape relationship/i.test(normalized)
+  ) {
+    return `simplify the most abrupt break in ${areaSummary} so the path or bridge reads as one continuous structure instead of several competing fragments.`;
   }
 
   if (
@@ -1541,6 +1574,14 @@ export function normalizeKnownVoiceBVerbDrift(
   }
 
   if (
+    criterion === 'Surface and medium handling' &&
+    (/^adjust(?:\s+the)?\s+layering of pastel strokes/i.test(normalized) ||
+      /\bmaintain consistency in texture\b/i.test(normalized))
+  ) {
+    return `replace two or three repeated soft pastel strokes in ${areaSummary} with firmer broken marks so the texture stays breathable instead of turning powdery or blurred.`;
+  }
+
+  if (
     criterion === 'Edge and focus control' &&
     (/^enhance\b/i.test(normalized) ||
       /^refine\b/i.test(normalized) ||
@@ -1568,23 +1609,23 @@ function fallbackVoiceBMoveForCriterion(category?: VoiceBCategoryLike): string {
 
   switch (criterion) {
     case 'Composition and shape structure':
-      return `group the main shape relationship in ${areaSummary}.`;
+      return `simplify the most abrupt break between the main shapes in ${areaSummary} so the route reads as one structure.`;
     case 'Value and light structure':
-      return `separate the light and dark passages in ${areaSummary}.`;
+      return `separate the lightest patch from the neighboring middle value in ${areaSummary} so the form turns sooner.`;
     case 'Color relationships':
-      return `vary the color transitions in ${areaSummary}.`;
+      return `cool or warm the sharpest color jump in ${areaSummary} so one accent stays lively without overpowering the nearby palette.`;
     case 'Drawing, proportion, and spatial form':
-      return `restate the key spatial relationship in ${areaSummary}.`;
+      return `restate the tilt or overlap in ${areaSummary} so the form sits more convincingly in space.`;
     case 'Edge and focus control':
       return concreteEdgeRelationshipMove(areaSummary);
     case 'Surface and medium handling':
-      return `vary the handling transitions in ${areaSummary}.`;
+      return `replace two or three repeated soft marks in ${areaSummary} with a clearer mix of firmer and softer strokes so the texture stays breathable.`;
     case 'Intent and necessity':
-      return `quiet the least necessary accent in ${areaSummary}.`;
+      return `quiet the least necessary accent in ${areaSummary} so the strongest pressure stays with the main carrier passage.`;
     case 'Presence, point of view, and human force':
-      return `sharpen the clearest expressive accent in ${areaSummary}.`;
+      return `sharpen the clearest force-carrying edge or accent in ${areaSummary} so the human pressure reads sooner.`;
     default:
-      return `adjust the key relationship in ${areaSummary}.`;
+      return `simplify the most distracting break in ${areaSummary} so the passage reads more deliberately.`;
   }
 }
 

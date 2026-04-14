@@ -103,6 +103,48 @@ describe('normalizeKnownVoiceBVerbDrift', () => {
     expect(rewritten).toMatch(/^vary\b/i);
     expect(rewritten).toContain("the muted tones of the mourners' clothing");
   });
+
+  it('rewrites warm-cool balance language into a more physical color move', () => {
+    const rewritten = normalizeKnownVoiceBVerbDrift(
+      'Adjust the balance between warm and cool colors in the landscape to maintain vibrancy without overpowering the scene.',
+      {
+        criterion: 'Color relationships',
+        anchor: { areaSummary: 'the warm yellow field below the bridge' },
+      }
+    );
+
+    expect(rewritten).toMatch(/^cool\b/i);
+    expect(rewritten).toContain('the warm yellow field below the bridge');
+    expect(rewritten).toContain('muted neighboring note');
+  });
+
+  it('rewrites generic composition grouping language into a more specific structure move', () => {
+    const rewritten = normalizeKnownVoiceBVerbDrift(
+      'Group the main shape relationship in the bridge leading into the forest.',
+      {
+        criterion: 'Composition and shape structure',
+        anchor: { areaSummary: 'the bridge leading into the forest' },
+      }
+    );
+
+    expect(rewritten).toMatch(/^simplify\b/i);
+    expect(rewritten).toContain('the bridge leading into the forest');
+    expect(rewritten).toContain('continuous structure');
+  });
+
+  it('rewrites generic pastel texture maintenance into a concrete mark-making move', () => {
+    const rewritten = normalizeKnownVoiceBVerbDrift(
+      'Adjust the layering of pastel strokes to maintain consistency in texture.',
+      {
+        criterion: 'Surface and medium handling',
+        anchor: { areaSummary: 'the soft pastel strokes in the foliage' },
+      }
+    );
+
+    expect(rewritten).toMatch(/^replace\b/i);
+    expect(rewritten).toContain('the soft pastel strokes in the foliage');
+    expect(rewritten).toContain('firmer broken marks');
+  });
 });
 
 describe('normalizeVoiceBMoveForSchema', () => {
