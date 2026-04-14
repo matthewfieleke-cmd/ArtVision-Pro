@@ -13,6 +13,7 @@ import {
   type ObservationBank,
 } from './critiqueZodSchemas.js';
 import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
+import { CRITERIA_ORDER } from '../shared/criteria.js';
 import {
   validateEvidenceResult,
   synthesizeEvidenceFromObservationBankValidated,

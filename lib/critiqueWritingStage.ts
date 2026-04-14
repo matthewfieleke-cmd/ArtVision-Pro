@@ -2456,19 +2456,6 @@ export function extractVoiceAStageFromCritique(critique: CritiqueResultDTO): Voi
   };
 }
 
-function replaceCritiqueCategories(
-  critique: CritiqueResultDTO,
-  replacements: Map<CriterionLabel, CritiqueResultDTO['categories'][number]>
-): CritiqueResultDTO {
-  return {
-    ...critique,
-    categories: critique.categories.map((category) => {
-      const replacement = replacements.get(category.criterion);
-      return replacement ?? category;
-    }),
-  };
-}
-
 export function refreshCritiqueSummaryFromCategories(
   critique: CritiqueResultDTO,
   evidence: CritiqueEvidenceDTO
@@ -2488,7 +2475,7 @@ export function refreshCritiqueSummaryFromCategories(
     simpleFeedback: {
       studioAnalysis:
         critique.simpleFeedback?.studioAnalysis ?? voiceA.studioAnalysis,
-      studioChanges: summary.studioChanges,
+      studioChanges: summary.studioChanges as StudioChangeDTO[],
     },
   };
 }
