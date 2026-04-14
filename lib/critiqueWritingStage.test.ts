@@ -429,7 +429,7 @@ describe('synthesizeVoiceBSummaryFromCategories', () => {
     );
 
     expect(summary.overallSummary.topPriorities).toHaveLength(2);
-    expect(summary.overallSummary.topPriorities[0]).toMatch(/^(group|sharpen)\b/i);
+    expect(summary.overallSummary.topPriorities[0]).toMatch(/^(simplify|sharpen)\b/i);
     expect(summary.studioChanges).toHaveLength(2);
     expect(summary.studioChanges[0]?.previewCriterion).toBe('Composition and shape structure');
     expect(summary.studioChanges[0]?.text).toContain('the seated figure under the tree trunk');
