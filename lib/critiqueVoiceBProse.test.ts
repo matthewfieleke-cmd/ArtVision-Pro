@@ -44,9 +44,9 @@ describe('renderGroundedTeacherNextSteps', () => {
       expectedRead: 'the path stays the clearer lead while the wash still feels moody',
     });
 
-    expect(rendered).toContain('transitions smoothly');
     expect(rendered).not.toMatch(/foreground The wash/i);
-    expect(rendered.startsWith('In the purple wash across the foreground,')).toBe(true);
+    expect(rendered).not.toMatch(/^In The purple wash across the foreground,/i);
+    expect(rendered).toContain('The key relationship in The purple wash across the foreground');
   });
 
   it('avoids the repeated "In area, area..." phrasing when the current read already starts with the anchor', () => {
@@ -90,5 +90,22 @@ describe('renderGroundedTeacherNextSteps', () => {
       'The yellow roof against the dark trees reads as the brightest value mass in the middle ground. Separate the light and dark passages in the yellow roof against the dark trees more clearly so the value structure reads sooner.'
     );
     expect(rendered).not.toMatch(/reads sooner so /i);
+  });
+
+  it('recovers from sentence-like area text without using the whole observation as a location', () => {
+    const rendered = renderGroundedTeacherNextSteps({
+      area: 'The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.',
+      currentRead:
+        'The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.',
+      move:
+        "Sharpen the clearest expressive passage in The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.",
+      expectedRead:
+        "the painting's festive presence and human warmth will be strengthened",
+    });
+
+    expect(rendered).not.toMatch(/Sharpen .* in The warm yellow light contrasts/i);
+    expect(rendered).not.toMatch(/^In the warm yellow light contrasts/i);
+    expect(rendered).toMatch(/Adjust the clearest relationship in the anchored passage/i);
+    expect(rendered).toContain("the painting's festive presence and human warmth");
   });
 });

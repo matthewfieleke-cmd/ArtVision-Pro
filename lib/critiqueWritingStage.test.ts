@@ -448,6 +448,37 @@ describe('repairCritiqueVoiceBFromEvidence', () => {
       "the chair bars cutting across the sitter's torso"
     );
   });
+
+  it('rebuilds malformed sentence-like Voice B slots into anchored teacher guidance', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+    const critique = makeCritiqueResultFixture();
+    critique.categories[7] = {
+      ...critique.categories[7]!,
+      anchor: {
+        ...critique.categories[7]!.anchor!,
+        areaSummary:
+          'The warm yellow light contrasts with the cool blue exterior, creating a temperature shift',
+      },
+      plan: {
+        ...critique.categories[7]!.plan!,
+        currentRead:
+          'The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.',
+        move:
+          "sharpen the clearest expressive passage in The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.",
+      },
+      phase3: {
+        teacherNextSteps:
+          "1. The warm yellow light contrasts with the cool blue exterior, creating a temperature shift. Sharpen the clearest expressive passage in The warm yellow light contrasts with the cool blue exterior, creating a temperature shift. so the human pressure reads more distinctly so the painting's festive presence and human warmth will be strengthened.",
+      },
+    };
+
+    const repaired = repairCritiqueVoiceBFromEvidence(critique, evidence);
+    const steps = repaired.critique.categories[7]?.phase3.teacherNextSteps ?? '';
+
+    expect(steps).not.toMatch(/Sharpen the clearest expressive passage in The warm yellow light contrasts/i);
+    expect(steps).not.toMatch(/\bso\b.*\bso\b/i);
+    expect(steps).toContain("the sitter's downturned head against the dark wall");
+  });
 });
 
 describe('extractVoiceAStageFromCritique / refreshCritiqueSummaryFromCategories', () => {

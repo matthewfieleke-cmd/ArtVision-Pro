@@ -67,6 +67,80 @@ function sanitizeAnchoredLead(text: string, area: string): string {
   return stripStackedTitleEcho(stripRedundantAnchorPrefix(text, area), area);
 }
 
+export function looksLikeSentenceObservation(text: string): boolean {
+  const cleaned = cleanClause(text);
+  if (!cleaned) return false;
+  if (/[.!?]$/.test(text.trim())) return true;
+  if (cleaned.length > 96) return true;
+  return /\b(contrasts?|creates?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(cleaned);
+}
+
+function looksLikeSentenceLikeArea(text: string): boolean {
+  const cleaned = cleanClause(text);
+  if (!cleaned) return false;
+  if (/[.!?]$/.test(text.trim())) return true;
+  if (cleaned.length > 72) return true;
+  return /\b(is|are|was|were|creates?|contrasts?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(cleaned);
+}
+
+function looksLikeLocationPhrase(text: string): boolean {
+  const cleaned = cleanClause(text);
+  if (!cleaned) return false;
+  return !looksLikeSentenceLikeArea(cleaned);
+}
+
+export function sanitizeVoiceBAreaForProse(area: string, fallbackArea?: string): string {
+  const cleanedArea = cleanClause(area);
+  if (looksLikeLocationPhrase(cleanedArea)) return cleanedArea;
+  return cleanClause(fallbackArea || cleanedArea) || 'the anchored passage';
+}
+
+function chooseUsableArea(area: string, currentRead: string, move: string): string {
+  const cleanedArea = cleanClause(area);
+  if (looksLikeLocationPhrase(cleanedArea)) return cleanedArea;
+  const read = cleanClause(currentRead);
+  const moveClause = cleanClause(move);
+  const readMatch = read.match(
+    /\b(the|a|an)\s+[a-z0-9'"-]+(?:\s+[a-z0-9'"-]+){0,8}\s+(?:against|between|under|over|where|along|around|beside|near)\s+[a-z0-9'"-]+(?:\s+[a-z0-9'"-]+){0,8}\b/i
+  );
+  if (readMatch) return readMatch[0]!;
+  const moveMatch = moveClause.match(
+    /\b(the|a|an)\s+[a-z0-9'"-]+(?:\s+[a-z0-9'"-]+){0,8}\s+(?:against|between|under|over|where|along|around|beside|near)\s+[a-z0-9'"-]+(?:\s+[a-z0-9'"-]+){0,8}\b/i
+  );
+  if (moveMatch) return moveMatch[0]!;
+
+  return 'the anchored passage';
+}
+
+function sanitizeCurrentReadForTeacher(currentRead: string, area: string): string {
+  const cleaned = sanitizeAnchoredLead(cleanClause(currentRead), area);
+  if (!cleaned) return `the key relationship in ${area} is still doing too much at once`;
+  if (!looksLikeSentenceObservation(cleaned) && !passageAlreadyReferenced(cleaned, area)) {
+    return `the key relationship in ${area} is still doing too much at once`;
+  }
+  return cleaned;
+}
+
+function sanitizeMoveForTeacher(move: string, area: string): string {
+  const cleaned = cleanClause(move);
+  if (!cleaned) return `adjust the clearest relationship in ${area}`;
+  if (
+    /\b(?:in|along|around|against)\s+the\s+[a-z].*\b(contrasts?|creates?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(
+      cleaned
+    )
+  ) {
+    return `adjust the clearest relationship in ${area}`;
+  }
+  if (looksLikeSentenceObservation(cleaned) && !/^(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|integrate|adjust|reduce|shift|refine|preserve|keep|protect|leave|hold|maintain|continue)\b/i.test(cleaned)) {
+    return `adjust the clearest relationship in ${area}`;
+  }
+  return cleaned;
+}
+
+export function sanitizeVoiceBMoveForProse(move: string, area: string): string {
+  return sanitizeMoveForTeacher(move, area);
+}
+
 function comparable(text: string): string {
   return cleanClause(text).toLowerCase();
 }
@@ -232,9 +306,11 @@ export function renderGroundedTeacherNextSteps(args: {
   move: string;
   expectedRead: string;
 }): string {
-  const area = cleanClause(args.area);
-  const currentRead = sanitizeAnchoredLead(cleanClause(args.currentRead), area);
-  const move = cleanClause(args.move);
+  const area = looksLikeSentenceLikeArea(args.area)
+    ? chooseUsableArea(args.area, args.currentRead, args.move)
+    : cleanClause(args.area);
+  const currentRead = sanitizeCurrentReadForTeacher(args.currentRead, area);
+  const move = sanitizeMoveForTeacher(args.move, area);
   const expectedRead = cleanClause(args.expectedRead);
 
   const lead = passageAlreadyReferenced(currentRead, area)

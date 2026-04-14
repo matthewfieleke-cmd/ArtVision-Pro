@@ -65,7 +65,11 @@ import {
   CRITIQUE_PRESERVE_VERB_PATTERN,
   isGenericTeacherText,
 } from './critiqueTextRules.js';
-import { renderGroundedTeacherNextSteps } from './critiqueVoiceBProse.js';
+import {
+  renderGroundedTeacherNextSteps,
+  sanitizeVoiceBAreaForProse,
+  sanitizeVoiceBMoveForProse,
+} from './critiqueVoiceBProse.js';
 import { normalizeWhitespace } from './critiqueTextRules.js';
 import { createPipelineMetadata } from './critiquePipeline.js';
 import { withOpenAIRetries } from './openaiRetry.js';
@@ -1327,11 +1331,18 @@ function groundedTeacherNextSteps(
   ) {
     return existing;
   }
+  const safeArea = sanitizeVoiceBAreaForProse(
+    category.anchor.areaSummary,
+    criterionEvidence.anchor
+  );
   const expectedRead = groundedVoiceBExpectedRead(category).replace(/\s+/g, ' ').trim().replace(/\.$/, '');
   const currentRead = groundedCurrentRead.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
-  const move = groundedMove.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
+  const move = sanitizeVoiceBMoveForProse(
+    groundedMove.replace(/\s+/g, ' ').trim().replace(/\.$/, ''),
+    safeArea
+  );
   return renderGroundedTeacherNextSteps({
-    area: category.anchor.areaSummary,
+    area: safeArea,
     currentRead,
     move,
     expectedRead,
@@ -1343,12 +1354,19 @@ function normalizeVoiceBCategoryGrounding(
   criterionEvidence: CritiqueEvidenceDTO['criterionEvidence'][number],
   level?: VoiceBCategoryLike['level']
 ): VoiceBCategoryResult {
-  const anchorArea = category.anchor.areaSummary;
+  const anchorArea = sanitizeVoiceBAreaForProse(
+    category.anchor.areaSummary,
+    criterionEvidence.anchor
+  );
   const groundedCurrentReadRaw = groundedVoiceBCurrentRead(category, criterionEvidence);
   const groundedEvidencePointer = groundedAnchorEvidencePointer(category, criterionEvidence);
   const groundedMoveRaw = groundedVoiceBMove(category, groundedCurrentReadRaw, level);
   const currentRead = ensureProseEchoesAreaSummary(groundedCurrentReadRaw, anchorArea, 3);
-  const move = ensureProseEchoesAreaSummary(groundedMoveRaw, anchorArea, 2);
+  const move = ensureProseEchoesAreaSummary(
+    sanitizeVoiceBMoveForProse(groundedMoveRaw, anchorArea),
+    anchorArea,
+    2
+  );
   const categoryForTeacher = {
     ...category,
     plan: { ...category.plan, currentRead, move },
