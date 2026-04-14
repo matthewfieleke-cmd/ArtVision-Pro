@@ -235,6 +235,7 @@ describe('synthesizeVoiceAStageFromEvidence', () => {
 
     expect(() => validateVoiceAStageOutput(synthesized.voiceA, evidence)).not.toThrow();
     expect(synthesized.salvagedCriteria).toHaveLength(8);
+    expect(synthesized.voiceA.summary.split('. ').length).toBeGreaterThanOrEqual(3);
   });
 });
 

@@ -9,7 +9,6 @@ import type {
   CritiqueCategory,
   CritiqueResult,
   CritiqueSubskill,
-  PhotoQualityAssessment,
   SuggestedTitle,
   WorkCompletionState,
 } from '../types';
@@ -312,10 +311,6 @@ function CategoryCard({
           ) : null}
           <div className="space-y-3">
             <PhaseBlock
-              label="Visual inventory"
-              body={category.phase1?.visualInventory}
-            />
-            <PhaseBlock
               label="Critic's analysis"
               body={category.phase2?.criticsAnalysis}
               tone="violet"
@@ -396,23 +391,13 @@ function CategoryCard({
   );
 }
 
-function photoQualityBriefCopy(level: PhotoQualityAssessment['level']): string {
-  switch (level) {
-    case 'good':
-      return 'Photo quality looks solid for judging the work.';
-    case 'fair':
-      return 'Photo quality is usable but has some limits—take the critique with a bit of caution.';
-    default:
-      return 'Photo quality is limiting—critique confidence is lower until you can re-shoot more evenly.';
-  }
-}
-
 function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
   const [open, setOpen] = useState(false);
   const headingId = useId();
   const panelId = useId();
   const os = critique.overallSummary;
-  if (!os) return null;
+  const summaryText = normalizeWhitespace(critique.summary || os?.analysis || '');
+  if (!summaryText && !critique.completionRead && !critique.comparisonNote) return null;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-violet-200/80 bg-white shadow-sm">
@@ -440,42 +425,9 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
           aria-labelledby={headingId}
           className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
         >
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Photo quality</p>
-            {critique.photoQuality ? (
-              <>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-700">{photoQualityBriefCopy(critique.photoQuality.level)}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{critique.photoQuality.summary}</p>
-                {critique.photoQuality.issues.length ? (
-                  <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
-                    {critique.photoQuality.issues.slice(0, 4).map((issue) => (
-                      <li key={issue} className="flex gap-2">
-                        <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
-                        <span>{issue}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {critique.photoQuality.tips.length ? (
-                  <div className="mt-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Re-shoot tips</p>
-                    <ul className="mt-1 space-y-1 text-[11px] leading-relaxed text-slate-600">
-                      {critique.photoQuality.tips.slice(0, 3).map((tip) => (
-                        <li key={tip} className="flex gap-2">
-                          <span className="mt-[0.3rem] h-1 w-1 shrink-0 rounded-full bg-slate-400" aria-hidden />
-                          <span>{tip}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                No separate photo-quality read is attached to this critique.
-              </p>
-            )}
-          </div>
+          {summaryText ? (
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{summaryText}</p>
+          ) : null}
           <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Finished vs in progress</p>
             {critique.completionRead ? (
@@ -486,20 +438,6 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
               </p>
             )}
           </div>
-          <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{os.analysis}</p>
-          {os.topPriorities.length ? (
-            <div className="rounded-xl border border-violet-200/70 bg-violet-50/60 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Top priorities · Voice B</p>
-              <ol className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
-                {os.topPriorities.map((priority) => (
-                  <li key={priority} className="flex gap-2">
-                    <span className="mt-[0.25rem] h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
-                    <span>{priority}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
           {critique.comparisonNote ? (
             <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500">
               <span className="font-semibold text-slate-600">Vs. previous: </span>

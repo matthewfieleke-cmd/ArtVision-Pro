@@ -240,11 +240,16 @@ function buildFallbackCategory(
 }
 
 function buildSummaryFromEvidence(evidence: CritiqueEvidenceDTO): string {
-  return sentence(
-    `${evidence.intentHypothesis} Strongest visible qualities include ${evidence.strongestVisibleQualities
-      .slice(0, 2)
-      .join(' and ')}, while the main tensions remain ${evidence.mainTensions.slice(0, 2).join(' and ')}`
-  );
+  const strongest = evidence.strongestVisibleQualities.slice(0, 2).join(' and ');
+  const tensions = evidence.mainTensions.slice(0, 2).join(' and ');
+  const cues = evidence.criterionEvidence
+    .slice(0, 2)
+    .map((entry) => entry.visibleEvidence[0])
+    .filter(Boolean)
+    .join(' ');
+  return [sentence(evidence.intentHypothesis), sentence(`Strongest visible qualities include ${strongest}`), sentence(cues), sentence(`The main tensions remain ${tensions}`)]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function composeFallbackCritique(args: {

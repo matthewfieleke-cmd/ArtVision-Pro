@@ -195,14 +195,14 @@ export const suggestedTitleSchema = z.object({
 
 export const voiceAStageResultSchema = z.object({
   summary: z.string().describe(
-    'Voice A one-sentence synopsis: weave in concrete nouns from at least two different criterion anchors or visibleEvidence lines—no generic mood or composition summary alone.'
+    'Voice A primary overall summary: 3–5 sentences in plain critical prose, grounded in multiple concrete passages from the painting. It should read like a compact serious critique, not a slogan or one-line synopsis.'
   ),
   suggestedPaintingTitles: z.array(suggestedTitleSchema).min(3).max(3).describe(
     'Three sketchbook-style titles: formalist, tactile, intent. Modest and specific; rationales in normal speech.'
   ),
   overallSummary: z.object({
     analysis: z.string().describe(
-      'Voice A overall summary: mention style and medium, and name multiple specific passages or motifs from the evidence (not one vague overview).'
+      'Voice A supporting overall analysis: mention style and medium, and name multiple specific passages or motifs from the evidence (not one vague overview). Keep it distinct from summary rather than repeating the same lines.'
     ),
   }),
   studioAnalysis: z.object({

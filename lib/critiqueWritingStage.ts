@@ -385,7 +385,16 @@ function synthesizeVoiceATopline(
     evidence.criterionEvidence.find((entry) => !readsResolvedTension(entry.tensionRead)) ?? ranked[ranked.length - 1]!;
 
   return {
-    summary: uniqueNonEmptyLines([strongest.visibleEvidence[0], strongest.strengthRead], 1, 2)
+    summary: uniqueNonEmptyLines(
+      [
+        `Through a ${style} reading in ${medium}, ${strongest.visibleEvidence[0]}`,
+        strongest.strengthRead,
+        secondary.visibleEvidence[0],
+        `The main unresolved threshold remains in ${tensionCarrier.anchor}, where ${normalizeWhitespace(tensionCarrier.tensionRead).replace(/\.$/, '')}`,
+      ],
+      3,
+      5
+    )
       .map(sentence)
       .join(' '),
     overallSummary: {
@@ -632,7 +641,8 @@ ${phaseVoiceAWorkflowRules()}
 - Do not sound like a product blurb, museum wall label, or encouraging art-coach template.
 - Non-redundancy: categories[].phase1.visualInventory must stay objective and distinct from categories[].phase2.criticsAnalysis. categories[].phase2.criticsAnalysis must not repeat the same sentence, clause, or junction observation twice. categories[].evidenceSignals must be short distillations of distinct lines from that criterion’s visibleEvidence—do not restate the phase2 text verbatim.
 - suggestedPaintingTitles: three entries (formalist, tactile, intent). Write them like labels in a sketchbook—plain, specific, usually 2–8 words. Prefer sentence case or light title case, not Title Case on every word. Do not rely on stock endings or filler nouns ("Study", "Tension", "Symphony", "Journey", "Echoes", "Untitled III") unless the evidence truly calls for it. Each rationale: one straightforward sentence in normal speech—no thesis tone.
-- Overall prose: studioAnalysis.whatWorks vs whatCouldImprove must not duplicate each other; summary and overallSummary.analysis must add different angles, not repeat the same phrases.
+- Summary (highest-priority prose field): write summary as a compact mini-critique in **3–5 sentences**. It should synthesize what the painting is trying to do, what is already convincing, where the main unresolved threshold lives, and why that threshold matters. Keep it grounded in named passages from the evidence; do not write a one-line verdict.
+- Overall prose: studioAnalysis.whatWorks vs whatCouldImprove must not duplicate each other; summary should be the richest, most complete overall read, while overallSummary.analysis can be shorter and more scaffolding-oriented without repeating the same phrasing.
 - Rating calibration (per criterion, from visible evidence only):
   - Beginner: weak fundamentals or control in this criterion—the work reads early-stage, uncertain, or under-supported.
   - Intermediate: clear competence in this criterion—control reads as intentional more often than accidental, and the painting shows real structure or craft in this area even though refinement remains.

@@ -34,6 +34,19 @@ describe('composeFallbackCritique', () => {
     expect(validated.pipeline?.completedWithFallback).toBe(true);
   });
 
+  it('builds a longer fallback summary instead of a single sentence stub', () => {
+    const evidence = makeCritiqueEvidenceFixture();
+
+    const critique = composeFallbackCritique({
+      style: 'Realism',
+      medium: 'Oil on Canvas',
+      evidence,
+      failureStage: 'final',
+    });
+
+    expect(critique.summary.split('. ').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('uses placeholder evidence when a criterion row is missing', () => {
     const evidence = makeCritiqueEvidenceFixture();
     const trimmed = {
