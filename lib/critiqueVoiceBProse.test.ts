@@ -91,4 +91,21 @@ describe('renderGroundedTeacherNextSteps', () => {
     );
     expect(rendered).not.toMatch(/reads sooner so /i);
   });
+
+  it('recovers from sentence-like area text without using the whole observation as a location', () => {
+    const rendered = renderGroundedTeacherNextSteps({
+      area: 'The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.',
+      currentRead:
+        'The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.',
+      move:
+        "Sharpen the clearest expressive passage in The warm yellow light contrasts with the cool blue exterior, creating a temperature shift.",
+      expectedRead:
+        "the painting's festive presence and human warmth will be strengthened",
+    });
+
+    expect(rendered).not.toMatch(/Sharpen .* in The warm yellow light contrasts/i);
+    expect(rendered).not.toMatch(/^In the warm yellow light contrasts/i);
+    expect(rendered).toMatch(/Sharpen the clearest expressive passage/i);
+    expect(rendered).toMatch(/temperature shift/i);
+  });
 });
