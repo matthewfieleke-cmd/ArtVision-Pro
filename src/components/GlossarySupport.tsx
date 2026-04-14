@@ -147,31 +147,41 @@ function longestFirst(entries: readonly GlossaryEntry[]): GlossaryEntry[] {
 
 function InlineDefinition({
   entry,
+  matchedText,
   open,
   onToggle,
 }: {
   entry: GlossaryEntry;
+  matchedText: string;
   open: boolean;
   onToggle: () => void;
 }) {
   return (
-    <span className="inline">
+    <span className="inline-block align-baseline">
       <button
         type="button"
         onClick={onToggle}
-        className="rounded-sm border-b border-violet-300/80 bg-violet-50/70 px-0.5 text-[0.98em] font-medium text-violet-800 decoration-violet-400 underline-offset-2 transition hover:bg-violet-100/80"
+        className="rounded-sm bg-violet-50/70 px-0.5 text-[0.98em] font-medium text-violet-700 transition hover:bg-violet-100/80"
+        aria-expanded={open}
       >
-        {entry.term}
+        {matchedText}
       </button>
-      {open ? (
+      <span
+        className={`block overflow-hidden transition-all duration-200 ease-out ${
+          open ? 'mt-2 max-h-40 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
         <button
           type="button"
           onClick={onToggle}
-          className="mt-2 block w-full animate-fade-in rounded-xl border border-violet-200/80 bg-violet-50/70 px-3 py-2 text-left text-xs leading-relaxed text-slate-700 shadow-sm"
+          className={`block w-full rounded-xl border border-violet-200/80 bg-violet-50/70 px-3 py-2 text-left text-xs leading-relaxed text-slate-700 shadow-sm transition-opacity duration-200 ${
+            open ? 'animate-fade-in' : ''
+          }`}
+          aria-label={`Hide definition for ${entry.term}`}
         >
           {entry.definition}
         </button>
-      ) : null}
+      </span>
     </span>
   );
 }
@@ -206,8 +216,12 @@ export function InlineGlossaryText({
     return <p className={className}>{text}</p>;
   }
 
-  const chunks: Array<{ kind: 'text'; value: string } | { kind: 'term'; entry: GlossaryEntry }> = [];
+  const chunks: Array<
+    | { kind: 'text'; value: string }
+    | { kind: 'term'; entry: GlossaryEntry; matchedText: string }
+  > = [];
   let cursor = 0;
+  const seenEntryIds = new Set<string>();
 
   while (cursor < text.length) {
     let nextMatch:
@@ -215,10 +229,12 @@ export function InlineGlossaryText({
           start: number;
           end: number;
           entry: GlossaryEntry;
+          matchedText: string;
         }
       | undefined;
 
     for (const { entry, regex } of matchers) {
+      if (seenEntryIds.has(entry.id)) continue;
       regex.lastIndex = 0;
       const slice = text.slice(cursor);
       const match = regex.exec(slice);
@@ -230,7 +246,7 @@ export function InlineGlossaryText({
         start < nextMatch.start ||
         (start === nextMatch.start && end - start > nextMatch.end - nextMatch.start)
       ) {
-        nextMatch = { start, end, entry };
+        nextMatch = { start, end, entry, matchedText: match[0] };
       }
     }
 
@@ -243,7 +259,8 @@ export function InlineGlossaryText({
       chunks.push({ kind: 'text', value: text.slice(cursor, nextMatch.start) });
     }
 
-    chunks.push({ kind: 'term', entry: nextMatch.entry });
+    chunks.push({ kind: 'term', entry: nextMatch.entry, matchedText: nextMatch.matchedText });
+    seenEntryIds.add(nextMatch.entry.id);
     cursor = nextMatch.end;
   }
 
@@ -257,6 +274,7 @@ export function InlineGlossaryText({
           <InlineDefinition
             key={`term-${chunk.entry.id}-${index}`}
             entry={chunk.entry}
+            matchedText={chunk.matchedText}
             open={openId === chunk.entry.id}
             onToggle={() => setOpenId((current) => (current === chunk.entry.id ? null : chunk.entry.id))}
           />
