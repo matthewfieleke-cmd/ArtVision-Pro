@@ -477,7 +477,7 @@ describe('repairCritiqueVoiceBFromEvidence', () => {
 
     expect(steps).not.toMatch(/Sharpen the clearest expressive passage in The warm yellow light contrasts/i);
     expect(steps).not.toMatch(/\bso\b.*\bso\b/i);
-    expect(steps).toContain('the warm yellow light');
+    expect(steps).toContain("the sitter's downturned head against the dark wall");
   });
 });
 

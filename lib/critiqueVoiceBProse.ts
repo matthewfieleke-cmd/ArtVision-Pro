@@ -67,7 +67,7 @@ function sanitizeAnchoredLead(text: string, area: string): string {
   return stripStackedTitleEcho(stripRedundantAnchorPrefix(text, area), area);
 }
 
-function looksLikeSentenceObservation(text: string): boolean {
+export function looksLikeSentenceObservation(text: string): boolean {
   const cleaned = cleanClause(text);
   if (!cleaned) return false;
   if (/[.!?]$/.test(text.trim())) return true;
@@ -75,18 +75,29 @@ function looksLikeSentenceObservation(text: string): boolean {
   return /\b(contrasts?|creates?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(cleaned);
 }
 
+function looksLikeSentenceLikeArea(text: string): boolean {
+  const cleaned = cleanClause(text);
+  if (!cleaned) return false;
+  if (/[.!?]$/.test(text.trim())) return true;
+  if (cleaned.length > 72) return true;
+  return /\b(is|are|was|were|creates?|contrasts?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(cleaned);
+}
+
 function looksLikeLocationPhrase(text: string): boolean {
   const cleaned = cleanClause(text);
   if (!cleaned) return false;
-  if (looksLikeSentenceObservation(cleaned)) return false;
-  if (cleaned.length > 72) return false;
-  return !/\b(is|are|was|were|creates?|contrasts?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(cleaned);
+  return !looksLikeSentenceLikeArea(cleaned);
+}
+
+export function sanitizeVoiceBAreaForProse(area: string, fallbackArea?: string): string {
+  const cleanedArea = cleanClause(area);
+  if (looksLikeLocationPhrase(cleanedArea)) return cleanedArea;
+  return cleanClause(fallbackArea || cleanedArea) || 'the anchored passage';
 }
 
 function chooseUsableArea(area: string, currentRead: string, move: string): string {
   const cleanedArea = cleanClause(area);
   if (looksLikeLocationPhrase(cleanedArea)) return cleanedArea;
-
   const read = cleanClause(currentRead);
   const moveClause = cleanClause(move);
   const readMatch = read.match(
@@ -98,7 +109,7 @@ function chooseUsableArea(area: string, currentRead: string, move: string): stri
   );
   if (moveMatch) return moveMatch[0]!;
 
-  return cleanedArea || 'the anchored passage';
+  return 'the anchored passage';
 }
 
 function sanitizeCurrentReadForTeacher(currentRead: string, area: string): string {
@@ -113,10 +124,21 @@ function sanitizeCurrentReadForTeacher(currentRead: string, area: string): strin
 function sanitizeMoveForTeacher(move: string, area: string): string {
   const cleaned = cleanClause(move);
   if (!cleaned) return `adjust the clearest relationship in ${area}`;
+  if (
+    /\b(?:in|along|around|against)\s+the\s+[a-z].*\b(contrasts?|creates?|suggests?|enhances?|making|indicating|showing|highlighting)\b/i.test(
+      cleaned
+    )
+  ) {
+    return `adjust the clearest relationship in ${area}`;
+  }
   if (looksLikeSentenceObservation(cleaned) && !/^(soften|group|separate|darken|quiet|restate|widen|narrow|cool|warm|sharpen|lose|compress|vary|lighten|lift|simplify|straighten|merge|break|integrate|adjust|reduce|shift|refine|preserve|keep|protect|leave|hold|maintain|continue)\b/i.test(cleaned)) {
     return `adjust the clearest relationship in ${area}`;
   }
   return cleaned;
+}
+
+export function sanitizeVoiceBMoveForProse(move: string, area: string): string {
+  return sanitizeMoveForTeacher(move, area);
 }
 
 function comparable(text: string): string {
@@ -284,7 +306,9 @@ export function renderGroundedTeacherNextSteps(args: {
   move: string;
   expectedRead: string;
 }): string {
-  const area = chooseUsableArea(args.area, args.currentRead, args.move);
+  const area = looksLikeSentenceLikeArea(args.area)
+    ? chooseUsableArea(args.area, args.currentRead, args.move)
+    : cleanClause(args.area);
   const currentRead = sanitizeCurrentReadForTeacher(args.currentRead, area);
   const move = sanitizeMoveForTeacher(args.move, area);
   const expectedRead = cleanClause(args.expectedRead);

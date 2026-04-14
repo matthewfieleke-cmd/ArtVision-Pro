@@ -1333,15 +1333,13 @@ function groundedTeacherNextSteps(
   }
   const safeArea = sanitizeVoiceBAreaForProse(
     category.anchor.areaSummary,
-    criterionEvidence.anchor,
-    category.anchor.evidencePointer
+    criterionEvidence.anchor
   );
   const expectedRead = groundedVoiceBExpectedRead(category).replace(/\s+/g, ' ').trim().replace(/\.$/, '');
   const currentRead = groundedCurrentRead.replace(/\s+/g, ' ').trim().replace(/\.$/, '');
   const move = sanitizeVoiceBMoveForProse(
     groundedMove.replace(/\s+/g, ' ').trim().replace(/\.$/, ''),
-    safeArea,
-    currentRead
+    safeArea
   );
   return renderGroundedTeacherNextSteps({
     area: safeArea,
@@ -1358,15 +1356,14 @@ function normalizeVoiceBCategoryGrounding(
 ): VoiceBCategoryResult {
   const anchorArea = sanitizeVoiceBAreaForProse(
     category.anchor.areaSummary,
-    criterionEvidence.anchor,
-    category.anchor.evidencePointer
+    criterionEvidence.anchor
   );
   const groundedCurrentReadRaw = groundedVoiceBCurrentRead(category, criterionEvidence);
   const groundedEvidencePointer = groundedAnchorEvidencePointer(category, criterionEvidence);
   const groundedMoveRaw = groundedVoiceBMove(category, groundedCurrentReadRaw, level);
   const currentRead = ensureProseEchoesAreaSummary(groundedCurrentReadRaw, anchorArea, 3);
   const move = ensureProseEchoesAreaSummary(
-    sanitizeVoiceBMoveForProse(groundedMoveRaw, anchorArea, currentRead),
+    sanitizeVoiceBMoveForProse(groundedMoveRaw, anchorArea),
     anchorArea,
     2
   );

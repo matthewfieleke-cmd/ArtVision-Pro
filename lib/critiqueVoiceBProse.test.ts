@@ -44,9 +44,9 @@ describe('renderGroundedTeacherNextSteps', () => {
       expectedRead: 'the path stays the clearer lead while the wash still feels moody',
     });
 
-    expect(rendered).toContain('transitions smoothly');
     expect(rendered).not.toMatch(/foreground The wash/i);
-    expect(rendered.startsWith('In the purple wash across the foreground,')).toBe(true);
+    expect(rendered).not.toMatch(/^In The purple wash across the foreground,/i);
+    expect(rendered).toContain('The key relationship in The purple wash across the foreground');
   });
 
   it('avoids the repeated "In area, area..." phrasing when the current read already starts with the anchor', () => {
@@ -105,7 +105,7 @@ describe('renderGroundedTeacherNextSteps', () => {
 
     expect(rendered).not.toMatch(/Sharpen .* in The warm yellow light contrasts/i);
     expect(rendered).not.toMatch(/^In the warm yellow light contrasts/i);
-    expect(rendered).toMatch(/Sharpen the clearest expressive passage/i);
-    expect(rendered).toMatch(/temperature shift/i);
+    expect(rendered).toMatch(/Adjust the clearest relationship in the anchored passage/i);
+    expect(rendered).toContain("the painting's festive presence and human warmth");
   });
 });
