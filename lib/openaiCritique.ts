@@ -72,14 +72,103 @@ import { composeFallbackCritique } from './critiqueFallback.js';
 const EVIDENCE_MAX_TOKENS = 3600;
 const OBSERVATION_MAX_TOKENS = 2600;
 /**
- * Merge A: the unified vision call must hold the full observation bank AND
- * the full evidence object in one response, so the budget is the sum of the
- * two stage budgets plus a small headroom margin for JSON wrapping. The
+ * Merge A + Merge C: the unified vision call holds the full observation bank,
+ * the full evidence object, AND the eight per-criterion anchor regions in
+ * one response. The budget is the sum of the two stage budgets plus a small
+ * headroom margin for JSON wrapping and the compact regions array. The
  * reasoning-model multiplier in `buildOpenAIMaxTokensParam` still applies on
  * top of this for gpt-5 / o-series so they get enough room for invisible
  * reasoning tokens.
  */
-const VISION_MAX_TOKENS = 6800;
+const VISION_MAX_TOKENS = 7200;
+
+type CriterionAnchorRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Defensive clamp for vision-stage regions. Mirrors the clamp the dedicated
+ * `refineCritiqueAnchorRegionsFromImage` helper applied so downstream UI code
+ * (anchor overlay) keeps the same min-size and within-bounds guarantees.
+ */
+function clampCriterionAnchorRegion(region: CriterionAnchorRegion): CriterionAnchorRegion {
+  const x = Math.min(1, Math.max(0, region.x));
+  const y = Math.min(1, Math.max(0, region.y));
+  let width = Math.min(1, Math.max(0.02, region.width));
+  let height = Math.min(1, Math.max(0.02, region.height));
+  if (x + width > 1) width = Math.max(0.02, 1 - x);
+  if (y + height > 1) height = Math.max(0.02, 1 - y);
+  return { x, y, width, height };
+}
+
+function extractVisionAnchorRegions(raw: unknown): Map<string, CriterionAnchorRegion> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const list = (raw as Record<string, unknown>).anchorRegions;
+  if (!Array.isArray(list)) return undefined;
+  const map = new Map<string, CriterionAnchorRegion>();
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const criterion = typeof e.criterion === 'string' ? e.criterion : undefined;
+    const region = e.region;
+    if (!criterion || !region || typeof region !== 'object') continue;
+    const r = region as Record<string, unknown>;
+    if (
+      typeof r.x !== 'number' ||
+      typeof r.y !== 'number' ||
+      typeof r.width !== 'number' ||
+      typeof r.height !== 'number' ||
+      Number.isNaN(r.x) ||
+      Number.isNaN(r.y) ||
+      Number.isNaN(r.width) ||
+      Number.isNaN(r.height) ||
+      r.width <= 0 ||
+      r.height <= 0
+    ) {
+      continue;
+    }
+    map.set(criterion, clampCriterionAnchorRegion({
+      x: r.x,
+      y: r.y,
+      width: r.width,
+      height: r.height,
+    }));
+  }
+  return map.size > 0 ? map : undefined;
+}
+
+/**
+ * Merge C: applies vision-stage anchor regions to the final critique
+ * categories, replacing whatever Voice B produced. Vision regions are
+ * derived from the same call that produced the evidence anchors, so they
+ * are tightly aligned with the prose down-stream. Falls open: if the vision
+ * stage did not produce a region for a criterion, the original Voice B
+ * region is left untouched.
+ */
+function applyVisionAnchorRegionsToCritique(
+  critique: CritiqueResultDTO,
+  regions: Map<string, CriterionAnchorRegion> | undefined
+): CritiqueResultDTO {
+  if (!regions || regions.size === 0) return critique;
+  return {
+    ...critique,
+    categories: critique.categories.map((category) => {
+      if (!category.anchor) return category;
+      const region = regions.get(category.criterion);
+      if (!region) return category;
+      return {
+        ...category,
+        anchor: {
+          ...category.anchor,
+          region,
+        },
+      };
+    }),
+  };
+}
 
 function summarizeRawForLog(raw: unknown): string {
   try {
@@ -900,6 +989,13 @@ type VisionStageRunResult = EvidenceStageRunResult & {
   recoveredWithObservationSynthesizedEvidence?: boolean;
   /** True iff the observation-bank half of the merged response had to fall through to the lenient parser. */
   usedLenientObservationParse: boolean;
+  /**
+   * Per-criterion anchor regions captured from the merged vision call
+   * (Merge C). Undefined when the model did not return a usable
+   * anchorRegions block (e.g. lenient/synthesized fallback path); the
+   * orchestrator falls back to Voice B's own regions in that case.
+   */
+  anchorRegions?: Map<string, CriterionAnchorRegion>;
 };
 
 /**
@@ -1088,12 +1184,14 @@ async function runCritiqueVisionStage(
         }
       })();
 
+      const anchorRegions = extractVisionAnchorRegions(raw);
       return {
         evidence,
         observationBank,
         failedAttempts: attemptDebug,
         successAttempt: attempt,
         usedLenientObservationParse,
+        ...(anchorRegions ? { anchorRegions } : {}),
       };
     } catch (evidenceError) {
       attemptDebug.push(
@@ -1111,6 +1209,7 @@ async function runCritiqueVisionStage(
           attempts: MAX_OBSERVATION_ATTEMPTS,
         });
         const evidence = synthesizeEvidenceFromObservationBankValidated(observationBank);
+        const anchorRegions = extractVisionAnchorRegions(raw);
         return {
           evidence,
           observationBank,
@@ -1118,6 +1217,7 @@ async function runCritiqueVisionStage(
           successAttempt: attempt,
           usedLenientObservationParse,
           recoveredWithObservationSynthesizedEvidence: true,
+          ...(anchorRegions ? { anchorRegions } : {}),
         };
       }
       repairNote = buildEvidenceRepairNote(evidenceError, attemptDebug);
@@ -1263,6 +1363,15 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const observationBank = visionRun.observationBank;
   const usedLenientObservationParse = visionRun.usedLenientObservationParse;
   const evidence = visionRun.evidence;
+  /**
+   * Merge C: anchor regions captured by the unified vision call. Applied
+   * after voice B + guardrails so the same image-locating boxes that the
+   * model produced alongside the evidence anchors carry forward into the
+   * final critique. When undefined (e.g. lenient/synthesized fallback),
+   * downstream code keeps Voice B's own regions and the legacy late-stage
+   * region refine still runs as a safety net.
+   */
+  const visionAnchorRegions = visionRun.anchorRegions;
 
   if (evidence.photoQualityRead.level === 'poor') {
     console.warn('[critique photo quality poor — continuing with full critique]', {
@@ -1342,21 +1451,40 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
 
+  /**
+   * Merge C: prefer the per-criterion regions produced by the unified vision
+   * call. When the vision stage did not return regions for every criterion,
+   * fall back to the legacy late-stage refine for any criteria that are
+   * still missing a usable region. This preserves the previous behaviour as
+   * a safety net for the lenient/synthesized fallback paths and for any
+   * future criterion that the vision model declines to localise.
+   */
   {
-    const critiqueBeforeAnchorRefine = guarded;
-    guarded = await instrumenter.time('anchor_region_refine', () =>
-      runBestEffortCritiqueStage(
-        'anchor_region_refine',
-        () =>
-          refineCritiqueAnchorRegionsFromImage({
-            apiKey,
-            model: stageModels.validation,
-            imageDataUrl: body.imageDataUrl,
-            critique: critiqueBeforeAnchorRefine,
-          }),
-        critiqueBeforeAnchorRefine
-      )
+    const critiqueWithVisionRegions = applyVisionAnchorRegionsToCritique(
+      guarded,
+      visionAnchorRegions
     );
+    const allCriteriaCovered = critiqueWithVisionRegions.categories.every(
+      (category) => Boolean(category.anchor?.region) && visionAnchorRegions?.has(category.criterion)
+    );
+    if (allCriteriaCovered && visionAnchorRegions) {
+      guarded = critiqueWithVisionRegions;
+    } else {
+      const critiqueBeforeAnchorRefine = critiqueWithVisionRegions;
+      guarded = await instrumenter.time('anchor_region_refine', () =>
+        runBestEffortCritiqueStage(
+          'anchor_region_refine',
+          () =>
+            refineCritiqueAnchorRegionsFromImage({
+              apiKey,
+              model: stageModels.validation,
+              imageDataUrl: body.imageDataUrl,
+              critique: critiqueBeforeAnchorRefine,
+            }),
+          critiqueBeforeAnchorRefine
+        )
+      );
+    }
   }
 
   if (isClarityPassEnabled() && clarityPassEligible(guarded)) {

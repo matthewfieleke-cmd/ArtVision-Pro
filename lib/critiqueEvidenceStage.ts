@@ -202,31 +202,63 @@ export function buildObservationStagePrompt(style: string, medium: string): stri
 }
 
 /**
- * Merge A: produce the observation bank AND the evidence object in a single
- * vision call. Concatenating both prompts gives the model the full set of
- * rules it needs to:
+ * Anchor-region rules used by the vision stage (Merge C). Lifted from the
+ * deprecated `critiqueAnchorRegionRefine` system prompt so the model that
+ * produces evidence anchors can also localise them in the same call. Kept as
+ * a separate constant so any future region tooling can reuse the exact same
+ * rules without import cycles.
+ */
+const ANCHOR_REGION_RULES = `Anchor-region rules (for "anchorRegions" in the response):
+- Output normalized axis-aligned bounding boxes (x, y, width, height) in **0–1 coordinates relative to the full image** (x=0 left, y=0 top, width/height as fractions of image width/height).
+- The "anchorRegions" array must have exactly one entry per criterion, in the SAME canonical order as evidence.criterionEvidence. Each entry has { "criterion": "<criterion name>", "region": { x, y, width, height } }.
+- Each box must **contain the visible motifs** named by that criterion's evidence anchor (areaSummary + the visibleEvidence lines that echo it)—not empty sky, random background, or a different object.
+- **Tight fit**: most pixels inside each box should belong to that passage—**except** when the anchor names a **broad horizontal band** (see below), where width should span the scene even if that admits some adjacent pixels at the edges.
+- **Vertical cues**: "foreground", "tables", "figures seated", "umbrellas", "path", "stairs", "bridge", "railing", "near the bottom" → box must extend **toward the bottom** of the frame (larger y + height). "Sky", "upper canopy only", "distant treetops" → box sits **higher**.
+- **Horizontal boundaries / junctions** (phrases like *where X meets Y*, *X meeting Y*, *horizon*, *shoreline*, *waterline*, *edge of the sea*, *sea and sky*): the box must **straddle that boundary**. Include pixels **on both sides** of the line so the **actual dividing line** lies **inside** the rectangle. Do **not** place the box entirely in the sky when the text names the sea, the horizon, or both sides of a color break at the horizon—**center the band vertically on that line** and use enough height (often ~0.06–0.18 of image height) to capture the transition.
+- **Small scattered motifs** (flocks, distant birds, boats, figures, buoys, posts): find **every** instance that matches the description in the relevant band of the image; the box must be the **smallest axis-aligned rectangle that contains all of them**. A box that only covers empty sky while the described marks sit **outside** it is wrong. If marks sit in a cluster, center on the cluster, not on an unrelated patch of sky.
+- **Contrast pairs** (*A against B*, *A on B*): include **both** A and the adjacent B so the relationship is visible—often extend the box to span from the objects through the background they contrast with.
+- **Named object + secondary context** (*X under the sky*, *X against the horizon*, *distant X*, *small X in the field*): **locate X first**. The box must contain the **named structure or mass** (building, house, boat, figure, etc.), not only the sky, trees, or haze around it. After X is included, you may add a modest band of the named context (sky, hill) so the relationship reads—**never** return a box that lies entirely in empty sky or generic background while the named X sits **outside** the rectangle.
+- **Object-first rule:** when the anchor names a specific object plus a relation or surrounding context, the **named object itself** is the required center of the box. First locate that object; only then widen enough to show the relation. A similar nearby edge, silhouette, or brightness pattern does **not** count unless the named object is actually inside the box.
+- **Anchor hierarchy rule:** if the anchor contains both an object noun and a relational phrase, the object noun has priority. The relation helps define the crop, but it does not replace the requirement to include the named object.
+- **Specific noun priority:** when the anchor includes one specific object plus broader location context, prioritize the **most specific named object or passage** first and treat the surrounding phrase as location context only. Example pattern: in "the small boat under the bridge", prioritize **boat** first and **under the bridge** second.
+- **Text / sign / lettering rule:** if the anchor names a sign, quoted word, letters, numbers, label, banner, poster, painted text, or any text-bearing object, the box must center on the **actual text-bearing object itself**. Do **not** substitute a nearby doorway, window, porch light, bright ornament, or other more salient feature in the same area.
+- **No proxy-object substitution:** do **not** replace the named object with a nearby object just because it is brighter, larger, more central, or easier to see. A nearby glow is not a sign; a skirt fold is not a hand; a torso highlight is not a shoulder passage.
+- **Small-target rule:** if the anchor names a small object or local passage (hand, cup rim, earring, sign, candle, eye, small window, lettered decoration, small boat, etc.), prefer a **tight local box** around that object rather than a medium box centered on the surrounding body, building, or room.
+- **Plural repeated elements** (*posts*, *rails*, *pickets*, *figures*, *windows*, *boats*): when several clear repeats appear **along a line** (a row in the foreground, a fence, a pier), treat the passage as the **group**: widen (or lengthen) the box so **multiple** repeats are inside—not a single instance on one edge unless only one is visible.
+- **Wide horizontal bands** (*sky above…*, *cloud band*, *treeline against sky*, *ridge across the top*): when the text names a **layer** that spans the composition, the box should cover **most of the image width** (typically **width ≥ 0.55** unless the motif is clearly localized to one side). Avoid a small corner crop that could be any patch of sky.
+- **Named colors/objects**: if the text names specific colors or objects, the box must include **those** visible elements.
+- **Groups of people**: if the text names multiple figures at a table, include **all** of them in one box.
+- **Diagonal structures** (bridge, path): use an **elongated** box along the structure, not a small centered square that misses it.
+- If a passage is ambiguous, choose the **most literal** reading that matches the nouns in the anchor text.`;
+
+/**
+ * Merge A + Merge C: produce the observation bank, the evidence object, AND
+ * per-criterion anchor regions in a single vision call. Concatenating the
+ * prompts gives the model the full set of rules it needs to:
  *
- *   1. First build a reusable observation bank with stable passage ids.
- *   2. Immediately reuse those passages to anchor per-criterion evidence.
+ *   1. Build a reusable observation bank with stable passage ids.
+ *   2. Reuse those passages to anchor per-criterion evidence.
+ *   3. Locate each evidence anchor in the photograph with a normalized box.
  *
- * Doing both halves in one call removes the cross-call drift where the
- * evidence stage could pick paraphrased anchors instead of copying observation
- * passage labels verbatim, and saves a full vision round-trip.
+ * Doing all three in one call removes the cross-call drift where a downstream
+ * stage could pick paraphrased anchors or boxes that disagreed with the
+ * evidence, and saves two full vision round-trips.
  *
  * The response shape is:
  *
- *   { observationBank: { ... }, evidence: { ... } }
+ *   { observationBank: { ... }, evidence: { ... }, anchorRegions: [ ... ] }
  *
  * which is validated by `visionStageResultSchema`.
  */
 export function buildVisionStagePrompt(style: string, medium: string): string {
-  return `You are the unified vision-reading stage of a painting critique system. You produce TWO things in ONE JSON response: a reusable observation bank, and the evidence object that depends on it.
+  return `You are the unified vision-reading stage of a painting critique system. You produce THREE things in ONE JSON response: a reusable observation bank, the evidence object that depends on it, and one normalized bounding box per criterion locating each evidence anchor in the photograph.
 
-The response MUST have exactly these two top-level keys:
+The response MUST have exactly these top-level keys:
   - "observationBank": follows the observation-bank schema and rules below.
   - "evidence": follows the evidence schema and rules below, and ALL evidence.criterionEvidence[].observationPassageId values MUST refer to ids that exist in observationBank.passages[].id.
+  - "anchorRegions": an array of exactly eight { criterion, region } entries, one per criterion in the SAME order as evidence.criterionEvidence, each box tightly covering the visible passage named by that criterion's evidence anchor.
 
-Build the observation bank first (mentally), then build evidence that reuses those exact passages by id. Do NOT invent evidence anchors that have no matching passage in the observation bank. When an observation-bank passage already names the right carrier for a criterion, copy that exact passages[].label verbatim into evidence.criterionEvidence[].anchor instead of paraphrasing.
+Build the observation bank first (mentally), then build evidence that reuses those exact passages by id, then locate each criterion's evidence anchor in the actual photograph as a normalized box. Do NOT invent evidence anchors that have no matching passage in the observation bank. When an observation-bank passage already names the right carrier for a criterion, copy that exact passages[].label verbatim into evidence.criterionEvidence[].anchor instead of paraphrasing.
 
 ============================================================
 PART 1 — OBSERVATION BANK
@@ -241,7 +273,13 @@ PART 2 — EVIDENCE (depends on the observation bank above)
 ${buildEvidencePrompt(style, medium)}
 
 ============================================================
+PART 3 — ANCHOR REGIONS (depends on evidence above)
+============================================================
+
+${ANCHOR_REGION_RULES}
+
+============================================================
 RESPONSE FORMAT
 ============================================================
-Return JSON only, with exactly { "observationBank": { ... }, "evidence": { ... } }. Both objects must follow their respective schemas above. Every evidence.criterionEvidence[].observationPassageId must match an id in observationBank.passages[].id, and every evidence.criterionEvidence[].anchor that reuses an observation-bank passage must copy that passage's label verbatim.`;
+Return JSON only, with exactly { "observationBank": { ... }, "evidence": { ... }, "anchorRegions": [ ... ] }. Each section must follow its respective schema and rules above. Every evidence.criterionEvidence[].observationPassageId must match an id in observationBank.passages[].id, every evidence.criterionEvidence[].anchor that reuses an observation-bank passage must copy that passage's label verbatim, and the anchorRegions array must contain exactly one box per criterion in canonical order.`;
 }

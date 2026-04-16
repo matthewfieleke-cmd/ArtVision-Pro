@@ -363,20 +363,42 @@ export const evidenceStageResultSchema = z.object({
 });
 
 /**
- * Unified vision-stage schema (Merge A): the observation bank and the evidence
- * object are produced by ONE OpenAI call. The model sees the image once, builds
- * the shared observation bank, then immediately picks per-criterion evidence
- * anchored back to those passages. Cuts a full vision round-trip and removes
- * the cross-call drift where the evidence model could ignore observations it
- * did not generate itself.
+ * Per-criterion anchor region carried by the unified vision call (Merge C).
+ * The vision model has the image loaded for the observation/evidence work
+ * already, so it produces the normalized bounding box for each criterion's
+ * anchor in the same response. Downstream code copies these into
+ * `categories[].anchor.region` after voice B + guardrails, replacing the
+ * dedicated `refineCritiqueAnchorRegionsFromImage` round-trip that used to
+ * re-ask a vision model for the same boxes.
+ */
+export const criterionAnchorRegionSchema = z.object({
+  criterion: criterionEnum,
+  region: normalizedRegionSchema,
+});
+
+/**
+ * Unified vision-stage schema (Merge A + Merge C): the observation bank, the
+ * evidence object, and per-criterion anchor regions are all produced by ONE
+ * OpenAI call. The model sees the image once, builds the shared observation
+ * bank, picks per-criterion evidence anchored back to those passages, and
+ * locates each anchor in the photo with normalized box coordinates. Cuts two
+ * full vision round-trips and removes the cross-call drift where the evidence
+ * model or the late region-refine model could disagree with passages they did
+ * not generate themselves.
  *
- * The two halves are kept as nested objects so the existing
+ * The two prose halves are kept as nested objects so the existing
  * `parseObservationStageResult` / `validateEvidenceResult` validators (and
  * every downstream consumer) work unchanged on the split parts.
  */
 export const visionStageResultSchema = z.object({
   observationBank: observationBankSchema,
   evidence: evidenceStageResultSchema,
+  anchorRegions: z
+    .array(criterionAnchorRegionSchema)
+    .length(CRITERIA_ORDER.length)
+    .describe(
+      `Exactly ${CRITERIA_ORDER.length} per-criterion bounding boxes (one for every criterion in the canonical order). Each box must tightly cover the visible passage named by that criterion's evidence anchor in the painting photograph.`
+    ),
 });
 
 // ---------------------------------------------------------------------------
