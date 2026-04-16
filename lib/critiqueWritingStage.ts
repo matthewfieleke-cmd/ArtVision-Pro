@@ -24,6 +24,7 @@ import {
 } from './critiquePhasePromptBlocks.js';
 import {
   VOICE_A_OPENAI_SCHEMA,
+  WRITING_STAGE_OPENAI_SCHEMA,
   anchorSchema,
   studioChangeSchema,
   type ObservationBank,
@@ -31,6 +32,7 @@ import {
   type VoiceBStageResult,
   voiceBCanonicalPlanSchema,
   voiceAStageResultSchema,
+  writingStageResultSchema,
   toOpenAIJsonSchema,
 } from './critiqueZodSchemas.js';
 import {
@@ -2742,6 +2744,184 @@ function repairMergedCritiqueByCriteria(args: {
   }
 }
 
+/**
+ * Merge B: unified writing-stage token budget. Voice A (~4.8k) + Voice B
+ * full-batch (~16k) combined into one response.
+ */
+const WRITING_STAGE_MAX_TOKENS = VOICE_A_MAX_TOKENS + VOICE_B_MAX_TOKENS;
+
+/**
+ * Merge B toggle. Defaults to enabled; set OPENAI_MERGED_WRITING to "false"
+ * (or "0" / "no") in the environment to force the proven two-stage fallback.
+ */
+export function isMergedWritingEnabled(): boolean {
+  const raw = process.env.OPENAI_MERGED_WRITING?.trim().toLowerCase();
+  if (raw === undefined || raw === '') return true;
+  return raw !== '0' && raw !== 'false' && raw !== 'no' && raw !== 'off';
+}
+
+/**
+ * System prompt for the unified writing stage. The model must produce BOTH
+ * Voice A (judgment) and Voice B (teaching plans) in a single response, with
+ * Voice B's per-criterion plan/editability/teacherNextSteps level-locked to
+ * the Voice A level it just assigned in the SAME response.
+ *
+ * The schema cannot encode the level-lock (voiceA.level is unknown until the
+ * model chooses it), so the prompt states the lock explicitly and
+ * `validateVoiceBStageOutput` enforces it post-hoc.
+ */
+function buildMergedWritingPrompt(
+  style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
+  calibration?: CritiqueCalibrationDTO
+): string {
+  return `You are the unified writing stage of a painting critique system. You produce TWO things in ONE JSON response: Voice A (the critical judgment and per-criterion ratings) and Voice B (the teaching plan that follows those ratings).
+
+The response MUST have exactly these top-level keys:
+  - "voiceA": follows the Voice A schema and rules in PART 1 below.
+  - "voiceB": follows the Voice B schema and rules in PART 2 below, and every teaching plan in voiceB.categories MUST be level-locked to the voiceA.categories[].level your OWN voiceA half assigns for that same criterion in this very response.
+
+Workflow (do this mentally in order before writing JSON):
+  1. From the evidence alone, decide voiceA.categories[].level for each of the eight criteria (Beginner, Intermediate, Advanced, or Master). This is Voice A's authoritative rating for this painting.
+  2. Write the rest of Voice A (summary, suggestedPaintingTitles, overallSummary.analysis, studioAnalysis, overallConfidence, photoQuality, per-criterion phase1/phase2/confidence/evidenceSignals/preserve/nextTarget/subskills).
+  3. For each criterion, build the Voice B category plan so it is level-locked to the voiceA.level you assigned in step 1 for that criterion. Non-Master criteria MUST use change guidance; Master criteria MUST use preserve-only guidance. The level-lock rules are stated in full in PART 2.
+  4. Build voiceB.overallSummary.topPriorities and voiceB.studioChanges from the per-criterion Voice B plans you just wrote.
+
+============================================================
+PART 1 — VOICE A (judgment, ratings, overall analysis)
+============================================================
+
+${buildVoiceAPrompt(style, medium, evidence, observationBank, calibration)}
+
+============================================================
+PART 2 — VOICE B (teaching plans, level-locked to Voice A)
+============================================================
+
+${buildWritingPrompt(style, medium, evidence, observationBank, calibration)}
+
+Voice B output requirements in this merged response:
+- Return the full Voice B stage output in voiceB: voiceB.categories (one per criterion, in canonical order), voiceB.overallSummary.topPriorities, and voiceB.studioChanges.
+- Every voiceB.categories[].anchor.areaSummary must match that criterion's evidence anchor; voiceB.categories[].plan.currentRead must restate the same concrete visible fact as categories[].anchor.evidencePointer; plan.move and plan.expectedRead must stay limited to that same anchored passage.
+
+Cross-half level-lock rules (MANDATORY — applied per criterion using the voiceA.categories[].level YOU assign in this same response):
+- For every criterion where voiceA.categories[].level === "Master": voiceB.categories[].plan.move MUST begin with one of preserve, keep, protect, leave, or hold; voiceB.categories[].plan.editability MUST be "no"; voiceB.categories[].phase3.teacherNextSteps MUST begin with "Don't change a thing."
+- For every criterion where voiceA.categories[].level is NOT "Master" (Beginner, Intermediate, Advanced): voiceB.categories[].plan.move MUST begin with a true CHANGE verb from this list: soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, integrate, adjust, reduce, shift, refine; voiceB.categories[].plan.editability MUST be "yes"; voiceB.categories[].phase3.teacherNextSteps MUST NOT use "Don't change a thing."
+
+============================================================
+RESPONSE FORMAT
+============================================================
+Return JSON only, with exactly { "voiceA": { ... }, "voiceB": { ... } }. Each half must follow its respective schema and rules above. The level-lock between Voice A and Voice B is mandatory and will be validated.`;
+}
+
+function buildMergedWritingUserPrompt(
+  evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
+  repairNote?: string
+): string {
+  const base = `Use this evidence JSON as your only factual base for BOTH Voice A and Voice B:\n${JSON.stringify(evidence)}\n\nShared observation bank behind that evidence:\n${JSON.stringify(observationBank)}\n\n${buildVoiceASchemaInstruction()}\n\n${buildVoiceBSchemaInstruction()}\n\nReturn the unified response as { "voiceA": { ... }, "voiceB": { ... } }. Make sure every voiceB.categories[] plan/editability/phase3.teacherNextSteps is level-locked to the voiceA.categories[].level you assign for the same criterion in this same response.`;
+  if (!repairNote) return base;
+  return `${base}\n\nCorrection required on retry:\n${repairNote}`;
+}
+
+type MergedWritingStageRunResult = {
+  voiceA: VoiceAStageResult;
+  voiceB: VoiceBStageResult;
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+};
+
+/**
+ * Merge B runner: one OpenAI call for Voice A + Voice B. Uses the existing
+ * per-stage validators unchanged, so validation semantics (level-lock, anchor
+ * alignment, grounding, etc.) remain identical to the two-stage flow. Throws
+ * on final failure so the caller can fall back to the proven two-stage path.
+ */
+async function runCritiqueMergedWritingStage(
+  apiKey: string,
+  model: string,
+  style: string,
+  body: CritiqueRequestBody,
+  evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
+  calibration?: CritiqueCalibrationDTO
+): Promise<MergedWritingStageRunResult> {
+  let repairNote: string | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_STAGE_ATTEMPTS; attempt++) {
+    try {
+      const raw = await runSchemaStage(
+        apiKey,
+        model,
+        buildMergedWritingPrompt(style, body.medium, evidence, observationBank, calibration),
+        buildMergedWritingUserPrompt(evidence, observationBank, repairNote),
+        WRITING_STAGE_OPENAI_SCHEMA,
+        WRITING_STAGE_MAX_TOKENS,
+        `writing_merged-${attempt}`
+      );
+      const parsed = writingStageResultSchema.safeParse(raw);
+      if (!parsed.success) {
+        logSchemaAttemptFailure(
+          { stage: 'writing_merged', attempt },
+          new CritiqueValidationError('Merged writing schema validation failed.', {
+            stage: 'writing_merged',
+            details: [parsed.error.message],
+          }),
+          raw
+        );
+        throw new CritiqueValidationError('Merged writing schema validation failed.', {
+          stage: 'writing_merged',
+          details: [parsed.error.message],
+        });
+      }
+
+      const voiceA = validateVoiceAStageOutput(parsed.data.voiceA as VoiceAStageResult, evidence);
+
+      const hydratedVoiceB: VoiceBStageResult = {
+        ...(parsed.data.voiceB as VoiceBStageResult),
+        categories: (parsed.data.voiceB as VoiceBStageResult).categories.map((category) => {
+          const criterionEvidence = evidence.criterionEvidence.find(
+            (entry) => entry.criterion === category.criterion
+          );
+          if (!criterionEvidence) {
+            throw new Error(`Voice B evidence missing for criterion: ${category.criterion}`);
+          }
+          const level = voiceALevelForCriterion(voiceA, category.criterion as CriterionLabel);
+          return deriveLegacyVoiceBFields(
+            normalizeVoiceBCategoryGrounding(category, criterionEvidence, level)
+          );
+        }),
+      };
+
+      const voiceB = validateVoiceBStageOutput(hydratedVoiceB, voiceA, evidence);
+      return { voiceA, voiceB, salvagedCriteria: [] };
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof CritiqueValidationError)) {
+        logSchemaAttemptFailure({ stage: 'writing_merged', attempt }, error);
+      }
+      if (attempt === MAX_STAGE_ATTEMPTS) {
+        throw error;
+      }
+      repairNote = buildRepairNote(
+        `Previous merged writing attempt failed: ${errorMessage(error)}`,
+        error
+      );
+    }
+  }
+
+  throw new CritiqueRetryExhaustedError(
+    'Merged writing stage exhausted retries.',
+    MAX_STAGE_ATTEMPTS,
+    {
+      stage: 'writing_merged',
+      details: errorDetails(lastError),
+      cause: lastError,
+    }
+  );
+}
+
 export async function runCritiqueWritingStage(
   apiKey: string,
   models: {
@@ -2756,17 +2936,59 @@ export async function runCritiqueWritingStage(
   calibration?: CritiqueCalibrationDTO,
   instrumenter: CritiqueInstrumenter = noopCritiqueInstrumenter
 ): Promise<CritiqueResultDTO> {
-  const voiceARun = await instrumenter.time('writing_voice_a', () =>
-    runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
-  );
-  const voiceA = voiceARun.voiceA;
-  const voiceBRun = await instrumenter.time('writing_voice_b', () =>
-    runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceA, calibration)
-  );
-  const collectedSalvage = [...voiceARun.salvagedCriteria, ...voiceBRun.salvagedCriteria];
+  let voiceA: VoiceAStageResult | undefined;
+  let voiceBResult: VoiceBStageResult | undefined;
+  const collectedSalvage: CritiquePipelineSalvagedCriterion[] = [];
+
+  // Merge B: try the unified single-call writing stage first. On ANY failure
+  // (parse, validation, level-lock, grounding), fall through to the proven
+  // two-stage Voice A → Voice B pipeline so the critique still completes.
+  if (isMergedWritingEnabled()) {
+    try {
+      const mergedRun = await instrumenter.time('writing_merged', () =>
+        runCritiqueMergedWritingStage(
+          apiKey,
+          models.voiceB,
+          style,
+          body,
+          evidence,
+          observationBank,
+          calibration
+        )
+      );
+      voiceA = mergedRun.voiceA;
+      voiceBResult = mergedRun.voiceB;
+      collectedSalvage.push(...mergedRun.salvagedCriteria);
+      // Zero-cost placeholders so per-stage dashboards keep their entries.
+      await instrumenter.time('writing_voice_a', async () => undefined);
+      await instrumenter.time('writing_voice_b', async () => undefined);
+    } catch (mergedError) {
+      console.warn(
+        '[critique merged writing fallback]',
+        errorMessage(mergedError),
+        errorDetails(mergedError)
+      );
+      voiceA = undefined;
+      voiceBResult = undefined;
+    }
+  }
+
+  if (!voiceA || !voiceBResult) {
+    const voiceARun = await instrumenter.time('writing_voice_a', () =>
+      runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
+    );
+    voiceA = voiceARun.voiceA;
+    const voiceBRun = await instrumenter.time('writing_voice_b', () =>
+      runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceA, calibration)
+    );
+    voiceBResult = voiceBRun.voiceB;
+    collectedSalvage.push(...voiceARun.salvagedCriteria, ...voiceBRun.salvagedCriteria);
+  }
+
+  const voiceBFinal = voiceBResult;
 
   try {
-    const merged = mergeVoiceStages(voiceA, voiceBRun.voiceB);
+    const merged = mergeVoiceStages(voiceA, voiceBFinal);
     const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
     return collectedSalvage.length > 0
       ? {
@@ -2777,7 +2999,7 @@ export async function runCritiqueWritingStage(
         }
       : validated;
   } catch (error) {
-    const merged = mergeVoiceStages(voiceA, voiceBRun.voiceB);
+    const merged = mergeVoiceStages(voiceA, voiceBFinal);
     const repaired = repairMergedCritiqueByCriteria({
       merged,
       style,

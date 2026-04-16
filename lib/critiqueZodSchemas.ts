@@ -443,6 +443,31 @@ export const VISION_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
   visionStageResultSchema
 );
 
+/**
+ * Unified writing-stage schema (Merge B): voice A judgment AND voice B
+ * teaching plans are produced by ONE OpenAI call. Level-lock cannot be baked
+ * into the schema because voice A's per-criterion level is decided in the
+ * SAME response — it is enforced post-hoc by `validateVoiceBStageOutput`,
+ * which already cross-checks voiceB.plan/phase3 against voiceA.level.
+ *
+ * The two halves are kept as nested objects so the existing
+ * `validateVoiceAStageOutput` / `validateVoiceBStageOutput` /
+ * `mergeVoiceStages` validators (and every downstream consumer) work
+ * unchanged on the split parts. On any failure the orchestrator falls back
+ * to the proven two-stage Voice A → Voice B flow.
+ */
+export const writingStageResultSchema = z.object({
+  voiceA: voiceAStageResultSchema,
+  voiceB: voiceBStageResultSchema,
+});
+
+export const WRITING_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
+  'painting_critique_writing',
+  writingStageResultSchema
+);
+
+export type WritingStageResult = z.infer<typeof writingStageResultSchema>;
+
 // ---------------------------------------------------------------------------
 // Inferred TypeScript types
 // ---------------------------------------------------------------------------
