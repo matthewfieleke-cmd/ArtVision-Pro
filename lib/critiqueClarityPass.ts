@@ -5,6 +5,7 @@ import type { CritiqueResultDTO } from './critiqueTypes.js';
 import { toOpenAIJsonSchema } from './critiqueZodSchemas.js';
 import { errorMessage } from './critiqueErrors.js';
 import { withOpenAIRetries } from './openaiRetry.js';
+import { buildOpenAIMaxTokensParam } from './openaiModels.js';
 import { CLARITY_SUBSTANCE_GUIDANCE } from './critiquePipelineGuidance.js';
 
 const CRIT_ENUM = CRITERIA_ORDER as unknown as [CriterionLabel, ...CriterionLabel[]];
@@ -202,7 +203,7 @@ async function callClarityModel(apiKey: string, model: string, userPayload: stri
       body: JSON.stringify({
         model,
         temperature: 0.25,
-        max_tokens: CLARITY_MAX_TOKENS,
+        ...buildOpenAIMaxTokensParam(model, CLARITY_MAX_TOKENS),
         response_format: {
           type: 'json_schema',
           json_schema: CLARITY_OPENAI_SCHEMA,

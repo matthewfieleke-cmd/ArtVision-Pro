@@ -50,7 +50,7 @@ import {
   critiqueInstrumentEnabled,
   noopCritiqueInstrumenter,
 } from './critiqueInstrumentation.js';
-import { getOpenAIStageModelMap } from './openaiModels.js';
+import { buildOpenAIMaxTokensParam, getOpenAIStageModelMap } from './openaiModels.js';
 import { createPipelineMetadata, createSucceededStageSnapshot } from './critiquePipeline.js';
 import type {
   CritiquePipelineSalvagedCriterion,
@@ -498,7 +498,7 @@ async function fetchObservationStageJson(
       body: JSON.stringify({
         model: args.model,
         temperature: 0.1,
-        max_tokens: OBSERVATION_MAX_TOKENS,
+        ...buildOpenAIMaxTokensParam(args.model, OBSERVATION_MAX_TOKENS),
         response_format: {
           type: 'json_schema',
           json_schema: OBSERVATION_BANK_OPENAI_SCHEMA,
@@ -636,7 +636,7 @@ async function runCritiqueEvidenceStage(
       body: JSON.stringify({
         model: args.model,
         temperature: 0.15,
-        max_tokens: EVIDENCE_MAX_TOKENS,
+        ...buildOpenAIMaxTokensParam(args.model, EVIDENCE_MAX_TOKENS),
         response_format: {
           type: 'json_schema',
           json_schema: EVIDENCE_OPENAI_SCHEMA,

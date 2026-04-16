@@ -6,6 +6,7 @@ import { buildHighDetailImageMessage } from './openaiVisionContent.js';
 import { normalizedRegionSchema, toOpenAIJsonSchema } from './critiqueZodSchemas.js';
 import { errorMessage } from './critiqueErrors.js';
 import { withOpenAIRetries } from './openaiRetry.js';
+import { buildOpenAIMaxTokensParam } from './openaiModels.js';
 
 const REFINE_REGIONS_SCHEMA = toOpenAIJsonSchema(
   'critique_anchor_regions_refine',
@@ -89,7 +90,7 @@ async function callVisionRefineRegions(
       body: JSON.stringify({
         model,
         temperature: 0.05,
-        max_tokens: 1600,
+        ...buildOpenAIMaxTokensParam(model, 1600),
         response_format: {
           type: 'json_schema',
           json_schema: REFINE_REGIONS_SCHEMA,

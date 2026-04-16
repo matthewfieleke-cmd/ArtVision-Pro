@@ -73,6 +73,7 @@ import {
 import { normalizeWhitespace } from './critiqueTextRules.js';
 import { createPipelineMetadata } from './critiquePipeline.js';
 import { withOpenAIRetries } from './openaiRetry.js';
+import { buildOpenAIMaxTokensParam } from './openaiModels.js';
 import {
   PIPELINE_STAGE_CONNECTION,
   VOICE_A_MATURE_ANALYSIS_GUIDANCE,
@@ -2081,7 +2082,7 @@ async function runSchemaStage(
       body: JSON.stringify({
         model,
         temperature: 0.18,
-        max_tokens: maxTokens,
+        ...buildOpenAIMaxTokensParam(model, maxTokens),
         response_format: {
           type: 'json_schema',
           json_schema: jsonSchema,
