@@ -859,13 +859,18 @@ Return JSON only matching the schema.`;
 }
 
 const VOICE_A_MAX_TOKENS = 4800;
-const VOICE_B_MAX_TOKENS = 7200;
+const VOICE_B_MAX_TOKENS = 16000;
 const MAX_STAGE_ATTEMPTS = 3;
 /**
- * Criteria per Voice B API call. Two keeps eight criteria in four calls (plus summary pass),
- * preserving cross-batch dedup validation while cutting serial round-trips vs one-per-call.
+ * Primary Voice B batching. Eight-at-a-time lets stronger models (gpt-5 family)
+ * write all category plans in one call, improving cross-criterion coherence and
+ * cutting serial round-trips. If all MAX_STAGE_ATTEMPTS retries fail on the single
+ * large call, we fall back to `VOICE_B_FALLBACK_CRITERIA_PER_PASS` before the
+ * per-batch synthesis net kicks in — so a single bad 8-way response never costs
+ * us the whole teaching voice.
  */
-const VOICE_B_CRITERIA_PER_PASS = 2;
+const VOICE_B_PRIMARY_CRITERIA_PER_PASS = 8;
+const VOICE_B_FALLBACK_CRITERIA_PER_PASS = 2;
 const VOICE_B_ALLOWED_LEAD_VERBS =
   'soften, group, separate, darken, quiet, restate, widen, narrow, cool, warm, sharpen, lose, compress, vary, lighten, lift, simplify, straighten, merge, break, preserve, keep, protect, leave, hold';
 const VOICE_B_SUMMARY_LEVEL_RANK = {
@@ -2195,19 +2200,48 @@ export async function runCritiqueVoiceAStage(
   });
 }
 
-export async function runCritiqueVoiceBStage(
-  apiKey: string,
-  model: string,
-  style: string,
-  body: CritiqueRequestBody,
-  evidence: CritiqueEvidenceDTO,
-  observationBank: ObservationBank,
-  voiceA: VoiceAStageResult,
-  calibration?: CritiqueCalibrationDTO
-): Promise<VoiceBStageRunResult> {
+type VoiceBCategoryBatchesArgs = {
+  apiKey: string;
+  model: string;
+  style: string;
+  body: CritiqueRequestBody;
+  evidence: CritiqueEvidenceDTO;
+  observationBank: ObservationBank;
+  voiceA: VoiceAStageResult;
+  calibration?: CritiqueCalibrationDTO;
+  batchSize: number;
+  /**
+   * When true (fallback pass), a batch that exhausts MAX_STAGE_ATTEMPTS is
+   * replaced with evidence-synthesized categories so the stage still returns.
+   * When false (primary pass), the stage throws on final failure so the caller
+   * can retry with a smaller batch size before any synthesis occurs.
+   */
+  allowSynthesisFallback: boolean;
+};
+
+type VoiceBCategoryBatchesResult = {
+  acceptedCategories: VoiceBCategoryResult[];
+  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
+};
+
+async function runVoiceBCategoryBatches(
+  args: VoiceBCategoryBatchesArgs
+): Promise<VoiceBCategoryBatchesResult> {
+  const {
+    apiKey,
+    model,
+    style,
+    body,
+    evidence,
+    observationBank,
+    voiceA,
+    calibration,
+    batchSize,
+    allowSynthesisFallback,
+  } = args;
   const acceptedCategories: VoiceBCategoryResult[] = [];
   const salvagedCriteria: CritiquePipelineSalvagedCriterion[] = [];
-  const criterionBatches = chunkCriteria(CRITERIA_ORDER, VOICE_B_CRITERIA_PER_PASS);
+  const criterionBatches = chunkCriteria(CRITERIA_ORDER, batchSize);
 
   for (const [batchIndex, criteria] of criterionBatches.entries()) {
     const batchSchema = createVoiceBCategoryPassSchema(criteria, voiceA);
@@ -2275,6 +2309,9 @@ export async function runCritiqueVoiceBStage(
           logSchemaAttemptFailure({ stage: 'voice_b', attempt, criteria }, error);
         }
         if (attempt === MAX_STAGE_ATTEMPTS) {
+          if (!allowSynthesisFallback) {
+            throw error;
+          }
           const synthesizedBatch = synthesizeVoiceBCategoriesForCriteria(evidence, voiceA, criteria);
           const combined = validateVoiceBStageOutput(
             {
@@ -2304,6 +2341,58 @@ export async function runCritiqueVoiceBStage(
     }
   }
 
+  return { acceptedCategories, salvagedCriteria };
+}
+
+export async function runCritiqueVoiceBStage(
+  apiKey: string,
+  model: string,
+  style: string,
+  body: CritiqueRequestBody,
+  evidence: CritiqueEvidenceDTO,
+  observationBank: ObservationBank,
+  voiceA: VoiceAStageResult,
+  calibration?: CritiqueCalibrationDTO
+): Promise<VoiceBStageRunResult> {
+  let batchResult: VoiceBCategoryBatchesResult;
+  try {
+    batchResult = await runVoiceBCategoryBatches({
+      apiKey,
+      model,
+      style,
+      body,
+      evidence,
+      observationBank,
+      voiceA,
+      calibration,
+      batchSize: VOICE_B_PRIMARY_CRITERIA_PER_PASS,
+      allowSynthesisFallback: false,
+    });
+  } catch (primaryError) {
+    if (VOICE_B_PRIMARY_CRITERIA_PER_PASS <= VOICE_B_FALLBACK_CRITERIA_PER_PASS) {
+      throw primaryError;
+    }
+    logSchemaAttemptFailure(
+      { stage: 'voice_b', attempt: MAX_STAGE_ATTEMPTS },
+      new Error(
+        `Voice B ${VOICE_B_PRIMARY_CRITERIA_PER_PASS}-per-pass failed after ${MAX_STAGE_ATTEMPTS} retries; falling back to ${VOICE_B_FALLBACK_CRITERIA_PER_PASS}-per-pass. Root cause: ${errorMessage(primaryError)}`
+      )
+    );
+    batchResult = await runVoiceBCategoryBatches({
+      apiKey,
+      model,
+      style,
+      body,
+      evidence,
+      observationBank,
+      voiceA,
+      calibration,
+      batchSize: VOICE_B_FALLBACK_CRITERIA_PER_PASS,
+      allowSynthesisFallback: true,
+    });
+  }
+
+  const { acceptedCategories, salvagedCriteria } = batchResult;
   const orderedCategories = orderedVoiceBCategories(acceptedCategories);
   let summaryRepairNote: string | undefined;
 
