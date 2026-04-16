@@ -200,3 +200,48 @@ export function buildEvidenceStagePrompt(style: string, medium: string): string 
 export function buildObservationStagePrompt(style: string, medium: string): string {
   return buildObservationPrompt(style, medium);
 }
+
+/**
+ * Merge A: produce the observation bank AND the evidence object in a single
+ * vision call. Concatenating both prompts gives the model the full set of
+ * rules it needs to:
+ *
+ *   1. First build a reusable observation bank with stable passage ids.
+ *   2. Immediately reuse those passages to anchor per-criterion evidence.
+ *
+ * Doing both halves in one call removes the cross-call drift where the
+ * evidence stage could pick paraphrased anchors instead of copying observation
+ * passage labels verbatim, and saves a full vision round-trip.
+ *
+ * The response shape is:
+ *
+ *   { observationBank: { ... }, evidence: { ... } }
+ *
+ * which is validated by `visionStageResultSchema`.
+ */
+export function buildVisionStagePrompt(style: string, medium: string): string {
+  return `You are the unified vision-reading stage of a painting critique system. You produce TWO things in ONE JSON response: a reusable observation bank, and the evidence object that depends on it.
+
+The response MUST have exactly these two top-level keys:
+  - "observationBank": follows the observation-bank schema and rules below.
+  - "evidence": follows the evidence schema and rules below, and ALL evidence.criterionEvidence[].observationPassageId values MUST refer to ids that exist in observationBank.passages[].id.
+
+Build the observation bank first (mentally), then build evidence that reuses those exact passages by id. Do NOT invent evidence anchors that have no matching passage in the observation bank. When an observation-bank passage already names the right carrier for a criterion, copy that exact passages[].label verbatim into evidence.criterionEvidence[].anchor instead of paraphrasing.
+
+============================================================
+PART 1 — OBSERVATION BANK
+============================================================
+
+${buildObservationPrompt(style, medium)}
+
+============================================================
+PART 2 — EVIDENCE (depends on the observation bank above)
+============================================================
+
+${buildEvidencePrompt(style, medium)}
+
+============================================================
+RESPONSE FORMAT
+============================================================
+Return JSON only, with exactly { "observationBank": { ... }, "evidence": { ... } }. Both objects must follow their respective schemas above. Every evidence.criterionEvidence[].observationPassageId must match an id in observationBank.passages[].id, and every evidence.criterionEvidence[].anchor that reuses an observation-bank passage must copy that passage's label verbatim.`;
+}

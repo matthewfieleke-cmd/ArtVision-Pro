@@ -362,6 +362,23 @@ export const evidenceStageResultSchema = z.object({
   criterionEvidence: z.array(criterionEvidenceSchema).min(CRITERIA_ORDER.length).max(CRITERIA_ORDER.length),
 });
 
+/**
+ * Unified vision-stage schema (Merge A): the observation bank and the evidence
+ * object are produced by ONE OpenAI call. The model sees the image once, builds
+ * the shared observation bank, then immediately picks per-criterion evidence
+ * anchored back to those passages. Cuts a full vision round-trip and removes
+ * the cross-call drift where the evidence model could ignore observations it
+ * did not generate itself.
+ *
+ * The two halves are kept as nested objects so the existing
+ * `parseObservationStageResult` / `validateEvidenceResult` validators (and
+ * every downstream consumer) work unchanged on the split parts.
+ */
+export const visionStageResultSchema = z.object({
+  observationBank: observationBankSchema,
+  evidence: evidenceStageResultSchema,
+});
+
 // ---------------------------------------------------------------------------
 // Convert Zod schema to OpenAI strict JSON Schema wrapper
 // ---------------------------------------------------------------------------
@@ -399,6 +416,11 @@ export const OBSERVATION_BANK_OPENAI_SCHEMA = toOpenAIJsonSchema(
   observationBankSchema
 );
 
+export const VISION_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
+  'painting_critique_vision',
+  visionStageResultSchema
+);
+
 // ---------------------------------------------------------------------------
 // Inferred TypeScript types
 // ---------------------------------------------------------------------------
@@ -407,6 +429,7 @@ export type VoiceAStageResult = z.infer<typeof voiceAStageResultSchema>;
 export type VoiceBStageResult = z.infer<typeof voiceBStageResultSchema>;
 export type EvidenceStageResult = z.infer<typeof evidenceStageResultSchema>;
 export type ObservationBank = z.infer<typeof observationBankSchema>;
+export type VisionStageResult = z.infer<typeof visionStageResultSchema>;
 
 export type VoiceBPlanZ = z.infer<typeof voiceBPlanSchema>;
 export type VoiceBStepZ = z.infer<typeof voiceBStepSchema>;

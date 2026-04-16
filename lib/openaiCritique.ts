@@ -1,7 +1,11 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
 import { applyCalibrationToCritique } from './critiqueCalibrationStage.js';
-import { buildEvidenceStagePrompt, buildObservationStagePrompt } from './critiqueEvidenceStage.js';
+import {
+  buildEvidenceStagePrompt,
+  buildObservationStagePrompt,
+  buildVisionStagePrompt,
+} from './critiqueEvidenceStage.js';
 import {
   buildHighDetailImageMessage,
   type VisionUserMessagePart,
@@ -9,6 +13,7 @@ import {
 import {
   EVIDENCE_OPENAI_SCHEMA,
   OBSERVATION_BANK_OPENAI_SCHEMA,
+  VISION_STAGE_OPENAI_SCHEMA,
   observationBankSchema,
   type ObservationBank,
 } from './critiqueZodSchemas.js';
@@ -66,6 +71,15 @@ import { composeFallbackCritique } from './critiqueFallback.js';
 
 const EVIDENCE_MAX_TOKENS = 3600;
 const OBSERVATION_MAX_TOKENS = 2600;
+/**
+ * Merge A: the unified vision call must hold the full observation bank AND
+ * the full evidence object in one response, so the budget is the sum of the
+ * two stage budgets plus a small headroom margin for JSON wrapping. The
+ * reasoning-model multiplier in `buildOpenAIMaxTokensParam` still applies on
+ * top of this for gpt-5 / o-series so they get enough room for invisible
+ * reasoning tokens.
+ */
+const VISION_MAX_TOKENS = 6800;
 
 function summarizeRawForLog(raw: unknown): string {
   try {
@@ -881,6 +895,238 @@ Critical observation-passage spread:
     : ''}`;
 }
 
+type VisionStageRunResult = EvidenceStageRunResult & {
+  /** Stage-1 evidence half of the merged vision call failed validation after retries; criterion rows were synthesized only from the image observation bank (no fictional template). */
+  recoveredWithObservationSynthesizedEvidence?: boolean;
+  /** True iff the observation-bank half of the merged response had to fall through to the lenient parser. */
+  usedLenientObservationParse: boolean;
+};
+
+/**
+ * Merge A: single OpenAI call that returns both the observation bank and the
+ * evidence object. The function still produces the same internal shape that
+ * the rest of the pipeline expects (observationBank + validated evidence), so
+ * every downstream stage — calibration, voice A, voice B, validation,
+ * grounding, clarity — works unchanged.
+ *
+ * Retry strategy mirrors the safety net of the previous two-stage pipeline:
+ *   - Up to MAX_OBSERVATION_ATTEMPTS retries with combined repair notes.
+ *   - On the final attempt, evidence validation runs in lenient mode.
+ *   - If observation parse fails on the final attempt, fall through to
+ *     `parseObservationBankLenient`.
+ *   - If evidence validation still fails after all retries, synthesize
+ *     evidence from the observation bank as the last-ditch safety net.
+ *
+ * The repair note for retries is the union of the observation repair note
+ * (when the observation half is the failure) and the evidence repair note
+ * (when the evidence half is the failure), so the model gets specific,
+ * targeted corrections — not vague "try again" instructions.
+ */
+async function runCritiqueVisionStage(
+  apiKey: string,
+  args: {
+    model: string;
+    style: string;
+    medium: string;
+    userContent: VisionUserMessagePart[];
+  }
+): Promise<VisionStageRunResult> {
+  const attemptDebug: CritiqueDebugInfo[] = [];
+  let repairNote: string | undefined;
+
+  for (let attempt = 1; attempt <= MAX_OBSERVATION_ATTEMPTS; attempt++) {
+    const isFinalAttempt = attempt === MAX_OBSERVATION_ATTEMPTS;
+    let raw: unknown;
+    try {
+      raw = await withOpenAIRetries(`vision-attempt-${attempt}`, async () => {
+        const userParts: VisionUserMessagePart[] = repairNote
+          ? [
+              ...args.userContent,
+              {
+                type: 'text',
+                text: `Correction required on retry:\n${repairNote}`,
+              },
+            ]
+          : args.userContent;
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: args.model,
+            temperature: 0.12,
+            ...buildOpenAIMaxTokensParam(args.model, VISION_MAX_TOKENS),
+            response_format: {
+              type: 'json_schema',
+              json_schema: VISION_STAGE_OPENAI_SCHEMA,
+            },
+            messages: [
+              {
+                role: 'system',
+                content: buildVisionStagePrompt(args.style, args.medium),
+              },
+              {
+                role: 'user',
+                content: userParts,
+              },
+            ],
+          }),
+        });
+
+        const json = (await response.json()) as Record<string, unknown>;
+        if (!response.ok) {
+          const err = json.error as { message?: string } | undefined;
+          throw new Error(err?.message ?? `OpenAI error ${response.status}`);
+        }
+
+        const choices = json.choices as Array<{
+          message?: { content?: string };
+          finish_reason?: string;
+        }> | undefined;
+        const choice = choices?.[0];
+        if (choice?.finish_reason === 'length') {
+          throw new Error('Vision response truncated (token limit reached)');
+        }
+        const text = choice?.message?.content;
+        if (!text || typeof text !== 'string') throw new Error('Empty vision response');
+
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error('Vision stage returned non-JSON');
+        }
+      });
+    } catch (transportError) {
+      attemptDebug.push(
+        buildEvidenceAttemptDebugInfo({ attempt, error: transportError, repairNote })
+      );
+      logEvidenceAttemptFailure({ attempt, repairNote }, transportError);
+      if (isFinalAttempt) {
+        throw createObservationRetryExhaustedError(transportError, attemptDebug);
+      }
+      repairNote = buildObservationRepairNote(transportError);
+      continue;
+    }
+
+    const rawObservationBank =
+      raw && typeof raw === 'object' ? (raw as Record<string, unknown>).observationBank : undefined;
+    const rawEvidence =
+      raw && typeof raw === 'object' ? (raw as Record<string, unknown>).evidence : undefined;
+    if (!rawObservationBank || typeof rawObservationBank !== 'object' || !rawEvidence || typeof rawEvidence !== 'object') {
+      const shapeError = new Error(
+        'Vision response missing required top-level keys "observationBank" and/or "evidence".'
+      );
+      attemptDebug.push(
+        buildEvidenceAttemptDebugInfo({ attempt, error: shapeError, repairNote, raw })
+      );
+      logEvidenceAttemptFailure({ attempt, repairNote }, shapeError, raw);
+      if (isFinalAttempt) {
+        throw createObservationRetryExhaustedError(shapeError, attemptDebug);
+      }
+      repairNote = buildObservationRepairNote(shapeError);
+      continue;
+    }
+
+    let observationBank: ObservationBank;
+    let usedLenientObservationParse = false;
+    try {
+      observationBank = parseObservationStageResult(rawObservationBank);
+    } catch (observationError) {
+      if (isFinalAttempt) {
+        console.warn('[critique vision lenient observation parse — strict grounding failed]', {
+          error: errorMessage(observationError),
+          attempts: MAX_OBSERVATION_ATTEMPTS,
+        });
+        try {
+          observationBank = parseObservationBankLenient(rawObservationBank);
+          usedLenientObservationParse = true;
+        } catch (lenientError) {
+          attemptDebug.push(
+            buildEvidenceAttemptDebugInfo({
+              attempt,
+              error: lenientError,
+              repairNote,
+              raw,
+            })
+          );
+          throw createObservationRetryExhaustedError(lenientError, attemptDebug);
+        }
+      } else {
+        attemptDebug.push(
+          buildEvidenceAttemptDebugInfo({
+            attempt,
+            error: observationError,
+            repairNote,
+            raw,
+          })
+        );
+        logEvidenceAttemptFailure({ attempt, repairNote }, observationError, raw);
+        repairNote = buildObservationRepairNote(observationError);
+        continue;
+      }
+    }
+
+    try {
+      const evidence = (() => {
+        try {
+          return validateEvidenceResult(rawEvidence, { observationBank });
+        } catch (strictError) {
+          if (isFinalAttempt) {
+            try {
+              return validateEvidenceResult(rawEvidence, {
+                mode: 'lenient',
+                observationBank,
+              });
+            } catch {
+              throw strictError;
+            }
+          }
+          throw strictError;
+        }
+      })();
+
+      return {
+        evidence,
+        observationBank,
+        failedAttempts: attemptDebug,
+        successAttempt: attempt,
+        usedLenientObservationParse,
+      };
+    } catch (evidenceError) {
+      attemptDebug.push(
+        buildEvidenceAttemptDebugInfo({
+          attempt,
+          error: evidenceError,
+          repairNote,
+          raw: rawEvidence,
+        })
+      );
+      logEvidenceAttemptFailure({ attempt, repairNote }, evidenceError, rawEvidence);
+      if (isFinalAttempt) {
+        console.warn('[critique vision evidence synthesized from observation bank]', {
+          error: errorMessage(evidenceError),
+          attempts: MAX_OBSERVATION_ATTEMPTS,
+        });
+        const evidence = synthesizeEvidenceFromObservationBankValidated(observationBank);
+        return {
+          evidence,
+          observationBank,
+          failedAttempts: attemptDebug,
+          successAttempt: attempt,
+          usedLenientObservationParse,
+          recoveredWithObservationSynthesizedEvidence: true,
+        };
+      }
+      repairNote = buildEvidenceRepairNote(evidenceError, attemptDebug);
+    }
+  }
+
+  throw new Error('Vision stage retry loop exited unexpectedly.');
+}
+
 async function runCritiqueEvidenceStageWithRetries(
   apiKey: string,
   args: {
@@ -992,27 +1238,31 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
 
-  const observationRun = await instrumenter.time('observation', () =>
-    runCritiqueObservationBankWithRetries(apiKey, {
+  /**
+   * Merge A: observation bank + evidence are produced by ONE OpenAI call.
+   * The previous two-stage flow (`runCritiqueObservationBankWithRetries`
+   * followed by `runCritiqueEvidenceStageWithRetries`) is kept exported for
+   * targeted callers and tests, but the production critique pipeline now uses
+   * the unified vision stage. Down-stream code reads `observationBank` and
+   * `evidence` from this single result exactly as before.
+   *
+   * Instrumentation buckets remain `'observation'` and `'evidence'` so
+   * existing dashboards keep working; the unified call is timed once under
+   * `'observation'` and the `'evidence'` bucket records a zero-cost entry to
+   * preserve the schema of the timing payload.
+   */
+  const visionRun = await instrumenter.time('observation', () =>
+    runCritiqueVisionStage(apiKey, {
       model: stageModels.evidence,
       style: body.style,
       medium: body.medium,
       userContent,
     })
   );
-  const observationBank = observationRun.observationBank;
-  const usedLenientObservationParse = observationRun.usedLenientObservationParse;
-
-  const evidenceRun = await instrumenter.time('evidence', () =>
-    runCritiqueEvidenceStageWithRetries(apiKey, {
-      model: stageModels.evidence,
-      style: body.style,
-      medium: body.medium,
-      userContent,
-      observationBank,
-    })
-  );
-  const evidence = evidenceRun.evidence;
+  await instrumenter.time('evidence', async () => undefined);
+  const observationBank = visionRun.observationBank;
+  const usedLenientObservationParse = visionRun.usedLenientObservationParse;
+  const evidence = visionRun.evidence;
 
   if (evidence.photoQualityRead.level === 'poor') {
     console.warn('[critique photo quality poor — continuing with full critique]', {
