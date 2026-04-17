@@ -1,6 +1,8 @@
 # ArtVision Pro
 
-Mobile-first PWA for painting critique: style and medium selection, camera or upload capture, eight-criteria ratings (Beginner → Master) with actionable feedback, local save/version history, and before/after comparison notes. **Masters** links open in-app articles; each criterion has a **Learn more** link to two exemplar paintings and teaching copy (`#/learn/criterion/...`, HashRouter so deep links work on GitHub Pages under a subpath).
+Mobile-first PWA for painting critique: pick **style** and **medium** (with optional auto style classification), then **camera** or **upload**. The model returns feedback across **eight criteria**. **Criterion cards are rating-free** (no Beginner→Master bands or scores)—each expands into **critic’s analysis**, **teacher’s next steps**, optional **preserve** notes, optional **confidence**, and—when the pipeline supplies them—an approximate **stage-lighting region** on your photo plus a **Learn more** link to exemplar paintings and teaching copy (`#/learn/criterion/...`; HashRouter keeps deep links working on GitHub Pages under a subpath). Very old saved critiques may still carry legacy `level` metadata that surfaces only in secondary copy (e.g. some AI preview captions).
+
+**Overall summary** rolls up narrative synthesis, **finished vs in progress** when the API attaches it, and **vs. previous** notes when you resubmit from **Studio**. **Suggested titles** offers three tap-to-use options. **Studio** stores saved works **locally** with version history. **Masters** (gold-standard artists) and **Glossary** (studio terms) are separate tabs; **Profile** holds typography presets and the on-host **privacy policy** link.
 
 **Optional monetization (Stripe):** When `STRIPE_SECRET_KEY`, `STRIPE_CHECKOUT_JWT_SECRET` (32+ random characters), and `STRIPE_CHECKOUT_ORIGIN` are set on the server, each **critique** costs **$1.49** and each **AI preview image** costs **$0.49** (USD), enforced before OpenAI runs. Style/medium auto-detect stays free. Omit those env vars for a fully free API.
 
@@ -32,7 +34,7 @@ npm run dev:ui
 
 The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-style.ts`, `api/preview-edit.ts`). The browser never sees your key.
 
-**Phase 1 preview:** After a critique, **Generate preview** calls OpenAI **image edit** (`gpt-image-1.5` by default) on the analyzed photo for the **lowest-rated** criterion. The server uses **sharp** to read the upload’s pixel size, pick the closest allowed API canvas (`1024×1024`, `1536×1024`, or `1024×1536`), then **resizes the model output back to the same width × height** as your upload so the compare slider aligns exactly. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY` (defaults to **high** for sharper previews; set `medium` or `low` to reduce cost).
+**AI preview (image edit):** After a critique, you can run **Generate AI edit** on **each criterion** that has an anchor (and switch between multiple previews in one session). The default preview target follows the **first suggested studio change** from synthesis (each change names its `previewCriterion`); if that list is missing—e.g. some older saved JSON—the client falls back to the **first criterion** in the response. The server calls OpenAI **image edit** (`gpt-image-1.5` by default), uses **sharp** to read the upload’s pixel size, pick the closest allowed API canvas (`1024×1024`, `1536×1024`, or `1024×1536`), then **resizes the model output back to the same width × height** as your upload so the compare slider aligns exactly. Optional env: `OPENAI_IMAGE_EDIT_MODEL`, `OPENAI_IMAGE_EDIT_QUALITY` (defaults to **high** for sharper previews; set `medium` or `low` to reduce cost).
 
 1. **Create a Vercel project** from this GitHub repo (Import → select repo → Deploy).  
    `vercel.json` sets the Vite build output and SPA fallback so `/api/*` stays on the serverless routes.
@@ -43,7 +45,7 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
    - Optional: `OPENAI_MODEL` (default `gpt-5.4` for shared chat/classify fallback).
    - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
    - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY` (optional prose-polish pass; defaults to `gpt-5.4` via `OPENAI_MODEL` when unset).
-   - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; same anchors/levels/plans; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
+   - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; preserves anchors and teaching-plan intent; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
    - Optional: set `OPENAI_SKIP_ANCHOR_REGION_REFINE=true` to skip the extra vision pass that realigns stage-lighting boxes to the photograph (uses the validation-stage model; adds one chat completion with the image per critique).
 
 3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
