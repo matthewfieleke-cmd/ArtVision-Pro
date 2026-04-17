@@ -440,7 +440,7 @@ Output: one photorealistic image of the same artwork after this single focused i
  * Uses JSON + `images: [{ image_url }]` (current GPT image models). Legacy multipart `image`/`image[]`
  * differs from this shape and can yield validation errors like "The string did not match the expected pattern."
  *
- * Default model `gpt-image-1`; override with OPENAI_IMAGE_EDIT_MODEL.
+ * Default model `gpt-image-1.5`; override with OPENAI_IMAGE_EDIT_MODEL.
  */
 export async function runOpenAIPreviewEdit(
   apiKey: string,

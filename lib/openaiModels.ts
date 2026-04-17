@@ -9,7 +9,7 @@ export type OpenAIStageModelRole =
   | 'imageEdit';
 
 const DEFAULT_CHAT_MODEL = 'gpt-4o';
-const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-1';
+const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-1.5';
 
 type StageModelConfig = {
   role: OpenAIStageModelRole;

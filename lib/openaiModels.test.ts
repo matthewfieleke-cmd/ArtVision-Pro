@@ -56,7 +56,7 @@ describe('resolveOpenAIModel', () => {
   it('falls back to built-in defaults when no env vars are set', () => {
     expect(resolveOpenAIModel('voiceB')).toBe('gpt-4o');
     expect(resolveOpenAIModel('clarity')).toBe('gpt-4o-mini');
-    expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-1');
+    expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-1.5');
   });
 });
 
@@ -74,7 +74,7 @@ describe('getOpenAIStageModelMap', () => {
       validation: 'critique-model',
       clarity: 'shared-model',
       fallback: 'shared-model',
-      imageEdit: 'gpt-image-1',
+      imageEdit: 'gpt-image-1.5',
     });
   });
 });
