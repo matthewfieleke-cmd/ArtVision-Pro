@@ -36,9 +36,9 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
 2. **Add the secret in Vercel**  
    Project → **Settings → Environment Variables**:
    - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
-   - Optional: `OPENAI_MODEL` (default `gpt-4o` for shared chat/classify fallback).
+   - Optional: `OPENAI_MODEL` (default `gpt-5.4` for shared chat/classify fallback).
    - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
-   - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY` (optional prose-polish pass; defaults to `gpt-4o-mini`).
+   - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY` (optional prose-polish pass; defaults to `gpt-5.4` via `OPENAI_MODEL` when unset).
    - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; same anchors/levels/plans; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
    - Optional: set `OPENAI_SKIP_ANCHOR_REGION_REFINE=true` to skip the extra vision pass that realigns stage-lighting boxes to the photograph (uses the validation-stage model; adds one chat completion with the image per critique).
 
