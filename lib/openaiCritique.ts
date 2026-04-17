@@ -541,7 +541,14 @@ type EvidenceStageRunResult = {
   recoveredWithObservationSynthesizedEvidence?: boolean;
 };
 
-const MAX_OBSERVATION_ATTEMPTS = 3;
+/**
+ * Merged vision stage retry budget. Cut from 3 to 2 with gpt-5.4-era latencies
+ * in mind: each attempt costs ~80–100s, and empirically a third retry almost
+ * never converts when attempts 1 and 2 failed with the same structural drift.
+ * If both attempts fail the existing lenient-mode + synthesized-from-observation
+ * fallbacks kick in so the critique still completes.
+ */
+const MAX_OBSERVATION_ATTEMPTS = 2;
 
 function buildObservationRepairNote(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error);
@@ -1170,7 +1177,22 @@ async function runCritiqueVisionStage(
         try {
           return validateEvidenceResult(rawEvidence, { observationBank });
         } catch (strictError) {
-          if (isFinalAttempt) {
+          /**
+           * Lenient mode is explicitly designed to auto-repair a small set of
+           * conceptual prose-quality failures (`strengthRead is too generic`,
+           * `preserve is too generic`) by substituting a known-safe anchor or
+           * visibleEvidence line. Rather than burning a full vision-call
+           * retry (~80-100s with gpt-5.4) on a minor prose nit that the
+           * lenient validator can fix in-process, we try lenient
+           * immediately when the strict failure matches the auto-repair set.
+           * All other strict failures (structural drift, unsupported
+           * anchors, unresolved conceptual carriers, etc.) still fall
+           * through to the normal retry so quality gates stay intact.
+           */
+          const strictMessage = errorMessage(strictError);
+          const isLenientAutoRepairable =
+            /(?:strengthRead|preserve) is too generic for /.test(strictMessage);
+          if (isLenientAutoRepairable || isFinalAttempt) {
             try {
               return validateEvidenceResult(rawEvidence, {
                 mode: 'lenient',
@@ -1291,6 +1313,7 @@ export async function runOpenAICritique(
   body: CritiqueRequestBody,
   options?: { model?: string }
 ): Promise<CritiqueResultDTO> {
+  const pipelineStart = Date.now();
   const stageModels = getOpenAIStageModelMap({
     evidence: options?.model,
     calibration: options?.model,
@@ -1351,6 +1374,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
    * `'observation'` and the `'evidence'` bucket records a zero-cost entry to
    * preserve the schema of the timing payload.
    */
+  const visionStart = Date.now();
   const visionRun = await instrumenter.time('observation', () =>
     runCritiqueVisionStage(apiKey, {
       model: stageModels.evidence,
@@ -1359,12 +1383,13 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       userContent,
     })
   );
+  const visionElapsedMs = Date.now() - visionStart;
   await instrumenter.time('evidence', async () => undefined);
   const observationBank = visionRun.observationBank;
   const usedLenientObservationParse = visionRun.usedLenientObservationParse;
   const evidence = visionRun.evidence;
   console.log(
-    `[critique vision path] merged vision call complete (anchor regions: ${
+    `[critique vision path] merged vision call complete in ${(visionElapsedMs / 1000).toFixed(1)}s (model=${stageModels.evidence}, anchor regions: ${
       visionRun.anchorRegions ? `${visionRun.anchorRegions.size}/8 from vision` : 'none — will use late-stage refine'
     }${
       visionRun.recoveredWithObservationSynthesizedEvidence
@@ -1399,6 +1424,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   let guarded: CritiqueResultDTO;
   const recoverySalvage: CritiquePipelineSalvagedCriterion[] = [];
+  const calibrationStart = Date.now();
   const calibration = await instrumenter.time('calibration', async () => {
     try {
       return await runCritiqueCalibrationStage(
@@ -1417,7 +1443,12 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       return undefined;
     }
   });
+  const calibrationElapsedMs = Date.now() - calibrationStart;
+  console.log(
+    `[critique calibration] ${(calibrationElapsedMs / 1000).toFixed(1)}s (model=${stageModels.calibration}${calibration ? '' : ', failed — continuing without caps'})`
+  );
 
+  const writingStart = Date.now();
   const base = await instrumenter.time('writing', async () => {
     try {
       return await runCritiqueWritingStage(
@@ -1447,6 +1478,10 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       return composeSafeModeCritiqueFor(policy.failureStage);
     }
   });
+  const writingElapsedMs = Date.now() - writingStart;
+  console.log(
+    `[critique writing] ${(writingElapsedMs / 1000).toFixed(1)}s (models: voiceA=${stageModels.voiceA}, voiceB=${stageModels.voiceB})`
+  );
   const calibrated = calibration ? applyCalibrationToCritique(base, calibration) : base;
   const withCompletion = {
     ...calibrated,
@@ -1497,6 +1532,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   }
 
   if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
+    const clarityStart = Date.now();
     const critiqueBeforeClarity = guarded;
     const clarified = await instrumenter.time('clarity', () =>
       runBestEffortCritiqueStage(
@@ -1506,6 +1542,9 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       )
     );
     guarded = critiqueNeedsFreshEvidenceRead(clarified) ? critiqueBeforeClarity : clarified;
+    console.log(
+      `[critique clarity] ${((Date.now() - clarityStart) / 1000).toFixed(1)}s (model=${stageModels.clarity})`
+    );
   }
 
   try {
@@ -1648,5 +1687,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       ],
     }),
   };
+  console.log(
+    `[critique total] ${((Date.now() - pipelineStart) / 1000).toFixed(1)}s end-to-end`
+  );
   return trimmedTitle ? { ...withPipeline, paintingTitle: trimmedTitle } : withPipeline;
 }
