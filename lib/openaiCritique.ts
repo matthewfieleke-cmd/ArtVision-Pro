@@ -1587,7 +1587,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     : [];
   const usedDegradedPath =
     usedLenientObservationParse ||
-    Boolean(evidenceRun.recoveredWithObservationSynthesizedEvidence) ||
+    Boolean(visionRun.recoveredWithObservationSynthesizedEvidence) ||
     Boolean(guarded.pipeline?.completedWithFallback) ||
     recoverySalvage.length > 0;
   const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
@@ -1595,8 +1595,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     evidence: createSucceededStageSnapshot({
       stage: 'evidence',
       model: stageModels.evidence,
-      failedAttempts: evidenceRun.failedAttempts,
-      successAttempt: evidenceRun.successAttempt,
+      failedAttempts: visionRun.failedAttempts,
+      successAttempt: visionRun.successAttempt,
     }),
     ...Object.fromEntries(
       stageOrder.map((stageId) => {

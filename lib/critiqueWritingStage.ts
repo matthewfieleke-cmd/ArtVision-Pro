@@ -2863,15 +2863,15 @@ async function runCritiqueMergedWritingStage(
       const parsed = writingStageResultSchema.safeParse(raw);
       if (!parsed.success) {
         logSchemaAttemptFailure(
-          { stage: 'writing_merged', attempt },
+          { stage: 'voice_a', attempt },
           new CritiqueValidationError('Merged writing schema validation failed.', {
-            stage: 'writing_merged',
+            stage: 'voice_a',
             details: [parsed.error.message],
           }),
           raw
         );
         throw new CritiqueValidationError('Merged writing schema validation failed.', {
-          stage: 'writing_merged',
+          stage: 'voice_a',
           details: [parsed.error.message],
         });
       }
@@ -2899,7 +2899,7 @@ async function runCritiqueMergedWritingStage(
     } catch (error) {
       lastError = error;
       if (!(error instanceof CritiqueValidationError)) {
-        logSchemaAttemptFailure({ stage: 'writing_merged', attempt }, error);
+        logSchemaAttemptFailure({ stage: 'voice_a', attempt }, error);
       }
       if (attempt === MAX_STAGE_ATTEMPTS) {
         throw error;
@@ -2915,7 +2915,7 @@ async function runCritiqueMergedWritingStage(
     'Merged writing stage exhausted retries.',
     MAX_STAGE_ATTEMPTS,
     {
-      stage: 'writing_merged',
+      stage: 'voice_a',
       details: errorDetails(lastError),
       cause: lastError,
     }
@@ -2978,17 +2978,19 @@ export async function runCritiqueWritingStage(
       runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
     );
     voiceA = voiceARun.voiceA;
+    const voiceAForVoiceB: VoiceAStageResult = voiceA;
     const voiceBRun = await instrumenter.time('writing_voice_b', () =>
-      runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceA, calibration)
+      runCritiqueVoiceBStage(apiKey, models.voiceB, style, body, evidence, observationBank, voiceAForVoiceB, calibration)
     );
     voiceBResult = voiceBRun.voiceB;
     collectedSalvage.push(...voiceARun.salvagedCriteria, ...voiceBRun.salvagedCriteria);
   }
 
-  const voiceBFinal = voiceBResult;
+  const voiceAFinal: VoiceAStageResult = voiceA;
+  const voiceBFinal: VoiceBStageResult = voiceBResult;
 
   try {
-    const merged = mergeVoiceStages(voiceA, voiceBFinal);
+    const merged = mergeVoiceStages(voiceAFinal, voiceBFinal);
     const validated = validateCritiqueGrounding(validateCritiqueResult(merged), evidence);
     return collectedSalvage.length > 0
       ? {
@@ -2999,7 +3001,7 @@ export async function runCritiqueWritingStage(
         }
       : validated;
   } catch (error) {
-    const merged = mergeVoiceStages(voiceA, voiceBFinal);
+    const merged = mergeVoiceStages(voiceAFinal, voiceBFinal);
     const repaired = repairMergedCritiqueByCriteria({
       merged,
       style,
