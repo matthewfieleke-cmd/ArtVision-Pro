@@ -1,6 +1,4 @@
 import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
-import { runCritiqueCalibrationStage } from './critiqueCalibrationStage.js';
-import { applyCalibrationToCritique } from './critiqueCalibrationStage.js';
 import {
   buildEvidenceStagePrompt,
   buildObservationStagePrompt,
@@ -1316,7 +1314,6 @@ export async function runOpenAICritique(
   const pipelineStart = Date.now();
   const stageModels = getOpenAIStageModelMap({
     evidence: options?.model,
-    calibration: options?.model,
     voiceA: options?.model,
     voiceB: options?.model,
     validation: options?.model,
@@ -1424,29 +1421,6 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   let guarded: CritiqueResultDTO;
   const recoverySalvage: CritiquePipelineSalvagedCriterion[] = [];
-  const calibrationStart = Date.now();
-  const calibration = await instrumenter.time('calibration', async () => {
-    try {
-      return await runCritiqueCalibrationStage(
-        apiKey,
-        stageModels.calibration,
-        body.style,
-        body.medium,
-        evidence,
-        userContent
-      );
-    } catch (error) {
-      console.warn('[critique calibration warning]', {
-        error: errorMessage(error),
-        details: errorDetails(error),
-      });
-      return undefined;
-    }
-  });
-  const calibrationElapsedMs = Date.now() - calibrationStart;
-  console.log(
-    `[critique calibration] ${(calibrationElapsedMs / 1000).toFixed(1)}s (model=${stageModels.calibration}${calibration ? '' : ', failed — continuing without caps'})`
-  );
 
   const writingStart = Date.now();
   const base = await instrumenter.time('writing', async () => {
@@ -1462,7 +1436,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
         body,
         evidence,
         observationBank,
-        calibration,
+        undefined,
         instrumenter
       );
     } catch (error) {
@@ -1482,9 +1456,8 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   console.log(
     `[critique writing] ${(writingElapsedMs / 1000).toFixed(1)}s (models: voiceA=${stageModels.voiceA}, voiceB=${stageModels.voiceB})`
   );
-  const calibrated = calibration ? applyCalibrationToCritique(base, calibration) : base;
   const withCompletion = {
-    ...calibrated,
+    ...base,
     completionRead: {
       state: evidence.completionRead.state,
       confidence: evidence.completionRead.confidence,
@@ -1612,7 +1585,6 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   instrumenter.logSummary({
     models: {
       evidence: stageModels.evidence,
-      calibration: stageModels.calibration,
       voiceA: stageModels.voiceA,
       voiceB: stageModels.voiceB,
       validation: stageModels.validation,
@@ -1638,7 +1610,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     Boolean(visionRun.recoveredWithObservationSynthesizedEvidence) ||
     Boolean(guarded.pipeline?.completedWithFallback) ||
     recoverySalvage.length > 0;
-  const stageOrder: CritiquePipelineStageId[] = ['calibration', 'voice_a', 'voice_b', 'validation'];
+  const stageOrder: CritiquePipelineStageId[] = ['voice_a', 'voice_b', 'validation'];
   const withStages = {
     evidence: createSucceededStageSnapshot({
       stage: 'evidence',
@@ -1649,13 +1621,11 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     ...Object.fromEntries(
       stageOrder.map((stageId) => {
         const model =
-          stageId === 'calibration'
-            ? stageModels.calibration
-            : stageId === 'voice_a'
-              ? stageModels.voiceA
-              : stageId === 'voice_b'
-                ? stageModels.voiceB
-                : stageModels.validation;
+          stageId === 'voice_a'
+            ? stageModels.voiceA
+            : stageId === 'voice_b'
+              ? stageModels.voiceB
+              : stageModels.validation;
 
         return [stageId, createSucceededStageSnapshot({ stage: stageId, model })];
       })

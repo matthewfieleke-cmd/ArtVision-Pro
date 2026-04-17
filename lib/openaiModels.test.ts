@@ -45,7 +45,6 @@ describe('resolveOpenAIModel', () => {
     process.env.OPENAI_MODEL_EVIDENCE = 'evidence-model';
 
     expect(resolveOpenAIModel('evidence')).toBe('evidence-model');
-    expect(resolveOpenAIModel('calibration')).toBe('critique-model');
   });
 
   it('uses the shared model for classification when no stage-specific override exists', () => {
@@ -70,7 +69,6 @@ describe('getOpenAIStageModelMap', () => {
     expect(getOpenAIStageModelMap()).toEqual({
       classification: 'shared-model',
       evidence: 'critique-model',
-      calibration: 'critique-model',
       voiceA: 'writer-model',
       voiceB: 'writer-model',
       validation: 'critique-model',

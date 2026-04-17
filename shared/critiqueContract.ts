@@ -27,7 +27,6 @@ export type CritiqueResultTier = 'full' | 'validated_reduced' | 'minimal_safe';
 export type CritiquePipelineStageId =
   | 'classification'
   | 'evidence'
-  | 'calibration'
   | 'voice_a'
   | 'voice_b'
   | 'validation'

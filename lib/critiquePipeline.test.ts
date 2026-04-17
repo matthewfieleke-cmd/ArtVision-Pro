@@ -11,7 +11,7 @@ import {
 describe('critiquePipeline helpers', () => {
   it('maps final-stage failures to validation pipeline stage', () => {
     expect(stageIdFromErrorStage('final')).toBe('validation');
-    expect(stageIdFromErrorStage('calibration')).toBe('calibration');
+    expect(stageIdFromErrorStage('calibration')).toBe('evidence');
   });
 
   it('records failed evidence attempts before a later success', () => {
@@ -152,13 +152,13 @@ describe('critiquePipeline helpers', () => {
   });
 
   it('falls back to a single failed attempt when no debug history exists', () => {
-    const error = new CritiqueValidationError('Calibration stage failed.', {
-      stage: 'calibration',
-      details: ['Empty calibration response'],
+    const error = new CritiqueValidationError('Voice A stage failed.', {
+      stage: 'voice_a',
+      details: ['Empty voice_a response'],
     });
 
     expect(createFailedStageSnapshot({ error, model: 'gpt-4o-mini' })).toEqual({
-      stage: 'calibration',
+      stage: 'voice_a',
       status: 'failed',
       model: 'gpt-4o-mini',
       attempts: [
@@ -166,8 +166,8 @@ describe('critiquePipeline helpers', () => {
           attempt: 1,
           status: 'failed',
           model: 'gpt-4o-mini',
-          error: 'Calibration stage failed.\n- Empty calibration response',
-          details: ['Empty calibration response'],
+          error: 'Voice A stage failed.\n- Empty voice_a response',
+          details: ['Empty voice_a response'],
         },
       ],
     });

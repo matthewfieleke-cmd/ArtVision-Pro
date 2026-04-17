@@ -70,7 +70,9 @@ export function stageIdFromErrorStage(stage: CritiqueStageName): CritiquePipelin
     case 'evidence':
       return 'evidence';
     case 'calibration':
-      return 'calibration';
+      // Calibration stage is removed; map legacy callers into evidence for
+      // pipeline-snapshot purposes so existing error plumbing keeps typing.
+      return 'evidence';
     case 'voice_a':
       return 'voice_a';
     case 'voice_b':

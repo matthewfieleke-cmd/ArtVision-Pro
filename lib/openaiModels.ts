@@ -1,7 +1,6 @@
 export type OpenAIStageModelRole =
   | 'classification'
   | 'evidence'
-  | 'calibration'
   | 'voiceA'
   | 'voiceB'
   | 'validation'
@@ -27,11 +26,6 @@ const STAGE_MODEL_CONFIG: Record<OpenAIStageModelRole, StageModelConfig> = {
   evidence: {
     role: 'evidence',
     envKeys: ['OPENAI_MODEL_EVIDENCE', 'OPENAI_CRITIQUE_MODEL', 'OPENAI_MODEL'],
-    fallback: DEFAULT_CHAT_MODEL,
-  },
-  calibration: {
-    role: 'calibration',
-    envKeys: ['OPENAI_MODEL_CALIBRATION', 'OPENAI_CRITIQUE_MODEL', 'OPENAI_MODEL'],
     fallback: DEFAULT_CHAT_MODEL,
   },
   voiceA: {
@@ -141,7 +135,6 @@ export function getOpenAIStageModelMap(overrides?: Partial<Record<OpenAIStageMod
   return {
     classification: resolveOpenAIModel('classification', overrides?.classification),
     evidence: resolveOpenAIModel('evidence', overrides?.evidence),
-    calibration: resolveOpenAIModel('calibration', overrides?.calibration),
     voiceA: resolveOpenAIModel('voiceA', overrides?.voiceA),
     voiceB: resolveOpenAIModel('voiceB', overrides?.voiceB),
     validation: resolveOpenAIModel('validation', overrides?.validation),

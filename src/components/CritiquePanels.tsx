@@ -3,12 +3,11 @@ import { ChevronDown, Loader2, Wand2 } from 'lucide-react';
 import { CriterionLearnLink } from './CriterionLearnLink';
 import { InlineGlossaryText } from './GlossarySupport';
 import { PaintingOverlay } from './PaintingOverlay';
-import { confidenceLabel, levelWidth } from '../critiqueCoach';
+import { confidenceLabel } from '../critiqueCoach';
 import type {
   CompletionRead,
   CritiqueCategory,
   CritiqueResult,
-  CritiqueSubskill,
   SuggestedTitle,
   WorkCompletionState,
 } from '../types';
@@ -65,13 +64,6 @@ function completionConfidenceLabel(confidence: CritiqueCategory['confidence']): 
   }
 }
 
-const LEVEL_RANK = {
-  Beginner: 0,
-  Intermediate: 1,
-  Advanced: 2,
-  Master: 3,
-} as const;
-
 function confidenceBadgeClass(confidence?: CritiqueCategory['confidence']): string {
   switch (confidence) {
     case 'high':
@@ -97,52 +89,8 @@ type CategoryCardProps = {
   onLearnMore?: () => void;
 };
 
-/** 1 = worst, 10 = best; sub-skill snapshot only (criterion cards still use rating levels elsewhere). */
-function subskillGradeOnTen(subskill: CritiqueSubskill): number {
-  if (Number.isFinite(subskill.score)) {
-    const g = Math.round(subskill.score * 9) + 1;
-    return Math.min(10, Math.max(1, g));
-  }
-  const fromLevel: Record<string, number> = {
-    Beginner: 2,
-    Intermediate: 5,
-    Advanced: 8,
-    Master: 10,
-  };
-  return fromLevel[subskill.level] ?? 5;
-}
-
-function subskillBarWidthFromGrade(grade: number): string {
-  const pct = Math.max(8, Math.round(((grade - 1) / 9) * 100));
-  return `${pct}%`;
-}
-
-function normalizeLabel(text: string): string {
-  return text.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
-}
-
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
-}
-
-function hasUsableSubskills(category: CritiqueCategory): boolean {
-  if (!category.subskills?.length) return false;
-
-  const evidenceLabels = new Set(
-    (category.evidenceSignals ?? []).map((signal) => normalizeLabel(signal))
-  );
-
-  return category.subskills.every((subskill) => {
-    const label = subskill.label.trim();
-    if (label.length === 0 || label.length > 36) return false;
-    if (label.includes('.') || label.split(/\s+/).length > 4) return false;
-    if (evidenceLabels.has(normalizeLabel(label))) return false;
-    if (category.level) {
-      const parentRank = LEVEL_RANK[category.level];
-      if (LEVEL_RANK[subskill.level] > parentRank) return false;
-    }
-    return true;
-  });
 }
 
 function CategoryCard({
@@ -161,17 +109,13 @@ function CategoryCard({
   const anchorFrameRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
   const panelId = useId();
-  const hasRating = Boolean(category.level);
   const thisCriterionLoading = previewLoading;
   const hasSessionPreview = Boolean(previewEditIdForCriterion && onViewAiEdit);
-  const buttonLabel =
-    category.editPlan?.editability === 'no'
-      ? 'This criterion is not available for AI edit on this painting.'
-      : thisCriterionLoading
-        ? 'Generating…'
-        : hasSessionPreview
-          ? 'View AI edit'
-          : 'Generate AI edit';
+  const buttonLabel = thisCriterionLoading
+    ? 'Generating…'
+    : hasSessionPreview
+      ? 'View AI edit'
+      : 'Generate AI edit';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -190,20 +134,7 @@ function CategoryCard({
         />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-slate-900">{category.criterion}</span>
-          {hasRating ? (
-            <span className="mt-2 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-              <span
-                className="block h-full rounded-full bg-violet-500 transition-all duration-700"
-                style={{ width: levelWidth(category.level!) }}
-              />
-            </span>
-          ) : null}
         </span>
-        {hasRating ? (
-          <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-800">
-            {category.level}
-          </span>
-        ) : null}
       </button>
       {open ? (
         <div
@@ -212,18 +143,13 @@ function CategoryCard({
           aria-labelledby={headingId}
           className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-1"
         >
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            {category.confidence ? (
+          {category.confidence ? (
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${confidenceBadgeClass(category.confidence)}`}>
                 {confidenceLabel(category.confidence)}
               </span>
-            ) : null}
-            {hasRating && category.nextTarget ? (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                {category.nextTarget}
-              </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           {paintingImageSrc && category.anchor ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -280,33 +206,6 @@ function CategoryCard({
               </div>
             </div>
           </div>
-          {hasUsableSubskills(category) ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sub-skill snapshot</p>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500">1–10 scale (10 is strongest) within this criterion.</p>
-              <div className="mt-2 space-y-3">
-              {category.subskills!.map((subskill) => {
-                const grade = subskillGradeOnTen(subskill);
-                return (
-                  <div key={subskill.label}>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-medium text-slate-700">{subskill.label}</p>
-                      <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700" title="Sub-skill strength on a 1–10 scale">
-                        {grade}/10
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white">
-                      <div
-                        className="h-full rounded-full bg-violet-400 transition-all duration-700"
-                        style={{ width: subskillBarWidthFromGrade(grade) }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-              </div>
-            </div>
-          ) : null}
           {category.preserve ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Preserve</p>
@@ -318,7 +217,6 @@ function CategoryCard({
               <button
                 type="button"
                 disabled={
-                  category.editPlan?.editability === 'no' ||
                   thisCriterionLoading ||
                   (!hasSessionPreview && !onGenerateAiEdit)
                 }
@@ -585,10 +483,7 @@ export const CritiquePanels = memo(function CritiquePanels({
       ) : null}
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Criterion cards</p>
       {critique.categories.map((category) => {
-        const generateButtonVisible =
-          category.level !== 'Master' &&
-          category.editPlan?.editability === 'yes' &&
-          Boolean(category.editPlan);
+        const generateButtonVisible = Boolean(category.anchor);
         const thisLoading =
           previewLoading &&
           previewLoadingTarget?.kind === 'single' &&
