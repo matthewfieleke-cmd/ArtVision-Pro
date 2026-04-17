@@ -54,8 +54,8 @@ describe('resolveOpenAIModel', () => {
   });
 
   it('falls back to built-in defaults when no env vars are set', () => {
-    expect(resolveOpenAIModel('voiceB')).toBe('gpt-4o');
-    expect(resolveOpenAIModel('clarity')).toBe('gpt-4o-mini');
+    expect(resolveOpenAIModel('voiceB')).toBe('gpt-5.4');
+    expect(resolveOpenAIModel('clarity')).toBe('gpt-5.4');
     expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-1');
   });
 });

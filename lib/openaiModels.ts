@@ -8,7 +8,7 @@ export type OpenAIStageModelRole =
   | 'fallback'
   | 'imageEdit';
 
-const DEFAULT_CHAT_MODEL = 'gpt-4o';
+const DEFAULT_CHAT_MODEL = 'gpt-5.4';
 const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-1';
 
 type StageModelConfig = {
@@ -46,7 +46,7 @@ const STAGE_MODEL_CONFIG: Record<OpenAIStageModelRole, StageModelConfig> = {
   clarity: {
     role: 'clarity',
     envKeys: ['OPENAI_MODEL_CLARITY', 'OPENAI_MODEL'],
-    fallback: 'gpt-4o-mini',
+    fallback: DEFAULT_CHAT_MODEL,
   },
   fallback: {
     role: 'fallback',
@@ -82,8 +82,8 @@ export function resolveOpenAIModel(role: OpenAIStageModelRole, override?: string
  * Returns true for model ids whose `max_completion_tokens` budget is shared
  * with invisible "reasoning tokens" (GPT-5 family, o1/o3/o4 reasoning models).
  * These models spend a large portion of the budget on internal chain-of-thought
- * before emitting any visible output, so a budget tuned for gpt-4o will
- * truncate them mid-response.
+ * before emitting any visible output, so a completion budget sized for
+ * non-reasoning chat models can truncate them mid-response.
  */
 function isReasoningCapableModel(model: string): boolean {
   const normalized = (model ?? '').trim().toLowerCase();
