@@ -3,6 +3,9 @@ import { applyFontPreset, FONT_PRESETS, getStoredFontPresetId } from '../fontThe
 
 type Props = { isDesktop?: boolean };
 
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const privacyPolicyHref = `${base}privacy.html`;
+
 export function ProfileTab({ isDesktop = false }: Props) {
   const [activeId, setActiveId] = useState(() => getStoredFontPresetId());
 
@@ -65,8 +68,15 @@ export function ProfileTab({ isDesktop = false }: Props) {
       <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Privacy</h3>
         <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-          Photos and critiques are stored locally unless you add a backend. For production, use a small API to call a
-          vision model and store encrypted thumbnails.
+          Read the{' '}
+          <a
+            href={privacyPolicyHref}
+            className="font-semibold text-violet-700 underline decoration-violet-300 underline-offset-2"
+          >
+            privacy policy
+          </a>{' '}
+          (same host as the app). Critiques and AI previews may send your image to the API and third-party AI services;
+          saved paintings stay on this device unless you use a backend that syncs them.
         </p>
       </section>
       <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">

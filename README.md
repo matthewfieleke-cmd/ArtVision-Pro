@@ -4,6 +4,8 @@ Mobile-first PWA for painting critique: style and medium selection, camera or up
 
 **Optional monetization (Stripe):** When `STRIPE_SECRET_KEY`, `STRIPE_CHECKOUT_JWT_SECRET` (32+ random characters), and `STRIPE_CHECKOUT_ORIGIN` are set on the server, each **critique** costs **$1.49** and each **AI preview image** costs **$0.49** (USD), enforced before OpenAI runs. Style/medium auto-detect stays free. Omit those env vars for a fully free API.
 
+**Privacy policy (store listings):** After deploy, use **`https://<your-host>/privacy.html`** (Vercel also serves **`/privacy`**). Edit the contact block in `public/privacy.html` before submitting to an app store.
+
 ## Run locally
 
 ```bash

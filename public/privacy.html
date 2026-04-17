@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy — ArtVision Pro</title>
+    <meta name="description" content="Privacy policy for ArtVision Pro painting critique app." />
+    <style>
+      :root {
+        color-scheme: light;
+        --text: #0f172a;
+        --muted: #475569;
+        --border: #e2e8f0;
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --accent: #5b21b6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+        color: var(--text);
+        background: var(--bg);
+      }
+      .wrap {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border);
+      }
+      h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.5rem;
+        color: var(--accent);
+      }
+      .meta {
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin: 2rem 0 0.75rem;
+        color: var(--text);
+      }
+      p,
+      ul {
+        margin: 0 0 1rem;
+        color: var(--muted);
+      }
+      ul {
+        padding-left: 1.25rem;
+      }
+      li {
+        margin-bottom: 0.35rem;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        margin: 1.5rem 0;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        text-decoration-thickness: 2px;
+      }
+      .back {
+        display: inline-block;
+        margin-top: 2.5rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+      }
+      strong {
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Privacy Policy</h1>
+        <p class="meta"><strong>ArtVision Pro</strong> — Last updated: April 17, 2026</p>
+      </header>
+
+      <p>
+        This policy describes how ArtVision Pro (“the app”) handles information when you use our website or installed
+        progressive web app. If you use a deployment operated by someone else, that operator is responsible for their
+        hosting configuration; this document describes typical behavior of the open-source product.
+      </p>
+
+      <div class="card">
+        <p style="margin-bottom: 0">
+          <strong>Contact.</strong> For privacy questions, contact the publisher of the app version you installed (for
+          example the email or support link shown on the app store listing or project page). Replace this sentence on
+          your fork with your legal name and contact email if you self-host.
+        </p>
+      </div>
+
+      <h2>What we collect and why</h2>
+      <p><strong>Painting images you submit for critique or AI preview.</strong> When you run a critique or generate an
+        AI preview, your image is sent from your device to the app’s API server so it can be analyzed or edited. That
+        server may call third-party AI providers (for example OpenAI) to produce results. Images are processed for your
+        request and are not used by this software to train public models; however, <strong>third-party AI providers
+        apply their own terms and retention policies</strong>, which you should review on their sites.</p>
+
+      <p><strong>Optional payments (Stripe).</strong> If the operator enables billing, payments for critiques or AI
+        previews are processed by <a href="https://stripe.com/privacy" rel="noopener noreferrer">Stripe</a>. We do not
+        receive your full card number on our servers; Stripe handles payment data according to its privacy policy.</p>
+
+      <p><strong>Product analytics.</strong> Deployments may include <a href="https://vercel.com/legal/privacy-policy"
+        rel="noopener noreferrer">Vercel Analytics</a> or similar tools to measure traffic and performance. Those
+        services may collect limited technical data (for example page views, device type, and region) as described in
+        their policies.</p>
+
+      <h2>Data stored on your device</h2>
+      <p>The app can save paintings, critique history, and preferences <strong>locally in your browser</strong> (for
+        example using local storage or similar). That data stays on your device unless you export it or the app
+        explicitly syncs to a backend you configure. Clearing site data or uninstalling the app may delete this local
+        information.</p>
+
+      <h2>Who we share data with</h2>
+      <ul>
+        <li><strong>AI providers</strong> (when you use critique or AI preview features) — to generate results.</li>
+        <li><strong>Stripe</strong> (when paid features are enabled) — to authorize and capture payments.</li>
+        <li><strong>Hosting / analytics vendors</strong> (for example Vercel) — to operate the service and understand
+          reliability and usage.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>The app is not directed at children under 13. Operators should not knowingly collect personal information from
+        children without appropriate consent under local law.</p>
+
+      <h2>Your choices</h2>
+      <ul>
+        <li>You can avoid uploading images by not using critique or AI preview features.</li>
+        <li>You can clear browser storage to remove locally saved works and settings.</li>
+        <li>Where payments are optional, you can decline paid actions.</li>
+      </ul>
+
+      <h2>Changes</h2>
+      <p>We may update this policy when features or legal requirements change. The “Last updated” date at the top will
+        change when we do. Continued use of the app after an update constitutes acceptance of the revised policy unless
+        applicable law requires otherwise.</p>
+
+      <a class="back" href="./">← Back to ArtVision Pro</a>
+    </div>
+  </body>
+</html>

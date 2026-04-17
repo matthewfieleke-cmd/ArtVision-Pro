@@ -19,7 +19,9 @@ ArtVision Pro is a **Progressive Web App (PWA)**. The usual path to the Microsof
    Partner Center needs store screenshots (recommended **1920×1080** or Microsoft’s current guidance), short/long description, age rating questionnaire, and privacy policy URL.
 
 5. **Privacy**  
-   Host a **privacy policy** that states what you collect (for example critique images sent to your API / OpenAI, analytics if enabled, local storage for saved paintings). Link it in Partner Center.
+   This repo ships a static policy at **`/privacy.html`** (also **`/privacy`** on Vercel via `vercel.json`). After deploy, your **privacy policy URL** is:
+   `https://<your-production-host>/privacy.html`  
+   Replace the “Contact” placeholder in `public/privacy.html` with your legal name and support email before store submission, then redeploy.
 
 6. **Developer account**  
    Enroll in the **Microsoft Partner Center** / Windows developer program, pay any registration fee Microsoft requires, and reserve the app identity (name, package family).
