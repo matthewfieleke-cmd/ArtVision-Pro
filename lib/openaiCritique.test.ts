@@ -434,7 +434,7 @@ describe('createObservationRetryExhaustedError', () => {
 
     expect(error).toBeInstanceOf(CritiqueRetryExhaustedError);
     expect(error.stage).toBe('evidence');
-    expect(error.attempts).toBe(2);
+    expect(error.attempts).toBe(1);
     expect(error.details).toEqual(['OpenAI error 503']);
     expect(error.debug).toEqual({ attempts });
   });

@@ -1,9 +1,13 @@
-import { applyCritiqueGuardrails, critiqueNeedsFreshEvidenceRead } from './critiqueAudit.js';
 import {
   buildEvidenceStagePrompt,
   buildObservationStagePrompt,
   buildVisionStagePrompt,
 } from './critiqueEvidenceStage.js';
+import {
+  runParallelCriteriaStage,
+  type CriterionWritingResult,
+} from './critiqueParallelCriteria.js';
+import { runCritiqueSynthesisStage } from './critiqueSynthesisStage.js';
 import {
   buildHighDetailImageMessage,
   type VisionUserMessagePart,
@@ -165,6 +169,104 @@ function applyVisionAnchorRegionsToCritique(
         },
       };
     }),
+  };
+}
+
+/**
+ * Build the final CritiqueResultDTO from the three pipeline outputs (vision
+ * evidence, per-criterion parallel writing, and the single synthesis call).
+ *
+ * This is a deliberately thin adapter: it only fills the fields the current
+ * UI actually reads. Rating-era fields (`level`, `subskills`, `nextTarget`,
+ * `actionPlanSteps`, `voiceBPlan`, `editPlan`, `phase1.visualInventory`) are
+ * intentionally left unset — the UI no longer renders them and the new
+ * pipeline will not fabricate them. Old saved critiques from earlier
+ * pipeline versions continue to carry those fields in their own JSON and
+ * are unaffected by this function because they never pass through it.
+ */
+function assembleCritiqueFromParallelPipeline(args: {
+  evidence: {
+    intentHypothesis: string;
+    strongestVisibleQualities: string[];
+    mainTensions: string[];
+    photoQualityRead: { level: 'poor' | 'fair' | 'good'; summary: string; issues: string[] };
+    completionRead: {
+      state: 'unfinished' | 'likely_finished' | 'uncertain';
+      confidence: 'low' | 'medium' | 'high';
+      cues: string[];
+      rationale: string;
+    };
+    criterionEvidence: Array<{
+      criterion: (typeof import('../shared/criteria.js'))['CRITERIA_ORDER'][number];
+      anchor: string;
+      visibleEvidence: string[];
+      preserve: string;
+      confidence: 'low' | 'medium' | 'high';
+    }>;
+  };
+  criterionResults: CriterionWritingResult[];
+  synthesis: Awaited<ReturnType<typeof runCritiqueSynthesisStage>>;
+  userTitle?: string;
+}): CritiqueResultDTO {
+  const { evidence, criterionResults, synthesis } = args;
+
+  const categories: CritiqueResultDTO['categories'] = CRITERIA_ORDER.map((criterion) => {
+    const writing = criterionResults.find((r) => r.criterion === criterion);
+    const evidenceEntry = evidence.criterionEvidence.find((e) => e.criterion === criterion);
+
+    const voiceA = writing?.voiceACritique ?? '';
+    const voiceB = writing?.voiceBSuggestions ?? '';
+
+    return {
+      criterion,
+      phase1: { visualInventory: '' },
+      phase2: { criticsAnalysis: voiceA },
+      phase3: { teacherNextSteps: voiceB },
+      confidence: writing?.confidence ?? evidenceEntry?.confidence ?? 'low',
+      ...(writing?.preserve ? { preserve: writing.preserve } : evidenceEntry ? { preserve: evidenceEntry.preserve } : {}),
+      ...(evidenceEntry
+        ? {
+            anchor: {
+              areaSummary: evidenceEntry.anchor,
+              evidencePointer: evidenceEntry.visibleEvidence[0] ?? evidenceEntry.anchor,
+              region: { x: 0.2, y: 0.2, width: 0.35, height: 0.35 },
+            },
+          }
+        : {}),
+    };
+  });
+
+  const suggestedTitles = args.userTitle ? undefined : synthesis.suggestedTitles;
+
+  return {
+    categories,
+    summary: synthesis.summary || synthesis.overallAnalysis,
+    overallSummary: {
+      analysis: synthesis.overallAnalysis || synthesis.summary,
+      topPriorities: synthesis.topPriorities,
+    },
+    simpleFeedback: {
+      studioAnalysis: synthesis.studioAnalysis,
+      studioChanges: synthesis.studioChanges,
+    },
+    ...(suggestedTitles && suggestedTitles.length ? { suggestedPaintingTitles: suggestedTitles } : {}),
+    photoQuality: {
+      level: evidence.photoQualityRead.level,
+      summary: evidence.photoQualityRead.summary,
+      issues: evidence.photoQualityRead.issues,
+      tips:
+        evidence.photoQualityRead.level === 'good'
+          ? []
+          : ['Retake the photo in even light with the full painting square to the camera.'],
+    },
+    completionRead: evidence.completionRead,
+    analysisSource: 'api',
+    overallConfidence:
+      categories.some((c) => c.confidence === 'high')
+        ? 'high'
+        : categories.every((c) => c.confidence === 'low')
+          ? 'low'
+          : 'medium',
   };
 }
 
@@ -540,13 +642,14 @@ type EvidenceStageRunResult = {
 };
 
 /**
- * Merged vision stage retry budget. Cut from 3 to 2 with gpt-5.4-era latencies
- * in mind: each attempt costs ~80–100s, and empirically a third retry almost
- * never converts when attempts 1 and 2 failed with the same structural drift.
- * If both attempts fail the existing lenient-mode + synthesized-from-observation
- * fallbacks kick in so the critique still completes.
+ * Merged vision stage retry budget. The new 3-stage pipeline runs in a single
+ * pass with zero semantic retries — one attempt at vision, one at each of
+ * the 8 parallel criteria, one at synthesis. If the single vision attempt
+ * fails validation, the existing lenient-mode + synthesized-from-observation
+ * fallbacks still kick in so the critique completes with a minimal-safe
+ * result.
  */
-const MAX_OBSERVATION_ATTEMPTS = 2;
+const MAX_OBSERVATION_ATTEMPTS = 1;
 
 function buildObservationRepairNote(error: unknown): string {
   const msg = error instanceof Error ? error.message : String(error);
@@ -1410,183 +1513,99 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     });
   }
 
-  const composeSafeModeCritiqueFor = (failureStage: 'evidence' | 'voice_a' | 'voice_b' | 'final') =>
-    composeFallbackCritique({
+  /**
+   * New 3-stage parallel pipeline (replaces Voice A + Voice B + validation +
+   * clarity + guardrails from the earlier rating-era design):
+   *
+   *   1. Vision (already ran above; produced `evidence` + per-criterion
+   *      anchor regions).
+   *   2. Parallel per-criterion Voice A+B calls (8 concurrent, text-only,
+   *      strict JSON schema, zero retries).
+   *   3. Synthesis call (single, text-only, strict JSON schema) that rolls
+   *      the eight criterion critiques into overall summary, top
+   *      priorities, studio analysis, studio changes, and suggested
+   *      painting titles.
+   *
+   * There is no retry loop, no custom cross-field validator, and no Zod
+   * guardrail pass — OpenAI Structured Outputs guarantees shape, and any
+   * single-criterion failure degrades gracefully to evidence-derived prose
+   * inside runParallelCriteriaStage itself. If the synthesis call fails we
+   * compose the minimal-safe fallback critique.
+   */
+  const parallelStart = Date.now();
+  const parallelCriteria = await instrumenter.time('writing', () =>
+    runParallelCriteriaStage({
+      apiKey,
+      model: stageModels.voiceA,
       style: body.style,
       medium: body.medium,
+      userTitle: trimmedUserTitle || undefined,
       evidence,
-      paintingTitle: trimmedUserTitle || undefined,
-      failureStage,
+    })
+  );
+  console.log(
+    `[critique parallel criteria] ${((Date.now() - parallelStart) / 1000).toFixed(1)}s (model=${stageModels.voiceA}, ${parallelCriteria.failedCriteria.length}/${parallelCriteria.results.length} criteria fell back)`
+  );
+
+  let synthesis: Awaited<ReturnType<typeof runCritiqueSynthesisStage>> | undefined;
+  try {
+    synthesis = await instrumenter.time('validation', () =>
+      runCritiqueSynthesisStage({
+        apiKey,
+        model: stageModels.validation,
+        style: body.style,
+        medium: body.medium,
+        userTitle: trimmedUserTitle || undefined,
+        evidence,
+        criterionResults: parallelCriteria.results,
+      })
+    );
+  } catch (synthesisError) {
+    console.warn('[critique synthesis failed — falling back to minimal safe critique]', {
+      error: errorMessage(synthesisError),
     });
+  }
 
   let guarded: CritiqueResultDTO;
   const recoverySalvage: CritiquePipelineSalvagedCriterion[] = [];
 
-  const writingStart = Date.now();
-  const base = await instrumenter.time('writing', async () => {
-    try {
-      return await runCritiqueWritingStage(
-        apiKey,
-        {
-          voiceA: stageModels.voiceA,
-          voiceB: stageModels.voiceB,
-          validation: stageModels.validation,
-        },
-        body.style,
-        body,
-        evidence,
-        observationBank,
-        undefined,
-        instrumenter
-      );
-    } catch (error) {
-      const policy = classifyCoreCritiqueRecovery(error);
-      console.warn('[critique core recovery policy]', {
-        disposition: policy.disposition,
-        stage: policy.failureStage,
-        reason: policy.reason,
-      });
-      if (policy.disposition === 'fatal') {
-        throw error;
-      }
-      return composeSafeModeCritiqueFor(policy.failureStage);
-    }
-  });
-  const writingElapsedMs = Date.now() - writingStart;
-  console.log(
-    `[critique writing] ${(writingElapsedMs / 1000).toFixed(1)}s (models: voiceA=${stageModels.voiceA}, voiceB=${stageModels.voiceB})`
-  );
-  const withCompletion = {
-    ...base,
-    completionRead: {
-      state: evidence.completionRead.state,
-      confidence: evidence.completionRead.confidence,
-      cues: evidence.completionRead.cues,
-      rationale: evidence.completionRead.rationale,
-    },
-  };
-
-  guarded = applyCritiqueGuardrails(withCompletion, instrumenter);
-
-  /**
-   * Merge C: prefer the per-criterion regions produced by the unified vision
-   * call. When the vision stage did not return regions for every criterion,
-   * fall back to the legacy late-stage refine for any criteria that are
-   * still missing a usable region. This preserves the previous behaviour as
-   * a safety net for the lenient/synthesized fallback paths and for any
-   * future criterion that the vision model declines to localise.
-   */
-  {
-    const critiqueWithVisionRegions = applyVisionAnchorRegionsToCritique(
-      guarded,
-      visionAnchorRegions
+  if (!synthesis) {
+    guarded = composeFallbackCritique({
+      style: body.style,
+      medium: body.medium,
+      evidence,
+      paintingTitle: trimmedUserTitle || undefined,
+      failureStage: 'final',
+    });
+    recoverySalvage.push(
+      ...parallelCriteria.failedCriteria.map((entry) => ({
+        stage: 'voice_a' as const,
+        criterion: entry.criterion,
+        reason: entry.reason,
+      }))
     );
-    const allCriteriaCovered = critiqueWithVisionRegions.categories.every(
-      (category) => Boolean(category.anchor?.region) && visionAnchorRegions?.has(category.criterion)
+  } else {
+    const assembled = assembleCritiqueFromParallelPipeline({
+      evidence,
+      criterionResults: parallelCriteria.results,
+      synthesis,
+      userTitle: trimmedUserTitle || undefined,
+    });
+    guarded = applyVisionAnchorRegionsToCritique(assembled, visionAnchorRegions);
+    recoverySalvage.push(
+      ...parallelCriteria.failedCriteria.map((entry) => ({
+        stage: 'voice_a' as const,
+        criterion: entry.criterion,
+        reason: entry.reason,
+      }))
     );
-    if (allCriteriaCovered && visionAnchorRegions) {
-      guarded = critiqueWithVisionRegions;
-    } else {
-      const critiqueBeforeAnchorRefine = critiqueWithVisionRegions;
-      guarded = await instrumenter.time('anchor_region_refine', () =>
-        runBestEffortCritiqueStage(
-          'anchor_region_refine',
-          () =>
-            refineCritiqueAnchorRegionsFromImage({
-              apiKey,
-              model: stageModels.validation,
-              imageDataUrl: body.imageDataUrl,
-              critique: critiqueBeforeAnchorRefine,
-            }),
-          critiqueBeforeAnchorRefine
-        )
-      );
-    }
-  }
-
-  if (isClarityPassEnabled() && clarityPassEligible(guarded)) {
-    const clarityStart = Date.now();
-    const critiqueBeforeClarity = guarded;
-    const clarified = await instrumenter.time('clarity', () =>
-      runBestEffortCritiqueStage(
-        'clarity',
-        () => runClarityPass(apiKey, stageModels.clarity, critiqueBeforeClarity),
-        critiqueBeforeClarity
-      )
-    );
-    guarded = critiqueNeedsFreshEvidenceRead(clarified) ? critiqueBeforeClarity : clarified;
-    console.log(
-      `[critique clarity] ${((Date.now() - clarityStart) / 1000).toFixed(1)}s (model=${stageModels.clarity})`
-    );
-  }
-
-  try {
-    guarded = validateCritiqueGrounding(guarded, evidence);
-  } catch (error) {
-    const policy = classifyCoreCritiqueRecovery(error);
-    const safeModeCritique = composeSafeModeCritiqueFor(policy.failureStage);
-    const failingCriteria = extractFailingCriteriaFromCritiqueError(error);
-    const repaired =
-      policy.disposition === 'recoverable'
-        ? replaceCritiqueCategoriesFromSafeMode({
-            critique: guarded,
-            safeModeCritique,
-            evidence,
-            criteria: failingCriteria,
-            reason: `repaired final category from conservative safe-mode evidence after ${policy.reason}`,
-          })
-        : null;
-    if (repaired) {
-      guarded = repaired.critique;
-      recoverySalvage.push(...repaired.salvagedCriteria);
-    } else if (policy.disposition === 'fatal') {
-      throw error;
-    } else {
-      guarded = safeModeCritique;
-    }
-  }
-
-  if (critiqueNeedsFreshEvidenceRead(guarded)) {
-    if (instrumenter.enabled) {
-      logGroundingGateFailure(guarded);
-    }
-    console.warn(
-      '[critique] Grounding audit: some text may be weakly tied to evidence anchors; shipping critique.'
-    );
-  }
-
-  let quality = evaluateCritiqueQuality(guarded);
-  if (quality.blockingIssues.length > 0) {
-    if (quality.genericNextSteps || quality.vagueVoiceB || quality.duplicatedCoaching) {
-      const repairedVoiceB = repairCritiqueVoiceBFromEvidence(
-        guarded,
-        evidence,
-        'repaired full Voice B from anchored evidence after quality gate failure'
-      );
-      const repairedCritique = validateCritiqueGrounding(repairedVoiceB.critique, evidence);
-      const repairedQuality = evaluateCritiqueQuality(repairedCritique);
-      if (repairedQuality.blockingIssues.length < quality.blockingIssues.length) {
-        guarded = repairedCritique;
-        quality = repairedQuality;
-        recoverySalvage.push(...repairedVoiceB.salvagedCriteria);
-      }
-    }
-  }
-
-  if (quality.blockingIssues.length > 0) {
-    if (instrumenter.enabled) {
-      logQualityGateFailure(guarded);
-    }
-    console.warn('[critique quality recovery -> safe mode]', quality.blockingIssues.join(' | '));
-    guarded = composeSafeModeCritiqueFor('final');
-    quality = evaluateCritiqueQuality(guarded);
   }
 
   instrumenter.logSummary({
     models: {
       evidence: stageModels.evidence,
       voiceA: stageModels.voiceA,
-      voiceB: stageModels.voiceB,
+      voiceB: stageModels.voiceA,
       validation: stageModels.validation,
       clarity: stageModels.clarity,
     },
