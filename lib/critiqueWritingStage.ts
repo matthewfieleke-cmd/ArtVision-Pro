@@ -2959,6 +2959,7 @@ export async function runCritiqueWritingStage(
       voiceA = mergedRun.voiceA;
       voiceBResult = mergedRun.voiceB;
       collectedSalvage.push(...mergedRun.salvagedCriteria);
+      console.log('[critique writing path] merged (single call) succeeded');
       // Zero-cost placeholders so per-stage dashboards keep their entries.
       await instrumenter.time('writing_voice_a', async () => undefined);
       await instrumenter.time('writing_voice_b', async () => undefined);
@@ -2974,6 +2975,7 @@ export async function runCritiqueWritingStage(
   }
 
   if (!voiceA || !voiceBResult) {
+    console.log('[critique writing path] falling back to two-stage voice A + voice B');
     const voiceARun = await instrumenter.time('writing_voice_a', () =>
       runCritiqueVoiceAStage(apiKey, models.voiceA, style, body, evidence, observationBank, calibration)
     );

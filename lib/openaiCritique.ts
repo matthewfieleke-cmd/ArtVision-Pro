@@ -1363,6 +1363,15 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   const observationBank = visionRun.observationBank;
   const usedLenientObservationParse = visionRun.usedLenientObservationParse;
   const evidence = visionRun.evidence;
+  console.log(
+    `[critique vision path] merged vision call complete (anchor regions: ${
+      visionRun.anchorRegions ? `${visionRun.anchorRegions.size}/8 from vision` : 'none — will use late-stage refine'
+    }${
+      visionRun.recoveredWithObservationSynthesizedEvidence
+        ? ', synthesized evidence fallback used'
+        : ''
+    }${usedLenientObservationParse ? ', lenient observation parse used' : ''})`
+  );
   /**
    * Merge C: anchor regions captured by the unified vision call. Applied
    * after voice B + guardrails so the same image-locating boxes that the
