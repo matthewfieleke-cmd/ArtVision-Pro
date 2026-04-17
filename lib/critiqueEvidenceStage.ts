@@ -197,10 +197,6 @@ export function buildEvidenceStagePrompt(style: string, medium: string): string 
   return buildEvidencePrompt(style, medium);
 }
 
-export function buildObservationStagePrompt(style: string, medium: string): string {
-  return buildObservationPrompt(style, medium);
-}
-
 /**
  * Anchor-region rules used by the vision stage (Merge C). Lifted from the
  * deprecated `critiqueAnchorRegionRefine` system prompt so the model that

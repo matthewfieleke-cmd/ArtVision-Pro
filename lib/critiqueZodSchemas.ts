@@ -433,11 +433,6 @@ export const EVIDENCE_OPENAI_SCHEMA = toOpenAIJsonSchema(
   evidenceStageResultSchema
 );
 
-export const OBSERVATION_BANK_OPENAI_SCHEMA = toOpenAIJsonSchema(
-  'painting_critique_observation_bank',
-  observationBankSchema
-);
-
 export const VISION_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
   'painting_critique_vision',
   visionStageResultSchema
