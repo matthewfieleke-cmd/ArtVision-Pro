@@ -3,9 +3,102 @@ import { createPipelineMetadata } from './critiquePipeline.js';
 import { findPrimaryAnchorSupportLine } from './critiqueGrounding.js';
 import type { CritiqueResultDTO } from './critiqueTypes.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
-import { synthesizeSuggestedPaintingTitles } from './critiqueWritingStage.js';
+import type { SuggestedTitle } from '../shared/critiqueContract.js';
 
 const LEVEL_ORDER: RatingLevelLabel[] = ['Beginner', 'Intermediate', 'Advanced', 'Master'];
+
+/**
+ * Deterministic title generator for the minimal-safe fallback path. Ported
+ * inline from the old writing stage so we can delete that 140KB module.
+ * Only used when the new synthesis stage is unreachable (vision failed or
+ * synthesis threw). Happy-path titles come from runCritiqueSynthesisStage.
+ */
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function phraseFromAnchor(anchor: string, maxWords: number): string {
+  const words = anchor
+    .toLowerCase()
+    .replace(
+      /\b(the|a|an|and|against|under|over|above|below|across|where|meets?|with|of|to|in|on|by|for|that|this|these|those|its|their|there|than|then|into|onto)\b/g,
+      ' '
+    )
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((part) => part.length > 2)
+    .slice(0, maxWords);
+  return words.join(' ');
+}
+
+function sentenceCaseTitle(phrase: string): string {
+  const t = normalizeWhitespace(phrase);
+  if (!t) return 'Untitled';
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function shortClip(text: string, max: number): string {
+  const t = normalizeWhitespace(text);
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function synthesizeSuggestedPaintingTitles(
+  _style: string,
+  medium: string,
+  evidence: CritiqueEvidenceDTO
+): SuggestedTitle[] {
+  const structureAnchor =
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Composition and shape structure')?.anchor ??
+    evidence.criterionEvidence[0]?.anchor ??
+    'this composition';
+  const tactileAnchor =
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Surface and medium handling')?.anchor ??
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Edge and focus control')?.anchor ??
+    structureAnchor;
+  const intentAnchor =
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Intent and necessity')?.anchor ??
+    evidence.criterionEvidence.find((entry) => entry.criterion === 'Presence, point of view, and human force')
+      ?.anchor ??
+    structureAnchor;
+
+  const structurePhrase = phraseFromAnchor(structureAnchor, 5) || 'forms and space';
+  const tactilePhrase = phraseFromAnchor(tactileAnchor, 5) || 'paint handling';
+  const hypothesisPhrase = phraseFromAnchor(evidence.intentHypothesis, 6);
+  let intentPhrase = phraseFromAnchor(intentAnchor, 5);
+  if (!intentPhrase || intentPhrase === structurePhrase) {
+    intentPhrase = hypothesisPhrase || intentPhrase;
+  }
+  if (intentPhrase === tactilePhrase) {
+    intentPhrase = hypothesisPhrase || intentPhrase;
+  }
+  if (!intentPhrase) {
+    intentPhrase = hypothesisPhrase || 'how it reads';
+  }
+
+  const finalize = (text: string): string => {
+    const normalized = normalizeWhitespace(text).replace(/\.+$/, '');
+    return normalized ? `${normalized}.` : '';
+  };
+
+  return [
+    {
+      category: 'formalist',
+      title: sentenceCaseTitle(structurePhrase),
+      rationale: finalize(`Names the main structural read the critique pinned to ${shortClip(structureAnchor, 110)}`),
+    },
+    {
+      category: 'tactile',
+      title: sentenceCaseTitle(`${tactilePhrase} (${medium})`),
+      rationale: finalize(`Highlights handling where the evidence is clearest—${shortClip(tactileAnchor, 90)}—in ${medium}`),
+    },
+    {
+      category: 'intent',
+      title: sentenceCaseTitle(intentPhrase),
+      rationale: finalize(`Tracks the intent or presence thread the critique emphasizes (${shortClip(intentAnchor, 90)})`),
+    },
+  ];
+}
 
 function sentence(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim();

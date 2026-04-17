@@ -1,17 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CritiqueGroundingError,
   CritiqueRetryExhaustedError,
-  CritiqueUninterpretableImageError,
   CritiqueValidationError,
 } from './critiqueErrors.js';
 import {
   buildEvidenceRepairNote,
-  classifyCoreCritiqueRecovery,
   createObservationRetryExhaustedError,
   parseObservationStageResult,
-  runBestEffortCritiqueStage,
 } from './openaiCritique.js';
 
 describe('buildEvidenceRepairNote', () => {
@@ -437,65 +433,6 @@ describe('createObservationRetryExhaustedError', () => {
     expect(error.attempts).toBe(1);
     expect(error.details).toEqual(['OpenAI error 503']);
     expect(error.debug).toEqual({ attempts });
-  });
-});
-
-describe('runBestEffortCritiqueStage', () => {
-  it('returns the fallback value when an optional enhancement fails', async () => {
-    await expect(
-      runBestEffortCritiqueStage(
-        'clarity',
-        async () => {
-          throw new Error('OpenAI error 502');
-        },
-        'fallback critique'
-      )
-    ).resolves.toBe('fallback critique');
-  });
-});
-
-describe('classifyCoreCritiqueRecovery', () => {
-  it('treats criterion-scoped validation failures as recoverable', () => {
-    const recovery = classifyCoreCritiqueRecovery(
-      new CritiqueGroundingError('Final critique failed evidence traceability validation.', {
-        stage: 'final',
-        details: ['Color relationships: final teacher guidance drifted away from the anchored passage.'],
-      })
-    );
-
-    expect(recovery).toEqual(
-      expect.objectContaining({
-        disposition: 'recoverable',
-        failureStage: 'final',
-      })
-    );
-  });
-
-  it('treats exhausted retries as safe-mode failures', () => {
-    const recovery = classifyCoreCritiqueRecovery(
-      new CritiqueRetryExhaustedError('Voice B stage exhausted retries.', 3, {
-        stage: 'voice_b',
-        details: ['OpenAI error 503'],
-      })
-    );
-
-    expect(recovery).toEqual(
-      expect.objectContaining({
-        disposition: 'safe_mode',
-        failureStage: 'voice_b',
-      })
-    );
-  });
-
-  it('treats uninterpretable images as fatal', () => {
-    const recovery = classifyCoreCritiqueRecovery(new CritiqueUninterpretableImageError());
-
-    expect(recovery).toEqual(
-      expect.objectContaining({
-        disposition: 'fatal',
-        failureStage: 'evidence',
-      })
-    );
   });
 });
 

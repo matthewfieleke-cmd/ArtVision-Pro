@@ -24,26 +24,15 @@ import { CRITERIA_ORDER } from '../shared/criteria.js';
 import {
   validateEvidenceResult,
   synthesizeEvidenceFromObservationBankValidated,
-  validateCritiqueGrounding,
 } from './critiqueValidation.js';
-import { refineCritiqueAnchorRegionsFromImage } from './critiqueAnchorRegionRefine.js';
-import {
-  extractFailingCriteriaFromCritiqueError,
-  refreshCritiqueSummaryFromCategories,
-  repairCritiqueVoiceBFromEvidence,
-  runCritiqueWritingStage,
-} from './critiqueWritingStage.js';
 import {
   parseObservationBankLenient,
   sortObservationBankIntentCarriers,
   validateObservationBankGrounding,
 } from './critiqueObservationBankValidate.js';
 import {
-  CritiqueGroundingError,
   CritiquePipelineError,
   CritiqueRetryExhaustedError,
-  CritiqueRuntimeEvalError,
-  CritiqueUninterpretableImageError,
   CritiqueValidationError,
   type CritiqueCriterionEvidencePreview,
   type CritiqueDebugPayload,
@@ -51,7 +40,6 @@ import {
   errorDetails,
   errorMessage,
 } from './critiqueErrors.js';
-import { evaluateCritiqueQuality } from './critiqueEval.js';
 import {
   createCritiqueInstrumenter,
   critiqueInstrumentEnabled,
@@ -63,11 +51,6 @@ import type {
   CritiquePipelineSalvagedCriterion,
   CritiquePipelineStageId,
 } from '../shared/critiqueContract.js';
-import {
-  clarityPassEligible,
-  isClarityPassEnabled,
-  runClarityPass,
-} from './critiqueClarityPass.js';
 import { withOpenAIRetries } from './openaiRetry.js';
 import { composeFallbackCritique } from './critiqueFallback.js';
 
@@ -441,40 +424,6 @@ function logEvidenceAttemptFailure(
   console.error('[critique evidence attempt failed]', payload);
 }
 
-function logQualityGateFailure(critique: CritiqueResultDTO): void {
-  console.error('[critique quality gate payload]', {
-    topPriorities: critique.overallSummary?.topPriorities ?? [],
-    studioChanges: critique.simpleFeedback?.studioChanges ?? [],
-    categories: critique.categories.map((category) => ({
-      criterion: category.criterion,
-      level: category.level,
-      teacherNextSteps: category.phase3.teacherNextSteps,
-      anchor: category.anchor?.areaSummary,
-      editTarget: category.editPlan?.targetArea,
-      intendedChange: category.editPlan?.intendedChange,
-    })),
-  });
-}
-
-function logGroundingGateFailure(critique: CritiqueResultDTO): void {
-  console.error('[critique grounding gate payload]', {
-    summary: critique.summary,
-    analysis: critique.overallSummary?.analysis ?? '',
-    whatWorks: critique.simpleFeedback?.studioAnalysis.whatWorks ?? '',
-    whatCouldImprove: critique.simpleFeedback?.studioAnalysis.whatCouldImprove ?? '',
-    topPriorities: critique.overallSummary?.topPriorities ?? [],
-    studioChanges: critique.simpleFeedback?.studioChanges ?? [],
-    categories: critique.categories.map((category) => ({
-      criterion: category.criterion,
-      anchorArea: category.anchor?.areaSummary,
-      anchorPointer: category.anchor?.evidencePointer,
-      critic: category.phase2.criticsAnalysis,
-      teacher: category.phase3.teacherNextSteps,
-      editTarget: category.editPlan?.targetArea,
-    })),
-  });
-}
-
 export function createObservationRetryExhaustedError(
   error: unknown,
   attemptDebug: CritiqueDebugInfo[]
@@ -485,122 +434,6 @@ export function createObservationRetryExhaustedError(
     cause: error,
     ...(attemptDebug.length > 0 ? { debug: { attempts: attemptDebug } } : {}),
   });
-}
-
-export async function runBestEffortCritiqueStage<T>(
-  stageLabel: string,
-  run: () => Promise<T>,
-  fallback: T
-): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    console.warn(`[critique ${stageLabel} warning]`, {
-      error: errorMessage(error),
-      details: errorDetails(error),
-    });
-    return fallback;
-  }
-}
-
-export type CritiqueRecoveryDisposition = 'recoverable' | 'safe_mode' | 'fatal';
-
-export function classifyCoreCritiqueRecovery(error: unknown): {
-  disposition: CritiqueRecoveryDisposition;
-  failureStage: 'evidence' | 'voice_a' | 'voice_b' | 'final';
-  reason: string;
-} {
-  if (error instanceof CritiqueUninterpretableImageError) {
-    return {
-      disposition: 'fatal',
-      failureStage: 'evidence',
-      reason: 'the photo could not be interpreted with enough confidence for a grounded critique',
-    };
-  }
-  if (error instanceof CritiqueValidationError || error instanceof CritiqueGroundingError) {
-    const failingCriteria = extractFailingCriteriaFromCritiqueError(error);
-    return {
-      disposition:
-        failingCriteria.length > 0 && failingCriteria.length < CRITERIA_ORDER.length
-          ? 'recoverable'
-          : 'safe_mode',
-      failureStage:
-        error.stage === 'evidence'
-          ? 'evidence'
-          : error.stage === 'voice_a'
-            ? 'voice_a'
-            : error.stage === 'voice_b' || error.stage === 'voice_b_summary'
-              ? 'voice_b'
-              : 'final',
-      reason: errorMessage(error),
-    };
-  }
-  if (error instanceof CritiqueRuntimeEvalError) {
-    return {
-      disposition: 'recoverable',
-      failureStage: 'final',
-      reason: errorMessage(error),
-    };
-  }
-  if (error instanceof CritiqueRetryExhaustedError || error instanceof CritiquePipelineError) {
-    return {
-      disposition: 'safe_mode',
-      failureStage:
-        error.stage === 'evidence'
-          ? 'evidence'
-          : error.stage === 'voice_a'
-            ? 'voice_a'
-            : error.stage === 'voice_b' || error.stage === 'voice_b_summary'
-              ? 'voice_b'
-              : 'final',
-      reason: errorMessage(error),
-    };
-  }
-  return {
-    disposition: 'safe_mode',
-    failureStage: 'final',
-    reason: errorMessage(error),
-  };
-}
-
-function replaceCritiqueCategoriesFromSafeMode(args: {
-  critique: CritiqueResultDTO;
-  safeModeCritique: CritiqueResultDTO;
-  evidence: ReturnType<typeof validateEvidenceResult>;
-  criteria: readonly (typeof CRITERIA_ORDER)[number][];
-  reason: string;
-}): {
-  critique: CritiqueResultDTO;
-  salvagedCriteria: CritiquePipelineSalvagedCriterion[];
-} | null {
-  if (args.criteria.length === 0 || args.criteria.length >= CRITERIA_ORDER.length) {
-    return null;
-  }
-  const replacementByCriterion = new Map(
-    args.safeModeCritique.categories.map((category) => [category.criterion, category] as const)
-  );
-  const replaced = {
-    ...args.critique,
-    categories: args.critique.categories.map((category) =>
-      args.criteria.includes(category.criterion)
-        ? (replacementByCriterion.get(category.criterion) ?? category)
-        : category
-    ),
-  };
-  try {
-    const refreshed = refreshCritiqueSummaryFromCategories(replaced, args.evidence);
-    const grounded = validateCritiqueGrounding(refreshed, args.evidence);
-    return {
-      critique: grounded,
-      salvagedCriteria: args.criteria.map((criterion) => ({
-        stage: 'validation',
-        criterion,
-        reason: args.reason,
-      })),
-    };
-  } catch {
-    return null;
-  }
 }
 
 function buildEvidenceAttemptDebugInfo(args: {
