@@ -185,6 +185,7 @@ async function testApiHelpers(): Promise<void> {
   applyCorsHeaders((name, value) => corsHeaders.set(name, value), 'https://example.com');
   assert.equal(corsHeaders.get('Access-Control-Allow-Origin'), 'https://example.com');
   assert.equal(resolveApiRoute('/api/critique'), 'critique');
+  assert.equal(resolveApiRoute('/api/critique?debug=1'), 'critique');
   assert.equal(resolveApiRoute('/api/nope'), null);
 
   const optionsResponse = await handleApiRequest({

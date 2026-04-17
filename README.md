@@ -2,6 +2,8 @@
 
 Mobile-first PWA for painting critique: style and medium selection, camera or upload capture, eight-criteria ratings (Beginner → Master) with actionable feedback, local save/version history, and before/after comparison notes. **Masters** links open in-app articles; each criterion has a **Learn more** link to two exemplar paintings and teaching copy (`#/learn/criterion/...`, HashRouter so deep links work on GitHub Pages under a subpath).
 
+**Optional monetization (Stripe):** When `STRIPE_SECRET_KEY`, `STRIPE_CHECKOUT_JWT_SECRET` (32+ random characters), and `STRIPE_CHECKOUT_ORIGIN` are set on the server, each **critique** costs **$1.49** and each **AI preview image** costs **$0.49** (USD), enforced before OpenAI runs. Style/medium auto-detect stays free. Omit those env vars for a fully free API.
+
 ## Run locally
 
 ```bash

@@ -42,4 +42,6 @@ export type CritiqueRequestBody = {
   previousImageDataUrl?: string;
   /** Serialized prior critique JSON */
   previousCritique?: CritiqueResultDTO;
+  /** Stripe Checkout JWT from `/api/stripe/checkout-return` (required when paywall env is set). */
+  stripeCheckoutJwt?: string;
 };

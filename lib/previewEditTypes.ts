@@ -30,6 +30,8 @@ export type PreviewEditRequestBody = {
   target: PreviewEditTarget;
   /** Optional client request key so resumed mobile requests can reuse the same work. */
   requestId?: string;
+  /** Stripe Checkout JWT (required when paywall env is set). */
+  stripeCheckoutJwt?: string;
 };
 
 export type PreviewEditResponseBody = {

@@ -28,7 +28,7 @@ import {
   type WakeLockHandle,
 } from './analysisKeepAlive';
 import { fetchCritiqueFromApi } from './critiqueApi';
-import { fetchPreviewEdit } from './previewEditApi';
+import { fetchPreviewEdit, PreviewEditPaymentRequiredError } from './previewEditApi';
 import { fetchClassifyStyleFromApi } from './classifyStyleApi';
 import { fetchClassifyMediumFromApi } from './classifyMediumApi';
 import type { CritiqueStageName } from '../lib/critiqueErrors';
@@ -68,6 +68,8 @@ import {
 } from './critiqueRequestError';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { tabFromSearch } from './launchUrls';
+import { createStripeCheckoutSession, fetchStripePaywallConfig } from './stripeConfigApi';
+import { clearStripeCheckoutJwt, getStripeCheckoutJwt, setStripeCheckoutJwt } from './stripeCheckoutSession';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { GlossaryTab } from './screens/GlossaryTab';
@@ -271,6 +273,25 @@ export default function App() {
   const classifyRunTokenRef = useRef(0);
   const imageSelectionTokenRef = useRef(0);
   const lastAutoSaveSigRef = useRef<string | null>(null);
+  const [paywallEnabled, setPaywallEnabled] = useState(false);
+  const [critiquePriceLabel, setCritiquePriceLabel] = useState('$1.49');
+  const [previewPriceLabel, setPreviewPriceLabel] = useState('$0.49');
+  const pendingCritiqueAfterPaymentRef = useRef<{ runId: number; rawDataUrl: string } | null>(null);
+  const pendingPreviewCriterionRef = useRef<CritiqueCategory['criterion'] | null>(null);
+
+  const formatUsd = useCallback(
+    (cents: number) =>
+      new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100),
+    []
+  );
+
+  useEffect(() => {
+    void fetchStripePaywallConfig().then((c) => {
+      setPaywallEnabled(c.paywallEnabled);
+      setCritiquePriceLabel(formatUsd(c.critiqueAmountCents));
+      setPreviewPriceLabel(formatUsd(c.previewEditAmountCents));
+    });
+  }, [formatUsd]);
 
   const { videoRef, status: camStatus, error: camError, start: startCamera, stop: stopCamera, captureFrame } =
     useCameraCapture();
@@ -430,6 +451,9 @@ export default function App() {
     stopCamera();
   }, [flow?.step, isDesktop, startCamera, stopCamera]);
 
+  const runAnalysisRef = useRef<(rawDataUrl: string) => Promise<void>>(async () => {});
+  const runPreviewEditRef = useRef<(criterion: CritiqueCategory['criterion']) => Promise<void>>(async () => {});
+
   const runAnalysis = useCallback(async (rawDataUrl: string) => {
     const f = flowRef.current;
     if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
@@ -440,6 +464,7 @@ export default function App() {
     invalidateImageSelections();
     clearPendingCrop();
     const runId = ++analysisRunTokenRef.current;
+    pendingCritiqueAfterPaymentRef.current = null;
     startAnalysis();
     lastAutoSaveSigRef.current = null;
     resetPreview();
@@ -488,6 +513,7 @@ export default function App() {
       const titleForCritique = f.workingTitle.trim();
       const titleArg = titleForCritique.length > 0 ? titleForCritique : undefined;
 
+      const jwt = paywallEnabled ? getStripeCheckoutJwt('critique') : null;
       const apiBody = {
         style: f.style,
         medium: f.medium,
@@ -499,6 +525,7 @@ export default function App() {
               previousCritique: prevPayload.critique,
             }
           : {}),
+        ...(jwt ? { stripeCheckoutJwt: jwt } : {}),
       };
 
       const attemptApi = async (signal: AbortSignal): Promise<CritiqueResult> =>
@@ -540,6 +567,11 @@ export default function App() {
       if (normalized instanceof CritiqueRequestError && normalized.kind === 'uninterpretable') {
         finishRequest();
         setFlow(toAnalysisUnavailableFromAnalyzing(startedFlow));
+      } else if (normalized instanceof CritiqueRequestError && normalized.kind === 'payment_required') {
+        finishRequest();
+        setFlow(recoverFromAnalysisError(startedFlow));
+        pendingCritiqueAfterPaymentRef.current = { runId, rawDataUrl };
+        failRequest(normalized);
       } else {
         failRequest(normalized);
         setFlow(recoverFromAnalysisError(startedFlow));
@@ -557,9 +589,12 @@ export default function App() {
     finishRequest,
     invalidateImageSelections,
     noteAnalysisRetry,
+    paywallEnabled,
     resetPreview,
     startAnalysis,
   ]);
+
+  runAnalysisRef.current = runAnalysis;
 
   useEffect(() => {
     const onVisibility = () => {
@@ -786,7 +821,11 @@ export default function App() {
 
   const requestErrorNotice = requestError ? (
     <div
-      className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-800"
+      className={`rounded-2xl border px-4 py-3 text-sm ${
+        requestError.kind === 'payment_required'
+          ? 'border-amber-200 bg-amber-50/90 text-amber-950'
+          : 'border-red-200 bg-red-50/80 text-red-800'
+      }`}
       role="alert"
     >
       <p className="font-medium">{requestError.message}</p>
@@ -815,8 +854,27 @@ export default function App() {
           </ul>
         </div>
       ) : null}
+      {requestError.kind === 'payment_required' && requestError.operation === 'critique' ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs leading-relaxed text-amber-900/90">
+            One critique is {critiquePriceLabel} (USD). After you pay, you will return here and the critique will run
+            automatically.
+          </p>
+          <button
+            type="button"
+            onClick={() => void startCritiqueCheckout()}
+            className="w-full rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-700"
+          >
+            Pay {critiquePriceLabel} with Stripe
+          </button>
+        </div>
+      ) : null}
       {requestError.retryable ? (
-        <p className="mt-1 text-xs leading-relaxed text-red-700">
+        <p
+          className={`mt-1 text-xs leading-relaxed ${
+            requestError.kind === 'payment_required' ? 'text-amber-900/80' : 'text-red-700'
+          }`}
+        >
           {requestError.operation === 'classify'
             ? 'Try another upload, or switch to manual style selection.'
             : 'You can retry with the same image or choose a different photo.'}
@@ -876,6 +934,35 @@ export default function App() {
     };
   }, []);
 
+  const startCritiqueCheckout = useCallback(async () => {
+    try {
+      const url = await createStripeCheckoutSession({
+        kind: 'critique',
+        cancelPathHash: '#/',
+      });
+      window.location.href = url;
+    } catch (e) {
+      failRequest(
+        normalizeCritiqueRequestError(
+          e instanceof Error ? e : new Error('Checkout failed'),
+          'critique'
+        )
+      );
+    }
+  }, [failRequest]);
+
+  const startPreviewCheckout = useCallback(async () => {
+    try {
+      const url = await createStripeCheckoutSession({
+        kind: 'preview_edit',
+        cancelPathHash: '#/',
+      });
+      window.location.href = url;
+    } catch (e) {
+      failPreview(e instanceof Error ? e.message : 'Checkout failed');
+    }
+  }, [failPreview]);
+
   const rememberCritiqueReturn = useCallback(() => {
     const current = flowRef.current;
     if (current?.step === 'results' && current.critique && current.imageDataUrl) {
@@ -906,6 +993,7 @@ export default function App() {
     const matchingChange = changes?.find((change) => change.previewCriterion === criterion);
     const category =
       catList.find((entry) => entry.criterion === criterion) ?? priorityCritiqueCategory(catList);
+    pendingPreviewCriterionRef.current = null;
     startPreviewLoading({ kind: 'single', criterion });
     try {
       const target: PreviewEditTargetPayload = {
@@ -919,11 +1007,13 @@ export default function App() {
         editPlan: category.editPlan,
         ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),
       };
+      const previewJwt = paywallEnabled ? getStripeCheckoutJwt('preview_edit') : null;
       const { imageDataUrl, criterion: returnedCriterion } = await fetchPreviewEdit({
         imageDataUrl: previewSource,
         style: currentFlow.style,
         medium: currentFlow.medium,
         target,
+        ...(previewJwt ? { stripeCheckoutJwt: previewJwt } : {}),
       });
       const storedCriterion =
         canonicalCriterionLabel(returnedCriterion) ??
@@ -955,11 +1045,49 @@ export default function App() {
       });
       completePreview(entry.id);
     } catch (e) {
-      failPreview(
-        e instanceof Error ? e.message : 'Preview failed. Please retry from the critique screen.'
-      );
+      if (e instanceof PreviewEditPaymentRequiredError) {
+        pendingPreviewCriterionRef.current = criterion;
+        failPreview(e.message, { paymentRequired: true });
+      } else {
+        failPreview(
+          e instanceof Error ? e.message : 'Preview failed. Please retry from the critique screen.'
+        );
+      }
     }
-  }, [startPreviewLoading, completePreview, failPreview]);
+  }, [startPreviewLoading, completePreview, failPreview, paywallEnabled]);
+
+  runPreviewEditRef.current = runPreviewEdit;
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('payment') !== 'success') return;
+    const jwt = params.get('jwt');
+    const kind = params.get('kind');
+    if (!jwt || (kind !== 'critique' && kind !== 'preview_edit')) {
+      navigate({ pathname: location.pathname, search: '' }, { replace: true });
+      return;
+    }
+    if (kind === 'critique') {
+      setStripeCheckoutJwt('critique', jwt);
+      clearStripeCheckoutJwt('preview_edit');
+    } else {
+      setStripeCheckoutJwt('preview_edit', jwt);
+      clearStripeCheckoutJwt('critique');
+    }
+    navigate({ pathname: location.pathname, search: '' }, { replace: true });
+
+    const pendingCrit = pendingCritiqueAfterPaymentRef.current;
+    if (kind === 'critique' && pendingCrit && pendingCrit.runId === analysisRunTokenRef.current) {
+      pendingCritiqueAfterPaymentRef.current = null;
+      void runAnalysisRef.current(pendingCrit.rawDataUrl);
+      return;
+    }
+    const pendingPrev = pendingPreviewCriterionRef.current;
+    if (kind === 'preview_edit' && pendingPrev) {
+      pendingPreviewCriterionRef.current = null;
+      void runPreviewEditRef.current(pendingPrev);
+    }
+  }, [location.search, location.pathname, navigate]);
 
   useEffect(() => {
     if (!flow || flow.step !== 'results') return;
@@ -1660,7 +1788,29 @@ export default function App() {
                           </div>
                         </div>
                         {preview.error ? (
-                          <p className="mt-2 text-center text-xs text-red-600">{preview.error}</p>
+                          <div className="mt-2 space-y-2 text-center">
+                            <p
+                              className={`text-xs ${
+                                preview.errorPaymentRequired ? 'text-amber-800' : 'text-red-600'
+                              }`}
+                            >
+                              {preview.error}
+                            </p>
+                            {preview.errorPaymentRequired ? (
+                              <>
+                                <p className="text-[11px] leading-relaxed text-amber-900/85">
+                                  AI preview is {previewPriceLabel} per generation (USD).
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => void startPreviewCheckout()}
+                                  className="w-full rounded-xl bg-amber-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-amber-700"
+                                >
+                                  Pay {previewPriceLabel} with Stripe
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
                         ) : null}
                         {activePreviewImageDataUrl ? (
                           isDesktop ? (
@@ -1711,9 +1861,27 @@ export default function App() {
                         ) : null}
                       </section>
                     ) : preview.error ? (
-                      <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-center text-xs text-red-700">
-                        {preview.error}
-                      </p>
+                      <div
+                        className={`rounded-xl border px-3 py-2 text-center text-xs ${
+                          preview.errorPaymentRequired
+                            ? 'border-amber-200 bg-amber-50/90 text-amber-950'
+                            : 'border-red-200 bg-red-50/80 text-red-700'
+                        }`}
+                      >
+                        <p>{preview.error}</p>
+                        {preview.errorPaymentRequired ? (
+                          <div className="mt-2 space-y-2">
+                            <p className="text-[11px] leading-relaxed">AI preview is {previewPriceLabel} per generation.</p>
+                            <button
+                              type="button"
+                              onClick={() => void startPreviewCheckout()}
+                              className="w-full rounded-lg bg-amber-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-amber-700"
+                            >
+                              Pay {previewPriceLabel} with Stripe
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null
                   }
                 />

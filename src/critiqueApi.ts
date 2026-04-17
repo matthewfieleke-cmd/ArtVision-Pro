@@ -48,6 +48,18 @@ export async function fetchCritiqueFromApi(body: CritiqueRequestBody): Promise<C
       { error?: string } | CritiquePipelineErrorPayload | CritiqueResult
     >(res);
     if (!res.ok) {
+      if (res.status === 402) {
+        const msg =
+          typeof data === 'object' && data && 'error' in data && data.error
+            ? String(data.error)
+            : 'Payment required';
+        throw createCritiqueRequestError({
+          operation: 'critique',
+          status: 402,
+          kind: 'payment_required',
+          technicalMessage: msg,
+        });
+      }
       const pipelineError = parseCritiquePipelineErrorPayload(data);
       if (pipelineError) {
         throw createCritiqueRequestError({

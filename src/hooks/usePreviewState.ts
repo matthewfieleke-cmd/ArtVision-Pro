@@ -7,6 +7,8 @@ export type PreviewState = {
   loading: boolean;
   loadingTarget: PreviewTarget | null;
   error: string | null;
+  /** True when server returned 402 — show Pay to open Stripe Checkout. */
+  errorPaymentRequired: boolean;
   activeEditId: string | null;
   compareOpen: boolean;
   compareSeen: boolean;
@@ -16,7 +18,7 @@ type PreviewAction =
   | { type: 'RESET' }
   | { type: 'START_LOADING'; target: PreviewTarget }
   | { type: 'COMPLETE'; activeEditId: string }
-  | { type: 'FAIL'; error: string }
+  | { type: 'FAIL'; error: string; paymentRequired?: boolean }
   | { type: 'SELECT_EDIT'; id: string }
   | { type: 'OPEN_COMPARE' }
   | { type: 'CLOSE_COMPARE' }
@@ -26,6 +28,7 @@ const INITIAL_STATE: PreviewState = {
   loading: false,
   loadingTarget: null,
   error: null,
+  errorPaymentRequired: false,
   activeEditId: null,
   compareOpen: false,
   compareSeen: false,
@@ -41,6 +44,7 @@ function previewReducer(state: PreviewState, action: PreviewAction): PreviewStat
         loading: true,
         loadingTarget: action.target,
         error: null,
+        errorPaymentRequired: false,
       };
     case 'COMPLETE':
       return {
@@ -48,6 +52,7 @@ function previewReducer(state: PreviewState, action: PreviewAction): PreviewStat
         loading: false,
         loadingTarget: null,
         error: null,
+        errorPaymentRequired: false,
         activeEditId: action.activeEditId,
         compareOpen: false,
         compareSeen: false,
@@ -58,6 +63,7 @@ function previewReducer(state: PreviewState, action: PreviewAction): PreviewStat
         loading: false,
         loadingTarget: null,
         error: action.error,
+        errorPaymentRequired: Boolean(action.paymentRequired),
       };
     case 'SELECT_EDIT':
       return { ...state, activeEditId: action.id };
@@ -85,7 +91,8 @@ export function usePreviewState() {
     []
   );
   const failPreview = useCallback(
-    (error: string) => dispatch({ type: 'FAIL', error }),
+    (error: string, opts?: { paymentRequired?: boolean }) =>
+      dispatch({ type: 'FAIL', error, paymentRequired: opts?.paymentRequired }),
     []
   );
   const selectEdit = useCallback(

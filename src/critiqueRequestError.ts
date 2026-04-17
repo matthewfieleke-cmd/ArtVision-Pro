@@ -21,6 +21,7 @@ export type CritiqueRequestErrorKind =
   | 'runtime_eval'
   | 'retry_exhausted'
   | 'uninterpretable'
+  | 'payment_required'
   | 'http'
   | 'unknown';
 
@@ -89,6 +90,7 @@ function extractErrorMessage(error: unknown): string {
 function inferKind(message: string, status?: number): CritiqueRequestErrorKind {
   const normalized = message.toLowerCase();
 
+  if (status === 402 || normalized.includes('payment_required')) return 'payment_required';
   if (status === 503 || normalized.includes('openai_api_key')) return 'server_config';
   if (normalized.includes('abort')) return 'aborted';
   if (
@@ -188,6 +190,10 @@ function defaultUserMessage(
       return `The critique service exhausted its retries ${stageLabel} before producing a safe result. Please try again.`;
     case 'uninterpretable':
       return 'Your painting is unable to be analyzed.';
+    case 'payment_required':
+      return operation === 'critique'
+        ? 'Complete payment for this critique, then try again.'
+        : 'Complete payment, then try again.';
     case 'http':
       return operation === 'classify'
         ? 'Style detection failed before it could complete. Please retry or choose the style manually.'
@@ -205,7 +211,12 @@ function defaultUserMessage(
 }
 
 function defaultRetryable(kind: CritiqueRequestErrorKind): boolean {
-  return kind !== 'server_config' && kind !== 'aborted' && kind !== 'uninterpretable';
+  return (
+    kind !== 'server_config' &&
+    kind !== 'aborted' &&
+    kind !== 'uninterpretable' &&
+    kind !== 'payment_required'
+  );
 }
 
 export function createCritiqueRequestError(

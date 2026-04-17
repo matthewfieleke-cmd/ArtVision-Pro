@@ -11,11 +11,13 @@ import { runOpenAIClassifyStyle } from './openaiClassifyStyle.js';
 import { runOpenAICritique } from './openaiCritique.js';
 import { runOpenAIPreviewEdit } from './openaiPreviewEdit.js';
 import { runPreviewEditWithDedup } from './previewEditJobStore.js';
+import { assertPaidOrThrow, PaymentRequiredError } from './stripePaymentVerification.js';
+import { markStripePaymentIntentConsumed } from './stripeMarkConsumed.js';
 
 export type ApiResult =
   | { status: 200; body: unknown }
   | {
-      status: 400 | 404 | 405 | 422 | 500 | 503;
+      status: 400 | 402 | 404 | 405 | 422 | 500 | 503;
       body: { error: string } | CritiquePipelineErrorPayload;
     };
 
@@ -37,7 +39,8 @@ export function applyCorsHeaders(
 export function resolveApiRoute(
   url: string | undefined
 ): 'critique' | 'classify-style' | 'classify-medium' | 'preview-edit' | null {
-  switch (url) {
+  const path = url ? new URL(url, 'http://local').pathname : '';
+  switch (path) {
     case '/api/critique':
       return 'critique';
     case '/api/classify-style':
@@ -84,7 +87,25 @@ export async function handleApiRequest(args: {
       if (!parsed.style || !parsed.medium) {
         return { status: 400, body: { error: 'style and medium required' } };
       }
-      return { status: 200, body: await runOpenAICritique(apiKey, parsed) };
+      const paid = await assertPaidOrThrow({
+        route: 'critique',
+        stripeCheckoutJwt: parsed.stripeCheckoutJwt,
+      });
+      const critiquePayload = { ...parsed };
+      delete (critiquePayload as { stripeCheckoutJwt?: string }).stripeCheckoutJwt;
+      let critiqueBody: Awaited<ReturnType<typeof runOpenAICritique>> | undefined;
+      try {
+        critiqueBody = await runOpenAICritique(apiKey, critiquePayload);
+      } finally {
+        if (paid.paymentIntentId && critiqueBody) {
+          try {
+            await markStripePaymentIntentConsumed(paid.paymentIntentId);
+          } catch (e) {
+            console.error('[stripe] failed to mark payment consumed', e);
+          }
+        }
+      }
+      return { status: 200, body: critiqueBody! };
     }
 
     if (route === 'preview-edit') {
@@ -95,10 +116,27 @@ export async function handleApiRequest(args: {
       if (!parsed.style || !parsed.medium || !parsed.target?.criterion) {
         return { status: 400, body: { error: 'style, medium, and target required' } };
       }
-      return {
-        status: 200,
-        body: await runPreviewEditWithDedup(parsed, () => runOpenAIPreviewEdit(apiKey, parsed)),
-      };
+      const paid = await assertPaidOrThrow({
+        route: 'preview-edit',
+        stripeCheckoutJwt: parsed.stripeCheckoutJwt,
+      });
+      const previewPayload = { ...parsed };
+      delete (previewPayload as { stripeCheckoutJwt?: string }).stripeCheckoutJwt;
+      let previewBody: Awaited<ReturnType<typeof runPreviewEditWithDedup>> | undefined;
+      try {
+        previewBody = await runPreviewEditWithDedup(previewPayload, () =>
+          runOpenAIPreviewEdit(apiKey, previewPayload)
+        );
+      } finally {
+        if (paid.paymentIntentId && previewBody) {
+          try {
+            await markStripePaymentIntentConsumed(paid.paymentIntentId);
+          } catch (e) {
+            console.error('[stripe] failed to mark payment consumed', e);
+          }
+        }
+      }
+      return { status: 200, body: previewBody! };
     }
 
     const parsed = body as { imageDataUrl?: string };
@@ -110,6 +148,12 @@ export async function handleApiRequest(args: {
     }
     return { status: 200, body: await runOpenAIClassifyStyle(apiKey, parsed.imageDataUrl) };
   } catch (error) {
+    if (error instanceof PaymentRequiredError) {
+      return {
+        status: 402,
+        body: { error: error.message },
+      };
+    }
     const defaultMessage =
       route === 'critique'
         ? 'Critique failed'
