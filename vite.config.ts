@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import type { DisplayOverride } from 'vite-plugin-pwa';
+import { PWA_MANIFEST_SHORTCUTS } from './src/launchUrls';
 
 /** GitHub project Pages: set VITE_BASE=/YourRepoName/ at build time. User/org root site: leave unset or use /. */
 function appBase(): string {
@@ -71,6 +72,7 @@ export default defineConfig(({ mode }) => ({
               display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'] as DisplayOverride[],
               edge_side_panel: { preferred_width: 400 },
               handle_links: 'preferred',
+              shortcuts: [...PWA_MANIFEST_SHORTCUTS],
             },
             workbox: {
               globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,jpg,jpeg,webmanifest}'],

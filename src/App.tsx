@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import {
   ArrowLeft,
@@ -67,6 +67,7 @@ import {
   normalizeCritiqueRequestError,
 } from './critiqueRequestError';
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
+import { tabFromSearch } from './launchUrls';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { GlossaryTab } from './screens/GlossaryTab';
@@ -235,6 +236,7 @@ function previewDisplayTarget(
 
 export default function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isDesktop = useIsDesktop();
   const [tab, setTab] = useState<TabId>('home');
   const { paintings, studioSelectedId, setStudioSelectedId, persistResult: storagePersist, deletePainting, openPaintingFromHome } = usePaintingStorage(setTab);
@@ -335,8 +337,27 @@ export default function App() {
       return;
     }
     const intent = consumeReturnTabIntent();
-    if (intent === 'benchmarks') setTab('benchmarks');
-  }, [location.pathname, location.key, clearAsyncState, closeCompare, setStudioSelectedId]);
+    if (intent === 'benchmarks') {
+      setTab('benchmarks');
+      return;
+    }
+    const tabParam = tabFromSearch(location.search);
+    if (tabParam) {
+      setFlow(null);
+      setTab(tabParam);
+      if (location.search) {
+        navigate({ pathname: '/', search: '' }, { replace: true });
+      }
+    }
+  }, [
+    location.pathname,
+    location.key,
+    location.search,
+    navigate,
+    clearAsyncState,
+    closeCompare,
+    setStudioSelectedId,
+  ]);
 
   const cancelAnalysisKeepAlive = useCallback(() => {
     analysisRunTokenRef.current += 1;
