@@ -76,13 +76,15 @@ const OBSERVATION_MAX_TOKENS = 2600;
 /**
  * Merge A + Merge C: the unified vision call holds the full observation bank,
  * the full evidence object, AND the eight per-criterion anchor regions in
- * one response. The budget is the sum of the two stage budgets plus a small
- * headroom margin for JSON wrapping and the compact regions array. The
- * reasoning-model multiplier in `buildOpenAIMaxTokensParam` still applies on
- * top of this for gpt-5 / o-series so they get enough room for invisible
- * reasoning tokens.
+ * one response. Trimmed from 7200 to 5000 after two production runs showed
+ * gpt-5.4 expanding into ~110-120s of reasoning tokens regardless of how
+ * much actual output it needed. A tighter cap pushes the model to finish
+ * sooner while still leaving headroom above the observed visible-output
+ * token count (~2800-3400). The reasoning-model multiplier in
+ * `buildOpenAIMaxTokensParam` still applies on top of this for gpt-5 /
+ * o-series so invisible reasoning tokens aren't starved.
  */
-const VISION_MAX_TOKENS = 7200;
+const VISION_MAX_TOKENS = 5000;
 
 type CriterionAnchorRegion = {
   x: number;
