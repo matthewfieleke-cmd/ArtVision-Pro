@@ -444,21 +444,54 @@ export const VISION_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
 );
 
 /**
+ * Lean Voice B category shape used on the OpenAI wire for the merged
+ * writing stage. OpenAI's structured-output strict mode requires EVERY
+ * property in an object's `properties` to also be in `required`, which
+ * rules out the legacy optional fields (`actionPlanSteps`, `voiceBPlan`,
+ * `editPlan`) that appear on `voiceBCategorySchema`.
+ *
+ * This matches exactly what `createVoiceBCategoryPassSchema` requests in
+ * the proven two-stage flow — only `criterion`, `phase3`, `anchor`, and
+ * `plan` are produced by the model; the legacy fields are hydrated
+ * post-parse by `deriveLegacyVoiceBFields`.
+ */
+const voiceBCategoryLeanSchema = z.object({
+  criterion: criterionEnum,
+  phase3: critiquePhase3Schema,
+  anchor: anchorSchema,
+  plan: voiceBCanonicalPlanSchema,
+});
+
+const voiceBStageResultLeanSchema = z.object({
+  overallSummary: z.object({
+    topPriorities: z.array(
+      z.string().describe(
+        'Voice B top priority only for THIS painting. Start with one primary action tied to a visible passage.'
+      )
+    ).min(1).max(2),
+  }),
+  studioChanges: z.array(studioChangeSchema).min(2).max(5),
+  categories: z
+    .array(voiceBCategoryLeanSchema)
+    .min(CRITERIA_ORDER.length)
+    .max(CRITERIA_ORDER.length),
+});
+
+/**
  * Unified writing-stage schema (Merge B): voice A judgment AND voice B
  * teaching plans are produced by ONE OpenAI call. Level-lock cannot be baked
  * into the schema because voice A's per-criterion level is decided in the
  * SAME response — it is enforced post-hoc by `validateVoiceBStageOutput`,
  * which already cross-checks voiceB.plan/phase3 against voiceA.level.
  *
- * The two halves are kept as nested objects so the existing
- * `validateVoiceAStageOutput` / `validateVoiceBStageOutput` /
- * `mergeVoiceStages` validators (and every downstream consumer) work
- * unchanged on the split parts. On any failure the orchestrator falls back
- * to the proven two-stage Voice A → Voice B flow.
+ * The wire-level voiceB shape is the lean shape (see above) so OpenAI strict
+ * mode accepts it. The runner hydrates the full Voice B shape before
+ * validators run, so downstream code is unchanged. On any failure the
+ * orchestrator falls back to the proven two-stage Voice A → Voice B flow.
  */
 export const writingStageResultSchema = z.object({
   voiceA: voiceAStageResultSchema,
-  voiceB: voiceBStageResultSchema,
+  voiceB: voiceBStageResultLeanSchema,
 });
 
 export const WRITING_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
@@ -467,6 +500,7 @@ export const WRITING_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
 );
 
 export type WritingStageResult = z.infer<typeof writingStageResultSchema>;
+export type VoiceBCategoryLean = z.infer<typeof voiceBCategoryLeanSchema>;
 
 // ---------------------------------------------------------------------------
 // Inferred TypeScript types
