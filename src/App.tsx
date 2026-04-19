@@ -70,16 +70,24 @@ import {
   createCritiqueRequestError,
   normalizeCritiqueRequestError,
 } from './critiqueRequestError';
-import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
+import {
+  clearPendingCritiquePaymentIntent,
+  clearPendingPreviewPaymentCriterion,
+  clearReturnViewIntent,
+  consumePendingCritiquePaymentIntent,
+  consumePendingPreviewPaymentCriterion,
+  consumeReturnTabIntent,
+  consumeReturnViewIntent,
+  setPendingCritiquePaymentIntent,
+  setPendingPreviewPaymentCriterion,
+  setReturnViewIntent,
+} from './navIntent';
 import { tabFromSearch } from './launchUrls';
 import { createStripeCheckoutSession, fetchStripePaywallConfig } from './stripeConfigApi';
 import {
-  clearPendingCritiqueCheckout,
   clearStripeCheckoutJwt,
   getStripeCheckoutJwt,
-  setPendingCritiqueCheckout,
   setStripeCheckoutJwt,
-  takePendingCritiqueCheckout,
 } from './stripeCheckoutSession';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
@@ -297,6 +305,15 @@ export default function App() {
   const [critiquePriceLabel, setCritiquePriceLabel] = useState('$1.49');
   const [previewPriceLabel, setPreviewPriceLabel] = useState('$0.49');
   const pendingPreviewCriterionRef = useRef<CritiqueCategory['criterion'] | null>(null);
+  /**
+   * Same-session fast path for post-Stripe critique resume: a Stripe full-page redirect wipes
+   * this ref, but when the redirect is skipped (e.g., dev testing, embedded checkout), the
+   * payment-success handler can use this to avoid a sessionStorage round-trip.
+   */
+  const pendingCritiqueAfterPaymentRef = useRef<{
+    rawDataUrl: string;
+    flow: SetupFlow | CaptureFlow;
+  } | null>(null);
 
   const formatUsd = useCallback(
     (cents: number) =>
@@ -423,7 +440,10 @@ export default function App() {
     clearPendingCrop();
     clearAsyncState();
     lastAutoSaveSigRef.current = null;
-    clearPendingCritiqueCheckout();
+    clearPendingCritiquePaymentIntent();
+    clearPendingPreviewPaymentCriterion();
+    pendingCritiqueAfterPaymentRef.current = null;
+    pendingPreviewCriterionRef.current = null;
     resetPreview();
   }, [
     cancelAnalysisKeepAlive,
@@ -476,16 +496,33 @@ export default function App() {
   );
   const runPreviewEditRef = useRef<(criterion: CritiqueCategory['criterion']) => Promise<void>>(async () => {});
 
-  const runAnalysis = useCallback(
-    async (rawDataUrl: string, opts?: { flowOverride?: SetupFlow | CaptureFlow }) => {
-    const f = opts?.flowOverride ?? flowRef.current;
-    if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
-    if (!f.style || !f.medium) return;
-    const runId = ++analysisRunTokenRef.current;
+  /**
+   * Initiate the Stripe checkout for a critique. Compresses the pending image, persists a
+   * `{ flow, imageDataUrl }` intent to sessionStorage so the critique can auto-resume after
+   * the full-page Stripe reload, and redirects. On failure, clears pending state and surfaces
+   * a friendly error back to the flow.
+   */
+  const startCritiqueCheckout = useCallback(
+    async (rawDataUrl: string): Promise<void> => {
+      const f = flowRef.current;
+      if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
+      if (!f.style || !f.medium) return;
 
-    if (paywallEnabled && !getStripeCheckoutJwt('critique')) {
+      let compressedForApi: string;
+      try {
+        compressedForApi = await compressDataUrlForApi(rawDataUrl);
+      } catch (e) {
+        failRequest(
+          normalizeCritiqueRequestError(
+            e instanceof Error ? e : new Error('Image compression failed'),
+            'critique'
+          )
+        );
+        return;
+      }
+
       const snap = buildPendingCritiqueRestore(f);
-      if (!setPendingCritiqueCheckout({ imageDataUrl: rawDataUrl, flow: snap })) {
+      if (!setPendingCritiquePaymentIntent({ flow: snap, imageDataUrl: compressedForApi })) {
         failRequest(
           createCritiqueRequestError({
             operation: 'critique',
@@ -498,6 +535,8 @@ export default function App() {
         );
         return;
       }
+      pendingCritiqueAfterPaymentRef.current = { rawDataUrl: compressedForApi, flow: f };
+
       try {
         const cancelPathHash =
           f.step === 'setup' && f.styleMode === 'auto' && f.classifySourceImageDataUrl
@@ -509,11 +548,28 @@ export default function App() {
         });
         window.location.href = url;
       } catch (e) {
-        clearPendingCritiqueCheckout();
+        clearPendingCritiquePaymentIntent();
+        pendingCritiqueAfterPaymentRef.current = null;
         failRequest(
-          normalizeCritiqueRequestError(e instanceof Error ? e : new Error('Checkout failed'), 'critique')
+          normalizeCritiqueRequestError(
+            e instanceof Error ? e : new Error('Checkout failed'),
+            'critique'
+          )
         );
       }
+    },
+    [failRequest]
+  );
+
+  const runAnalysis = useCallback(
+    async (rawDataUrl: string, opts?: { flowOverride?: SetupFlow | CaptureFlow }) => {
+    const f = opts?.flowOverride ?? flowRef.current;
+    if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
+    if (!f.style || !f.medium) return;
+    const runId = ++analysisRunTokenRef.current;
+
+    if (paywallEnabled && !getStripeCheckoutJwt('critique')) {
+      await startCritiqueCheckout(rawDataUrl);
       return;
     }
 
@@ -638,7 +694,8 @@ export default function App() {
         setFlow(toAnalysisUnavailableFromAnalyzing(startedFlow));
       } else if (normalized instanceof CritiqueRequestError && normalized.kind === 'payment_required') {
         finishRequest();
-        clearPendingCritiqueCheckout();
+        clearPendingCritiquePaymentIntent();
+        pendingCritiqueAfterPaymentRef.current = null;
         setFlow(recoverFromAnalysisError(startedFlow));
         failRequest(normalized);
       } else {
@@ -661,6 +718,7 @@ export default function App() {
     paywallEnabled,
     resetPreview,
     startAnalysis,
+    startCritiqueCheckout,
     storagePersist,
   ]);
 
@@ -989,18 +1047,6 @@ export default function App() {
     };
   }, []);
 
-  const startPreviewCheckout = useCallback(async () => {
-    try {
-      const url = await createStripeCheckoutSession({
-        kind: 'preview_edit',
-        cancelPathHash: '#/',
-      });
-      window.location.href = url;
-    } catch (e) {
-      failPreview(e instanceof Error ? e.message : 'Checkout failed');
-    }
-  }, [failPreview]);
-
   const rememberCritiqueReturn = useCallback(() => {
     const current = flowRef.current;
     if (current?.step === 'results' && current.critique && current.imageDataUrl) {
@@ -1013,6 +1059,31 @@ export default function App() {
     }
     clearReturnViewIntent();
   }, [studioSelectedId, tab]);
+
+  /**
+   * Initiate the Stripe checkout for a preview edit. Persists the current critique view so it
+   * can be restored after the Stripe full-page reload, and writes the pending criterion so the
+   * preview-edit request can auto-resume on return.
+   */
+  const startPreviewCheckout = useCallback(async () => {
+    rememberCritiqueReturn();
+    const pendingCriterion = pendingPreviewCriterionRef.current;
+    if (pendingCriterion) {
+      setPendingPreviewPaymentCriterion(pendingCriterion);
+    } else {
+      clearPendingPreviewPaymentCriterion();
+    }
+    try {
+      const url = await createStripeCheckoutSession({
+        kind: 'preview_edit',
+        cancelPathHash: '#/',
+      });
+      window.location.href = url;
+    } catch (e) {
+      clearPendingPreviewPaymentCriterion();
+      failPreview(e instanceof Error ? e.message : 'Checkout failed');
+    }
+  }, [failPreview, rememberCritiqueReturn]);
 
   const runPreviewEdit = useCallback(async (criterion: CritiqueCategory['criterion']) => {
     const currentFlow = flowRef.current;
@@ -1115,26 +1186,48 @@ export default function App() {
     navigate({ pathname: location.pathname, search: '' }, { replace: true });
 
     if (kind === 'critique') {
-      const pending = takePendingCritiqueCheckout();
-      const raw = pending?.imageDataUrl ?? null;
-      const snap = pending?.flow as PendingCritiqueFlowRestore | undefined;
-      const hydrated =
-        snap && raw ? hydratePendingCritiqueFlow(snap, paintingsRef.current) : null;
-      if (hydrated) {
-        setFlow(hydrated);
-      }
       setTab('home');
-      if (raw && hydrated) {
-        void runAnalysisRef.current(raw, { flowOverride: hydrated });
-      } else if (raw) {
-        void runAnalysisRef.current(raw);
+
+      const fast = pendingCritiqueAfterPaymentRef.current;
+      if (fast) {
+        pendingCritiqueAfterPaymentRef.current = null;
+        clearPendingCritiquePaymentIntent();
+        /* Synchronously settle flowRef so runAnalysis's `flowRef.current` read inside
+           beginAnalysis sees the restored setup/capture state on the same tick as setFlow. */
+        flowRef.current = fast.flow;
+        setFlow(fast.flow);
+        void runAnalysisRef.current(fast.rawDataUrl);
+        return;
       }
+
+      const stored = consumePendingCritiquePaymentIntent();
+      if (!stored) return;
+      const snap = stored.flow as PendingCritiqueFlowRestore;
+      const hydrated = hydratePendingCritiqueFlow(snap, paintingsRef.current);
+      if (!hydrated) return;
+      flowRef.current = hydrated;
+      setFlow(hydrated);
+      void runAnalysisRef.current(stored.imageDataUrl);
       return;
     }
-    const pendingPrev = pendingPreviewCriterionRef.current;
-    if (kind === 'preview_edit' && pendingPrev) {
-      pendingPreviewCriterionRef.current = null;
-      void runPreviewEditRef.current(pendingPrev);
+
+    if (kind === 'preview_edit') {
+      /* `consumeReturnViewIntent` in the sibling effect restores the results flow on the same
+         render tick, so defer one frame to let flowRef reflect that before we resume the
+         preview edit. */
+      requestAnimationFrame(() => {
+        const fastCriterion = pendingPreviewCriterionRef.current;
+        if (fastCriterion) {
+          pendingPreviewCriterionRef.current = null;
+          clearPendingPreviewPaymentCriterion();
+          void runPreviewEditRef.current(fastCriterion);
+          return;
+        }
+        const storedCriterion = consumePendingPreviewPaymentCriterion();
+        if (storedCriterion) {
+          void runPreviewEditRef.current(storedCriterion as CritiqueCategory['criterion']);
+        }
+      });
     }
   }, [location.search, location.pathname, navigate, setTab]);
 
