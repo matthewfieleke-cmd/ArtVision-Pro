@@ -16,6 +16,14 @@ function productLabel(kind: StripePaidProductKind): string {
   return kind === 'critique' ? 'Painting critique' : 'AI image preview';
 }
 
+export function resolveCheckoutOrigin(requestOrigin: string | undefined): string {
+  return (
+    requestOrigin?.trim() ||
+    process.env.STRIPE_CHECKOUT_ORIGIN?.trim() ||
+    ''
+  ).replace(/\/$/, '');
+}
+
 /**
  * POST JSON `{ kind: "critique" | "preview_edit" }`. Requires `Origin` (browser) or `STRIPE_CHECKOUT_ORIGIN`.
  */
@@ -25,11 +33,7 @@ export async function createStripeCheckoutSession(
   args: { requestOrigin: string | undefined }
 ): Promise<{ url: string }> {
   const kind = body.kind === 'preview_edit' ? 'preview_edit' : 'critique';
-  const origin = (
-    process.env.STRIPE_CHECKOUT_ORIGIN?.trim() ||
-    args.requestOrigin?.trim() ||
-    ''
-  ).replace(/\/$/, '');
+  const origin = resolveCheckoutOrigin(args.requestOrigin);
   if (!origin) {
     throw new Error(
       'Set STRIPE_CHECKOUT_ORIGIN to your public app URL (e.g. https://your-app.vercel.app), or call checkout from the browser on that same origin.'

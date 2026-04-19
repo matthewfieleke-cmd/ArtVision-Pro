@@ -13,15 +13,12 @@ function firstHeaderValue(value: string | string[] | undefined): string | undefi
   return value;
 }
 
-function resolveAppBaseUrl(args: {
+export function resolveAppBaseUrl(args: {
   requestOrigin: string | undefined;
   requestHost?: string | string[] | undefined;
   forwardedHost?: string | string[] | undefined;
   forwardedProto?: string | string[] | undefined;
 }): string {
-  const fromEnv = process.env.STRIPE_CHECKOUT_ORIGIN?.trim().replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-
   const origin = args.requestOrigin?.trim().replace(/\/$/, '') ?? '';
   if (origin) return origin;
 
@@ -30,6 +27,9 @@ function resolveAppBaseUrl(args: {
     const proto = firstHeaderValue(args.forwardedProto)?.trim() || (host.startsWith('localhost') ? 'http' : 'https');
     return `${proto}://${host}`.replace(/\/$/, '');
   }
+
+  const fromEnv = process.env.STRIPE_CHECKOUT_ORIGIN?.trim().replace(/\/$/, '');
+  if (fromEnv) return fromEnv;
 
   throw new Error(
     'Set STRIPE_CHECKOUT_ORIGIN to your public app URL (e.g. https://your-app.vercel.app), or ensure the request host/proto headers are forwarded.'
