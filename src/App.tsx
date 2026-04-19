@@ -1246,15 +1246,18 @@ export default function App() {
       }
 
       const stored = consumePendingCritiquePaymentIntent();
-      console.log('[stripe-resume] critique sessionStorage read', {
+      console.log('[stripe-resume] critique storage read', {
         found: Boolean(stored),
         hasImage: Boolean(stored?.imageDataUrl),
       });
       if (!stored) {
-        /* Payment succeeded but the pending intent is gone — usually PWA cache wiped the
-           tab's sessionStorage, private-mode storage limits, or an SW bundle swap where
-           neither the new nor legacy key is readable. Put the user into a fresh setup flow
-           and surface an explicit error instead of silently landing on Home. */
+        /* Payment succeeded but the pending intent is gone. In a Microsoft Store PWA, Windows
+           may have routed the Stripe return URL to a fresh app instance whose storage never
+           saw the pre-redirect write; in a browser this can also happen if private-mode storage
+           was wiped or an SW bundle swap crossed the round-trip. Put the user into a fresh
+           setup flow, surface an in-flow error banner, AND raise a blocking alert so nobody
+           ends up staring at Home wondering where their money went. Their critique JWT is
+           already persisted, so the retry reuses the paid credit. */
         console.error('[stripe-resume] critique payment succeeded but no pending intent found');
         const recovery = createNewFlow();
         flowRef.current = recovery;
@@ -1263,12 +1266,17 @@ export default function App() {
           createCritiqueRequestError({
             operation: 'critique',
             kind: 'unknown',
-            technicalMessage: 'Post-payment pending critique intent missing from sessionStorage',
+            technicalMessage: 'Post-payment pending critique intent missing from storage',
             userMessage:
-              'Payment received, but your pending critique could not be restored after Stripe redirected you back. Your payment credit is saved — please set up the critique again and run it.',
+              'Payment received, but your pending critique could not be restored after Stripe redirected you back. Your payment credit is saved — please set up the critique again and run it (no second charge).',
             retryable: true,
           })
         );
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          window.alert(
+            'Payment received — but your pending critique could not be restored after returning from Stripe. Your payment is saved: set up the critique again and run it, you will not be charged a second time.'
+          );
+        }
         return;
       }
       const snap = stored.flow as PendingCritiqueFlowRestore;
@@ -1288,6 +1296,11 @@ export default function App() {
             retryable: true,
           })
         );
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          window.alert(
+            'Payment received — but the critique setup could not be restored. Your payment is saved: set up the critique again and run it, you will not be charged a second time.'
+          );
+        }
         return;
       }
       console.log('[stripe-resume] critique hydrated, invoking runAnalysis', {
