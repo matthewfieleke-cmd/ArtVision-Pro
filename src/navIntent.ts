@@ -85,6 +85,32 @@ function readTimestamped<T>(
   }
 }
 
+/** Same as readTimestamped but does not remove the key (for Stripe resume before analysis starts). */
+function peekTimestamped<T>(
+  storage: Storage | null,
+  key: string,
+  ttlMs: number,
+  validate: (value: unknown) => value is T
+): T | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TimestampedEnvelope<unknown>>;
+    if (
+      !parsed ||
+      typeof parsed.storedAt !== 'number' ||
+      Date.now() - parsed.storedAt > ttlMs
+    ) {
+      return null;
+    }
+    if (!validate(parsed.value)) return null;
+    return parsed.value;
+  } catch {
+    return null;
+  }
+}
+
 function safeLocalStorage(): Storage | null {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -205,6 +231,36 @@ function readLegacyCritiqueSessionPayload(key: string): PendingCritiquePaymentIn
   } catch {
     return null;
   }
+}
+
+function peekLegacyCritiqueSessionPayload(key: string): PendingCritiquePaymentIntent | null {
+  try {
+    const session = safeSessionStorage();
+    if (!session) return null;
+    const raw = session.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return isCritiquePaymentIntent(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read pending critique payment intent without removing it. Cleared after `runAnalysis` finishes
+ * (success or failure) so React Strict Mode / double effect runs cannot lose the intent mid-resume.
+ */
+export function peekPendingCritiquePaymentIntent(): PendingCritiquePaymentIntent | null {
+  const current = peekTimestamped(
+    safeLocalStorage(),
+    PENDING_CRITIQUE_PAYMENT_KEY,
+    STRIPE_RETURN_TTL_MS,
+    isCritiquePaymentIntent
+  );
+  if (current) return current;
+  const legacySession = peekLegacyCritiqueSessionPayload(LEGACY_PENDING_CRITIQUE_SESSION_KEY);
+  if (legacySession) return legacySession;
+  return peekLegacyCritiqueSessionPayload(LEGACY_PENDING_CRITIQUE_ORIG_KEY);
 }
 
 export function consumePendingCritiquePaymentIntent(): PendingCritiquePaymentIntent | null {
