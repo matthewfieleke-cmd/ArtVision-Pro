@@ -26,6 +26,7 @@ type CritiquePanelsProps = {
   previewLoading?: boolean;
   /** Only the matching button shows a spinner. */
   previewLoadingTarget?: null | { kind: 'single'; criterion: CritiqueCategory['criterion'] };
+  previewPaywallEnabled?: boolean;
   previewPriceLabel?: string;
   previewPaymentRequiredCriterion?: CritiqueCategory['criterion'] | null;
   /** Rendered directly under Voice B (e.g. AI edits session), before photo quality / categories. */
@@ -92,6 +93,7 @@ type CategoryCardProps = {
   previewEditIdForCriterion?: string;
   onViewAiEdit?: () => void;
   previewLoading?: boolean;
+  previewPaywallEnabled?: boolean;
   previewPriceLabel?: string;
   previewPaymentRequired?: boolean;
   onLearnMore?: () => void;
@@ -111,6 +113,7 @@ function CategoryCard({
   previewEditIdForCriterion,
   onViewAiEdit,
   previewLoading = false,
+  previewPaywallEnabled = false,
   previewPriceLabel = '$0.99',
   previewPaymentRequired = false,
   onLearnMore,
@@ -126,7 +129,9 @@ function CategoryCard({
     ? 'Generating…'
     : hasSessionPreview
       ? 'View AI edit'
-      : `Generate AI Edit for ${previewPriceLabel}`;
+      : previewPaywallEnabled
+        ? `Generate AI Edit for ${previewPriceLabel}`
+        : 'Generate AI Edit';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -495,6 +500,7 @@ export const CritiquePanels = memo(function CritiquePanels({
   onFocusSessionPreviewForCriterion,
   previewLoading = false,
   previewLoadingTarget = null,
+  previewPaywallEnabled = false,
   previewPriceLabel = '$0.99',
   previewPaymentRequiredCriterion = null,
   voiceBFooter,
@@ -542,6 +548,7 @@ export const CritiquePanels = memo(function CritiquePanels({
                 : undefined
             }
             previewLoading={thisLoading}
+            previewPaywallEnabled={previewPaywallEnabled}
             previewPriceLabel={previewPriceLabel}
             previewPaymentRequired={previewPaymentRequiredCriterion === category.criterion}
             onLearnMore={onLearnMore}

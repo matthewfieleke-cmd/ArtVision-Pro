@@ -2130,6 +2130,7 @@ export default function App() {
                   onFocusSessionPreviewForCriterion={focusSessionPreviewForCriterion}
                   previewLoading={preview.loading}
                   previewLoadingTarget={preview.loadingTarget}
+                  previewPaywallEnabled={paywallEnabled}
                   previewPriceLabel={previewPriceLabel}
                   previewPaymentRequiredCriterion={previewPaymentRequiredCriterion}
                   workingTitle={flow.workingTitle}
