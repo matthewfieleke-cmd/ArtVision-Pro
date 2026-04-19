@@ -8,7 +8,6 @@ import {
   Home,
   ImagePlus,
   Loader2,
-  Save,
   Upload,
   Wand2,
   X,
@@ -554,13 +553,25 @@ export default function App() {
       if (runId !== analysisRunTokenRef.current) return;
 
       finishRequest();
-      setFlow(
-        completeAnalysis(startedFlow, {
-          imageDataUrl: compressedForStorage,
-          critique,
-          critiqueSource: 'api',
-        })
-      );
+      const resultsFlow = completeAnalysis(startedFlow, {
+        imageDataUrl: compressedForStorage,
+        critique,
+        critiqueSource: 'api',
+      });
+      setFlow(resultsFlow);
+      const studioPersist = storagePersist(resultsFlow, { navigateToStudio: false });
+      if (studioPersist) {
+        setFlow((cur) =>
+          cur && cur.step === 'results'
+            ? {
+                ...cur,
+                mode: 'resubmit',
+                targetPainting: studioPersist.targetPainting,
+                savedPaintingId: studioPersist.savedPaintingId,
+              }
+            : cur
+        );
+      }
     } catch (e) {
       if (runId !== analysisRunTokenRef.current) return;
       const normalized = normalizeCritiqueRequestError(e, 'critique');
@@ -592,6 +603,7 @@ export default function App() {
     paywallEnabled,
     resetPreview,
     startAnalysis,
+    storagePersist,
   ]);
 
   runAnalysisRef.current = runAnalysis;
@@ -1729,7 +1741,7 @@ export default function App() {
                       maxLength={120}
                       value={flow.workingTitle}
                       onChange={(e) => setFlow((f) => (f ? updateWorkingTitle(f, e.target.value) : f))}
-                      placeholder="Optional — used when you save to Studio"
+                      placeholder="Optional — used as the saved title in Studio"
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:text-sm"
                       autoComplete="off"
                     />
@@ -1763,8 +1775,8 @@ export default function App() {
                           AI edits this session
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                          Illustrative only—not a substitute for painting. Saved with the work when you save to Studio;
-                          discarded if you leave without saving.
+                          Illustrative only—not a substitute for painting. Saved to Studio automatically with your
+                          critique; remove the work from Studio if you do not want to keep it.
                         </p>
                         <div className="mt-3 rounded-xl border border-violet-200/60 bg-white/80 p-2">
                           <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -1887,26 +1899,16 @@ export default function App() {
                   }
                 />
                 <div className="flex flex-col gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!flow || flow.step !== 'results') return;
-                      const result = storagePersist(flow);
-                      if (result) {
-                        setFlow((cur) => cur && cur.step === 'results' ? { ...cur, mode: 'resubmit', targetPainting: result.targetPainting, savedPaintingId: result.savedPaintingId } : cur);
-                      }
-                    }}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25"
-                  >
-                    <Save className="h-5 w-5" />
-                    {flow.mode === 'resubmit' ? 'Save new version' : 'Save to studio'}
-                  </button>
+                  <p className="rounded-2xl border border-emerald-200/80 bg-emerald-50/70 px-4 py-3 text-center text-xs leading-relaxed text-emerald-950/90">
+                    Saved to Studio automatically. AI previews are saved as you generate them. Remove this work anytime
+                    from the Studio tab.
+                  </p>
                   <button
                     type="button"
                     onClick={closeFlow}
                     className="w-full rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
                   >
-                    Discard
+                    Close
                   </button>
                 </div>
                 </div>

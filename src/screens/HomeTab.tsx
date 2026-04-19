@@ -157,7 +157,7 @@ export function HomeTab({ paintings, onNewCritique, onOpenPainting, isDesktop = 
               isDesktop ? 'col-span-full' : 'min-w-[100%]'
             }`}
           >
-            No paintings saved yet. Run a critique and {isDesktop ? 'click' : 'tap'} “Save to studio.”
+            No paintings saved yet. Run a critique—it saves to Studio automatically.
           </div>
         ) : (
           wip.map((p) => {

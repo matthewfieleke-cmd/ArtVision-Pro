@@ -254,7 +254,7 @@ export function StudioTab({
 
       {paintings.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
-          Nothing saved yet. Complete a critique and tap “Save to studio.”
+          Nothing saved yet. Complete a critique—it saves here automatically.
         </div>
       ) : (
         <ul
