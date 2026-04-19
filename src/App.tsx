@@ -38,6 +38,7 @@ import {
   backFromCapture,
   backFromResults,
   beginAnalysis,
+  buildPendingCritiqueRestore,
   canContinueFromSetup,
   chooseMedium,
   chooseStyle,
@@ -46,13 +47,17 @@ import {
   createNewFlow,
   createResubmitFlow,
   enterCapture,
+  hydratePendingCritiqueFlow,
   isCritiqueFlow,
   recoverFromAnalysisError,
   switchToAutoStyle,
   switchToManualStyle,
   toAnalysisUnavailableFromAnalyzing,
   updateWorkingTitle,
+  type CaptureFlow,
   type CritiqueFlow,
+  type PendingCritiqueFlowRestore,
+  type SetupFlow,
 } from './critiqueFlow';
 import { compressDataUrl, compressDataUrlForApi, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
@@ -69,12 +74,12 @@ import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent,
 import { tabFromSearch } from './launchUrls';
 import { createStripeCheckoutSession, fetchStripePaywallConfig } from './stripeConfigApi';
 import {
-  clearPendingCritiqueImageDataUrl,
+  clearPendingCritiqueCheckout,
   clearStripeCheckoutJwt,
   getStripeCheckoutJwt,
-  setPendingCritiqueImageDataUrl,
+  setPendingCritiqueCheckout,
   setStripeCheckoutJwt,
-  takePendingCritiqueImageDataUrl,
+  takePendingCritiqueCheckout,
 } from './stripeCheckoutSession';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
@@ -247,13 +252,22 @@ export default function App() {
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
   const [tab, setTab] = useState<TabId>('home');
-  const { paintings, studioSelectedId, setStudioSelectedId, persistResult: storagePersist, deletePainting, openPaintingFromHome } = usePaintingStorage(setTab);
+  const {
+    paintings,
+    studioSelectedId,
+    setStudioSelectedId,
+    persistResult: storagePersist,
+    deletePainting,
+    openPaintingFromHome,
+  } = usePaintingStorage(setTab);
   const [flow, setFlow] = useState<CritiqueFlow | null>(null);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
   const pendingCropRef = useRef<PendingCrop | null>(null);
   pendingCropRef.current = pendingCrop;
   const flowRef = useRef(flow);
   flowRef.current = flow;
+  const paintingsRef = useRef(paintings);
+  paintingsRef.current = paintings;
   const [dragOver, setDragOver] = useState(false);
   const {
     asyncState,
@@ -282,7 +296,6 @@ export default function App() {
   const [paywallEnabled, setPaywallEnabled] = useState(false);
   const [critiquePriceLabel, setCritiquePriceLabel] = useState('$1.49');
   const [previewPriceLabel, setPreviewPriceLabel] = useState('$0.49');
-  const pendingCritiqueAfterPaymentRef = useRef<{ runId: number; rawDataUrl: string } | null>(null);
   const pendingPreviewCriterionRef = useRef<CritiqueCategory['criterion'] | null>(null);
 
   const formatUsd = useCallback(
@@ -410,7 +423,7 @@ export default function App() {
     clearPendingCrop();
     clearAsyncState();
     lastAutoSaveSigRef.current = null;
-    clearPendingCritiqueImageDataUrl();
+    clearPendingCritiqueCheckout();
     resetPreview();
   }, [
     cancelAnalysisKeepAlive,
@@ -458,18 +471,21 @@ export default function App() {
     stopCamera();
   }, [flow?.step, isDesktop, startCamera, stopCamera]);
 
-  const runAnalysisRef = useRef<(rawDataUrl: string) => Promise<void>>(async () => {});
+  const runAnalysisRef = useRef<(rawDataUrl: string, opts?: { flowOverride?: SetupFlow | CaptureFlow }) => Promise<void>>(
+    async () => {}
+  );
   const runPreviewEditRef = useRef<(criterion: CritiqueCategory['criterion']) => Promise<void>>(async () => {});
 
-  const runAnalysis = useCallback(async (rawDataUrl: string) => {
-    const f = flowRef.current;
+  const runAnalysis = useCallback(
+    async (rawDataUrl: string, opts?: { flowOverride?: SetupFlow | CaptureFlow }) => {
+    const f = opts?.flowOverride ?? flowRef.current;
     if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
     if (!f.style || !f.medium) return;
     const runId = ++analysisRunTokenRef.current;
-    pendingCritiqueAfterPaymentRef.current = null;
 
     if (paywallEnabled && !getStripeCheckoutJwt('critique')) {
-      if (!setPendingCritiqueImageDataUrl(rawDataUrl)) {
+      const snap = buildPendingCritiqueRestore(f);
+      if (!setPendingCritiqueCheckout({ imageDataUrl: rawDataUrl, flow: snap })) {
         failRequest(
           createCritiqueRequestError({
             operation: 'critique',
@@ -482,7 +498,6 @@ export default function App() {
         );
         return;
       }
-      pendingCritiqueAfterPaymentRef.current = { runId, rawDataUrl };
       try {
         const cancelPathHash =
           f.step === 'setup' && f.styleMode === 'auto' && f.classifySourceImageDataUrl
@@ -494,8 +509,7 @@ export default function App() {
         });
         window.location.href = url;
       } catch (e) {
-        clearPendingCritiqueImageDataUrl();
-        pendingCritiqueAfterPaymentRef.current = null;
+        clearPendingCritiqueCheckout();
         failRequest(
           normalizeCritiqueRequestError(e instanceof Error ? e : new Error('Checkout failed'), 'critique')
         );
@@ -624,8 +638,7 @@ export default function App() {
         setFlow(toAnalysisUnavailableFromAnalyzing(startedFlow));
       } else if (normalized instanceof CritiqueRequestError && normalized.kind === 'payment_required') {
         finishRequest();
-        clearPendingCritiqueImageDataUrl();
-        pendingCritiqueAfterPaymentRef.current = null;
+        clearPendingCritiqueCheckout();
         setFlow(recoverFromAnalysisError(startedFlow));
         failRequest(normalized);
       } else {
@@ -1102,13 +1115,20 @@ export default function App() {
     navigate({ pathname: location.pathname, search: '' }, { replace: true });
 
     if (kind === 'critique') {
-      const pendingCrit = pendingCritiqueAfterPaymentRef.current;
-      const fromRef =
-        pendingCrit && pendingCrit.runId === analysisRunTokenRef.current ? pendingCrit.rawDataUrl : null;
-      pendingCritiqueAfterPaymentRef.current = null;
-      const raw = fromRef ?? takePendingCritiqueImageDataUrl();
-      if (fromRef) clearPendingCritiqueImageDataUrl();
-      if (raw) void runAnalysisRef.current(raw);
+      const pending = takePendingCritiqueCheckout();
+      const raw = pending?.imageDataUrl ?? null;
+      const snap = pending?.flow as PendingCritiqueFlowRestore | undefined;
+      const hydrated =
+        snap && raw ? hydratePendingCritiqueFlow(snap, paintingsRef.current) : null;
+      if (hydrated) {
+        setFlow(hydrated);
+      }
+      setTab('home');
+      if (raw && hydrated) {
+        void runAnalysisRef.current(raw, { flowOverride: hydrated });
+      } else if (raw) {
+        void runAnalysisRef.current(raw);
+      }
       return;
     }
     const pendingPrev = pendingPreviewCriterionRef.current;
@@ -1116,7 +1136,7 @@ export default function App() {
       pendingPreviewCriterionRef.current = null;
       void runPreviewEditRef.current(pendingPrev);
     }
-  }, [location.search, location.pathname, navigate]);
+  }, [location.search, location.pathname, navigate, setTab]);
 
   useEffect(() => {
     if (!flow || flow.step !== 'results') return;

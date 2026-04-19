@@ -76,6 +76,115 @@ export type ResultsFlow = (NewFlowBase & {
 
 export type CritiqueFlow = SetupFlow | CaptureFlow | AnalyzingFlow | AnalysisUnavailableFlow | ResultsFlow;
 
+/** Serialized before Stripe redirect; rehydrated after full-page return (sessionStorage JSON). */
+export type PendingCritiqueFlowRestore =
+  | {
+      mode: 'new';
+      step: 'setup' | 'capture';
+      styleMode: StyleMode;
+      workingTitle: string;
+      style: Style | null;
+      medium: Medium | null;
+      styleClassifyMeta?: { rationale: string; source: CritiqueSource };
+      mediumClassifyMeta?: { medium: Medium; rationale: string; source: CritiqueSource };
+      classifySourceImageDataUrl?: string;
+      savedPaintingId?: string;
+    }
+  | {
+      mode: 'resubmit';
+      step: 'setup' | 'capture';
+      styleMode: StyleMode;
+      workingTitle: string;
+      style: Style;
+      medium: Medium;
+      targetPaintingId: string;
+      styleClassifyMeta?: { rationale: string; source: CritiqueSource };
+      mediumClassifyMeta?: { medium: Medium; rationale: string; source: CritiqueSource };
+      classifySourceImageDataUrl?: string;
+      savedPaintingId?: string;
+    };
+
+export function buildPendingCritiqueRestore(flow: SetupFlow | CaptureFlow): PendingCritiqueFlowRestore {
+  const shared = sharedFields(flow);
+  if (flow.mode === 'resubmit') {
+    return {
+      mode: 'resubmit',
+      step: flow.step,
+      styleMode: shared.styleMode,
+      workingTitle: shared.workingTitle,
+      style: flow.style,
+      medium: flow.medium,
+      targetPaintingId: flow.targetPainting.id,
+      ...(shared.styleClassifyMeta ? { styleClassifyMeta: shared.styleClassifyMeta } : {}),
+      ...(shared.mediumClassifyMeta ? { mediumClassifyMeta: shared.mediumClassifyMeta } : {}),
+      ...(shared.classifySourceImageDataUrl ? { classifySourceImageDataUrl: shared.classifySourceImageDataUrl } : {}),
+      ...(shared.savedPaintingId ? { savedPaintingId: shared.savedPaintingId } : {}),
+    };
+  }
+  return {
+    mode: 'new',
+    step: flow.step,
+    styleMode: shared.styleMode,
+    workingTitle: shared.workingTitle,
+    style: flow.style,
+    medium: flow.medium,
+    ...(shared.styleClassifyMeta ? { styleClassifyMeta: shared.styleClassifyMeta } : {}),
+    ...(shared.mediumClassifyMeta ? { mediumClassifyMeta: shared.mediumClassifyMeta } : {}),
+    ...(shared.classifySourceImageDataUrl ? { classifySourceImageDataUrl: shared.classifySourceImageDataUrl } : {}),
+    ...(shared.savedPaintingId ? { savedPaintingId: shared.savedPaintingId } : {}),
+  };
+}
+
+export function hydratePendingCritiqueFlow(
+  snap: PendingCritiqueFlowRestore,
+  paintings: SavedPainting[]
+): SetupFlow | CaptureFlow | null {
+  if (snap.mode === 'resubmit') {
+    const targetPainting = paintings.find((p) => p.id === snap.targetPaintingId);
+    if (!targetPainting) return null;
+    const base = {
+      mode: 'resubmit' as const,
+      styleMode: snap.styleMode,
+      workingTitle: snap.workingTitle,
+      style: snap.style,
+      medium: snap.medium,
+      targetPainting,
+      ...(snap.styleClassifyMeta ? { styleClassifyMeta: snap.styleClassifyMeta } : {}),
+      ...(snap.mediumClassifyMeta ? { mediumClassifyMeta: snap.mediumClassifyMeta } : {}),
+      ...(snap.classifySourceImageDataUrl ? { classifySourceImageDataUrl: snap.classifySourceImageDataUrl } : {}),
+      ...(snap.savedPaintingId ? { savedPaintingId: snap.savedPaintingId } : {}),
+    };
+    if (snap.step === 'setup') {
+      return { ...base, step: 'setup' };
+    }
+    return { ...base, step: 'capture' };
+  }
+  const baseNew = {
+    mode: 'new' as const,
+    styleMode: snap.styleMode,
+    workingTitle: snap.workingTitle,
+    ...(snap.styleClassifyMeta ? { styleClassifyMeta: snap.styleClassifyMeta } : {}),
+    ...(snap.mediumClassifyMeta ? { mediumClassifyMeta: snap.mediumClassifyMeta } : {}),
+    ...(snap.classifySourceImageDataUrl ? { classifySourceImageDataUrl: snap.classifySourceImageDataUrl } : {}),
+    ...(snap.savedPaintingId ? { savedPaintingId: snap.savedPaintingId } : {}),
+  };
+  if (snap.step === 'setup') {
+    return {
+      ...baseNew,
+      step: 'setup',
+      style: snap.style,
+      medium: snap.medium,
+    };
+  }
+  if (snap.style == null || snap.medium == null) return null;
+  return {
+    ...baseNew,
+    step: 'capture',
+    style: snap.style,
+    medium: snap.medium,
+  };
+}
+
 function sharedFields(flow: CritiqueFlow): FlowShared {
   return {
     styleMode: flow.styleMode,
