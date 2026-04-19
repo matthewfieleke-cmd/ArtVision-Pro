@@ -68,7 +68,14 @@ import {
 import { clearReturnViewIntent, consumeReturnTabIntent, consumeReturnViewIntent, setReturnViewIntent } from './navIntent';
 import { tabFromSearch } from './launchUrls';
 import { createStripeCheckoutSession, fetchStripePaywallConfig } from './stripeConfigApi';
-import { clearStripeCheckoutJwt, getStripeCheckoutJwt, setStripeCheckoutJwt } from './stripeCheckoutSession';
+import {
+  clearPendingCritiqueImageDataUrl,
+  clearStripeCheckoutJwt,
+  getStripeCheckoutJwt,
+  setPendingCritiqueImageDataUrl,
+  setStripeCheckoutJwt,
+  takePendingCritiqueImageDataUrl,
+} from './stripeCheckoutSession';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { GlossaryTab } from './screens/GlossaryTab';
@@ -403,6 +410,7 @@ export default function App() {
     clearPendingCrop();
     clearAsyncState();
     lastAutoSaveSigRef.current = null;
+    clearPendingCritiqueImageDataUrl();
     resetPreview();
   }, [
     cancelAnalysisKeepAlive,
@@ -457,13 +465,49 @@ export default function App() {
     const f = flowRef.current;
     if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
     if (!f.style || !f.medium) return;
+    const runId = ++analysisRunTokenRef.current;
+    pendingCritiqueAfterPaymentRef.current = null;
+
+    if (paywallEnabled && !getStripeCheckoutJwt('critique')) {
+      if (!setPendingCritiqueImageDataUrl(rawDataUrl)) {
+        failRequest(
+          createCritiqueRequestError({
+            operation: 'critique',
+            kind: 'unknown',
+            technicalMessage: 'Could not store image for checkout',
+            userMessage:
+              'Your browser could not save this image for payment (often storage is full). Free space or try a smaller photo, then try again.',
+            retryable: true,
+          })
+        );
+        return;
+      }
+      pendingCritiqueAfterPaymentRef.current = { runId, rawDataUrl };
+      try {
+        const cancelPathHash =
+          f.step === 'setup' && f.styleMode === 'auto' && f.classifySourceImageDataUrl
+            ? '#/?tab=home'
+            : '#/';
+        const url = await createStripeCheckoutSession({
+          kind: 'critique',
+          cancelPathHash,
+        });
+        window.location.href = url;
+      } catch (e) {
+        clearPendingCritiqueImageDataUrl();
+        pendingCritiqueAfterPaymentRef.current = null;
+        failRequest(
+          normalizeCritiqueRequestError(e instanceof Error ? e : new Error('Checkout failed'), 'critique')
+        );
+      }
+      return;
+    }
+
     const startedFlow = beginAnalysis(f, rawDataUrl);
     if (!startedFlow) return;
     cancelClassifyRequest();
     invalidateImageSelections();
     clearPendingCrop();
-    const runId = ++analysisRunTokenRef.current;
-    pendingCritiqueAfterPaymentRef.current = null;
     startAnalysis();
     lastAutoSaveSigRef.current = null;
     resetPreview();
@@ -580,8 +624,9 @@ export default function App() {
         setFlow(toAnalysisUnavailableFromAnalyzing(startedFlow));
       } else if (normalized instanceof CritiqueRequestError && normalized.kind === 'payment_required') {
         finishRequest();
+        clearPendingCritiqueImageDataUrl();
+        pendingCritiqueAfterPaymentRef.current = null;
         setFlow(recoverFromAnalysisError(startedFlow));
-        pendingCritiqueAfterPaymentRef.current = { runId, rawDataUrl };
         failRequest(normalized);
       } else {
         failRequest(normalized);
@@ -866,21 +911,6 @@ export default function App() {
           </ul>
         </div>
       ) : null}
-      {requestError.kind === 'payment_required' && requestError.operation === 'critique' ? (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs leading-relaxed text-amber-900/90">
-            One critique is {critiquePriceLabel} (USD). After you pay, you will return here and the critique will run
-            automatically.
-          </p>
-          <button
-            type="button"
-            onClick={() => void startCritiqueCheckout()}
-            className="w-full rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-700"
-          >
-            Pay {critiquePriceLabel} with Stripe
-          </button>
-        </div>
-      ) : null}
       {requestError.retryable ? (
         <p
           className={`mt-1 text-xs leading-relaxed ${
@@ -945,23 +975,6 @@ export default function App() {
       if (titleToastTimerRef.current) clearTimeout(titleToastTimerRef.current);
     };
   }, []);
-
-  const startCritiqueCheckout = useCallback(async () => {
-    try {
-      const url = await createStripeCheckoutSession({
-        kind: 'critique',
-        cancelPathHash: '#/',
-      });
-      window.location.href = url;
-    } catch (e) {
-      failRequest(
-        normalizeCritiqueRequestError(
-          e instanceof Error ? e : new Error('Checkout failed'),
-          'critique'
-        )
-      );
-    }
-  }, [failRequest]);
 
   const startPreviewCheckout = useCallback(async () => {
     try {
@@ -1088,10 +1101,14 @@ export default function App() {
     }
     navigate({ pathname: location.pathname, search: '' }, { replace: true });
 
-    const pendingCrit = pendingCritiqueAfterPaymentRef.current;
-    if (kind === 'critique' && pendingCrit && pendingCrit.runId === analysisRunTokenRef.current) {
+    if (kind === 'critique') {
+      const pendingCrit = pendingCritiqueAfterPaymentRef.current;
+      const fromRef =
+        pendingCrit && pendingCrit.runId === analysisRunTokenRef.current ? pendingCrit.rawDataUrl : null;
       pendingCritiqueAfterPaymentRef.current = null;
-      void runAnalysisRef.current(pendingCrit.rawDataUrl);
+      const raw = fromRef ?? takePendingCritiqueImageDataUrl();
+      if (fromRef) clearPendingCritiqueImageDataUrl();
+      if (raw) void runAnalysisRef.current(raw);
       return;
     }
     const pendingPrev = pendingPreviewCriterionRef.current;
@@ -1515,7 +1532,9 @@ export default function App() {
                       }}
                       className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-violet-500 py-4 text-sm font-bold text-white shadow-lg shadow-violet-500/25 transition active:scale-[0.99]"
                     >
-                      Run Critique on this painting
+                      {paywallEnabled
+                        ? `Run Critique on this painting for ${critiquePriceLabel}`
+                        : 'Run Critique on this painting'}
                     </button>
                     {!postAutoClassifySetup ? (
                       <button
