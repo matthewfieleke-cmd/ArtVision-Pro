@@ -39,8 +39,7 @@ export async function createStripeCheckoutSession(
       'Set STRIPE_CHECKOUT_ORIGIN to your public app URL (e.g. https://your-app.vercel.app), or call checkout from the browser on that same origin.'
     );
   }
-  const base = `${origin}/api/stripe/checkout-return`;
-  const successUrl = `${base}?session_id={CHECKOUT_SESSION_ID}`;
+  const successUrl = `${origin}/?payment=success&stripe_session_id={CHECKOUT_SESSION_ID}`;
   const cancelHash = body.cancelPathHash?.trim() || '#/';
   const cancelFragment = cancelHash.startsWith('#') ? cancelHash : `#${cancelHash}`;
   const cancelUrl = `${origin.replace(/\/$/, '')}/${cancelFragment}`;

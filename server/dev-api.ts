@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { config } from 'dotenv';
 import { applyCorsHeaders, handleApiRequest, resolveApiRoute } from '../lib/apiHandlers';
 import { createStripeCheckoutSession } from '../lib/stripeCreateCheckoutSession';
-import { handleStripeCheckoutReturn } from '../lib/stripeCheckoutReturn';
+import { exchangeStripeCheckoutSession, handleStripeCheckoutReturn } from '../lib/stripeCheckoutReturn';
 import {
   isStripePaywallEnabled,
   STRIPE_CRITIQUE_AMOUNT_CENTS,
@@ -100,6 +100,32 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     } catch (e) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e instanceof Error ? e.message : 'Checkout failed' }));
+    }
+    return;
+  }
+
+  if (pathname === '/api/stripe/exchange-checkout-session' && req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (pathname === '/api/stripe/exchange-checkout-session' && req.method === 'POST') {
+    if (!isStripePaywallEnabled()) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Stripe checkout is not configured' }));
+      return;
+    }
+    try {
+      const body = parsedBody as { sessionId?: string };
+      const result = await exchangeStripeCheckoutSession({
+        sessionId: typeof body.sessionId === 'string' ? body.sessionId : undefined,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e instanceof Error ? e.message : 'Stripe session exchange failed' }));
     }
     return;
   }

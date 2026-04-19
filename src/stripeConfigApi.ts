@@ -38,3 +38,20 @@ export async function createStripeCheckoutSession(args: {
   if (!data.url) throw new Error('No checkout URL');
   return data.url;
 }
+
+export async function exchangeStripeCheckoutSession(sessionId: string): Promise<{
+  jwt: string;
+  kind: 'critique' | 'preview_edit';
+}> {
+  const res = await fetch(`${apiPrefix()}/api/stripe/exchange-checkout-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId }),
+  });
+  const data = (await res.json()) as { jwt?: string; kind?: 'critique' | 'preview_edit'; error?: string };
+  if (!res.ok) throw new Error(data.error ?? `Stripe session exchange ${res.status}`);
+  if (!data.jwt || (data.kind !== 'critique' && data.kind !== 'preview_edit')) {
+    throw new Error('Stripe session exchange did not return authorization');
+  }
+  return { jwt: data.jwt, kind: data.kind };
+}

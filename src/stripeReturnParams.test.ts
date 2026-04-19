@@ -15,11 +15,11 @@ describe('findStripeReturnParams', () => {
   it('falls back to browser search when router search is empty', () => {
     const match = findStripeReturnParams({
       routerSearch: '',
-      browserSearch: '?payment=success&jwt=abc&kind=preview_edit',
+      browserSearch: '?payment=success&stripe_session_id=cs_test_123',
     });
 
     expect(match?.source).toBe('browser');
-    expect(match?.params.get('kind')).toBe('preview_edit');
+    expect(match?.params.get('stripe_session_id')).toBe('cs_test_123');
   });
 
   it('falls back to hash query when needed', () => {

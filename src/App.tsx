@@ -83,7 +83,11 @@ import {
   setReturnViewIntent,
 } from './navIntent';
 import { tabFromSearch } from './launchUrls';
-import { createStripeCheckoutSession, fetchStripePaywallConfig } from './stripeConfigApi';
+import {
+  createStripeCheckoutSession,
+  exchangeStripeCheckoutSession,
+  fetchStripePaywallConfig,
+} from './stripeConfigApi';
 import {
   clearStripeCheckoutJwt,
   getStripeCheckoutJwt,
@@ -206,6 +210,8 @@ function clearStripeReturnParamsFromWindowUrl(): void {
   url.searchParams.delete('payment');
   url.searchParams.delete('jwt');
   url.searchParams.delete('kind');
+  url.searchParams.delete('stripe_session_id');
+  url.searchParams.delete('session_id');
 
   const rawHash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash;
   if (rawHash) {
@@ -216,6 +222,8 @@ function clearStripeReturnParamsFromWindowUrl(): void {
       hashParams.delete('payment');
       hashParams.delete('jwt');
       hashParams.delete('kind');
+      hashParams.delete('stripe_session_id');
+      hashParams.delete('session_id');
       const nextHashQuery = hashParams.toString();
       url.hash = hashPath ? `${hashPath}${nextHashQuery ? `?${nextHashQuery}` : ''}` : '';
     }
@@ -330,6 +338,7 @@ export default function App() {
   const [critiquePriceLabel, setCritiquePriceLabel] = useState('$1.49');
   const [previewPriceLabel, setPreviewPriceLabel] = useState('$0.49');
   const pendingPreviewCriterionRef = useRef<CritiqueCategory['criterion'] | null>(null);
+  const processingStripeSessionRef = useRef<string | null>(null);
   /**
    * Same-session fast path for post-Stripe critique resume: a Stripe full-page redirect wipes
    * this ref, but when the redirect is skipped (e.g., dev testing, embedded checkout), the
@@ -468,24 +477,9 @@ export default function App() {
     [failRequest]
   );
 
-  useEffect(() => {
-    if (location.pathname !== '/') return;
-    const stripeReturn = findStripeReturnParams({
-      routerSearch: location.search,
-      browserSearch: typeof window !== 'undefined' ? window.location.search : '',
-      hash: typeof window !== 'undefined' ? window.location.hash : '',
-    });
-    if (stripeReturn) {
-      const { params, source } = stripeReturn;
-      const jwt = params.get('jwt');
-      const kind = params.get('kind');
-      console.log('[stripe-resume] payment=success detected', { kind, hasJwt: Boolean(jwt), source });
-      if (!jwt || (kind !== 'critique' && kind !== 'preview_edit')) {
-        console.warn('[stripe-resume] payment=success missing jwt/kind, stripping query');
-        clearStripeReturnParamsFromWindowUrl();
-        navigate({ pathname: location.pathname, search: '' }, { replace: true });
-        return;
-      }
+  const handleStripePaymentAuthorized = useCallback(
+    (kind: 'critique' | 'preview_edit', jwt: string) => {
+      processingStripeSessionRef.current = null;
       if (kind === 'critique') {
         setStripeCheckoutJwt('critique', jwt);
         clearStripeCheckoutJwt('preview_edit');
@@ -498,7 +492,6 @@ export default function App() {
 
       if (kind === 'critique') {
         setTab('home');
-
         const fast = pendingCritiqueAfterPaymentRef.current;
         if (fast) {
           console.log('[stripe-resume] critique fast-path ref hit', {
@@ -515,33 +508,105 @@ export default function App() {
         return;
       }
 
-      if (kind === 'preview_edit') {
-        const returnView = consumeReturnViewIntent();
-        if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
-          setFlow(returnView.flow);
-          clearAsyncState();
-          closeCompare();
-        }
-        requestAnimationFrame(() => {
-          const fastCriterion = pendingPreviewCriterionRef.current;
-          if (fastCriterion) {
-            console.log('[stripe-resume] preview fast-path ref hit', { criterion: fastCriterion });
-            pendingPreviewCriterionRef.current = null;
-            clearPendingPreviewPaymentCriterion();
-            void runPreviewEditRef.current(fastCriterion);
-            return;
-          }
-          const storedCriterion = consumePendingPreviewPaymentCriterion();
-          console.log('[stripe-resume] preview sessionStorage read', {
-            found: Boolean(storedCriterion),
-            criterion: storedCriterion,
-          });
-          if (storedCriterion) {
-            void runPreviewEditRef.current(storedCriterion as CritiqueCategory['criterion']);
-          }
-        });
+      const returnView = consumeReturnViewIntent();
+      if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
+        setFlow(returnView.flow);
+        clearAsyncState();
+        closeCompare();
       }
-      return;
+      requestAnimationFrame(() => {
+        const fastCriterion = pendingPreviewCriterionRef.current;
+        if (fastCriterion) {
+          console.log('[stripe-resume] preview fast-path ref hit', { criterion: fastCriterion });
+          pendingPreviewCriterionRef.current = null;
+          clearPendingPreviewPaymentCriterion();
+          void runPreviewEditRef.current(fastCriterion);
+          return;
+        }
+        const storedCriterion = consumePendingPreviewPaymentCriterion();
+        console.log('[stripe-resume] preview sessionStorage read', {
+          found: Boolean(storedCriterion),
+          criterion: storedCriterion,
+        });
+        if (storedCriterion) {
+          void runPreviewEditRef.current(storedCriterion as CritiqueCategory['criterion']);
+        }
+      });
+    },
+    [clearAsyncState, closeCompare, location.pathname, navigate, resumePendingCritiqueAfterPayment]
+  );
+
+  const exchangeStripeSessionOnClient = useCallback(
+    async (sessionId: string) => {
+      if (!sessionId) return;
+      if (processingStripeSessionRef.current === sessionId) return;
+      processingStripeSessionRef.current = sessionId;
+      try {
+        const result = await exchangeStripeCheckoutSession(sessionId);
+        console.log('[stripe-resume] stripe session exchanged', {
+          sessionId,
+          kind: result.kind,
+        });
+        handleStripePaymentAuthorized(result.kind, result.jwt);
+      } catch (error) {
+        processingStripeSessionRef.current = null;
+        clearStripeReturnParamsFromWindowUrl();
+        navigate({ pathname: location.pathname, search: '' }, { replace: true });
+        failRequest(
+          createCritiqueRequestError({
+            operation: 'critique',
+            kind: 'unknown',
+            technicalMessage:
+              error instanceof Error
+                ? `Stripe session exchange failed: ${error.message}`
+                : 'Stripe session exchange failed',
+            userMessage:
+              'Payment received, but the app could not verify the Stripe checkout after returning. Please try the action again; if Stripe already charged you, the saved payment credit will be reused.',
+            retryable: true,
+          })
+        );
+      }
+    },
+    [failRequest, handleStripePaymentAuthorized, location.pathname, navigate]
+  );
+
+  useEffect(() => {
+    if (location.pathname !== '/') return;
+    const stripeReturn = findStripeReturnParams({
+      routerSearch: location.search,
+      browserSearch: typeof window !== 'undefined' ? window.location.search : '',
+      hash: typeof window !== 'undefined' ? window.location.hash : '',
+    });
+    if (stripeReturn) {
+      const { params, source } = stripeReturn;
+      const jwt = params.get('jwt')?.trim() ?? '';
+      const kindValue = params.get('kind');
+      const kind =
+        kindValue === 'critique' || kindValue === 'preview_edit' ? kindValue : null;
+      const sessionId =
+        params.get('stripe_session_id')?.trim() ??
+        params.get('session_id')?.trim() ??
+        '';
+      console.log('[stripe-resume] payment=success detected', {
+        kind,
+        hasJwt: Boolean(jwt),
+        hasSessionId: Boolean(sessionId),
+        source,
+      });
+      if (jwt && kind) {
+        handleStripePaymentAuthorized(kind, jwt);
+        return;
+      }
+      if (sessionId) {
+        void exchangeStripeSessionOnClient(sessionId);
+        return;
+      }
+      {
+        console.warn('[stripe-resume] payment=success missing jwt/kind, stripping query');
+        clearStripeReturnParamsFromWindowUrl();
+        navigate({ pathname: location.pathname, search: '' }, { replace: true });
+        return;
+      }
     }
 
     const pendingCritiqueAfterPayment = peekPendingCritiquePaymentIntent();
@@ -585,6 +650,8 @@ export default function App() {
     navigate,
     clearAsyncState,
     closeCompare,
+    exchangeStripeSessionOnClient,
+    handleStripePaymentAuthorized,
     resumePendingCritiqueAfterPayment,
     setStudioSelectedId,
     failRequest,

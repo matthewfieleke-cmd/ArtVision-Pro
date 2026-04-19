@@ -36,10 +36,60 @@ export function resolveAppBaseUrl(args: {
   );
 }
 
+export type StripeCheckoutSessionExchange = {
+  jwt: string;
+  kind: 'critique' | 'preview_edit';
+};
+
+export async function exchangeStripeCheckoutSession(args: {
+  sessionId: string | undefined;
+}): Promise<StripeCheckoutSessionExchange> {
+  if (!isStripePaywallEnabled()) {
+    throw new Error('Stripe checkout is not configured');
+  }
+  const sid = args.sessionId?.trim();
+  if (!sid) {
+    throw new Error('session_id required');
+  }
+  const secret = process.env.STRIPE_CHECKOUT_JWT_SECRET!.trim();
+  const stripeKey = process.env.STRIPE_SECRET_KEY!.trim();
+  const stripe = new Stripe(stripeKey);
+  const session = await stripe.checkout.sessions.retrieve(sid, { expand: ['payment_intent'] });
+  const piRaw = session.payment_intent;
+  if (!piRaw || typeof piRaw === 'string') {
+    throw new Error('Checkout session missing payment');
+  }
+  const pi = piRaw as Stripe.PaymentIntent;
+  if (pi.status !== 'succeeded') {
+    throw new Error('Payment not completed');
+  }
+  const purpose = pi.metadata?.[STRIPE_METADATA_PURPOSE_KEY];
+  const typ =
+    purpose === STRIPE_PURPOSE_PREVIEW_EDIT
+      ? ('preview_edit' as const)
+      : purpose === STRIPE_PURPOSE_CRITIQUE
+        ? ('critique' as const)
+        : null;
+  if (!typ) {
+    throw new Error('Unknown checkout product');
+  }
+  if (purpose !== purposeForKind(typ)) {
+    throw new Error('Payment metadata mismatch');
+  }
+
+  const token = await signCheckoutAuthorizationJwt({
+    secret,
+    paymentIntentId: pi.id,
+    typ,
+    ttlSeconds: 15 * 60,
+  });
+
+  return { jwt: token, kind: typ };
+}
+
 /**
- * GET handler: `?session_id=cs_...` → redirect to SPA with short-lived JWT in both the real URL
- * query and the hash query so installed PWAs / deep-link handlers can recover even if one is
- * stripped during app hand-off.
+ * Legacy GET handler: `?session_id=cs_...` → redirect to SPA with the Stripe session id in the
+ * URL so the frontend can exchange it for a short-lived JWT and resume the paid flow.
  */
 export async function handleStripeCheckoutReturn(args: {
   sessionId: string | undefined;
@@ -55,46 +105,13 @@ export async function handleStripeCheckoutReturn(args: {
   if (!sid) {
     return { status: 400, body: { error: 'session_id required' } };
   }
-  const secret = process.env.STRIPE_CHECKOUT_JWT_SECRET!.trim();
-  const stripeKey = process.env.STRIPE_SECRET_KEY!.trim();
-  const stripe = new Stripe(stripeKey);
-  const session = await stripe.checkout.sessions.retrieve(sid, { expand: ['payment_intent'] });
-  const piRaw = session.payment_intent;
-  if (!piRaw || typeof piRaw === 'string') {
-    return { status: 400, body: { error: 'Checkout session missing payment' } };
-  }
-  const pi = piRaw as Stripe.PaymentIntent;
-  if (pi.status !== 'succeeded') {
-    return { status: 400, body: { error: 'Payment not completed' } };
-  }
-  const purpose = pi.metadata?.[STRIPE_METADATA_PURPOSE_KEY];
-  const typ =
-    purpose === STRIPE_PURPOSE_PREVIEW_EDIT
-      ? ('preview_edit' as const)
-      : purpose === STRIPE_PURPOSE_CRITIQUE
-        ? ('critique' as const)
-        : null;
-  if (!typ) {
-    return { status: 400, body: { error: 'Unknown checkout product' } };
-  }
-  if (purpose !== purposeForKind(typ)) {
-    return { status: 400, body: { error: 'Payment metadata mismatch' } };
-  }
-
-  const token = await signCheckoutAuthorizationJwt({
-    secret,
-    paymentIntentId: pi.id,
-    typ,
-    ttlSeconds: 15 * 60,
-  });
-
   const base = resolveAppBaseUrl({
     requestOrigin: args.requestOrigin,
     requestHost: args.requestHost,
     forwardedHost: args.forwardedHost,
     forwardedProto: args.forwardedProto,
   });
-  const query = `payment=success&jwt=${encodeURIComponent(token)}&kind=${encodeURIComponent(typ)}`;
-  const location = `${base}/?${query}#/?${query}`;
+  const query = `payment=success&stripe_session_id=${encodeURIComponent(sid)}`;
+  const location = `${base}/?${query}`;
   return { status: 302, location };
 }
