@@ -303,6 +303,24 @@ export function setPendingPreviewPaymentCriterion(criterion: string): void {
   writeTimestamped(safeLocalStorage(), PENDING_PREVIEW_PAYMENT_KEY, criterion);
 }
 
+export function peekPendingPreviewPaymentCriterion(): string | null {
+  const current = peekTimestamped(
+    safeLocalStorage(),
+    PENDING_PREVIEW_PAYMENT_KEY,
+    STRIPE_RETURN_TTL_MS,
+    isCriterionString
+  );
+  if (current) return current;
+  try {
+    const s = safeSessionStorage();
+    if (!s) return null;
+    const raw = s.getItem(LEGACY_PENDING_PREVIEW_SESSION_KEY);
+    return raw && raw.length > 0 ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 export function consumePendingPreviewPaymentCriterion(): string | null {
   const current = readTimestamped(
     safeLocalStorage(),

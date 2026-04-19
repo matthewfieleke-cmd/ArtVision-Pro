@@ -74,10 +74,10 @@ import {
   clearPendingCritiquePaymentIntent,
   clearPendingPreviewPaymentCriterion,
   clearReturnViewIntent,
-  consumePendingPreviewPaymentCriterion,
   consumeReturnTabIntent,
   consumeReturnViewIntent,
   peekPendingCritiquePaymentIntent,
+  peekPendingPreviewPaymentCriterion,
   setPendingCritiquePaymentIntent,
   setPendingPreviewPaymentCriterion,
   setReturnViewIntent,
@@ -510,6 +510,7 @@ export default function App() {
 
       const returnView = consumeReturnViewIntent();
       if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
+        flowRef.current = returnView.flow;
         setFlow(returnView.flow);
         clearAsyncState();
         closeCompare();
@@ -518,17 +519,16 @@ export default function App() {
         const fastCriterion = pendingPreviewCriterionRef.current;
         if (fastCriterion) {
           console.log('[stripe-resume] preview fast-path ref hit', { criterion: fastCriterion });
-          pendingPreviewCriterionRef.current = null;
-          clearPendingPreviewPaymentCriterion();
           void runPreviewEditRef.current(fastCriterion);
           return;
         }
-        const storedCriterion = consumePendingPreviewPaymentCriterion();
-        console.log('[stripe-resume] preview sessionStorage read', {
+        const storedCriterion = peekPendingPreviewPaymentCriterion();
+        console.log('[stripe-resume] preview sessionStorage peek', {
           found: Boolean(storedCriterion),
           criterion: storedCriterion,
         });
         if (storedCriterion) {
+          pendingPreviewCriterionRef.current = storedCriterion as CritiqueCategory['criterion'];
           void runPreviewEditRef.current(storedCriterion as CritiqueCategory['criterion']);
         }
       });
@@ -1396,7 +1396,6 @@ export default function App() {
       await startPreviewCheckout();
       return;
     }
-    pendingPreviewCriterionRef.current = null;
     try {
       const target: PreviewEditTargetPayload = {
         criterion: category.criterion,
@@ -1410,6 +1409,10 @@ export default function App() {
         ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),
       };
       const previewJwt = getStripeCheckoutJwt('preview_edit');
+      if (previewJwt) {
+        clearPendingPreviewPaymentCriterion();
+      }
+      pendingPreviewCriterionRef.current = null;
       const { imageDataUrl, criterion: returnedCriterion } = await fetchPreviewEdit({
         imageDataUrl: previewSource,
         style: currentFlow.style,
