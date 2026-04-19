@@ -25,6 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const result = await handleStripeCheckoutReturn({
     sessionId,
     requestOrigin: origin,
+    requestHost: req.headers.host,
+    forwardedHost: req.headers['x-forwarded-host'],
+    forwardedProto: req.headers['x-forwarded-proto'],
   });
 
   if (result.status === 302) {

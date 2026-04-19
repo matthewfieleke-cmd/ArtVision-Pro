@@ -8,24 +8,45 @@ import {
 } from './stripePricing.js';
 import { signCheckoutAuthorizationJwt } from './stripeCheckoutJwt.js';
 
-function resolveAppBaseUrl(requestOrigin: string | undefined): string {
+function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function resolveAppBaseUrl(args: {
+  requestOrigin: string | undefined;
+  requestHost?: string | string[] | undefined;
+  forwardedHost?: string | string[] | undefined;
+  forwardedProto?: string | string[] | undefined;
+}): string {
   const fromEnv = process.env.STRIPE_CHECKOUT_ORIGIN?.trim().replace(/\/$/, '');
   if (fromEnv) return fromEnv;
-  const o = requestOrigin?.trim().replace(/\/$/, '') ?? '';
-  if (!o) {
-    throw new Error(
-      'Set STRIPE_CHECKOUT_ORIGIN to your public app URL (e.g. https://your-app.vercel.app). Stripe redirects do not send Origin.'
-    );
+
+  const origin = args.requestOrigin?.trim().replace(/\/$/, '') ?? '';
+  if (origin) return origin;
+
+  const host = firstHeaderValue(args.forwardedHost)?.trim() || firstHeaderValue(args.requestHost)?.trim() || '';
+  if (host) {
+    const proto = firstHeaderValue(args.forwardedProto)?.trim() || (host.startsWith('localhost') ? 'http' : 'https');
+    return `${proto}://${host}`.replace(/\/$/, '');
   }
-  return o;
+
+  throw new Error(
+    'Set STRIPE_CHECKOUT_ORIGIN to your public app URL (e.g. https://your-app.vercel.app), or ensure the request host/proto headers are forwarded.'
+  );
 }
 
 /**
- * GET handler: `?session_id=cs_...` → redirect to SPA with short-lived JWT in hash query.
+ * GET handler: `?session_id=cs_...` → redirect to SPA with short-lived JWT in both the real URL
+ * query and the hash query so installed PWAs / deep-link handlers can recover even if one is
+ * stripped during app hand-off.
  */
 export async function handleStripeCheckoutReturn(args: {
   sessionId: string | undefined;
   requestOrigin: string | undefined;
+  requestHost?: string | string[] | undefined;
+  forwardedHost?: string | string[] | undefined;
+  forwardedProto?: string | string[] | undefined;
 }): Promise<{ status: 302; location: string } | { status: 400 | 503; body: { error: string } }> {
   if (!isStripePaywallEnabled()) {
     return { status: 503, body: { error: 'Stripe checkout is not configured' } };
@@ -67,7 +88,13 @@ export async function handleStripeCheckoutReturn(args: {
     ttlSeconds: 15 * 60,
   });
 
-  const base = resolveAppBaseUrl(args.requestOrigin);
-  const location = `${base}/#/?payment=success&jwt=${encodeURIComponent(token)}&kind=${encodeURIComponent(typ)}`;
+  const base = resolveAppBaseUrl({
+    requestOrigin: args.requestOrigin,
+    requestHost: args.requestHost,
+    forwardedHost: args.forwardedHost,
+    forwardedProto: args.forwardedProto,
+  });
+  const query = `payment=success&jwt=${encodeURIComponent(token)}&kind=${encodeURIComponent(typ)}`;
+  const location = `${base}/?${query}#/?${query}`;
   return { status: 302, location };
 }

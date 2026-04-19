@@ -48,6 +48,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     const ret = await handleStripeCheckoutReturn({
       sessionId: q,
       requestOrigin: typeof req.headers.origin === 'string' ? req.headers.origin : undefined,
+      requestHost: req.headers.host,
+      forwardedHost: req.headers['x-forwarded-host'],
+      forwardedProto: req.headers['x-forwarded-proto'],
     });
     if (ret.status === 302) {
       res.writeHead(302, { Location: ret.location });

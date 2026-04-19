@@ -89,6 +89,7 @@ import {
   getStripeCheckoutJwt,
   setStripeCheckoutJwt,
 } from './stripeCheckoutSession';
+import { findStripeReturnParams } from './stripeReturnParams';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { GlossaryTab } from './screens/GlossaryTab';
@@ -197,6 +198,30 @@ function formatRequestDebugTraceEntry(entry: {
   if (!entry.repairNotePreview) return base;
   const compactRepair = entry.repairNotePreview.replace(/\s+/g, ' ').trim();
   return `${base} Retry note: ${compactRepair.slice(0, 180)}${compactRepair.length > 180 ? '…' : ''}`;
+}
+
+function clearStripeReturnParamsFromWindowUrl(): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('payment');
+  url.searchParams.delete('jwt');
+  url.searchParams.delete('kind');
+
+  const rawHash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash;
+  if (rawHash) {
+    const queryStart = rawHash.indexOf('?');
+    if (queryStart >= 0) {
+      const hashPath = rawHash.slice(0, queryStart);
+      const hashParams = new URLSearchParams(rawHash.slice(queryStart));
+      hashParams.delete('payment');
+      hashParams.delete('jwt');
+      hashParams.delete('kind');
+      const nextHashQuery = hashParams.toString();
+      url.hash = hashPath ? `${hashPath}${nextHashQuery ? `?${nextHashQuery}` : ''}` : '';
+    }
+  }
+
+  window.history.replaceState(window.history.state, '', url.toString());
 }
 
 function previewDisplayTarget(
@@ -378,15 +403,86 @@ export default function App() {
     flowScrollRef.current?.scrollTo(0, 0);
   }, [isDesktop, flow, flow?.step]);
 
+  const resumePendingCritiqueAfterPayment = useCallback(
+    (
+      stored: ReturnType<typeof peekPendingCritiquePaymentIntent> = peekPendingCritiquePaymentIntent()
+    ) => {
+      console.log('[stripe-resume] critique storage peek', {
+        found: Boolean(stored),
+        hasImage: Boolean(stored?.imageDataUrl),
+      });
+      if (!stored) {
+        console.error('[stripe-resume] critique payment succeeded but no pending intent found');
+        const recovery = createNewFlow();
+        flowRef.current = recovery;
+        setFlow(recovery);
+        failRequest(
+          createCritiqueRequestError({
+            operation: 'critique',
+            kind: 'unknown',
+            technicalMessage: 'Post-payment pending critique intent missing from storage',
+            userMessage:
+              'Payment received, but your pending critique could not be restored after Stripe redirected you back. Your payment credit is saved — please set up the critique again and run it (no second charge).',
+            retryable: true,
+          })
+        );
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          window.alert(
+            'Payment received — but your pending critique could not be restored after returning from Stripe. Your payment is saved: set up the critique again and run it, you will not be charged a second time.'
+          );
+        }
+        return;
+      }
+      const snap = stored.flow as PendingCritiqueFlowRestore;
+      const hydrated = hydratePendingCritiqueFlow(snap, paintingsRef.current);
+      if (!hydrated) {
+        console.error('[stripe-resume] critique hydrate failed', { snap });
+        const recovery = createNewFlow();
+        flowRef.current = recovery;
+        setFlow(recovery);
+        failRequest(
+          createCritiqueRequestError({
+            operation: 'critique',
+            kind: 'unknown',
+            technicalMessage: 'hydratePendingCritiqueFlow returned null after payment',
+            userMessage:
+              'Payment received, but the critique setup could not be restored. Your payment credit is saved — please set up the critique again and run it.',
+            retryable: true,
+          })
+        );
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          window.alert(
+            'Payment received — but the critique setup could not be restored. Your payment is saved: set up the critique again and run it, you will not be charged a second time.'
+          );
+        }
+        return;
+      }
+      console.log('[stripe-resume] critique hydrated, invoking runAnalysis', {
+        step: hydrated.step,
+        mode: hydrated.mode,
+      });
+      flowRef.current = hydrated;
+      setFlow(hydrated);
+      void runAnalysisRef.current(stored.imageDataUrl, { flowOverride: hydrated });
+    },
+    [failRequest]
+  );
+
   useEffect(() => {
     if (location.pathname !== '/') return;
-    const params = new URLSearchParams(location.search);
-    if (params.get('payment') === 'success') {
+    const stripeReturn = findStripeReturnParams({
+      routerSearch: location.search,
+      browserSearch: typeof window !== 'undefined' ? window.location.search : '',
+      hash: typeof window !== 'undefined' ? window.location.hash : '',
+    });
+    if (stripeReturn) {
+      const { params, source } = stripeReturn;
       const jwt = params.get('jwt');
       const kind = params.get('kind');
-      console.log('[stripe-resume] payment=success detected', { kind, hasJwt: Boolean(jwt) });
+      console.log('[stripe-resume] payment=success detected', { kind, hasJwt: Boolean(jwt), source });
       if (!jwt || (kind !== 'critique' && kind !== 'preview_edit')) {
         console.warn('[stripe-resume] payment=success missing jwt/kind, stripping query');
+        clearStripeReturnParamsFromWindowUrl();
         navigate({ pathname: location.pathname, search: '' }, { replace: true });
         return;
       }
@@ -397,6 +493,7 @@ export default function App() {
         setStripeCheckoutJwt('preview_edit', jwt);
         clearStripeCheckoutJwt('critique');
       }
+      clearStripeReturnParamsFromWindowUrl();
       navigate({ pathname: location.pathname, search: '' }, { replace: true });
 
       if (kind === 'critique') {
@@ -414,65 +511,7 @@ export default function App() {
           void runAnalysisRef.current(fast.rawDataUrl, { flowOverride: fast.flow });
           return;
         }
-
-        const stored = peekPendingCritiquePaymentIntent();
-        console.log('[stripe-resume] critique storage peek', {
-          found: Boolean(stored),
-          hasImage: Boolean(stored?.imageDataUrl),
-        });
-        if (!stored) {
-          console.error('[stripe-resume] critique payment succeeded but no pending intent found');
-          const recovery = createNewFlow();
-          flowRef.current = recovery;
-          setFlow(recovery);
-          failRequest(
-            createCritiqueRequestError({
-              operation: 'critique',
-              kind: 'unknown',
-              technicalMessage: 'Post-payment pending critique intent missing from storage',
-              userMessage:
-                'Payment received, but your pending critique could not be restored after Stripe redirected you back. Your payment credit is saved — please set up the critique again and run it (no second charge).',
-              retryable: true,
-            })
-          );
-          if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-            window.alert(
-              'Payment received — but your pending critique could not be restored after returning from Stripe. Your payment is saved: set up the critique again and run it, you will not be charged a second time.'
-            );
-          }
-          return;
-        }
-        const snap = stored.flow as PendingCritiqueFlowRestore;
-        const hydrated = hydratePendingCritiqueFlow(snap, paintingsRef.current);
-        if (!hydrated) {
-          console.error('[stripe-resume] critique hydrate failed', { snap });
-          const recovery = createNewFlow();
-          flowRef.current = recovery;
-          setFlow(recovery);
-          failRequest(
-            createCritiqueRequestError({
-              operation: 'critique',
-              kind: 'unknown',
-              technicalMessage: 'hydratePendingCritiqueFlow returned null after payment',
-              userMessage:
-                'Payment received, but the critique setup could not be restored. Your payment credit is saved — please set up the critique again and run it.',
-              retryable: true,
-            })
-          );
-          if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-            window.alert(
-              'Payment received — but the critique setup could not be restored. Your payment is saved: set up the critique again and run it, you will not be charged a second time.'
-            );
-          }
-          return;
-        }
-        console.log('[stripe-resume] critique hydrated, invoking runAnalysis', {
-          step: hydrated.step,
-          mode: hydrated.mode,
-        });
-        flowRef.current = hydrated;
-        setFlow(hydrated);
-        void runAnalysisRef.current(stored.imageDataUrl, { flowOverride: hydrated });
+        resumePendingCritiqueAfterPayment();
         return;
       }
 
@@ -502,6 +541,14 @@ export default function App() {
           }
         });
       }
+      return;
+    }
+
+    const pendingCritiqueAfterPayment = peekPendingCritiquePaymentIntent();
+    if (!flowRef.current && getStripeCheckoutJwt('critique') && pendingCritiqueAfterPayment) {
+      console.log('[stripe-resume] critique jwt+intent detected without explicit payment flag');
+      setTab('home');
+      resumePendingCritiqueAfterPayment(pendingCritiqueAfterPayment);
       return;
     }
 
@@ -538,6 +585,7 @@ export default function App() {
     navigate,
     clearAsyncState,
     closeCompare,
+    resumePendingCritiqueAfterPayment,
     setStudioSelectedId,
     failRequest,
     setTab,
