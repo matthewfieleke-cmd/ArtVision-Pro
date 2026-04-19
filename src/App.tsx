@@ -570,7 +570,7 @@ export default function App() {
       const titleForCritique = f.workingTitle.trim();
       const titleArg = titleForCritique.length > 0 ? titleForCritique : undefined;
 
-      const jwt = paywallEnabled ? getStripeCheckoutJwt('critique') : null;
+      const jwt = getStripeCheckoutJwt('critique');
       const apiBody = {
         style: f.style,
         medium: f.medium,
@@ -1045,7 +1045,7 @@ export default function App() {
         editPlan: category.editPlan,
         ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),
       };
-      const previewJwt = paywallEnabled ? getStripeCheckoutJwt('preview_edit') : null;
+      const previewJwt = getStripeCheckoutJwt('preview_edit');
       const { imageDataUrl, criterion: returnedCriterion } = await fetchPreviewEdit({
         imageDataUrl: previewSource,
         style: currentFlow.style,
@@ -1092,7 +1092,7 @@ export default function App() {
         );
       }
     }
-  }, [startPreviewLoading, completePreview, failPreview, paywallEnabled]);
+  }, [startPreviewLoading, completePreview, failPreview]);
 
   runPreviewEditRef.current = runPreviewEdit;
 
