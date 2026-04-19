@@ -10,7 +10,7 @@ describe('stripePricing', () => {
 
   it('amounts match product copy', () => {
     expect(amountCentsForKind('critique')).toBe(149);
-    expect(amountCentsForKind('preview_edit')).toBe(49);
+    expect(amountCentsForKind('preview_edit')).toBe(99);
   });
 
   it('purpose strings are stable metadata keys', () => {

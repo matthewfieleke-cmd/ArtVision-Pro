@@ -111,7 +111,7 @@ function CategoryCard({
   previewEditIdForCriterion,
   onViewAiEdit,
   previewLoading = false,
-  previewPriceLabel = '$0.49',
+  previewPriceLabel = '$0.99',
   previewPaymentRequired = false,
   onLearnMore,
 }: CategoryCardProps) {
@@ -495,7 +495,7 @@ export const CritiquePanels = memo(function CritiquePanels({
   onFocusSessionPreviewForCriterion,
   previewLoading = false,
   previewLoadingTarget = null,
-  previewPriceLabel = '$0.49',
+  previewPriceLabel = '$0.99',
   previewPaymentRequiredCriterion = null,
   voiceBFooter,
   workingTitle,

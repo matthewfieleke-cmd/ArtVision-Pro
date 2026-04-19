@@ -336,7 +336,7 @@ export default function App() {
   const lastAutoSaveSigRef = useRef<string | null>(null);
   const [paywallEnabled, setPaywallEnabled] = useState(false);
   const [critiquePriceLabel, setCritiquePriceLabel] = useState('$1.49');
-  const [previewPriceLabel, setPreviewPriceLabel] = useState('$0.49');
+  const [previewPriceLabel, setPreviewPriceLabel] = useState('$0.99');
   const pendingPreviewCriterionRef = useRef<CritiqueCategory['criterion'] | null>(null);
   const processingStripeSessionRef = useRef<string | null>(null);
   /**

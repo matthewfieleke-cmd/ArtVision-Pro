@@ -4,7 +4,7 @@ Mobile-first PWA for painting critique: pick **style** and **medium** (with opti
 
 **Overall summary** rolls up narrative synthesis, **finished vs in progress** when the API attaches it, and **vs. previous** notes when you resubmit from **Studio**. **Suggested titles** offers three tap-to-use options. **Studio** stores saved works **locally** with version history. **Masters** (gold-standard artists) and **Glossary** (studio terms) are separate tabs; **Profile** holds typography presets and the on-host **privacy policy** link.
 
-**Optional monetization (Stripe):** When `STRIPE_SECRET_KEY`, `STRIPE_CHECKOUT_JWT_SECRET` (32+ random characters), and `STRIPE_CHECKOUT_ORIGIN` are set on the server, each **critique** costs **$1.49** and each **AI preview image** costs **$0.49** (USD), enforced before OpenAI runs. Style/medium auto-detect stays free. Omit those env vars for a fully free API.
+**Optional monetization (Stripe):** When `STRIPE_SECRET_KEY`, `STRIPE_CHECKOUT_JWT_SECRET` (32+ random characters), and `STRIPE_CHECKOUT_ORIGIN` are set on the server, each **critique** costs **$1.49** and each **AI preview image** costs **$0.99** (USD), enforced before OpenAI runs. Style/medium auto-detect stays free. Omit those env vars for a fully free API.
 
 **Privacy policy (store listings):** After deploy, use **`https://<your-host>/privacy.html`** (Vercel also serves **`/privacy`**). Edit the contact block in `public/privacy.html` before submitting to an app store.
 

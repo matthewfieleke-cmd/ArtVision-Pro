@@ -1,6 +1,6 @@
 /** USD amounts in the smallest currency unit (cents). */
 export const STRIPE_CRITIQUE_AMOUNT_CENTS = 149;
-export const STRIPE_PREVIEW_EDIT_AMOUNT_CENTS = 49;
+export const STRIPE_PREVIEW_EDIT_AMOUNT_CENTS = 99;
 
 export const STRIPE_METADATA_PURPOSE_KEY = 'artvision_purpose';
 export const STRIPE_METADATA_CONSUMED_KEY = 'artvision_consumed';
