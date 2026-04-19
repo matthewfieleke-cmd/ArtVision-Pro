@@ -169,9 +169,7 @@ function CategoryCard({
                 {category.anchor.evidencePointer &&
                 normalizeWhitespace(category.anchor.evidencePointer) !==
                   normalizeWhitespace(category.anchor.areaSummary) ? (
-                  <p className="line-clamp-2 text-[10px] leading-snug text-slate-500">
-                    {category.anchor.evidencePointer}
-                  </p>
+                  <p className="text-[10px] leading-snug text-slate-500">{category.anchor.evidencePointer}</p>
                 ) : null}
               </div>
               <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
