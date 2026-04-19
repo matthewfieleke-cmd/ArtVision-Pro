@@ -1303,6 +1303,11 @@ export default function App() {
     return Object.keys(map).length ? map : undefined;
   }, [flow]);
 
+  const previewPaymentRequiredCriterion =
+    preview.errorPaymentRequired
+      ? pendingPreviewCriterionRef.current
+      : null;
+
   const focusSessionPreviewForCriterion = useCallback((criterion: CritiqueCategory['criterion']) => {
     const id = previewEditIdByCriterion?.[criterion];
     if (!id) return;
@@ -1385,8 +1390,13 @@ export default function App() {
     const matchingChange = changes?.find((change) => change.previewCriterion === criterion);
     const category =
       catList.find((entry) => entry.criterion === criterion) ?? priorityCritiqueCategory(catList);
-    pendingPreviewCriterionRef.current = null;
     startPreviewLoading({ kind: 'single', criterion });
+    if (paywallEnabled && !getStripeCheckoutJwt('preview_edit')) {
+      pendingPreviewCriterionRef.current = criterion;
+      await startPreviewCheckout();
+      return;
+    }
+    pendingPreviewCriterionRef.current = null;
     try {
       const target: PreviewEditTargetPayload = {
         criterion: category.criterion,
@@ -1439,14 +1449,14 @@ export default function App() {
     } catch (e) {
       if (e instanceof PreviewEditPaymentRequiredError) {
         pendingPreviewCriterionRef.current = criterion;
-        failPreview(e.message, { paymentRequired: true });
+        await startPreviewCheckout();
       } else {
         failPreview(
           e instanceof Error ? e.message : 'Preview failed. Please retry from the critique screen.'
         );
       }
     }
-  }, [startPreviewLoading, completePreview, failPreview]);
+  }, [completePreview, failPreview, paywallEnabled, startPreviewCheckout, startPreviewLoading]);
 
   runPreviewEditRef.current = runPreviewEdit;
 
@@ -2117,6 +2127,8 @@ export default function App() {
                   onFocusSessionPreviewForCriterion={focusSessionPreviewForCriterion}
                   previewLoading={preview.loading}
                   previewLoadingTarget={preview.loadingTarget}
+                  previewPriceLabel={previewPriceLabel}
+                  previewPaymentRequiredCriterion={previewPaymentRequiredCriterion}
                   workingTitle={flow.workingTitle}
                   onSelectSuggestedTitle={applySuggestedPaintingTitle}
                   voiceBFooter={
@@ -2160,20 +2172,6 @@ export default function App() {
                             >
                               {preview.error}
                             </p>
-                            {preview.errorPaymentRequired ? (
-                              <>
-                                <p className="text-[11px] leading-relaxed text-amber-900/85">
-                                  AI preview is {previewPriceLabel} per generation (USD).
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => void startPreviewCheckout()}
-                                  className="w-full rounded-xl bg-amber-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-amber-700"
-                                >
-                                  Pay {previewPriceLabel} with Stripe
-                                </button>
-                              </>
-                            ) : null}
                           </div>
                         ) : null}
                         {activePreviewImageDataUrl ? (
@@ -2224,27 +2222,11 @@ export default function App() {
                           )
                         ) : null}
                       </section>
-                    ) : preview.error ? (
+                    ) : preview.error && !preview.errorPaymentRequired ? (
                       <div
-                        className={`rounded-xl border px-3 py-2 text-center text-xs ${
-                          preview.errorPaymentRequired
-                            ? 'border-amber-200 bg-amber-50/90 text-amber-950'
-                            : 'border-red-200 bg-red-50/80 text-red-700'
-                        }`}
+                        className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-center text-xs text-red-700"
                       >
                         <p>{preview.error}</p>
-                        {preview.errorPaymentRequired ? (
-                          <div className="mt-2 space-y-2">
-                            <p className="text-[11px] leading-relaxed">AI preview is {previewPriceLabel} per generation.</p>
-                            <button
-                              type="button"
-                              onClick={() => void startPreviewCheckout()}
-                              className="w-full rounded-lg bg-amber-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-amber-700"
-                            >
-                              Pay {previewPriceLabel} with Stripe
-                            </button>
-                          </div>
-                        ) : null}
                       </div>
                     ) : null
                   }

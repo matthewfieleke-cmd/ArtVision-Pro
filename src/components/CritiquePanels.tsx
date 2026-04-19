@@ -26,6 +26,8 @@ type CritiquePanelsProps = {
   previewLoading?: boolean;
   /** Only the matching button shows a spinner. */
   previewLoadingTarget?: null | { kind: 'single'; criterion: CritiqueCategory['criterion'] };
+  previewPriceLabel?: string;
+  previewPaymentRequiredCriterion?: CritiqueCategory['criterion'] | null;
   /** Rendered directly under Voice B (e.g. AI edits session), before photo quality / categories. */
   voiceBFooter?: ReactNode;
   /** Current title field (highlights which suggestion is active). */
@@ -90,6 +92,8 @@ type CategoryCardProps = {
   previewEditIdForCriterion?: string;
   onViewAiEdit?: () => void;
   previewLoading?: boolean;
+  previewPriceLabel?: string;
+  previewPaymentRequired?: boolean;
   onLearnMore?: () => void;
 };
 
@@ -107,6 +111,8 @@ function CategoryCard({
   previewEditIdForCriterion,
   onViewAiEdit,
   previewLoading = false,
+  previewPriceLabel = '$0.49',
+  previewPaymentRequired = false,
   onLearnMore,
 }: CategoryCardProps) {
   const [open, setOpen] = useState(false);
@@ -120,7 +126,7 @@ function CategoryCard({
     ? 'Generating…'
     : hasSessionPreview
       ? 'View AI edit'
-      : 'Generate AI edit';
+      : `Generate AI Edit for ${previewPriceLabel}`;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -258,6 +264,12 @@ function CategoryCard({
                 )}
                 {buttonLabel}
               </button>
+              {!hasSessionPreview && previewPaymentRequired ? (
+                <p className="mt-2 text-[11px] leading-relaxed text-violet-800/85">
+                  Payment required. Tap the purple button to continue in Stripe, then this AI edit will resume in
+                  the critique automatically.
+                </p>
+              ) : null}
             </div>
           ) : null}
           <CriterionLearnLink criterion={category.criterion} onClick={onLearnMore} />
@@ -483,6 +495,8 @@ export const CritiquePanels = memo(function CritiquePanels({
   onFocusSessionPreviewForCriterion,
   previewLoading = false,
   previewLoadingTarget = null,
+  previewPriceLabel = '$0.49',
+  previewPaymentRequiredCriterion = null,
   voiceBFooter,
   workingTitle,
   onSelectSuggestedTitle,
@@ -528,6 +542,8 @@ export const CritiquePanels = memo(function CritiquePanels({
                 : undefined
             }
             previewLoading={thisLoading}
+            previewPriceLabel={previewPriceLabel}
+            previewPaymentRequired={previewPaymentRequiredCriterion === category.criterion}
             onLearnMore={onLearnMore}
           />
         );
