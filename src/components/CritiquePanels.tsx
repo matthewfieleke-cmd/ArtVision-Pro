@@ -15,6 +15,8 @@ import type {
 type CritiquePanelsProps = {
   critique: CritiqueResult;
   paintingImageSrc?: string;
+  /** Narrow desktop critique layout: keep stage-lighting thumbnails readable, not full-width tall. */
+  compactStageLightingImage?: boolean;
   onLearnMore?: () => void;
   canGenerateAiEdits?: boolean;
   onGenerateAiEditForCriterion?: (criterion: CritiqueCategory['criterion']) => void;
@@ -80,6 +82,8 @@ function confidenceBadgeClass(confidence?: CritiqueCategory['confidence']): stri
 type CategoryCardProps = {
   category: CritiqueCategory;
   paintingImageSrc?: string;
+  /** Desktop critique column: cap stage-lighting image so it does not dominate the card. */
+  compactStageLightingImage?: boolean;
   canGenerateAiEdits?: boolean;
   generateButtonVisible?: boolean;
   onGenerateAiEdit?: () => void;
@@ -96,6 +100,7 @@ function normalizeWhitespace(text: string): string {
 function CategoryCard({
   category,
   paintingImageSrc,
+  compactStageLightingImage = false,
   canGenerateAiEdits = false,
   generateButtonVisible = false,
   onGenerateAiEdit,
@@ -172,9 +177,26 @@ function CategoryCard({
                   <p className="text-[10px] leading-snug text-slate-500">{category.anchor.evidencePointer}</p>
                 ) : null}
               </div>
-              <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div ref={anchorFrameRef} className="relative">
-                  <img src={paintingImageSrc} alt="" className="w-full object-contain bg-slate-100" />
+              <div
+                className={`mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ${
+                  compactStageLightingImage
+                    ? 'lg:flex lg:max-h-52 lg:items-center lg:justify-center'
+                    : ''
+                }`}
+              >
+                <div
+                  ref={anchorFrameRef}
+                  className={`relative ${compactStageLightingImage ? 'lg:flex lg:w-full lg:max-h-52 lg:items-center lg:justify-center' : ''}`}
+                >
+                  <img
+                    src={paintingImageSrc}
+                    alt=""
+                    className={`object-contain bg-slate-100 ${
+                      compactStageLightingImage
+                        ? 'w-full max-h-64 lg:max-h-52 lg:w-auto lg:max-w-full'
+                        : 'w-full'
+                    }`}
+                  />
                   {showOverlay ? <PaintingOverlay anchor={category.anchor} containerRef={anchorFrameRef} /> : null}
                 </div>
               </div>
@@ -453,6 +475,7 @@ function CompletionReadBrief({ read }: { read: CompletionRead }) {
 export const CritiquePanels = memo(function CritiquePanels({
   critique,
   paintingImageSrc,
+  compactStageLightingImage = false,
   onLearnMore,
   canGenerateAiEdits = false,
   onGenerateAiEditForCriterion,
@@ -492,6 +515,7 @@ export const CritiquePanels = memo(function CritiquePanels({
             key={category.criterion}
             category={category}
             paintingImageSrc={paintingImageSrc}
+            compactStageLightingImage={compactStageLightingImage}
             canGenerateAiEdits={canGenerateAiEdits}
             generateButtonVisible={generateButtonVisible}
             onGenerateAiEdit={

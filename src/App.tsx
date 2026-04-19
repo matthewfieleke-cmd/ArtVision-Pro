@@ -1746,6 +1746,7 @@ export default function App() {
                 <CritiquePanels
                   critique={flow.critique}
                   paintingImageSrc={flow.imageDataUrl}
+                  compactStageLightingImage={isDesktop}
                   onLearnMore={rememberCritiqueReturn}
                   canGenerateAiEdits
                   onGenerateAiEditForCriterion={runPreviewEdit}
