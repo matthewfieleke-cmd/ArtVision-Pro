@@ -505,13 +505,26 @@ export default function App() {
   const startCritiqueCheckout = useCallback(
     async (rawDataUrl: string): Promise<void> => {
       const f = flowRef.current;
-      if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
-      if (!f.style || !f.medium) return;
+      console.log('[stripe-resume] startCritiqueCheckout begin', {
+        step: f?.step,
+        mode: f?.mode,
+        hasStyle: Boolean(f && 'style' in f && f.style),
+        hasMedium: Boolean(f && 'medium' in f && f.medium),
+      });
+      if (!f || (f.step !== 'setup' && f.step !== 'capture')) {
+        console.warn('[stripe-resume] startCritiqueCheckout abort: flow not setup/capture');
+        return;
+      }
+      if (!f.style || !f.medium) {
+        console.warn('[stripe-resume] startCritiqueCheckout abort: missing style/medium');
+        return;
+      }
 
       let compressedForApi: string;
       try {
         compressedForApi = await compressDataUrlForApi(rawDataUrl);
       } catch (e) {
+        console.error('[stripe-resume] startCritiqueCheckout compression failed', e);
         failRequest(
           normalizeCritiqueRequestError(
             e instanceof Error ? e : new Error('Image compression failed'),
@@ -523,6 +536,7 @@ export default function App() {
 
       const snap = buildPendingCritiqueRestore(f);
       if (!setPendingCritiquePaymentIntent({ flow: snap, imageDataUrl: compressedForApi })) {
+        console.error('[stripe-resume] startCritiqueCheckout sessionStorage write failed');
         failRequest(
           createCritiqueRequestError({
             operation: 'critique',
@@ -536,6 +550,7 @@ export default function App() {
         return;
       }
       pendingCritiqueAfterPaymentRef.current = { rawDataUrl: compressedForApi, flow: f };
+      console.log('[stripe-resume] pending critique stored, creating Stripe session');
 
       try {
         const cancelPathHash =
@@ -546,8 +561,10 @@ export default function App() {
           kind: 'critique',
           cancelPathHash,
         });
+        console.log('[stripe-resume] redirecting to Stripe', { url });
         window.location.href = url;
       } catch (e) {
+        console.error('[stripe-resume] Stripe session creation failed', e);
         clearPendingCritiquePaymentIntent();
         pendingCritiqueAfterPaymentRef.current = null;
         failRequest(
@@ -564,17 +581,39 @@ export default function App() {
   const runAnalysis = useCallback(
     async (rawDataUrl: string, opts?: { flowOverride?: SetupFlow | CaptureFlow }) => {
     const f = opts?.flowOverride ?? flowRef.current;
-    if (!f || (f.step !== 'setup' && f.step !== 'capture')) return;
-    if (!f.style || !f.medium) return;
+    if (!f || (f.step !== 'setup' && f.step !== 'capture')) {
+      console.warn('[stripe-resume] runAnalysis abort: flow not setup/capture', {
+        flow: f ? { step: f.step, mode: f.mode } : null,
+      });
+      return;
+    }
+    if (!f.style || !f.medium) {
+      console.warn('[stripe-resume] runAnalysis abort: missing style/medium', {
+        style: f.style,
+        medium: f.medium,
+      });
+      return;
+    }
     const runId = ++analysisRunTokenRef.current;
+    console.log('[stripe-resume] runAnalysis entering', {
+      step: f.step,
+      mode: f.mode,
+      paywallEnabled,
+      hasJwt: Boolean(getStripeCheckoutJwt('critique')),
+      runId,
+    });
 
     if (paywallEnabled && !getStripeCheckoutJwt('critique')) {
+      console.log('[stripe-resume] runAnalysis redirecting to Stripe (paywall+no jwt)');
       await startCritiqueCheckout(rawDataUrl);
       return;
     }
 
     const startedFlow = beginAnalysis(f, rawDataUrl);
-    if (!startedFlow) return;
+    if (!startedFlow) {
+      console.warn('[stripe-resume] runAnalysis abort: beginAnalysis returned null');
+      return;
+    }
     cancelClassifyRequest();
     invalidateImageSelections();
     clearPendingCrop();
@@ -1172,7 +1211,9 @@ export default function App() {
     if (params.get('payment') !== 'success') return;
     const jwt = params.get('jwt');
     const kind = params.get('kind');
+    console.log('[stripe-resume] payment=success detected', { kind, hasJwt: Boolean(jwt) });
     if (!jwt || (kind !== 'critique' && kind !== 'preview_edit')) {
+      console.warn('[stripe-resume] payment=success missing jwt/kind, stripping query');
       navigate({ pathname: location.pathname, search: '' }, { replace: true });
       return;
     }
@@ -1190,6 +1231,10 @@ export default function App() {
 
       const fast = pendingCritiqueAfterPaymentRef.current;
       if (fast) {
+        console.log('[stripe-resume] critique fast-path ref hit', {
+          step: fast.flow.step,
+          mode: fast.flow.mode,
+        });
         pendingCritiqueAfterPaymentRef.current = null;
         clearPendingCritiquePaymentIntent();
         /* Synchronously settle flowRef so runAnalysis's `flowRef.current` read inside
@@ -1201,10 +1246,54 @@ export default function App() {
       }
 
       const stored = consumePendingCritiquePaymentIntent();
-      if (!stored) return;
+      console.log('[stripe-resume] critique sessionStorage read', {
+        found: Boolean(stored),
+        hasImage: Boolean(stored?.imageDataUrl),
+      });
+      if (!stored) {
+        /* Payment succeeded but the pending intent is gone — usually PWA cache wiped the
+           tab's sessionStorage, private-mode storage limits, or an SW bundle swap where
+           neither the new nor legacy key is readable. Put the user into a fresh setup flow
+           and surface an explicit error instead of silently landing on Home. */
+        console.error('[stripe-resume] critique payment succeeded but no pending intent found');
+        const recovery = createNewFlow();
+        flowRef.current = recovery;
+        setFlow(recovery);
+        failRequest(
+          createCritiqueRequestError({
+            operation: 'critique',
+            kind: 'unknown',
+            technicalMessage: 'Post-payment pending critique intent missing from sessionStorage',
+            userMessage:
+              'Payment received, but your pending critique could not be restored after Stripe redirected you back. Your payment credit is saved — please set up the critique again and run it.',
+            retryable: true,
+          })
+        );
+        return;
+      }
       const snap = stored.flow as PendingCritiqueFlowRestore;
       const hydrated = hydratePendingCritiqueFlow(snap, paintingsRef.current);
-      if (!hydrated) return;
+      if (!hydrated) {
+        console.error('[stripe-resume] critique hydrate failed', { snap });
+        const recovery = createNewFlow();
+        flowRef.current = recovery;
+        setFlow(recovery);
+        failRequest(
+          createCritiqueRequestError({
+            operation: 'critique',
+            kind: 'unknown',
+            technicalMessage: 'hydratePendingCritiqueFlow returned null after payment',
+            userMessage:
+              'Payment received, but the critique setup could not be restored. Your payment credit is saved — please set up the critique again and run it.',
+            retryable: true,
+          })
+        );
+        return;
+      }
+      console.log('[stripe-resume] critique hydrated, invoking runAnalysis', {
+        step: hydrated.step,
+        mode: hydrated.mode,
+      });
       flowRef.current = hydrated;
       setFlow(hydrated);
       void runAnalysisRef.current(stored.imageDataUrl);
@@ -1218,18 +1307,23 @@ export default function App() {
       requestAnimationFrame(() => {
         const fastCriterion = pendingPreviewCriterionRef.current;
         if (fastCriterion) {
+          console.log('[stripe-resume] preview fast-path ref hit', { criterion: fastCriterion });
           pendingPreviewCriterionRef.current = null;
           clearPendingPreviewPaymentCriterion();
           void runPreviewEditRef.current(fastCriterion);
           return;
         }
         const storedCriterion = consumePendingPreviewPaymentCriterion();
+        console.log('[stripe-resume] preview sessionStorage read', {
+          found: Boolean(storedCriterion),
+          criterion: storedCriterion,
+        });
         if (storedCriterion) {
           void runPreviewEditRef.current(storedCriterion as CritiqueCategory['criterion']);
         }
       });
     }
-  }, [location.search, location.pathname, navigate, setTab]);
+  }, [location.search, location.pathname, navigate, setTab, failRequest]);
 
   useEffect(() => {
     if (!flow || flow.step !== 'results') return;

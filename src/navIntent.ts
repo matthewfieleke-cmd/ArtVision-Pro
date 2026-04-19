@@ -3,6 +3,13 @@ const KEY = 'artvision-return-tab';
 const VIEW_KEY = 'artvision-return-view';
 const PENDING_CRITIQUE_PAYMENT_KEY = 'artvision-pending-critique-payment';
 const PENDING_PREVIEW_PAYMENT_KEY = 'artvision-pending-preview-payment';
+/**
+ * Legacy key written by the previous stripeCheckoutSession.ts helper. A PWA service worker
+ * swap between clicking Run Critique and returning from Stripe can leave the pre-redirect
+ * bundle writing the old key while the post-redirect bundle reads the new one. Fall back to
+ * this legacy key on the consume side so paid critiques are never stranded.
+ */
+const LEGACY_PENDING_CRITIQUE_KEY = 'artvision_pending_critique_checkout';
 
 export type ReturnTabIntent = 'benchmarks';
 export type ReturnViewIntent =
@@ -85,11 +92,11 @@ export function setPendingCritiquePaymentIntent(intent: PendingCritiquePaymentIn
   }
 }
 
-export function consumePendingCritiquePaymentIntent(): PendingCritiquePaymentIntent | null {
+function readCritiquePaymentPayload(key: string): PendingCritiquePaymentIntent | null {
   try {
-    const raw = sessionStorage.getItem(PENDING_CRITIQUE_PAYMENT_KEY);
-    sessionStorage.removeItem(PENDING_CRITIQUE_PAYMENT_KEY);
+    const raw = sessionStorage.getItem(key);
     if (!raw) return null;
+    sessionStorage.removeItem(key);
     const parsed = JSON.parse(raw) as Partial<PendingCritiquePaymentIntent>;
     if (
       !parsed ||
@@ -105,9 +112,19 @@ export function consumePendingCritiquePaymentIntent(): PendingCritiquePaymentInt
   }
 }
 
+export function consumePendingCritiquePaymentIntent(): PendingCritiquePaymentIntent | null {
+  const current = readCritiquePaymentPayload(PENDING_CRITIQUE_PAYMENT_KEY);
+  if (current) return current;
+  /* PWA service-worker bundle swap safety net: an older cached bundle may have written the
+     legacy key before the Stripe redirect while the freshly activated bundle reads the new
+     one. Consume whichever is present so a paid critique is never stranded. */
+  return readCritiquePaymentPayload(LEGACY_PENDING_CRITIQUE_KEY);
+}
+
 export function clearPendingCritiquePaymentIntent(): void {
   try {
     sessionStorage.removeItem(PENDING_CRITIQUE_PAYMENT_KEY);
+    sessionStorage.removeItem(LEGACY_PENDING_CRITIQUE_KEY);
   } catch {
     /* ignore quota / private mode */
   }
