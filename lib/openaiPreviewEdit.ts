@@ -54,6 +54,12 @@ function resolveCandidateCount(): number {
   return Math.max(1, Math.min(4, Math.round(raw)));
 }
 
+/** `input_fidelity` is supported on gpt-image-1* edits; gpt-image-2 rejects it (API error). */
+export function imageEditModelSupportsInputFidelity(model: string): boolean {
+  const m = model.trim().toLowerCase();
+  return m.startsWith('gpt-image-1');
+}
+
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
@@ -441,6 +447,7 @@ Output: one photorealistic image of the same artwork after this single focused i
  * differs from this shape and can yield validation errors like "The string did not match the expected pattern."
  *
  * Default model `gpt-image-1.5`; override with OPENAI_IMAGE_EDIT_MODEL.
+ * `input_fidelity` is only sent for `gpt-image-1*` models (`gpt-image-2` does not support it).
  */
 export async function runOpenAIPreviewEdit(
   apiKey: string,
@@ -459,15 +466,17 @@ export async function runOpenAIPreviewEdit(
   const candidateCount = resolveCandidateCount();
   const originalStats = await computePreviewStats(inputBuffer);
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     model,
     prompt: buildEditPrompt(body),
     images: [{ image_url: imageUrl }],
     size: editSize,
     quality,
     n: candidateCount,
-    input_fidelity: 'high' as const,
   };
+  if (imageEditModelSupportsInputFidelity(model)) {
+    payload.input_fidelity = 'high';
+  }
 
   const res = await fetch('https://api.openai.com/v1/images/edits', {
     method: 'POST',
