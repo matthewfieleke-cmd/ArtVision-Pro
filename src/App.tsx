@@ -320,6 +320,12 @@ export default function App() {
     startClassify,
   } = useCritiqueAsyncState();
   const { preview, resetPreview, startPreviewLoading, completePreview, failPreview, selectEdit, openCompare, closeCompare } = usePreviewState();
+  // Mirror of preview state that `runPreviewEdit` can read without listing
+  // `preview` as a useCallback dep. Used to refuse a second concurrent
+  // AI-edit request while one is already generating — defense-in-depth
+  // behind the UI-level button disable.
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
   const [titleAppliedToast, setTitleAppliedToast] = useState(false);
   const titleToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1385,6 +1391,11 @@ export default function App() {
       return k === canonCriterion;
     });
     if (alreadyForCriterion) return;
+    // Refuse a second concurrent AI edit even if something bypassed the
+    // UI button disable (e.g. the post-payment resume path firing while
+    // another preview is still in flight). Preview-edit generation is
+    // sequential per session by design.
+    if (previewRef.current.loading) return;
     const changes = currentFlow.critique.simple?.studioChanges;
     const previewSource = currentFlow.originalImageDataUrl ?? currentFlow.imageDataUrl;
     const matchingChange = changes?.find((change) => change.previewCriterion === criterion);

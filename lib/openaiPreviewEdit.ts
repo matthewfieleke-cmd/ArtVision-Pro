@@ -48,9 +48,16 @@ function resolveEditQuality(): EditQuality {
   return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'high';
 }
 
+/**
+ * Default to a single image per preview request. Multi-candidate (n=3,
+ * then best-of-N ranked against the upload) doubled or tripled AI-edit
+ * latency in exchange for a small quality lift, and on gpt-image-2 each
+ * candidate requires its own parallel request because the API rejects
+ * n>1. Operators can opt back into multi-candidate via the env var.
+ */
 function resolveCandidateCount(): number {
-  const raw = Number(process.env.OPENAI_IMAGE_EDIT_CANDIDATES ?? 3);
-  if (!Number.isFinite(raw)) return 3;
+  const raw = Number(process.env.OPENAI_IMAGE_EDIT_CANDIDATES ?? 1);
+  if (!Number.isFinite(raw)) return 1;
   return Math.max(1, Math.min(4, Math.round(raw)));
 }
 

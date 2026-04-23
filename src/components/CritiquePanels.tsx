@@ -93,6 +93,13 @@ type CategoryCardProps = {
   previewEditIdForCriterion?: string;
   onViewAiEdit?: () => void;
   previewLoading?: boolean;
+  /**
+   * True when some OTHER criterion's AI edit is currently generating.
+   * The current card's Generate button is disabled (but not spinning) so
+   * the user can't start a second request on top of the running one —
+   * preview-edit generation is sequential per session.
+   */
+  anyPreviewGenerating?: boolean;
   previewPaywallEnabled?: boolean;
   previewPriceLabel?: string;
   previewPaymentRequired?: boolean;
@@ -113,6 +120,7 @@ function CategoryCard({
   previewEditIdForCriterion,
   onViewAiEdit,
   previewLoading = false,
+  anyPreviewGenerating = false,
   previewPaywallEnabled = false,
   previewPriceLabel = '$0.99',
   previewPaymentRequired = false,
@@ -125,13 +133,20 @@ function CategoryCard({
   const panelId = useId();
   const thisCriterionLoading = previewLoading;
   const hasSessionPreview = Boolean(previewEditIdForCriterion && onViewAiEdit);
+  // Only block the Generate path while another edit is running — viewing an
+  // already-generated preview stays allowed, because that is local and
+  // does not queue another OpenAI request.
+  const blockedByOtherGeneration =
+    anyPreviewGenerating && !thisCriterionLoading && !hasSessionPreview;
   const buttonLabel = thisCriterionLoading
     ? 'Generating…'
     : hasSessionPreview
       ? 'View AI edit'
-      : previewPaywallEnabled
-        ? `Generate AI Edit for ${previewPriceLabel}`
-        : 'Generate AI Edit';
+      : blockedByOtherGeneration
+        ? 'Another AI edit is generating…'
+        : previewPaywallEnabled
+          ? `Generate AI Edit for ${previewPriceLabel}`
+          : 'Generate AI Edit';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -249,11 +264,12 @@ function CategoryCard({
                 type="button"
                 disabled={
                   thisCriterionLoading ||
+                  blockedByOtherGeneration ||
                   (!hasSessionPreview && !onGenerateAiEdit)
                 }
                 aria-busy={thisCriterionLoading}
                 onClick={() => {
-                  if (thisCriterionLoading) return;
+                  if (thisCriterionLoading || blockedByOtherGeneration) return;
                   if (hasSessionPreview && onViewAiEdit) {
                     onViewAiEdit();
                   } else if (onGenerateAiEdit) {
@@ -529,6 +545,11 @@ export const CritiquePanels = memo(function CritiquePanels({
           previewLoading &&
           previewLoadingTarget?.kind === 'single' &&
           previewLoadingTarget.criterion === category.criterion;
+        // Any single-criterion AI edit currently in flight? While one is
+        // generating, other criteria's Generate buttons disable so the
+        // user cannot queue a second concurrent preview-edit request.
+        const anyPreviewGenerating =
+          previewLoading && previewLoadingTarget?.kind === 'single';
         const previewId = previewEditIdByCriterion?.[category.criterion];
         return (
           <CategoryCard
@@ -548,6 +569,7 @@ export const CritiquePanels = memo(function CritiquePanels({
                 : undefined
             }
             previewLoading={thisLoading}
+            anyPreviewGenerating={anyPreviewGenerating}
             previewPaywallEnabled={previewPaywallEnabled}
             previewPriceLabel={previewPriceLabel}
             previewPaymentRequired={previewPaymentRequiredCriterion === category.criterion}
