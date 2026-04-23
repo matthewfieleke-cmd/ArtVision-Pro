@@ -136,7 +136,7 @@ export function buildCriterionPrompt(args: {
     '',
     'Output a JSON object with exactly these fields: voiceACritique, voiceBSuggestions, preserve, confidence.',
     '',
-    `**voiceACritique** — follow the Voice A paragraph shape described in the system message. 2–4 sentences. Open inside the anchored passage. Make ONE structural claim a critic would sign their name to, supported by the visibleEvidence above. Do not paraphrase the evidence neutrally.`,
+    `**voiceACritique** — follow the Voice A paragraph shape described in the system message. 2–4 sentences. Open inside the anchored passage. Make ONE clear point about what the visible facts add up to in plain, direct studio language — no flourish, no hedging. Do not paraphrase the evidence neutrally; say what it means for the painting on this criterion.`,
     '',
     `**voiceBSuggestions** — follow the Voice B paragraph shape described in the system message (where → what now → what to try → what you should see afterward). 2–4 sentences. ONE primary move, imperative voice, starting with a concrete studio verb tied to a named form / edge / value / color in the anchored passage. If Voice A says this criterion is already working at the highest level, replace the move with "Leave this alone — …" and say WHY it is working. Respect the declared medium (${medium}); do not recommend moves the medium would fight.`,
     '',

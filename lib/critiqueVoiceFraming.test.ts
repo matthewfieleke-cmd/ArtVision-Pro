@@ -82,6 +82,23 @@ describe('parallel-criteria system message (Voice A + Voice B framing)', () => {
     expect(sys).toMatch(/serious hobbyist|art student/i);
   });
 
+  it('frames the writing register as plain, specific, friend-at-the-easel', () => {
+    // The critic/teacher panels are powerful context but previously pulled
+    // the model toward gallery-essay register. Pin the reader-first writing
+    // rules explicitly so voice drift can't silently creep back.
+    expect(sys).toMatch(/knowledgeable friend/i);
+    expect(sys).toMatch(/Plain English first|plain English/i);
+  });
+
+  it('frames the expert panels as what to notice, not how to write', () => {
+    // If a future edit re-elevates the panel framing the test must fail —
+    // that's the change that produced the "trying too hard to sound smart"
+    // regression. Both panels must be positioned as private reasoning
+    // context, not as stylistic templates.
+    expect(sys).toMatch(/what to notice/i);
+    expect(sys).toMatch(/private (?:context|reasoning)/i);
+  });
+
   it('teaches the Voice B four-beat shape (where → now → try → afterward)', () => {
     // Each beat label is normative — the user-visible teacher card is the
     // single most-read part of every critique, so this test is intentionally
@@ -111,8 +128,14 @@ describe('buildCriterionPrompt (per-criterion user prompt)', () => {
     expect(prompt).toMatch(/Anchor.*the anchored passage for tests/s);
   });
 
-  it('requires the Voice A paragraph to make a structural claim, not paraphrase evidence', () => {
-    expect(prompt).toMatch(/ONE structural claim/);
+  it('requires the Voice A paragraph to make one clear point in plain language, not paraphrase evidence', () => {
+    // Previously "ONE structural claim a critic would sign their name to",
+    // which invited essay register. The new pin keeps the substance (one
+    // clear point tied to visible facts) and explicitly bans the register
+    // we do not want.
+    expect(prompt).toMatch(/ONE clear point/);
+    expect(prompt).toMatch(/plain, direct studio language/);
+    expect(prompt).toMatch(/no flourish, no hedging/);
     expect(prompt).toMatch(/Do not paraphrase the evidence neutrally/);
   });
 
