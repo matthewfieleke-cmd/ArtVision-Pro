@@ -2,6 +2,13 @@ import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiModels.js';
 import { errorMessage } from './critiqueErrors.js';
+import {
+  CRITIQUE_AUDIENCE_FRAMING,
+  VOICE_A_COMPOSITE_EXPERTS,
+  VOICE_A_PARAGRAPH_SHAPE,
+  VOICE_B_COMPOSITE_TEACHERS,
+  VOICE_B_PARAGRAPH_SHAPE,
+} from '../shared/critiqueVoiceA.js';
 
 /**
  * Result for a single criterion's dual-voice pass, emitted by the parallel
@@ -55,10 +62,43 @@ const CRITERION_JSON_SCHEMA = {
   },
 } as const;
 
-const SYSTEM_MESSAGE =
-  'You are an experienced painting critic who writes precisely, anchors every claim to visible passages named in the evidence, and never compares the work to named artists, famous artworks, or art-historical movements.';
+/**
+ * One system message for every parallel criterion call. The job of this
+ * message is to lock in a SINGLE house voice across the eight concurrent
+ * calls — otherwise the critic / teacher outputs drift stylistically and
+ * the synthesis stage has to smooth them over.
+ *
+ * It sets, in order:
+ *   1. The reader we are writing for (serious hobbyist / art student).
+ *   2. The composite-critic panel that Voice A synthesizes.
+ *   3. The composite-teacher panel that Voice B synthesizes.
+ *   4. The four-beat paragraph shape for each voice.
+ *   5. Hard rules shared by both voices (no name-dropping, stay on this
+ *      painting, etc.).
+ */
+export const PARALLEL_CRITERIA_SYSTEM_MESSAGE = [
+  'You write BOTH a critic paragraph (Voice A) and a teacher paragraph (Voice B) for one criterion of one painting. You produce one unified product voice across both.',
+  '',
+  CRITIQUE_AUDIENCE_FRAMING,
+  '',
+  VOICE_A_COMPOSITE_EXPERTS,
+  '',
+  VOICE_A_PARAGRAPH_SHAPE,
+  '',
+  VOICE_B_COMPOSITE_TEACHERS,
+  '',
+  VOICE_B_PARAGRAPH_SHAPE,
+  '',
+  'Hard rules for both voices:',
+  '- Ground every claim in the anchored passage and the visibleEvidence the user message gives you. Do not invent passages that are not in the evidence.',
+  '- Never name any critic, teacher, artist, famous artwork, or art-historical movement. The expert panels are for your reasoning only; the reader never sees them.',
+  '- Never use filler openings ("This painting…", "In this work…", "Overall, the composition…"). Start inside the anchored passage.',
+  '- Do not re-teach basic studio vocabulary; the reader already has it.',
+  '- If you use a less common term, the sentence around it must make the meaning self-evident from what is visible.',
+  '- Confidence goes in the confidence field only, not in hedging words in the prose.',
+].join('\n');
 
-function buildCriterionPrompt(args: {
+export function buildCriterionPrompt(args: {
   criterion: CriterionLabel;
   style: string;
   medium: string;
@@ -84,27 +124,30 @@ function buildCriterionPrompt(args: {
     : `Evidence for ${criterion}: (no dedicated evidence block was gathered; work from the overall context below).`;
 
   return [
-    `Analyze the provided painting specifically for the criterion of ${criterion}.`,
+    `Write Voice A (critic) and Voice B (teacher) for ONE criterion of ONE painting: ${criterion}.`,
     `Style: ${style}. Medium: ${medium}.${titleLine}`,
     '',
     evidenceBlock,
     '',
-    `Overall context from the vision pass:`,
+    `Painting-wide context from the vision pass:`,
     `- Intent hypothesis: ${evidence.intentHypothesis}`,
     `- Strongest visible qualities: ${evidence.strongestVisibleQualities.join('; ') || '(none recorded)'}`,
     `- Main tensions: ${evidence.mainTensions.join('; ') || '(none recorded)'}`,
     '',
-    'You must output a JSON object with exactly these fields: voiceACritique, voiceBSuggestions, preserve, confidence.',
+    'Output a JSON object with exactly these fields: voiceACritique, voiceBSuggestions, preserve, confidence.',
     '',
-    'For voiceACritique, act as a prominent art historian providing an objective, structural critique based on specific visual evidence visible in the painting. Anchor the critique to the named anchor area above when natural. 2–4 sentences. No introductory filler and no concluding remarks.',
+    `**voiceACritique** — follow the Voice A paragraph shape described in the system message. 2–4 sentences. Open inside the anchored passage. Make ONE structural claim a critic would sign their name to, supported by the visibleEvidence above. Do not paraphrase the evidence neutrally.`,
     '',
-    "For voiceBSuggestions, act as a master painting instructor providing actionable, technical improvements based directly on Voice A's findings. Concrete moves, tied to visible passages. 2–4 sentences. No introductory filler and no concluding remarks.",
+    `**voiceBSuggestions** — follow the Voice B paragraph shape described in the system message (where → what now → what to try → what you should see afterward). 2–4 sentences. ONE primary move, imperative voice, starting with a concrete studio verb tied to a named form / edge / value / color in the anchored passage. If Voice A says this criterion is already working at the highest level, replace the move with "Leave this alone — …" and say WHY it is working. Respect the declared medium (${medium}); do not recommend moves the medium would fight.`,
     '',
-    'For preserve, write one short sentence naming exactly what in the current painting should not be changed.',
+    '**preserve** — one short sentence naming a specific visible strength in or near the anchored passage that the artist should protect while they make the move.',
     '',
-    'For confidence, rate how well the visible evidence supports your critique — "low", "medium", or "high".',
+    '**confidence** — how well the visible evidence supports your critique: "low", "medium", or "high". Do not put hedging language in the prose; put it here.',
     '',
-    'Never name specific artists, famous artworks, or art-historical figures. Do not compare this image to named painters or movements.',
+    'Reminders:',
+    '- Stay on THIS painting. No studio-generic advice, no textbook definitions, no "paintings in general".',
+    '- Never name critics, teachers, artists, famous artworks, or art-historical movements in the text you emit.',
+    '- If the vision evidence genuinely shows nothing unresolved on this axis, say so plainly in Voice A and have Voice B preserve rather than invent a problem.',
   ].join('\n');
 }
 
@@ -124,7 +167,7 @@ async function callCriterionStage(args: {
   const body = {
     model: args.model,
     messages: [
-      { role: 'system', content: SYSTEM_MESSAGE },
+      { role: 'system', content: PARALLEL_CRITERIA_SYSTEM_MESSAGE },
       { role: 'user', content: args.prompt },
     ],
     response_format: {

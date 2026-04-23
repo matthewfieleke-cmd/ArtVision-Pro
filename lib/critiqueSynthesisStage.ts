@@ -3,6 +3,12 @@ import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import type { CriterionWritingResult } from './critiqueParallelCriteria.js';
 import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiModels.js';
 import { errorMessage } from './critiqueErrors.js';
+import {
+  CRITIQUE_AUDIENCE_FRAMING,
+  SYNTHESIS_PRIORITIES_SHAPE,
+  VOICE_A_COMPOSITE_EXPERTS,
+  VOICE_B_COMPOSITE_TEACHERS,
+} from '../shared/critiqueVoiceA.js';
 
 /**
  * Output of the single synthesis call that runs after the eight parallel
@@ -97,10 +103,34 @@ const SYNTHESIS_JSON_SCHEMA = {
   },
 } as const;
 
-const SYSTEM_MESSAGE =
-  'You are a senior painting critic who writes plainly, prioritises ruthlessly, and never compares the work to named artists, famous artworks, or art-historical movements.';
+/**
+ * Synthesis sees all eight per-criterion critiques at once. It must speak in
+ * the same voice as the per-criterion calls (so the painter reads one coherent
+ * critique, not nine disjointed ones), but it is also the stage that turns
+ * the eight diagnoses into a next-session plan. Keep the composite panels
+ * present so the voice stays consistent; add the priorities-shape so the
+ * overall summary, top priorities, and studio changes come out as a plan the
+ * reader can act on rather than a list of aspirations.
+ */
+export const SYNTHESIS_SYSTEM_MESSAGE = [
+  'You are the synthesis step of a three-stage painting critique. You see the evidence and all eight per-criterion critic + teacher paragraphs, and you produce the painter-facing summary, studio analysis, priorities, studio changes, and suggested titles.',
+  '',
+  CRITIQUE_AUDIENCE_FRAMING,
+  '',
+  VOICE_A_COMPOSITE_EXPERTS,
+  '',
+  VOICE_B_COMPOSITE_TEACHERS,
+  '',
+  SYNTHESIS_PRIORITIES_SHAPE,
+  '',
+  'Hard rules:',
+  '- Ground every claim in the per-criterion critiques and the evidence you are given. Do not invent new observations.',
+  '- Never name critics, teachers, artists, famous artworks, or art-historical movements.',
+  '- Do not open with filler ("This painting…", "Overall…"). Speak as a thoughtful critic and a master teacher would over the artist’s shoulder.',
+  '- Prioritise ruthlessly. One primary thing to work on, at most two secondary moves.',
+].join('\n');
 
-function buildSynthesisPrompt(args: {
+export function buildSynthesisPrompt(args: {
   style: string;
   medium: string;
   userTitle?: string;
@@ -136,25 +166,26 @@ Preserve: ${r.preserve}`
     `- Main tensions: ${evidence.mainTensions.join('; ') || '(none recorded)'}`,
     `- Photo quality: ${evidence.photoQualityRead.level} — ${evidence.photoQualityRead.summary}`,
     '',
-    `Eight per-criterion critiques to weave together:`,
+    `Eight per-criterion critiques to weave together (each block is the critic + teacher output for one criterion, already grounded in visible evidence):`,
     '',
     criterionBlocks,
     '',
     `Emit JSON with exactly these fields: summary, overallAnalysis, topPriorities, studioAnalysis, studioChanges, suggestedTitles.`,
     '',
-    `For summary, 2-4 plain sentences that land the overall read without listing every criterion.`,
+    `**summary** — 2–4 plain sentences that land the overall read. Open with what this painting is genuinely doing (its pictorial intelligence or intent), then name the axis where it is strongest and the axis that most limits it today. Do NOT list every criterion. Do NOT open with filler.`,
     '',
-    `For overallAnalysis, 3-5 sentences expanding on the strongest across-criteria reads and the primary tensions.`,
+    `**overallAnalysis** — 3–5 sentences expanding the summary with a critic's structural claim: which two or three criteria carry the picture, which one is the real bottleneck, and why — tied back to the visible evidence. One clear claim per sentence.`,
     '',
-    `For topPriorities, 2-3 concrete priority actions derived from the Voice B suggestions above. Each item is one short sentence.`,
+    `**topPriorities** — treat this as the painter's NEXT SESSION plan, not a list of aspirations. 2–3 items. First item is the single most important move, imperative voice, tied to a named passage. Remaining items are at most two secondary moves that genuinely depend on or can be tackled alongside the first. Each item is one short sentence.`,
     '',
-    `For studioAnalysis.whatWorks, one or two sentences naming the qualities to build on. For studioAnalysis.whatCouldImprove, one or two sentences naming the main structural problem.`,
+    `**studioAnalysis.whatWorks** — one or two sentences naming TWO specific visible passages and what they accomplish for the picture (not generic praise).`,
+    `**studioAnalysis.whatCouldImprove** — one or two sentences naming the ONE primary structural problem the painter should solve next (not a list).`,
     '',
-    `For studioChanges, 2-5 entries. Each entry is { text, previewCriterion } where previewCriterion is one of: ${CRITERIA_ORDER.join(' | ')}. Each text is a single-sentence studio instruction tied to that criterion's Voice B.`,
+    `**studioChanges** — 2–5 entries. Each entry is { text, previewCriterion } where previewCriterion is one of: ${CRITERIA_ORDER.join(' | ')}. Each text is a SINGLE-sentence studio instruction that starts with a concrete studio verb and names the passage; previewCriterion must match what the text is asking the painter to change.`,
     '',
     titleInstructionBlock,
     '',
-    'Never name specific artists, famous artworks, or art-historical figures. Do not compare this image to named painters or movements.',
+    'Never name critics, teachers, artists, famous artworks, or art-historical movements. Do not compare this image to named painters or movements. The expert panels in the system message are for your reasoning only.',
   ].join('\n');
 }
 
@@ -181,7 +212,7 @@ export async function runCritiqueSynthesisStage(args: {
   const body = {
     model: args.model,
     messages: [
-      { role: 'system', content: SYSTEM_MESSAGE },
+      { role: 'system', content: SYNTHESIS_SYSTEM_MESSAGE },
       { role: 'user', content: prompt },
     ],
     response_format: {
