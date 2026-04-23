@@ -219,10 +219,14 @@ export async function runCritiqueSynthesisStage(args: {
       type: 'json_schema',
       json_schema: SYNTHESIS_JSON_SCHEMA,
     },
-    // Synthesis rolls all eight criterion critiques up into the overall
-    // summary, priorities, studio changes, and suggested titles; ranking and
-    // prioritising benefits from higher reasoning effort on gpt-5 models.
-    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'high' }),
+    // Synthesis aggregates eight already-grounded per-criterion critiques
+    // into overall summary / priorities / studio changes / titles. The
+    // heavy lifting (observing the painting, per-criterion judgment) has
+    // already happened upstream, so this stage only needs to rank and
+    // weave — `medium` reasoning is sufficient. `high` was ~2x slower end
+    // to end with no visible quality gain and contributed to critiques
+    // exceeding the Vercel function timeout.
+    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'medium' }),
     ...buildOpenAIMaxTokensParam(args.model, 2000),
   };
 

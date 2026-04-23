@@ -270,11 +270,16 @@ async function runCritiqueVisionStage(
     body: JSON.stringify({
       model: args.model,
       // Reasoning models (gpt-5 family) reject custom `temperature` and use
-      // `reasoning_effort` instead. The vision pass produces the shared
-      // observation bank + evidence + anchor regions for every downstream
-      // stage, so it gets the highest-quality reasoning bucket the helper
-      // will emit.
-      ...buildOpenAISamplingParam(args.model, { temperature: 0.12, reasoningEffort: 'high' }),
+      // `reasoning_effort` instead. The vision pass is predominantly
+      // perception — reading what is actually in the photo and mapping it
+      // onto the observation/evidence schema — not dense multi-step
+      // reasoning. `medium` (OpenAI's implicit default) is plenty and is
+      // what production ran at before `reasoning_effort` was passed
+      // explicitly; `high` here roughly doubled vision latency with no
+      // visible quality gain and was the primary cause of a post-upgrade
+      // regression where critiques sometimes exceeded the Vercel function
+      // timeout. Use `low` only if you need to aggressively shave cost.
+      ...buildOpenAISamplingParam(args.model, { temperature: 0.12, reasoningEffort: 'medium' }),
       ...buildOpenAIMaxTokensParam(args.model, VISION_MAX_TOKENS),
       response_format: {
         type: 'json_schema',
