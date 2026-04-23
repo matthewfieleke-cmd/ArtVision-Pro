@@ -60,6 +60,18 @@ export function imageEditModelSupportsInputFidelity(model: string): boolean {
   return m.startsWith('gpt-image-1');
 }
 
+/**
+ * gpt-image-2 requires `n: 1` per request — the API rejects n>1. gpt-image-1.x
+ * still accepts `n` up to 4 in a single call. To keep the candidate ranking
+ * behavior consistent across both models, the caller fans out across parallel
+ * requests when the model is batch-capped at 1.
+ */
+export function imageEditModelMaxNPerRequest(model: string): number {
+  const m = model.trim().toLowerCase();
+  if (m.startsWith('gpt-image-2')) return 1;
+  return 4;
+}
+
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
@@ -446,9 +458,59 @@ Output: one photorealistic image of the same artwork after this single focused i
  * Uses JSON + `images: [{ image_url }]` (current GPT image models). Legacy multipart `image`/`image[]`
  * differs from this shape and can yield validation errors like "The string did not match the expected pattern."
  *
- * Default model `gpt-image-1.5`; override with OPENAI_IMAGE_EDIT_MODEL.
- * `input_fidelity` is only sent for `gpt-image-1*` models (`gpt-image-2` does not support it).
+ * Default model `gpt-image-2`; override with `OPENAI_IMAGE_EDIT_MODEL`.
+ * `input_fidelity` is only sent for `gpt-image-1*` models; gpt-image-2
+ * always applies high-fidelity reference handling internally and rejects
+ * `input_fidelity` with a 400.
+ *
+ * Multi-candidate behaviour is model-aware: gpt-image-1.x accepts `n` up to 4
+ * in a single call, but gpt-image-2 only accepts `n: 1`. To keep the existing
+ * candidate ranking on both models, when the model is capped at 1 per request
+ * the runner issues `candidateCount` parallel requests instead.
  */
+type EditCandidateImage = { b64_json?: string; url?: string };
+
+async function runSingleEditRequest(args: {
+  apiKey: string;
+  model: string;
+  prompt: string;
+  imageUrl: string;
+  editSize: string;
+  quality: EditQuality;
+  n: number;
+}): Promise<EditCandidateImage[]> {
+  const payload: Record<string, unknown> = {
+    model: args.model,
+    prompt: args.prompt,
+    images: [{ image_url: args.imageUrl }],
+    size: args.editSize,
+    quality: args.quality,
+    n: args.n,
+  };
+  if (imageEditModelSupportsInputFidelity(args.model)) {
+    payload.input_fidelity = 'high';
+  }
+
+  const res = await fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = (await res.json()) as Record<string, unknown>;
+  if (!res.ok) {
+    const err = json.error as { message?: string } | undefined;
+    throw new Error(err?.message ?? `OpenAI image edit failed (${res.status})`);
+  }
+
+  const data = json.data as EditCandidateImage[] | undefined;
+  if (!data?.length) throw new Error('No image in edit response');
+  return data;
+}
+
 export async function runOpenAIPreviewEdit(
   apiKey: string,
   body: PreviewEditRequestBody
@@ -465,37 +527,28 @@ export async function runOpenAIPreviewEdit(
   const quality = resolveEditQuality();
   const candidateCount = resolveCandidateCount();
   const originalStats = await computePreviewStats(inputBuffer);
+  const prompt = buildEditPrompt(body);
 
-  const payload: Record<string, unknown> = {
-    model,
-    prompt: buildEditPrompt(body),
-    images: [{ image_url: imageUrl }],
-    size: editSize,
-    quality,
-    n: candidateCount,
-  };
-  if (imageEditModelSupportsInputFidelity(model)) {
-    payload.input_fidelity = 'high';
-  }
+  const maxPerRequest = imageEditModelMaxNPerRequest(model);
+  const requestCount = Math.max(1, Math.ceil(candidateCount / maxPerRequest));
+  const perRequestN = Math.min(maxPerRequest, Math.max(1, Math.ceil(candidateCount / requestCount)));
 
-  const res = await fetch('https://api.openai.com/v1/images/edits', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    const err = json.error as { message?: string } | undefined;
-    throw new Error(err?.message ?? `OpenAI image edit failed (${res.status})`);
-  }
+  const batches = await Promise.all(
+    Array.from({ length: requestCount }, () =>
+      runSingleEditRequest({
+        apiKey,
+        model,
+        prompt,
+        imageUrl,
+        editSize,
+        quality,
+        n: perRequestN,
+      })
+    )
+  );
+  const data = batches.flat();
 
   const preferOut = outputMimeFromInput(inputMime);
-  const data = json.data as Array<{ b64_json?: string; url?: string }> | undefined;
-  if (!data?.length) throw new Error('No image in edit response');
 
   let bestCandidate:
     | {
