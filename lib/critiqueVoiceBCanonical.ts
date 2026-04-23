@@ -1,7 +1,43 @@
 import type { VoiceBCanonicalPlan, VoiceBPlan, VoiceBStep } from '../shared/critiqueContract.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
-import { CRITIQUE_DONT_CHANGE_PATTERN, CRITIQUE_PRESERVE_VERB_PATTERN } from './critiqueTextRules.js';
-import { isConcreteAnchor } from './critiqueGrounding.js';
+
+/**
+ * Small self-contained regexes and helpers used by the legacy-critique
+ * hydration path (App.tsx still calls `hydrateVoiceBCanonicalCategory` on
+ * older saved critiques so their plan shape matches what the preview-edit
+ * UI expects). These were previously imported from `critiqueTextRules` and
+ * `critiqueGrounding`, which have been retired; inlining them keeps this
+ * module self-sufficient without reintroducing the dead modules.
+ */
+const CRITIQUE_DONT_CHANGE_PATTERN = /^\s*(?:1\.\s*)?don['\u2019]t change a thing\./i;
+const CRITIQUE_PRESERVE_VERB_PATTERN =
+  /^\s*(preserve|keep|protect|leave|hold|maintain|continue)\b/i;
+
+const GENERIC_ANCHOR_PATTERNS: RegExp[] = [
+  /^\s*the (background|foreground|painting overall|composition overall|canvas|image|work|picture|scene)\s*$/i,
+  /^\s*(left|right|center) side of the painting\s*$/i,
+  /^\s*arrangement of elements\s*$/i,
+  /^\s*spatial relationships\s*$/i,
+];
+
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function isConcreteAnchor(text: string): boolean {
+  const normalized = normalizeWhitespace(text);
+  if (normalized.length < 8) return false;
+  if (GENERIC_ANCHOR_PATTERNS.some((pattern) => pattern.test(normalized))) return false;
+  // At least two non-trivial words so "the chair" alone is still considered
+  // underspecified. Stopword check is approximate — this helper only gates
+  // whether preserve text is specific enough to surface; if nothing qualifies
+  // we fall back to the anchor's own evidence pointer, which is always safe.
+  const words = normalized
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 3);
+  return words.length >= 2;
+}
 
 type VoiceBLegacyCompatible = {
   phase3?: { teacherNextSteps?: string };

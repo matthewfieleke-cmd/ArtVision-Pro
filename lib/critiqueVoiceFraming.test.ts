@@ -8,7 +8,7 @@ import {
   buildSynthesisPrompt,
   SYNTHESIS_SYSTEM_MESSAGE,
 } from './critiqueSynthesisStage.js';
-import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
+import type { CritiqueEvidenceDTO } from './critiqueTypes.js';
 import type { CriterionWritingResult } from './critiqueParallelCriteria.js';
 import { CRITERIA_ORDER } from '../shared/criteria.js';
 

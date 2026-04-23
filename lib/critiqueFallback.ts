@@ -1,9 +1,45 @@
 import { CRITERIA_ORDER, type CriterionLabel, type RatingLevelLabel } from '../shared/criteria.js';
 import { createPipelineMetadata } from './critiquePipeline.js';
-import { findPrimaryAnchorSupportLine } from './critiqueGrounding.js';
-import type { CritiqueResultDTO } from './critiqueTypes.js';
-import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
+import type { CritiqueEvidenceDTO, CritiqueResultDTO } from './critiqueTypes.js';
 import type { SuggestedTitle } from '../shared/critiqueContract.js';
+
+/**
+ * Pick the `visibleEvidence` line with the most word overlap with the anchor.
+ * Tiny local helper — used only by the minimal-safe fallback path in
+ * `summarizeAnchor` below. We do not need the full anchor-support scoring
+ * that the retired `critiqueGrounding` module carried; the fallback only
+ * has to surface a reasonable-looking pointer when the synthesis stage
+ * fails. Returns the first visibleEvidence line if nothing overlaps.
+ */
+function pickAnchorEvidenceLine(anchor: string, lines: readonly string[]): string | undefined {
+  if (lines.length === 0) return undefined;
+  const anchorWords = new Set(
+    anchor
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length >= 3)
+  );
+  if (anchorWords.size === 0) return lines[0];
+  let bestLine = lines[0];
+  let bestScore = -1;
+  for (const line of lines) {
+    const lineWords = new Set(
+      line
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((word) => word.length >= 3)
+    );
+    let overlap = 0;
+    for (const word of lineWords) {
+      if (anchorWords.has(word)) overlap += 1;
+    }
+    if (overlap > bestScore) {
+      bestScore = overlap;
+      bestLine = line;
+    }
+  }
+  return bestLine;
+}
 
 const LEVEL_ORDER: RatingLevelLabel[] = ['Beginner', 'Intermediate', 'Advanced', 'Master'];
 
@@ -121,8 +157,7 @@ function summarizeAnchor(
   entry: CritiqueEvidenceDTO['criterionEvidence'][number]
 ): { areaSummary: string; evidencePointer: string; region: { x: number; y: number; width: number; height: number } } {
   const primarySupportLine =
-    findPrimaryAnchorSupportLine(entry.anchor, entry.visibleEvidence)?.line ??
-    entry.visibleEvidence[0];
+    pickAnchorEvidenceLine(entry.anchor, entry.visibleEvidence) ?? entry.visibleEvidence[0];
   return {
     areaSummary: entry.anchor,
     evidencePointer: primarySupportLine ?? entry.strengthRead,

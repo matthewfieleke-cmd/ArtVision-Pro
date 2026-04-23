@@ -1,5 +1,5 @@
 import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
-import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
+import type { CritiqueEvidenceDTO } from './critiqueTypes.js';
 import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiModels.js';
 import { errorMessage } from './critiqueErrors.js';
 import {

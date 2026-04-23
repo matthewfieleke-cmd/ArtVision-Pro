@@ -12,9 +12,12 @@ import {
   VISION_STAGE_OPENAI_SCHEMA,
   type ObservationBank,
 } from './critiqueZodSchemas.js';
-import type { CritiqueRequestBody, CritiqueResultDTO } from './critiqueTypes.js';
+import type {
+  CritiqueEvidenceDTO,
+  CritiqueRequestBody,
+  CritiqueResultDTO,
+} from './critiqueTypes.js';
 import { CRITERIA_ORDER } from '../shared/criteria.js';
-import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import { errorMessage } from './critiqueErrors.js';
 import {
   createCritiqueInstrumenter,
