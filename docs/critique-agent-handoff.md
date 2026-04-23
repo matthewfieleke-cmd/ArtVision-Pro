@@ -2,6 +2,24 @@
 
 This note is for the next agent continuing critique-pipeline stabilization.
 
+> **2026-04 update — architecture simplified.** The pipeline now runs as
+> three stages (vision → parallel per-criterion Voice A+B → synthesis) with
+> no custom retry loop, no audit stage, and no regex-based validators.
+> OpenAI Structured Outputs guarantees shape. Content quality is owned by
+> the composite-panel framing in `shared/critiqueVoiceA.ts` and the
+> per-stage system messages in `lib/critiqueParallelCriteria.ts` and
+> `lib/critiqueSynthesisStage.ts`.
+>
+> The following files that earlier handoff notes reference have been
+> **removed** and should not be reintroduced:
+> `lib/critiqueValidation.ts`, `lib/critiqueValidation.test.ts`,
+> `lib/critiqueGrounding.ts`, `lib/critiqueGrounding.test.ts`,
+> `lib/critiqueWeakWorkContracts.ts`, `lib/critiqueTextRules.ts`,
+> `lib/critiqueTestFixtures.ts`, and (previously retired)
+> `lib/critiqueWritingStage.ts`, `lib/critiqueAudit.ts`.
+> If you see a quality regression, fix it in the system prompts or the
+> Zod schema — not by reintroducing post-hoc validators.
+
 ## Initial prompt for the next agent
 
 Paste this as the next agent's starting prompt:

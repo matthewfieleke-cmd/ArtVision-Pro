@@ -26,34 +26,42 @@ derives JSON schemas and TypeScript types from one definition.
 
 **Status: DONE** (testZodSchemaRoundTrip in run-architecture-tests.ts)
 
-Round-trip tests verify that mock Voice B responses conforming to the Zod
-schema also pass through `validateCritiqueResult`. Negative tests confirm
-that field-name mismatches (e.g. `intendedRead` instead of `expectedRead`)
-are caught.
+Round-trip tests verify that Voice B plan / step / anchor / editPlan mocks
+parse back through the Zod schemas. Negative tests confirm that field-name
+mismatches (e.g. `intendedRead` instead of `expectedRead`) are caught. The
+earlier `validateCritiqueResult` part of this test was retired along with
+the pre-gpt-5 validation stack; the Zod round-trip checks remain because
+OpenAI Structured Outputs guarantees shape only if our Zod schemas stay in
+sync with the TypeScript types.
 
 ## Priority 3 — AI Pipeline Error Handling
 
-- `runSchemaStage` had no truncation detection (now fixed, but only for
-  writing stages; the evidence stage still uses a separate fetch call
-  without this check).
-- No retry on transient failures (rate limits, network timeouts).
-- The one-shot retry in `openaiCritique.ts` re-runs the entire
-  evidence + calibration + writing pipeline — expensive and blunt.
+The pipeline now runs as three stages (vision → parallel per-criterion
+critique → synthesis) with zero custom retry logic; per-criterion failures
+degrade to evidence-derived fallback prose in `runParallelCriteriaStage`,
+and a synthesis failure falls through to `composeFallbackCritique`. What's
+still missing:
 
-**Fix:** Extract a shared `callOpenAI` helper with truncation detection,
-exponential backoff on 429/5xx, and per-stage retry rather than full
-pipeline restart.
+- No shared exponential backoff on 429 / 5xx (each call uses raw `fetch`).
+- Truncation detection only exists in the vision stage; per-criterion and
+  synthesis calls trust `finish_reason` implicitly.
+- No request-level idempotency, so a user retrying during a flaky network
+  can produce two critiques.
+
+**Fix:** Extract a shared `callOpenAI` helper with truncation detection
+and exponential backoff on 429/5xx. Per-stage retry is cheap now that the
+pipeline is fanned out.
 
 ## Priority 4 — Prompt / Schema Description Drift
 
-Schema `description` fields duplicate guidance that also lives in the
-system prompt, creating two sources of truth that can silently diverge.
-The step-count conflict (schema said `≥3`, prompt said `1–3`) was one
-instance; there may be others.
-
-**Fix:** Keep schema descriptions minimal and factual (field semantics
-only). Move all behavioral guidance — tone, step counts, anti-patterns —
-exclusively into the system prompt.
+**Status: PARTIALLY DONE.** The retired `critiqueValidation.ts` +
+`critiqueTextRules.ts` stack used to keep two copies of the same behavior
+rules — one in Zod schema `.describe()` blocks, one in the system prompt.
+That is now gone; behavior lives in `shared/critiqueVoiceA.ts` + the
+per-stage system messages, and Zod descriptions stay minimal and factual.
+Remaining risk: the `critiqueZodSchemas.ts` field descriptions still
+occasionally carry "do not write X" language. Future cleanup can move any
+remaining behavior text out of the schemas and into the system prompts.
 
 ## Priority 5 — App.tsx Complexity
 

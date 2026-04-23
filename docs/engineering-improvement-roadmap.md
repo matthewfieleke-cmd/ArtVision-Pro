@@ -3,20 +3,15 @@
 This roadmap prioritizes the next architectural moves for the critique system.
 
 ### 1. Make critique generation explicitly three-stage
-**Status:** Partially done
+**Status:** Done
 
-Current direction:
-- Stage 1: extract visible evidence from the image
-- Stage 2: write critique from that evidence
-- Stage 3: audit and rewrite generic or over-corrective output
+The critique pipeline now runs as three stages with clean boundaries:
 
-Why this matters:
-- reduces hallucinated critique
-- makes the system more explainable
-- creates cleaner places to test and improve quality
+- Stage 1 — **vision** (`lib/openaiCritique.ts`, prompt in `lib/critiqueEvidenceStage.ts`): observation bank + per-criterion evidence + anchor regions in ONE OpenAI call, using a strict Zod-backed JSON schema.
+- Stage 2 — **per-criterion writing** (`lib/critiqueParallelCriteria.ts`): eight concurrent Voice A + Voice B critiques, each anchored to stage-1 evidence. Per-call failures degrade to evidence-derived prose with zero retries.
+- Stage 3 — **synthesis** (`lib/critiqueSynthesisStage.ts`): single call that rolls the eight criterion critiques into overall summary, top priorities, studio analysis, studio changes, and suggested titles.
 
-Next step:
-- deepen the audit layer so it can score and rewrite suspicious critique patterns more systematically, not only with fixed regex rules
+The pre-gpt-5 validation / audit / calibration / clarity stages and their supporting regex libraries (`critiqueValidation.ts`, `critiqueGrounding.ts`, `critiqueWeakWorkContracts.ts`, `critiqueTextRules.ts`, `critiqueTestFixtures.ts`) have been retired — OpenAI Structured Outputs guarantees shape, and content quality is now owned by the composite-panel framing in `shared/critiqueVoiceA.ts` + the per-stage system messages.
 
 ### 2. Unify wire format and UI format for critiques
 **Status:** In progress
@@ -63,17 +58,18 @@ Next step:
 - let the system say “no urgent structural correction” when appropriate
 
 ### 5. Modularize critique policy code
-**Status:** Needed
+**Status:** Done
 
-Problem:
-- too much critique logic lives in one large orchestration file
+Critique policy is now split into small focused modules:
 
-Why this matters:
-- harder to reason about
-- harder to test
-- easier to regress
+- `shared/critiqueVoiceA.ts` — audience framing, composite-critic / composite-teacher panels, Voice A + Voice B paragraph shapes, synthesis priorities shape.
+- `lib/critiquePipelineGuidance.ts` — observation-bank / evidence-richness / pipeline-stage-connection guidance blocks consumed by the evidence prompt.
+- `lib/critiqueEvidenceStage.ts` — the vision-stage prompt builders (observation bank + evidence + anchor regions).
+- `lib/critiqueParallelCriteria.ts` — the per-criterion system + user prompts and the fan-out runner.
+- `lib/critiqueSynthesisStage.ts` — the synthesis system + user prompt and the runner.
+- `lib/critiqueZodSchemas.ts` — Zod schemas that drive OpenAI Structured Outputs and produce the TypeScript types downstream stages consume.
 
-Next step:
+Historical note:
 - separate:
   - schemas
   - evidence prompt
