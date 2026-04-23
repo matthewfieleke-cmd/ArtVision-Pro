@@ -1,6 +1,6 @@
 import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
-import { buildOpenAIMaxTokensParam } from './openaiModels.js';
+import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiModels.js';
 import { errorMessage } from './critiqueErrors.js';
 
 /**
@@ -131,6 +131,10 @@ async function callCriterionStage(args: {
       type: 'json_schema',
       json_schema: CRITERION_JSON_SCHEMA,
     },
+    // Per-criterion calls don't have the image and only need to turn the
+    // vision-stage evidence into 2-4 sentences of prose per voice. `medium`
+    // reasoning is plenty and keeps fan-out cost/latency in check.
+    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'medium' }),
     ...buildOpenAIMaxTokensParam(args.model, 1200),
   };
 

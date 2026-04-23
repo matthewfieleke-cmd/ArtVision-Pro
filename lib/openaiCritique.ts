@@ -21,7 +21,11 @@ import {
   critiqueInstrumentEnabled,
   noopCritiqueInstrumenter,
 } from './critiqueInstrumentation.js';
-import { buildOpenAIMaxTokensParam, getOpenAIStageModelMap } from './openaiModels.js';
+import {
+  buildOpenAIMaxTokensParam,
+  buildOpenAISamplingParam,
+  getOpenAIStageModelMap,
+} from './openaiModels.js';
 import { createPipelineMetadata, createSucceededStageSnapshot } from './critiquePipeline.js';
 import type {
   CritiquePipelineSalvagedCriterion,
@@ -262,7 +266,12 @@ async function runCritiqueVisionStage(
     },
     body: JSON.stringify({
       model: args.model,
-      temperature: 0.12,
+      // Reasoning models (gpt-5 family) reject custom `temperature` and use
+      // `reasoning_effort` instead. The vision pass produces the shared
+      // observation bank + evidence + anchor regions for every downstream
+      // stage, so it gets the highest-quality reasoning bucket the helper
+      // will emit.
+      ...buildOpenAISamplingParam(args.model, { temperature: 0.12, reasoningEffort: 'high' }),
       ...buildOpenAIMaxTokensParam(args.model, VISION_MAX_TOKENS),
       response_format: {
         type: 'json_schema',

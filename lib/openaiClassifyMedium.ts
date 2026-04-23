@@ -1,5 +1,5 @@
 import { buildHighDetailImageMessage } from './openaiVisionContent.js';
-import { resolveOpenAIModel } from './openaiModels.js';
+import { buildOpenAISamplingParam, resolveOpenAIModel } from './openaiModels.js';
 
 const MEDIUM_ENUM = [
   'Oil on Canvas',
@@ -59,7 +59,9 @@ export async function runOpenAIClassifyMedium(
     },
     body: JSON.stringify({
       model,
-      temperature: 0.15,
+      // Same story as style classification: tight enum + rationale, no need
+      // to spend high reasoning here.
+      ...buildOpenAISamplingParam(model, { temperature: 0.15, reasoningEffort: 'low' }),
       response_format: { type: 'json_schema', json_schema: SCHEMA },
       messages: [
         {

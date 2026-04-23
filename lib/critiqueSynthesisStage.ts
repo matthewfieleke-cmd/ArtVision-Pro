@@ -1,7 +1,7 @@
 import { CRITERIA_ORDER } from '../shared/criteria.js';
 import type { CritiqueEvidenceDTO } from './critiqueValidation.js';
 import type { CriterionWritingResult } from './critiqueParallelCriteria.js';
-import { buildOpenAIMaxTokensParam } from './openaiModels.js';
+import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiModels.js';
 import { errorMessage } from './critiqueErrors.js';
 
 /**
@@ -188,6 +188,10 @@ export async function runCritiqueSynthesisStage(args: {
       type: 'json_schema',
       json_schema: SYNTHESIS_JSON_SCHEMA,
     },
+    // Synthesis rolls all eight criterion critiques up into the overall
+    // summary, priorities, studio changes, and suggested titles; ranking and
+    // prioritising benefits from higher reasoning effort on gpt-5 models.
+    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'high' }),
     ...buildOpenAIMaxTokensParam(args.model, 2000),
   };
 

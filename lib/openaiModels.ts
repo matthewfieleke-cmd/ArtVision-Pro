@@ -9,7 +9,7 @@ export type OpenAIStageModelRole =
   | 'imageEdit';
 
 const DEFAULT_CHAT_MODEL = 'gpt-5.4';
-const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-1.5';
+const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-2';
 
 type StageModelConfig = {
   role: OpenAIStageModelRole;
@@ -85,9 +85,67 @@ export function resolveOpenAIModel(role: OpenAIStageModelRole, override?: string
  * before emitting any visible output, so a completion budget sized for
  * non-reasoning chat models can truncate them mid-response.
  */
-function isReasoningCapableModel(model: string): boolean {
+export function isReasoningCapableModel(model: string): boolean {
   const normalized = (model ?? '').trim().toLowerCase();
+  // gpt-5-chat-latest still behaves like a non-reasoning chat model and
+  // accepts `temperature`; everything else in the gpt-5 family (gpt-5,
+  // gpt-5.1, gpt-5.4, gpt-5-mini, gpt-5-nano, …) rejects custom temperature
+  // and exposes `reasoning_effort` instead.
+  if (normalized.startsWith('gpt-5-chat')) return false;
   return normalized.startsWith('gpt-5') || /^o\d/.test(normalized);
+}
+
+/**
+ * Reasoning-capable models on the Chat Completions API (gpt-5 family, o-series)
+ * do two things differently from the gpt-4o-era chat models:
+ *
+ *   1. They **reject** any non-default `temperature` (and `top_p`) value with a
+ *      `400 invalid_request_error`. The only legal value is the implicit
+ *      default of 1, so the field must be **omitted entirely**.
+ *   2. They expose `reasoning_effort` (`low` | `medium` | `high`) as the
+ *      primary quality/cost/latency knob, replacing the sampling knobs.
+ *
+ * `buildOpenAISamplingParam` returns the correct spreadable object for a given
+ * model + desired temperature + desired reasoning effort:
+ *
+ *   - For non-reasoning chat models (gpt-4o, gpt-4-turbo, gpt-3.5, and
+ *     `gpt-5-chat-latest`), it returns `{ temperature }`. `reasoning_effort`
+ *     is dropped because those endpoints reject it.
+ *   - For reasoning-capable models, it returns
+ *     `{ reasoning_effort }` and **does not send `temperature`**, which is
+ *     what these models require.
+ *
+ * The `reasoningEffort` argument lets each stage pick a level that matches its
+ * job (e.g. vision-evidence and synthesis want `medium`; quick classifier
+ * calls want `low`), with a global `OPENAI_REASONING_EFFORT` override for
+ * operators who want to tune cost/latency globally.
+ */
+export type OpenAIReasoningEffort = 'low' | 'medium' | 'high';
+
+const REASONING_EFFORT_VALUES: readonly OpenAIReasoningEffort[] = ['low', 'medium', 'high'];
+
+function isReasoningEffort(value: string): value is OpenAIReasoningEffort {
+  return (REASONING_EFFORT_VALUES as readonly string[]).includes(value);
+}
+
+function readGlobalReasoningEffortOverride(): OpenAIReasoningEffort | undefined {
+  const raw = process.env.OPENAI_REASONING_EFFORT?.trim().toLowerCase();
+  if (!raw) return undefined;
+  return isReasoningEffort(raw) ? raw : undefined;
+}
+
+export function buildOpenAISamplingParam(
+  model: string,
+  options: { temperature: number; reasoningEffort?: OpenAIReasoningEffort }
+):
+  | { temperature: number }
+  | { reasoning_effort: OpenAIReasoningEffort }
+  | Record<string, never> {
+  if (isReasoningCapableModel(model)) {
+    const effort = readGlobalReasoningEffortOverride() ?? options.reasoningEffort;
+    return effort ? { reasoning_effort: effort } : {};
+  }
+  return { temperature: options.temperature };
 }
 
 /**
