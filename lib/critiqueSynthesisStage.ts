@@ -220,13 +220,12 @@ export async function runCritiqueSynthesisStage(args: {
       json_schema: SYNTHESIS_JSON_SCHEMA,
     },
     // Synthesis aggregates eight already-grounded per-criterion critiques
-    // into overall summary / priorities / studio changes / titles. The
-    // heavy lifting (observing the painting, per-criterion judgment) has
-    // already happened upstream, so this stage only needs to rank and
-    // weave — `medium` reasoning is sufficient. `high` was ~2x slower end
-    // to end with no visible quality gain and contributed to critiques
-    // exceeding the Vercel function timeout.
-    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'medium' }),
+    // into overall summary / priorities / studio changes / titles — the
+    // heavy lifting (observing the painting, per-criterion judgment, the
+    // concrete moves) has already happened upstream. `low` is the fastest
+    // setting that still produces a coherent weave + priority ordering;
+    // bump to `medium` if synthesis prose visibly thins out in production.
+    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'low' }),
     ...buildOpenAIMaxTokensParam(args.model, 2000),
   };
 
