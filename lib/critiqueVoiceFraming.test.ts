@@ -3,22 +3,32 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCriterionPrompt,
   PARALLEL_CRITERIA_SYSTEM_MESSAGE,
+  type CriterionWritingResult,
 } from './critiqueParallelCriteria.js';
 import {
   buildSynthesisPrompt,
   SYNTHESIS_SYSTEM_MESSAGE,
 } from './critiqueSynthesisStage.js';
 import type { CritiqueEvidenceDTO } from './critiqueTypes.js';
-import type { CriterionWritingResult } from './critiqueParallelCriteria.js';
+import type { ObservationBank } from './critiqueZodSchemas.js';
 import { CRITERIA_ORDER } from '../shared/criteria.js';
 
 /**
- * These tests pin the expert-panel framing and paragraph-shape guidance to
- * the live prompts that the three-stage pipeline actually sends to OpenAI.
- * The panel names + the reader framing already existed in
- * `shared/critiqueVoiceA.ts` but had drifted out of the live pipeline; if
- * that happens again the critic/teacher voice becomes generic and the
- * user-visible critique gets noticeably blander.
+ * These tests pin the voice framing the three-stage pipeline sends to
+ * OpenAI. The load-bearing invariants are:
+ *   1. The composite-critic and composite-teacher panels are present and
+ *      positioned as what the model NOTICES, not as a writing template.
+ *   2. The reader is framed as a serious hobbyist / art student.
+ *   3. The writing register is INSTRUCTIONAL — declarative + evaluative for
+ *      Voice A, imperative for Voice B. Conversational tells ("let's",
+ *      "you might", "try to") are explicitly banned.
+ *   4. The Voice B four-beat shape is present.
+ *   5. The framework is painting-agnostic: example passages span
+ *      figurative, landscape, still life, and abstract / mark-level work.
+ *
+ * If any of these drift out of the live prompts, the critique voice
+ * silently gets blander or narrower. The tests fail loudly so that doesn't
+ * happen without someone updating this pin.
  */
 
 function minimalEvidenceFixture(): CritiqueEvidenceDTO {
@@ -48,12 +58,92 @@ function minimalEvidenceFixture(): CritiqueEvidenceDTO {
   };
 }
 
+function minimalObservationBank(): ObservationBank {
+  return {
+    passages: [
+      {
+        id: 'p1',
+        label: 'the jaw edge against the hair',
+        role: 'edge',
+        visibleFacts: [
+          'the jaw edge against the hair loses its contour on the shadow side',
+          'the jaw edge against the hair keeps a crisp contour on the lit side',
+        ],
+      },
+      {
+        id: 'p2',
+        label: 'the bright cadmium strip where it meets the olive field',
+        role: 'color',
+        visibleFacts: [
+          'the bright cadmium strip where it meets the olive field creates the strongest chroma jump in the image',
+          'the bright cadmium strip where it meets the olive field is partially interrupted by a darker band at the top edge',
+        ],
+      },
+    ],
+    visibleEvents: [
+      {
+        passageId: 'p1',
+        passage: 'the jaw edge against the hair',
+        event: 'the jaw edge merges into the hair on the shadow side, flattening the forward plane',
+        signalType: 'edge',
+      },
+      {
+        passageId: 'p2',
+        passage: 'the bright cadmium strip where it meets the olive field',
+        event: 'the cadmium strip sits on top of the olive field and leaves a thin dark gap along the lower join',
+        signalType: 'color',
+      },
+    ],
+    mediumCues: [
+      'broad opaque handling consistent with direct oil painting',
+      'wet-into-wet softening visible along the shadow-side hair-to-jaw edge',
+      'a small scraped-back correction is visible in the lower right',
+    ],
+    photoCaveats: [],
+    intentCarriers: [
+      {
+        passageId: 'p1',
+        passage: 'the jaw edge against the hair',
+        reason: 'this passage carries the figure-to-ground decision the painting hinges on',
+      },
+      {
+        passageId: 'p2',
+        passage: 'the bright cadmium strip where it meets the olive field',
+        reason: 'this passage carries the chromatic accent that organises the picture',
+      },
+    ],
+  };
+}
+
+function minimalTopLevelContext() {
+  return {
+    intentHypothesis: 'a quiet portrait held together by one chromatic accent',
+    strongestVisibleQualities: ['cohesive value world', 'one decisive chromatic accent'],
+    mainTensions: ['the jaw-to-hair edge dissolves on the shadow side'],
+  };
+}
+
 function minimalCriterionResultsFixture(): CriterionWritingResult[] {
   return CRITERIA_ORDER.map((criterion) => ({
     criterion,
+    anchor: {
+      areaSummary: 'the anchored passage for tests',
+      evidencePointer: 'a visible event in the anchored passage for tests',
+      region: { x: 0.2, y: 0.2, width: 0.35, height: 0.35 },
+    },
+    visibleEvidence: ['the anchored passage for tests carries the main read'],
+    tensionRead: 'nothing is urgently unresolved here',
     voiceACritique: 'placeholder critic paragraph for synthesis tests',
     voiceBSuggestions: 'placeholder teacher paragraph for synthesis tests',
     preserve: 'placeholder preserve line',
+    editPlan: {
+      targetArea: 'the anchored passage for tests',
+      preserveArea: 'the surrounding passages that are already working',
+      issue: 'no unresolved issue — placeholder for tests',
+      intendedChange: 'keep the anchored passage as it is',
+      expectedOutcome: 'the passage continues to carry the main read',
+      editability: 'no',
+    },
     confidence: 'medium',
   }));
 }
@@ -82,31 +172,40 @@ describe('parallel-criteria system message (Voice A + Voice B framing)', () => {
     expect(sys).toMatch(/serious hobbyist|art student/i);
   });
 
-  it('frames the writing register as plain, specific, friend-at-the-easel', () => {
-    // The critic/teacher panels are powerful context but previously pulled
-    // the model toward gallery-essay register. Pin the reader-first writing
-    // rules explicitly so voice drift can't silently creep back.
-    expect(sys).toMatch(/knowledgeable friend/i);
-    expect(sys).toMatch(/Plain English first|plain English/i);
+  it('pins the INSTRUCTIONAL register and bans conversational tells', () => {
+    // This is the load-bearing difference between the current voice
+    // architecture and the earlier conversational one. If someone
+    // re-softens the register to "friend at the easel", these tests must
+    // fail loudly.
+    expect(sys).toMatch(/INSTRUCTIONAL/);
+    expect(sys).toMatch(/imperative/i);
+    // Conversational phrases must appear as explicit bans, not as
+    // recommended register.
+    expect(sys).toMatch(/let's/i);
+    expect(sys).toMatch(/you might/i);
+    expect(sys).toMatch(/try to/i);
   });
 
   it('frames the expert panels as what to notice, not how to write', () => {
-    // If a future edit re-elevates the panel framing the test must fail —
-    // that's the change that produced the "trying too hard to sound smart"
-    // regression. Both panels must be positioned as private reasoning
-    // context, not as stylistic templates.
+    // If a future edit re-elevates the panel framing, these must fail.
     expect(sys).toMatch(/what to notice/i);
     expect(sys).toMatch(/private (?:context|reasoning)/i);
   });
 
   it('teaches the Voice B four-beat shape (where → now → try → afterward)', () => {
-    // Each beat label is normative — the user-visible teacher card is the
-    // single most-read part of every critique, so this test is intentionally
-    // load-bearing. If someone weakens the shape the test must fail.
     expect(sys).toMatch(/\*\*Where\.\*\*/);
     expect(sys).toMatch(/\*\*What is happening now\.\*\*/);
     expect(sys).toMatch(/\*\*What to try\.\*\*/);
-    expect(sys).toMatch(/\*\*What you should see afterward\.\*\*/);
+    expect(sys).toMatch(/\*\*The visible result afterward\.\*\*/);
+  });
+
+  it('provides painting-agnostic example passages (figurative + landscape + still life + abstract)', () => {
+    // If the examples drift back toward only figurative passages the
+    // prompt silently biases the model's anchor choices across all
+    // painting types. Pin at least two clearly non-figurative example
+    // passages so the model always sees them in its scratchpad.
+    expect(sys).toMatch(/cadmium strip|olive field/i);
+    expect(sys).toMatch(/impasto cluster|band cutting/i);
   });
 
   it('forbids surfacing the expert-panel names in user-visible text', () => {
@@ -120,35 +219,37 @@ describe('buildCriterionPrompt (per-criterion user prompt)', () => {
     criterion: 'Value and light structure',
     style: 'Impressionism',
     medium: 'Oil on Canvas',
-    evidence: minimalEvidenceFixture(),
+    observationBank: minimalObservationBank(),
+    topLevelContext: minimalTopLevelContext(),
   });
 
-  it('targets one criterion at a time and carries its evidence', () => {
+  it('targets one criterion at a time and carries the observation bank', () => {
     expect(prompt).toMatch(/Value and light structure/);
-    expect(prompt).toMatch(/Anchor.*the anchored passage for tests/s);
+    expect(prompt).toMatch(/the jaw edge against the hair/);
+    expect(prompt).toMatch(/the bright cadmium strip where it meets the olive field/);
   });
 
-  it('requires the Voice A paragraph to make one clear point in plain language, not paraphrase evidence', () => {
-    // Previously "ONE structural claim a critic would sign their name to",
-    // which invited essay register. The new pin keeps the substance (one
-    // clear point tied to visible facts) and explicitly bans the register
-    // we do not want.
-    expect(prompt).toMatch(/ONE clear point/);
-    expect(prompt).toMatch(/plain, direct studio language/);
-    expect(prompt).toMatch(/no flourish, no hedging/);
-    expect(prompt).toMatch(/Do not paraphrase the evidence neutrally/);
+  it('asks the writer to own the anchor, region, and editPlan', () => {
+    expect(prompt).toMatch(/Pick ONE anchor passage/);
+    expect(prompt).toMatch(/normalized bounding box/i);
+    expect(prompt).toMatch(/Emit editPlan/);
   });
 
-  it('requires Voice B to follow the four-beat shape with one primary move', () => {
-    expect(prompt).toMatch(/where → what now → what to try → what you should see/);
-    expect(prompt).toMatch(/ONE primary move/);
+  it('requires Voice A in the instructional register', () => {
+    expect(prompt).toMatch(/Write Voice A \(critic\) — instructional register/);
   });
 
-  it('threads the declared medium into the Voice B instruction so moves respect it', () => {
-    // `buildCriterionPrompt` is given Oil on Canvas above; the prompt must
-    // pass that through explicitly so the teacher does not prescribe
-    // watercolor-shaped moves on oil.
+  it('requires Voice B in the instructional register with one primary move', () => {
+    expect(prompt).toMatch(/Write Voice B \(teacher\) — instructional register/);
+    expect(prompt).toMatch(/One primary move/);
+  });
+
+  it('threads the declared medium so moves respect it', () => {
     expect(prompt).toMatch(/Oil on Canvas/);
+  });
+
+  it('reminds the writer the framework is painting-agnostic', () => {
+    expect(prompt).toMatch(/painting-agnostic/i);
   });
 
   it('keeps the no-names ban on the user prompt too (belt-and-braces)', () => {
@@ -171,6 +272,10 @@ describe('synthesis system message', () => {
 
   it('frames the reader as a serious hobbyist / art student', () => {
     expect(sys).toMatch(/serious hobbyist|art student/i);
+  });
+
+  it('carries the instructional register through to synthesis', () => {
+    expect(sys).toMatch(/INSTRUCTIONAL|instructional register/);
   });
 });
 
