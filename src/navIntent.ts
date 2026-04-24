@@ -143,11 +143,61 @@ function isReturnViewIntent(value: unknown): value is ReturnViewIntent {
   return false;
 }
 
+/**
+ * Prepare a critique `ReturnViewIntent` for storage by stripping fields
+ * that can blow the localStorage quota without being necessary to restore
+ * the critique UI after a Stripe round-trip.
+ *
+ * The single biggest risk is `flow.sessionPreviewEdits[].imageDataUrl`:
+ * every previously-generated AI edit in the session is a multi-MB base64
+ * data URL, and users commonly run 2–3 edits before hitting the paywall
+ * on a third. Previously, a silent localStorage quota failure here led to
+ * `consumeReturnViewIntent()` returning null on return, `flowRef.current`
+ * staying null, and the post-payment preview-edit resume silently doing
+ * nothing — the user would land on Home with no AI image and no toast.
+ *
+ * What this strip preserves: the critique text, categories, anchors,
+ * editPlans, photoQuality, completionRead, style, medium, and the flow's
+ * own `imageDataUrl` / `originalImageDataUrl` (both needed to re-run the
+ * preview edit after return). What it drops: the per-session AI-edit
+ * image data URLs, which are session-only and not needed to run the
+ * edit the user just paid for.
+ */
+export function compactIntentForStorage(intent: ReturnViewIntent): ReturnViewIntent {
+  if (intent.kind !== 'critique') return intent;
+  const flow = intent.flow as unknown;
+  if (!flow || typeof flow !== 'object') return intent;
+  const flowRecord = flow as Record<string, unknown>;
+  const sessionPreviewEdits = flowRecord.sessionPreviewEdits;
+  if (!Array.isArray(sessionPreviewEdits) || sessionPreviewEdits.length === 0) {
+    return intent;
+  }
+  const stripped = sessionPreviewEdits.map((entry) => {
+    if (!entry || typeof entry !== 'object') return entry;
+    const e = entry as Record<string, unknown>;
+    // Keep the metadata (id, criterion, mode, label) but drop the big
+    // base64 image payload. Storage consumers treat preview-edit list
+    // membership, not the image bytes, as the signal for "already
+    // generated in this session."
+    const { imageDataUrl: _imageDataUrl, ...rest } = e;
+    void _imageDataUrl;
+    return rest;
+  });
+  return {
+    ...intent,
+    flow: { ...flowRecord, sessionPreviewEdits: stripped },
+  };
+}
+
 export function setReturnViewIntent(intent: ReturnViewIntent): void {
+  const payload = compactIntentForStorage(intent);
   /* Mirror to both so instances using only the old bundle still read what this one wrote. */
-  writeTimestamped(safeLocalStorage(), RETURN_VIEW_KEY, intent);
+  const ok = writeTimestamped(safeLocalStorage(), RETURN_VIEW_KEY, payload);
+  if (!ok) {
+    console.warn('[navIntent] could not persist return-view intent to localStorage');
+  }
   try {
-    safeSessionStorage()?.setItem(LEGACY_RETURN_VIEW_SESSION_KEY, JSON.stringify(intent));
+    safeSessionStorage()?.setItem(LEGACY_RETURN_VIEW_SESSION_KEY, JSON.stringify(payload));
   } catch {
     /* ignore */
   }
