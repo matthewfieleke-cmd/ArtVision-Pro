@@ -363,6 +363,28 @@ export const evidenceStageResultSchema = z.object({
 });
 
 /**
+ * Observation-bank-only vision-stage schema. The vision pass now produces
+ * ONLY the shared observation bank + top-level read of the painting (intent
+ * hypothesis, strongest qualities, tensions, photo quality, completion,
+ * comparison observations). Per-criterion evidence, anchors, and bounding-box
+ * regions are produced later, in parallel, by the per-criterion writer stage
+ * which sees the image itself. This shaves the slowest piece of the old
+ * pipeline (one very large vision call computing 8 criterion evidence blocks
+ * + 8 regions serially) into 8 much smaller parallel calls that each compute
+ * one criterion's block + region with the image loaded.
+ */
+export const observationBankStageResultSchema = z.object({
+  observationBank: observationBankSchema,
+  intentHypothesis: z.string(),
+  strongestVisibleQualities: z.array(z.string()).min(2).max(4),
+  mainTensions: z.array(z.string()).min(2).max(4),
+  photoQualityRead: photoQualityReadSchema,
+  comparisonObservations: z.array(z.string()).min(0).max(4),
+  completionRead: completionReadSchema,
+});
+export type ObservationBankStageResult = z.infer<typeof observationBankStageResultSchema>;
+
+/**
  * Per-criterion anchor region carried by the unified vision call (Merge C).
  * The vision model has the image loaded for the observation/evidence work
  * already, so it produces the normalized bounding box for each criterion's
@@ -436,6 +458,11 @@ export const EVIDENCE_OPENAI_SCHEMA = toOpenAIJsonSchema(
 export const VISION_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
   'painting_critique_vision',
   visionStageResultSchema
+);
+
+export const OBSERVATION_BANK_STAGE_OPENAI_SCHEMA = toOpenAIJsonSchema(
+  'painting_observation_bank',
+  observationBankStageResultSchema
 );
 
 /**

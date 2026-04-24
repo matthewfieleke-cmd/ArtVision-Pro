@@ -1,4 +1,4 @@
-﻿import { buildVisionStagePrompt } from './critiqueEvidenceStage.js';
+﻿import { buildObservationBankStagePrompt } from './critiqueEvidenceStage.js';
 import {
   runParallelCriteriaStage,
   type CriterionWritingResult,
@@ -9,15 +9,16 @@ import {
   type VisionUserMessagePart,
 } from './openaiVisionContent.js';
 import {
-  VISION_STAGE_OPENAI_SCHEMA,
+  OBSERVATION_BANK_STAGE_OPENAI_SCHEMA,
   type ObservationBank,
+  type ObservationBankStageResult,
 } from './critiqueZodSchemas.js';
 import type {
   CritiqueEvidenceDTO,
   CritiqueRequestBody,
   CritiqueResultDTO,
 } from './critiqueTypes.js';
-import { CRITERIA_ORDER } from '../shared/criteria.js';
+import { CRITERIA_ORDER, type CriterionLabel } from '../shared/criteria.js';
 import { errorMessage } from './critiqueErrors.js';
 import {
   createCritiqueInstrumenter,
@@ -37,167 +38,100 @@ import type {
 import { composeFallbackCritique } from './critiqueFallback.js';
 
 /**
- * The unified vision call holds the full observation bank, the full evidence
- * object, AND the eight per-criterion anchor regions in one response.
- * Trimmed from 7200 to 5000 after production runs showed gpt-5.4 expanding
- * into ~110-120s of reasoning tokens regardless of how much actual output
- * it needed. A tighter cap pushes the model to finish sooner while still
- * leaving headroom above observed visible-output token counts (~2800-3400).
- * The reasoning-model multiplier in `buildOpenAIMaxTokensParam` still
- * applies on top for gpt-5 / o-series so invisible reasoning tokens aren't
- * starved.
+ * Token cap for the vision stage. Vision is now observation-bank-only: the
+ * call produces ~8-12 passages, ~10-22 visible events, a handful of medium
+ * cues + photo caveats + intent carriers, and a short top-level read. This
+ * is substantially smaller than the old unified vision output, so the cap is
+ * meaningfully tighter here than it was when vision also owned per-criterion
+ * evidence and per-criterion bounding boxes. The reasoning-model multiplier
+ * in `buildOpenAIMaxTokensParam` still applies on top for gpt-5 / o-series.
  */
-const VISION_MAX_TOKENS = 5000;
-
-type CriterionAnchorRegion = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+const OBSERVATION_BANK_MAX_TOKENS = 2200;
 
 /**
- * Defensive clamp for vision-stage regions. Mirrors the clamp the dedicated
- * `refineCritiqueAnchorRegionsFromImage` helper applied so downstream UI code
- * (anchor overlay) keeps the same min-size and within-bounds guarantees.
+ * Derive a back-compatible `CritiqueEvidenceDTO` from the new pipeline so
+ * downstream consumers (synthesis, the fallback composer, older saved-critique
+ * shapes, and the `photoQualityRead` / `completionRead` fields on the final
+ * result) all keep the same structure they always had.
+ *
+ * The observation-bank stage now owns the top-level read. The per-criterion
+ * writer stage owns per-criterion evidence. This function reassembles them
+ * into the DTO shape the rest of the code already consumes.
  */
-function clampCriterionAnchorRegion(region: CriterionAnchorRegion): CriterionAnchorRegion {
-  const x = Math.min(1, Math.max(0, region.x));
-  const y = Math.min(1, Math.max(0, region.y));
-  let width = Math.min(1, Math.max(0.02, region.width));
-  let height = Math.min(1, Math.max(0.02, region.height));
-  if (x + width > 1) width = Math.max(0.02, 1 - x);
-  if (y + height > 1) height = Math.max(0.02, 1 - y);
-  return { x, y, width, height };
-}
-
-function extractVisionAnchorRegions(raw: unknown): Map<string, CriterionAnchorRegion> | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const list = (raw as Record<string, unknown>).anchorRegions;
-  if (!Array.isArray(list)) return undefined;
-  const map = new Map<string, CriterionAnchorRegion>();
-  for (const entry of list) {
-    if (!entry || typeof entry !== 'object') continue;
-    const e = entry as Record<string, unknown>;
-    const criterion = typeof e.criterion === 'string' ? e.criterion : undefined;
-    const region = e.region;
-    if (!criterion || !region || typeof region !== 'object') continue;
-    const r = region as Record<string, unknown>;
-    if (
-      typeof r.x !== 'number' ||
-      typeof r.y !== 'number' ||
-      typeof r.width !== 'number' ||
-      typeof r.height !== 'number' ||
-      Number.isNaN(r.x) ||
-      Number.isNaN(r.y) ||
-      Number.isNaN(r.width) ||
-      Number.isNaN(r.height) ||
-      r.width <= 0 ||
-      r.height <= 0
-    ) {
-      continue;
-    }
-    map.set(criterion, clampCriterionAnchorRegion({
-      x: r.x,
-      y: r.y,
-      width: r.width,
-      height: r.height,
-    }));
-  }
-  return map.size > 0 ? map : undefined;
-}
-
-/**
- * Merge C: applies vision-stage anchor regions to the final critique
- * categories, replacing whatever Voice B produced. Vision regions are
- * derived from the same call that produced the evidence anchors, so they
- * are tightly aligned with the prose down-stream. Falls open: if the vision
- * stage did not produce a region for a criterion, the original Voice B
- * region is left untouched.
- */
-function applyVisionAnchorRegionsToCritique(
-  critique: CritiqueResultDTO,
-  regions: Map<string, CriterionAnchorRegion> | undefined
-): CritiqueResultDTO {
-  if (!regions || regions.size === 0) return critique;
+function deriveCritiqueEvidenceFromStages(args: {
+  observationStage: ObservationBankStageResult;
+  criterionResults: CriterionWritingResult[];
+}): CritiqueEvidenceDTO {
+  const { observationStage, criterionResults } = args;
+  const criterionEvidence = CRITERIA_ORDER.map((criterion) => {
+    const writer = criterionResults.find((r) => r.criterion === criterion);
+    return {
+      criterion,
+      // We no longer carry `observationPassageId` through the wire — the
+      // writer picks its own passage and the id isn't used downstream.
+      // Synthesis consumes the Voice A / Voice B prose directly.
+      observationPassageId: 'p1',
+      anchor: writer?.anchor.areaSummary ?? '',
+      visibleEvidence: writer?.visibleEvidence ?? [],
+      strengthRead: writer?.voiceACritique ?? '',
+      tensionRead: writer?.tensionRead ?? '',
+      preserve: writer?.preserve ?? '',
+      confidence: writer?.confidence ?? 'low',
+    };
+  });
   return {
-    ...critique,
-    categories: critique.categories.map((category) => {
-      if (!category.anchor) return category;
-      const region = regions.get(category.criterion);
-      if (!region) return category;
-      return {
-        ...category,
-        anchor: {
-          ...category.anchor,
-          region,
-        },
-      };
-    }),
+    intentHypothesis: observationStage.intentHypothesis,
+    strongestVisibleQualities: observationStage.strongestVisibleQualities,
+    mainTensions: observationStage.mainTensions,
+    photoQualityRead: observationStage.photoQualityRead,
+    comparisonObservations: observationStage.comparisonObservations,
+    completionRead: observationStage.completionRead,
+    criterionEvidence,
   };
 }
 
 /**
- * Build the final CritiqueResultDTO from the three pipeline outputs (vision
- * evidence, per-criterion parallel writing, and the single synthesis call).
+ * Build the final CritiqueResultDTO from the three pipeline outputs
+ * (observation-bank vision, per-criterion writer, and the single synthesis
+ * call).
  *
- * This is a deliberately thin adapter: it only fills the fields the current
- * UI actually reads. Rating-era fields (`level`, `subskills`, `nextTarget`,
- * `actionPlanSteps`, `voiceBPlan`, `editPlan`, `phase1.visualInventory`) are
- * intentionally left unset — the UI no longer renders them and the new
- * pipeline will not fabricate them. Old saved critiques from earlier
- * pipeline versions continue to carry those fields in their own JSON and
- * are unaffected by this function because they never pass through it.
+ * This is a deliberately thin adapter. Rating-era fields (`level`,
+ * `subskills`, `nextTarget`, `actionPlanSteps`, `voiceBPlan`,
+ * `phase1.visualInventory`) are intentionally left unset — the UI no longer
+ * renders them and the new pipeline will not fabricate them. Old saved
+ * critiques from earlier pipeline versions continue to carry those fields in
+ * their own JSON and are unaffected by this function because they never
+ * pass through it.
  */
 function assembleCritiqueFromParallelPipeline(args: {
-  evidence: {
-    intentHypothesis: string;
-    strongestVisibleQualities: string[];
-    mainTensions: string[];
-    photoQualityRead: { level: 'poor' | 'fair' | 'good'; summary: string; issues: string[] };
-    completionRead: {
-      state: 'unfinished' | 'likely_finished' | 'uncertain';
-      confidence: 'low' | 'medium' | 'high';
-      cues: string[];
-      rationale: string;
-    };
-    criterionEvidence: Array<{
-      criterion: (typeof import('../shared/criteria.js'))['CRITERIA_ORDER'][number];
-      anchor: string;
-      visibleEvidence: string[];
-      preserve: string;
-      confidence: 'low' | 'medium' | 'high';
-    }>;
-  };
+  observationStage: ObservationBankStageResult;
   criterionResults: CriterionWritingResult[];
   synthesis: Awaited<ReturnType<typeof runCritiqueSynthesisStage>>;
   userTitle?: string;
 }): CritiqueResultDTO {
-  const { evidence, criterionResults, synthesis } = args;
+  const { observationStage, criterionResults, synthesis } = args;
 
   const categories: CritiqueResultDTO['categories'] = CRITERIA_ORDER.map((criterion) => {
-    const writing = criterionResults.find((r) => r.criterion === criterion);
-    const evidenceEntry = evidence.criterionEvidence.find((e) => e.criterion === criterion);
-
-    const voiceA = writing?.voiceACritique ?? '';
-    const voiceB = writing?.voiceBSuggestions ?? '';
-
+    const writer = criterionResults.find((r) => r.criterion === criterion);
+    const voiceA = writer?.voiceACritique ?? '';
+    const voiceB = writer?.voiceBSuggestions ?? '';
+    const anchor = writer?.anchor
+      ? {
+          areaSummary: writer.anchor.areaSummary,
+          evidencePointer: writer.anchor.evidencePointer,
+          region: writer.anchor.region,
+        }
+      : undefined;
+    const editPlan = writer?.editPlan;
     return {
       criterion,
       phase1: { visualInventory: '' },
       phase2: { criticsAnalysis: voiceA },
       phase3: { teacherNextSteps: voiceB },
-      confidence: writing?.confidence ?? evidenceEntry?.confidence ?? 'low',
-      ...(writing?.preserve ? { preserve: writing.preserve } : evidenceEntry ? { preserve: evidenceEntry.preserve } : {}),
-      ...(evidenceEntry
-        ? {
-            anchor: {
-              areaSummary: evidenceEntry.anchor,
-              evidencePointer: evidenceEntry.visibleEvidence[0] ?? evidenceEntry.anchor,
-              region: { x: 0.2, y: 0.2, width: 0.35, height: 0.35 },
-            },
-          }
-        : {}),
+      confidence: writer?.confidence ?? 'low',
+      ...(writer?.preserve ? { preserve: writer.preserve } : {}),
+      ...(anchor ? { anchor } : {}),
+      ...(editPlan ? { editPlan } : {}),
     };
   });
 
@@ -216,15 +150,15 @@ function assembleCritiqueFromParallelPipeline(args: {
     },
     ...(suggestedTitles && suggestedTitles.length ? { suggestedPaintingTitles: suggestedTitles } : {}),
     photoQuality: {
-      level: evidence.photoQualityRead.level,
-      summary: evidence.photoQualityRead.summary,
-      issues: evidence.photoQualityRead.issues,
+      level: observationStage.photoQualityRead.level,
+      summary: observationStage.photoQualityRead.summary,
+      issues: observationStage.photoQualityRead.issues,
       tips:
-        evidence.photoQualityRead.level === 'good'
+        observationStage.photoQualityRead.level === 'good'
           ? []
           : ['Retake the photo in even light with the full painting square to the camera.'],
     },
-    completionRead: evidence.completionRead,
+    completionRead: observationStage.completionRead,
     analysisSource: 'api',
     overallConfidence:
       categories.some((c) => c.confidence === 'high')
@@ -235,24 +169,14 @@ function assembleCritiqueFromParallelPipeline(args: {
   };
 }
 
-
-type VisionStageRunResult = {
-  evidence: CritiqueEvidenceDTO;
-  observationBank: ObservationBank;
-  /** Per-criterion anchor regions captured from the vision call. Applied to the assembled critique so the image-locating boxes the model produced alongside the evidence anchors carry forward into the final payload. Undefined when the model declines to emit them. */
-  anchorRegions?: Map<string, CriterionAnchorRegion>;
-};
-
 /**
- * Stage 1 of the critique pipeline. One OpenAI call produces the
- * observation bank, the full evidence object, and the eight per-criterion
- * anchor regions in a single Strict Structured Output response. Quality
- * is governed entirely by the system prompt; shape is guaranteed by the
- * JSON schema. Zero retries, zero repair, zero custom cross-field
- * validation — transient 5xx/timeouts throw and bubble up to the caller,
- * which composes a minimal-safe fallback critique.
+ * Observation-bank stage runner. One OpenAI call with the image that produces
+ * the shared observation bank and a short top-level read of the painting. Per-
+ * criterion work (evidence lines, anchors, bounding boxes, prose, editPlan)
+ * happens later, in the parallel writer stage. This split is the single
+ * largest pipeline-latency improvement.
  */
-async function runCritiqueVisionStage(
+async function runObservationBankStage(
   apiKey: string,
   args: {
     model: string;
@@ -260,7 +184,7 @@ async function runCritiqueVisionStage(
     medium: string;
     userContent: VisionUserMessagePart[];
   }
-): Promise<VisionStageRunResult> {
+): Promise<ObservationBankStageResult> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -269,26 +193,20 @@ async function runCritiqueVisionStage(
     },
     body: JSON.stringify({
       model: args.model,
-      // Reasoning models (gpt-5 family) reject custom `temperature` and use
-      // `reasoning_effort` instead. The vision pass is predominantly
-      // perception — reading what is actually in the photo and mapping it
-      // onto the observation/evidence schema — not dense multi-step
-      // reasoning. `medium` (OpenAI's implicit default) is plenty and is
-      // what production ran at before `reasoning_effort` was passed
-      // explicitly; `high` here roughly doubled vision latency with no
-      // visible quality gain and was the primary cause of a post-upgrade
-      // regression where critiques sometimes exceeded the Vercel function
-      // timeout. Use `low` only if you need to aggressively shave cost.
-      ...buildOpenAISamplingParam(args.model, { temperature: 0.12, reasoningEffort: 'medium' }),
-      ...buildOpenAIMaxTokensParam(args.model, VISION_MAX_TOKENS),
+      // Perception + passage grammar + short top-level read is not dense
+      // reasoning. `low` is the fastest setting that reliably produces a
+      // well-formed observation bank; bump to `medium` only if passages
+      // visibly thin out or intentCarriers land on the wrong choices.
+      ...buildOpenAISamplingParam(args.model, { temperature: 0.15, reasoningEffort: 'low' }),
+      ...buildOpenAIMaxTokensParam(args.model, OBSERVATION_BANK_MAX_TOKENS),
       response_format: {
         type: 'json_schema',
-        json_schema: VISION_STAGE_OPENAI_SCHEMA,
+        json_schema: OBSERVATION_BANK_STAGE_OPENAI_SCHEMA,
       },
       messages: [
         {
           role: 'system',
-          content: buildVisionStagePrompt(args.style, args.medium),
+          content: buildObservationBankStagePrompt(args.style, args.medium),
         },
         {
           role: 'user',
@@ -310,48 +228,29 @@ async function runCritiqueVisionStage(
   }> | undefined;
   const choice = choices?.[0];
   if (choice?.finish_reason === 'length') {
-    throw new Error('Vision response truncated (token limit reached)');
+    throw new Error('Observation-bank response truncated (token limit reached)');
   }
   const text = choice?.message?.content;
   if (!text || typeof text !== 'string') {
-    throw new Error('Empty vision response');
+    throw new Error('Empty observation-bank response');
   }
 
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
-    throw new Error('Vision stage returned non-JSON');
+    throw new Error('Observation-bank stage returned non-JSON');
   }
 
-  const rawObservationBank =
-    raw && typeof raw === 'object'
-      ? (raw as Record<string, unknown>).observationBank
-      : undefined;
-  const rawEvidence =
-    raw && typeof raw === 'object'
-      ? (raw as Record<string, unknown>).evidence
-      : undefined;
-  if (
-    !rawObservationBank ||
-    typeof rawObservationBank !== 'object' ||
-    !rawEvidence ||
-    typeof rawEvidence !== 'object'
-  ) {
-    throw new Error(
-      'Vision response missing required top-level keys "observationBank" and/or "evidence".'
-    );
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Observation-bank stage returned a non-object payload');
   }
 
-  const observationBank = rawObservationBank as unknown as ObservationBank;
-  const evidence = rawEvidence as unknown as CritiqueEvidenceDTO;
-  const anchorRegions = extractVisionAnchorRegions(raw);
-
-  return {
-    evidence,
-    observationBank,
-    ...(anchorRegions ? { anchorRegions } : {}),
-  };
+  const parsed = raw as ObservationBankStageResult;
+  if (!parsed.observationBank || typeof parsed.observationBank !== 'object') {
+    throw new Error('Observation-bank stage missing observationBank');
+  }
+  return parsed;
 }
 
 export async function runOpenAICritique(
@@ -370,24 +269,17 @@ export async function runOpenAICritique(
     typeof body.paintingTitle === 'string' ? body.paintingTitle.trim() : '';
   const titleLine =
     trimmedUserTitle.length > 0
-      ? ` The artist titled this work: "${trimmedUserTitle}". Use that title when referring to the piece in summary and feedback where natural.`
-      : '';
-
-  const titleSuggestionLine =
-    trimmedUserTitle.length === 0
-      ? ` The artist has not supplied a title. Output suggestedPaintingTitles: exactly three { category, title, rationale } objects—formalist (structure/layout), tactile (material handling), intent (mood/presence). Titles should sound like studio working labels: short, concrete, 2–8 words; sentence case or light title case; no quotes; avoid gallery clichés and repeated suffixes ("Study", "Tension", "Journey", etc.) unless truly apt. One plain-sentence rationale each, tied to this image’s evidence.`
+      ? ` The artist titled this work: "${trimmedUserTitle}". Use that title where natural.`
       : '';
 
   const userContent: VisionUserMessagePart[] = [
     {
       type: 'text',
-      text: `Analyze this painting for studio use. Style: ${body.style}. Medium: ${body.medium}.${titleLine}${titleSuggestionLine}
+      text: `Observation-bank pass. Style: ${body.style}. Medium: ${body.medium}.${titleLine}
 
-Never name specific artists, famous artworks, or art-historical figures; do not compare this image to named painters or movements. Stay on what is visible in the photo.
-
-Ground every criterion in what is visible in the photo. Prefer "in the ___ area of the painting" over abstract wording.${
+Produce the shared observation bank and the short top-level read of this painting. Do NOT produce per-criterion evidence, per-criterion anchors, bounding-box regions, Voice A / Voice B prose, or editPlan — those all happen downstream, in parallel writer calls that see the image themselves.${
         body.previousCritique && body.previousImageDataUrl
-          ? '\n\nA previous photo of the same painting is attached second, followed by the prior critique JSON.'
+          ? '\n\nA previous photo of the same painting is attached second; you may note comparison observations at the painting level.'
           : ''
       }`,
     },
@@ -396,10 +288,6 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
 
   if (body.previousImageDataUrl && body.previousCritique) {
     userContent.push(buildHighDetailImageMessage(body.previousImageDataUrl));
-    userContent.push({
-      type: 'text',
-      text: `Prior critique JSON (for comparison only):\n${JSON.stringify(body.previousCritique)}`,
-    });
   }
 
   const instrumenter = critiqueInstrumentEnabled()
@@ -407,58 +295,43 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     : noopCritiqueInstrumenter;
 
   /**
-   * Stage 1 — the unified vision call. Produces the observation bank, the
-   * full evidence object, and the eight per-criterion anchor regions in a
-   * single Strict Structured Output response.
+   * Stage 1 — observation-bank pass.
    *
-   * Instrumentation buckets remain `'observation'` and `'evidence'` so
-   * existing dashboards keep working; the unified call is timed once under
-   * `'observation'` and the `'evidence'` bucket records a zero-cost entry
-   * to preserve the schema of the timing payload.
+   * One call, image attached, produces observationBank + intentHypothesis +
+   * strongestVisibleQualities + mainTensions + photoQualityRead +
+   * completionRead + comparisonObservations. Fast, because per-criterion
+   * evidence + anchor regions + prose + editPlan are no longer serialised
+   * into this response. Instrumentation buckets keep the legacy
+   * `'observation'` / `'evidence'` names so existing dashboards keep working.
    */
   const visionStart = Date.now();
-  const visionRun = await instrumenter.time('observation', () =>
-    runCritiqueVisionStage(apiKey, {
+  const observationStage = await instrumenter.time('observation', () =>
+    runObservationBankStage(apiKey, {
       model: stageModels.evidence,
       style: body.style,
       medium: body.medium,
       userContent,
     })
   );
-  const visionElapsedMs = Date.now() - visionStart;
   await instrumenter.time('evidence', async () => undefined);
-  const evidence = visionRun.evidence;
-  const visionAnchorRegions = visionRun.anchorRegions;
+  const visionElapsedMs = Date.now() - visionStart;
   console.log(
-    `[critique vision path] merged vision call complete in ${(visionElapsedMs / 1000).toFixed(1)}s (model=${stageModels.evidence}, anchor regions: ${
-      visionAnchorRegions ? `${visionAnchorRegions.size}/8 from vision` : 'none — will use late-stage refine'
-    })`
+    `[critique observation-bank stage] complete in ${(visionElapsedMs / 1000).toFixed(1)}s (model=${stageModels.evidence})`
   );
-
-  if (evidence.photoQualityRead.level === 'poor') {
+  if (observationStage.photoQualityRead.level === 'poor') {
     console.warn('[critique photo quality poor — continuing with full critique]', {
-      summary: evidence.photoQualityRead.summary,
+      summary: observationStage.photoQualityRead.summary,
     });
   }
 
   /**
-   * New 3-stage parallel pipeline (replaces Voice A + Voice B + validation +
-   * clarity + guardrails from the earlier rating-era design):
+   * Stage 2 — eight parallel per-criterion writer calls.
    *
-   *   1. Vision (already ran above; produced `evidence` + per-criterion
-   *      anchor regions).
-   *   2. Parallel per-criterion Voice A+B calls (8 concurrent, text-only,
-   *      strict JSON schema, zero retries).
-   *   3. Synthesis call (single, text-only, strict JSON schema) that rolls
-   *      the eight criterion critiques into overall summary, top
-   *      priorities, studio analysis, studio changes, and suggested
-   *      painting titles.
-   *
-   * There is no retry loop, no custom cross-field validator, and no Zod
-   * guardrail pass — OpenAI Structured Outputs guarantees shape, and any
-   * single-criterion failure degrades gracefully to evidence-derived prose
-   * inside runParallelCriteriaStage itself. If the synthesis call fails we
-   * compose the minimal-safe fallback critique.
+   * Each writer sees the painting image and the shared observation bank and
+   * is responsible for picking its anchor, writing evidence lines, producing
+   * Voice A and Voice B prose, emitting a structured editPlan, and locating
+   * the anchor as a normalized bounding box. Per-criterion failure degrades
+   * to a minimal fallback entry.
    */
   const parallelStart = Date.now();
   const parallelCriteria = await instrumenter.time('writing', () =>
@@ -468,12 +341,29 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       style: body.style,
       medium: body.medium,
       userTitle: trimmedUserTitle || undefined,
-      evidence,
+      imageDataUrl: body.imageDataUrl,
+      observationBank: observationStage.observationBank,
+      topLevelContext: {
+        intentHypothesis: observationStage.intentHypothesis,
+        strongestVisibleQualities: observationStage.strongestVisibleQualities,
+        mainTensions: observationStage.mainTensions,
+      },
     })
   );
   console.log(
     `[critique parallel criteria] ${((Date.now() - parallelStart) / 1000).toFixed(1)}s (model=${stageModels.voiceA}, ${parallelCriteria.failedCriteria.length}/${parallelCriteria.results.length} criteria fell back)`
   );
+
+  /**
+   * Stage 3 — synthesis. Takes the per-criterion prose and the top-level
+   * observation-stage read and produces overall summary, priorities, studio
+   * changes, and suggested titles. Back-compatible: it still consumes the
+   * `CritiqueEvidenceDTO` shape, which we derive from the new stages.
+   */
+  const derivedEvidence = deriveCritiqueEvidenceFromStages({
+    observationStage,
+    criterionResults: parallelCriteria.results,
+  });
 
   let synthesis: Awaited<ReturnType<typeof runCritiqueSynthesisStage>> | undefined;
   try {
@@ -484,7 +374,7 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
         style: body.style,
         medium: body.medium,
         userTitle: trimmedUserTitle || undefined,
-        evidence,
+        evidence: derivedEvidence,
         criterionResults: parallelCriteria.results,
       })
     );
@@ -501,29 +391,28 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
     guarded = composeFallbackCritique({
       style: body.style,
       medium: body.medium,
-      evidence,
+      evidence: derivedEvidence,
       paintingTitle: trimmedUserTitle || undefined,
       failureStage: 'final',
     });
     recoverySalvage.push(
       ...parallelCriteria.failedCriteria.map((entry) => ({
         stage: 'voice_a' as const,
-        criterion: entry.criterion,
+        criterion: entry.criterion as CriterionLabel,
         reason: entry.reason,
       }))
     );
   } else {
-    const assembled = assembleCritiqueFromParallelPipeline({
-      evidence,
+    guarded = assembleCritiqueFromParallelPipeline({
+      observationStage,
       criterionResults: parallelCriteria.results,
       synthesis,
       userTitle: trimmedUserTitle || undefined,
     });
-    guarded = applyVisionAnchorRegionsToCritique(assembled, visionAnchorRegions);
     recoverySalvage.push(
       ...parallelCriteria.failedCriteria.map((entry) => ({
         stage: 'voice_a' as const,
-        criterion: entry.criterion,
+        criterion: entry.criterion as CriterionLabel,
         reason: entry.reason,
       }))
     );
@@ -583,7 +472,6 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
       stages: withStages,
       salvagedCriteria: [
         ...(existingPipeline?.salvagedCriteria ?? []),
-        ...(evidence.salvagedCriteria ?? []),
         ...recoverySalvage,
       ],
     }),
@@ -593,3 +481,10 @@ Ground every criterion in what is visible in the photo. Prefer "in the ___ area 
   );
   return trimmedTitle ? { ...withPipeline, paintingTitle: trimmedTitle } : withPipeline;
 }
+
+/**
+ * Re-export for callers that want the `ObservationBank` type. Kept so the
+ * architecture test + older imports elsewhere in the repo continue to type-
+ * check without touching their import sites.
+ */
+export type { ObservationBank };

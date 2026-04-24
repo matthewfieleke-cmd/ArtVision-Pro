@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { buildEditPrompt } from '../lib/openaiPreviewEdit.ts';
 import { buildHighDetailImageMessage } from '../lib/openaiVisionContent.js';
 import { buildEvidenceStagePrompt } from '../lib/critiqueEvidenceStage.js';
+import {
+  CRITERION_JSON_SCHEMA,
+  PARALLEL_CRITERIA_SYSTEM_MESSAGE,
+} from '../lib/critiqueParallelCriteria.js';
 import { CritiqueRetryExhaustedError, serializeCritiquePipelineError } from '../lib/critiqueErrors.js';
 import {
   applyCorsHeaders,
@@ -252,34 +256,67 @@ function testCriterionBandRubric(): void {
 }
 
 function testEvidencePromptDemandsConcreteSurfaceAnchors(): void {
-  const prompt = buildEvidenceStagePrompt('Realism', 'Oil on Canvas');
-  // Anchor discipline: the first visibleEvidence line must reuse the anchor's
-  // concrete nouns so downstream stages can trace the critique back to a
-  // locatable passage. Wording has been simplified but the invariant stays.
+  // The observation-bank (vision) stage prompt carries the painting-level
+  // invariants: passage grammar, medium-specific rules, no artist names,
+  // painting-agnostic passage examples. Per-criterion anchor discipline
+  // now lives in the per-criterion writer system message (see next test).
+  const observationPrompt = buildEvidenceStagePrompt('Realism', 'Oil on Canvas');
+
+  // Medium-specific rules must thread through for the declared medium.
+  assert.match(observationPrompt, /Medium-specific evidence rules for Oil on Canvas/);
+
+  // Passage grammar is named and carrier-grammar examples are present so
+  // the observation bank produces pointable passages, not scene summaries.
+  assert.match(observationPrompt, /carrier grammar/i);
+
+  // Painting-agnostic passage examples (figurative + landscape + abstract)
+  // are baked into the hard rules so the observation bank does not narrow
+  // toward any single painting mode.
+  assert.match(observationPrompt, /jaw edge/);
+  assert.match(observationPrompt, /cadmium strip|olive field/i);
+  assert.match(observationPrompt, /ridge line|impasto cluster/i);
+
+  // The no-artist-names ban is load-bearing for both the observation stage
+  // and the writer stage.
+  assert.match(observationPrompt, /Never name any critic, teacher, artist/);
+
+  // Per-criterion writer invariants now live on the CRITERION_JSON_SCHEMA
+  // descriptions (prescriptive, load-bearing) plus the writer system
+  // message (register + panels + anchor-region rules + painting-agnostic
+  // examples). Probe both.
+  const writerSchemaText = JSON.stringify(CRITERION_JSON_SCHEMA);
+  const writerSys = PARALLEL_CRITERIA_SYSTEM_MESSAGE;
+
+  // First visibleEvidence line must reuse the anchor's nouns — downstream
+  // consumers (the AI-edit prompt, the stage-lighting overlay, legacy
+  // saved-critique fallbacks) depend on this echo.
   assert.match(
-    prompt,
-    /The FIRST visibleEvidence line must reuse the same concrete nouns as the anchor/
+    writerSchemaText,
+    /The FIRST line MUST reuse the concrete nouns from anchor\.areaSummary/
   );
-  // Surface-and-medium anchors must name a locatable mark-bearing passage,
-  // not a medium label — this is the invariant that blocks "use oil-paint
-  // glazes" from becoming an anchor.
+
+  // The writer's anchor must fit grammatically after "in", so downstream
+  // prose can write "In [areaSummary], …". If this line goes away the
+  // anchor drifts to predicate-shaped mini-sentences.
   assert.match(
-    prompt,
-    /Surface and medium handling:.*The anchor names a locatable mark-bearing passage, not a medium label/s
+    writerSchemaText,
+    /Must fit grammatically after \\"in\\"|grammatically after "in"/
   );
-  // Anchor-to-observation-bank link: Zod allows any string, so the prompt
-  // has to carry the "observationPassageId and anchor point to the same
-  // observation-bank passage" rule explicitly.
-  assert.match(
-    prompt,
-    /observationPassageId and anchor must point to the same observation-bank passage/
-  );
-  // Conceptual criteria must still pick a physical carrier passage. If this
-  // line ever drops out the prompt, downstream Voice A / Voice B will drift
-  // into mood-language anchors for Intent / Presence.
-  assert.match(
-    prompt,
-    /For conceptual criteria .* the anchor is STILL a physical carrier passage/
+
+  // Painting-agnostic example passages span figurative + abstract +
+  // mark-level so the writer does not gravitate toward figurative language
+  // regardless of what it is actually looking at — they live in the schema
+  // descriptions AND in the system message, so every reader sees them.
+  assert.match(writerSchemaText, /jaw edge/);
+  assert.match(writerSchemaText, /cadmium strip|olive field/i);
+  assert.match(writerSys, /jaw edge/);
+  assert.match(writerSys, /cadmium strip|olive field/i);
+
+  // editPlan is emitted for every criterion so every criterion has a
+  // concrete AI-edit suggestion tied to the critique text.
+  assert.ok(
+    writerSchemaText.includes('"editPlan"'),
+    'CRITERION_JSON_SCHEMA must declare a required editPlan field per criterion'
   );
 }
 
