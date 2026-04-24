@@ -341,14 +341,22 @@ async function callCriterionStage(args: {
       type: 'json_schema',
       json_schema: CRITERION_JSON_SCHEMA,
     },
-    // Per-criterion writer calls see the image and do per-axis perception +
-    // prose + anchor region + editPlan. Keep reasoning_effort at `low`: the
-    // work is well-scoped, the observation bank has already done the shared
-    // perception, and end-to-end pipeline latency is the gating product
-    // constraint. Bump to `medium` only if per-criterion insight noticeably
-    // thins out in production.
-    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'low' }),
-    ...buildOpenAIMaxTokensParam(args.model, 1400),
+    // Per-criterion writer calls see the image and do per-axis perception
+    // + prose + anchor region + editPlan in one response. `low` was too
+    // tight — the model spread its reasoning budget across nine output
+    // fields and the prose (Voice A + Voice B) suffered. `medium` gives
+    // room to think structurally about the anchored passage without
+    // blowing the pipeline latency budget: the 8 writer calls run in
+    // parallel so a per-call bump affects the critical path only by the
+    // *longest* call, not 8x.
+    //
+    // Pair with a headroom bump on max_completion_tokens (1400 → 1800,
+    // which becomes 7200 on reasoning models after the 4x multiplier in
+    // buildOpenAIMaxTokensParam). The extra headroom gives the model
+    // more space for reasoning tokens AND prevents the prose fields
+    // from being truncated when the reasoning path goes long.
+    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'medium' }),
+    ...buildOpenAIMaxTokensParam(args.model, 1800),
   };
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
