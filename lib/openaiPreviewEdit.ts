@@ -43,9 +43,18 @@ function outputMimeFromInput(mime: string): 'image/jpeg' | 'image/png' | 'image/
 const EDIT_QUALITIES = ['low', 'medium', 'high', 'auto'] as const;
 type EditQuality = (typeof EDIT_QUALITIES)[number];
 
+/**
+ * Default to `medium` image-edit quality. Per OpenAI's gpt-image-2 guidance,
+ * `quality` is the dominant latency knob: `high` is slowest, `low` fastest,
+ * `medium` the middle. The preview is rescaled to the upload's native
+ * width × height with sharp before it hits the compare slider, which hides
+ * most of the visible difference between `medium` and `high`. Operators who
+ * want the slower / higher-quality tier can set OPENAI_IMAGE_EDIT_QUALITY=high
+ * explicitly; OPENAI_IMAGE_EDIT_QUALITY=low is the fastest.
+ */
 function resolveEditQuality(): EditQuality {
-  const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'high').toLowerCase();
-  return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'high';
+  const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'medium').toLowerCase();
+  return EDIT_QUALITIES.includes(raw as EditQuality) ? (raw as EditQuality) : 'medium';
 }
 
 /**
