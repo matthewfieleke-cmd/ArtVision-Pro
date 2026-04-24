@@ -244,6 +244,79 @@ export const PARALLEL_CRITERIA_SYSTEM_MESSAGE = [
   '- If the criterion genuinely has nothing unresolved (the painting is already working at the highest level on this axis), say so plainly in tensionRead and emit an editPlan with editability="no" and intendedChange starting with a preserve verb (preserve / keep / protect / leave / hold). Never manufacture a change just to fill the field.',
 ].join('\n');
 
+/**
+ * Per-axis "what insight looks like for THIS criterion" guidance, injected
+ * into the per-criterion writer prompt. This is the single biggest
+ * prompt-only quality lever: without it the writer spends reasoning budget
+ * figuring out which axis of judgment it's on before it can make a point.
+ * With it, the writer can go straight from the observation bank to a
+ * specific, on-axis structural claim.
+ *
+ * Each block names:
+ *   1. What this criterion is actually about (what a strong read names).
+ *   2. What kinds of visible events tend to matter here.
+ *   3. What "insight" looks like for this axis — the kind of structural
+ *      claim a critic would land that's specific to this criterion and
+ *      would NOT make sense on a different criterion.
+ *   4. What moves the painter-facing teacher paragraph tends to prescribe
+ *      for this axis.
+ *
+ * Painting-agnostic: every block gives examples that span figurative,
+ * landscape, still life, and mark-level / abstract work.
+ */
+function criterionInsightGuidance(criterion: CriterionLabel): string {
+  switch (criterion) {
+    case 'Intent and necessity':
+      return `What insight looks like for Intent and necessity:
+- This axis is about why the painting commits to its choices — what the work is genuinely going for and whether the picture's decisions serve that aim. A strong read names the specific passage that CARRIES the intent (a direct pressure-bearing passage, not a generic focal point) and says whether the rest of the picture is backing that intent or undercutting it.
+- What tends to matter: which passage bears the painting's argument (the encounter, the contact, the compression, the specific thing the painter kept insisting on); whether other passages defer to or fight that carrier.
+- Structural-claim verbs specific to this axis: "commits to", "backs", "serves", "undercuts", "dilutes", "anchors the intent", "stops the picture from cohering around", "is the one passage the painting is actually about."
+- Teacher moves for this axis tend to protect or strengthen the carrier passage: preserve the compression, quiet a competing accent elsewhere, recommit to the specific relationship that is the intent.`;
+    case 'Composition and shape structure':
+      return `What insight looks like for Composition and shape structure:
+- This axis is about how shapes and their intervals organise the picture plane — where forms stack, widen, narrow, align, tilt, cut, or leave gaps. A strong read names a structural event between forms and says what that event does for the whole picture: does it balance, does it stall, does it crowd, does it open.
+- What tends to matter: overlap and interval between major masses; how negative shapes behave; alignment / tilt / stack of vertical + horizontal structure; whether a diagonal leads the eye or fractures the plane.
+- Structural-claim verbs: "organises", "fractures", "crowds", "stalls the eye at", "ties the picture together at", "leaves a wider gap on one side than the other so…", "cuts through the pale field and…"
+- Teacher moves tend to rebalance intervals, group competing shapes, widen or narrow a gap, simplify a cluttered passage, strengthen or break an alignment.`;
+    case 'Value and light structure':
+      return `What insight looks like for Value and light structure:
+- This axis is about how light mass and shadow mass shape the picture — value grouping, where the biggest value break sits, whether the light reads as a system or as piecework. A strong read names the shape of the light mass and says what that shape does for figure-ground separation and depth.
+- What tends to matter: where the picture's strongest value contrast lands; whether lights group into one shape; whether shadows group or scatter; whether a passage is carrying ALL the brightness or ALL the dark.
+- Structural-claim verbs: "groups", "scatters", "carries all the light", "flattens the figure against the ground because the values compress", "reads back because the shadow mass is unified", "sets the light scaffold for the whole picture."
+- Teacher moves tend to regroup values, darken or lighten a specific passage, compress or expand the value range within a named area, restate a light shape.`;
+    case 'Color relationships':
+      return `What insight looks like for Color relationships:
+- This axis is about how hue, chroma, and temperature behave as a system — what belongs to a shared palette, where chroma is placed strategically vs. scattered, whether temperature shifts are doing structural work. For drawing, this axis reads value harmony / paper tone / mark families instead.
+- What tends to matter: where the highest chroma lands and whether it's earned; whether temperature shifts map the space (warm forward, cool back) or fight it; whether the local color of an object has been sacrificed for palette logic (or vice versa).
+- Structural-claim verbs: "ties the palette together at", "breaks the palette's logic because…", "places the brightest chroma where it can actually do structural work", "pulls the eye away from the intended focus because…", "the temperature shift carries the depth the drawing was trying to do."
+- Teacher moves tend to quiet a chroma spike, shift a temperature to line up with depth, regroup color families across similar passages, or preserve a specific earned accent.`;
+    case 'Drawing, proportion, and spatial form':
+      return `What insight looks like for Drawing, proportion, and spatial form:
+- This axis is about construction: are the things in the picture actually *built* — are their proportions, their angles, their overlaps, their feet on the ground convincing? For abstract work, this is about how forms sit in the picture plane and whether their relative scale / placement reads deliberate.
+- What tends to matter: specific proportion relationships (jaw to forehead, height of a pot to its width, the near-to-far ratio of a receding mass); whether the perspective holds at the junctions the eye tests (feet on the floor, plates elliptical on the table, windows shortening with the wall); whether a form reads as solid or as a silhouette.
+- Structural-claim verbs: "reads as solid because…", "flattens into a silhouette", "the proportions of X to Y set the figure's scale for the whole picture", "the perspective gives up at the back of the room", "the form sits on the plane because the angle at X holds."
+- Teacher moves tend to restate a specific angle or proportion, rebuild the junction where the drawing gives up, darken under a foot or base to set it on the ground, check a relative scale with a named reference.`;
+    case 'Edge and focus control':
+      return `What insight looks like for Edge and focus control:
+- This axis is about where the picture sharpens and where it softens, and whether that pattern tells the eye where to look. A strong read names the lost-and-found pattern and says what it does for focal hierarchy.
+- What tends to matter: which edges are hardest and whether they're in the passage the painting actually cares about; where lost edges are doing work (and where they're just avoidance); whether a passage is accidentally as sharp as the focus; whether what looks soft is photo capture or painted ambiguity.
+- Structural-claim verbs: "holds the focus at", "pulls focus away from the intended subject because…", "gives the eye nowhere to stop", "sets up a clear lost-and-found pattern that lands on…", "the hardest edge in the picture is in the wrong place."
+- Teacher moves tend to soften a competing edge, sharpen the intended focus, break a contour into lost / found segments, resolve ambiguous-vs-captured softness.`;
+    case 'Surface and medium handling':
+      return `What insight looks like for Surface and medium handling:
+- This axis is about the mark behavior actually visible on the canvas — direction, thickness, wet/dry, scumble, tooth, correction layers — and whether the handling is doing work for the picture or fighting it. A strong read names a specific mark passage and says what that handling accomplishes.
+- What tends to matter: whether different mark families separate different areas (hatching in the wall vs. smoother shirt, impasto in the lights vs. thinner darks); whether reworking has enriched or deadened a passage; whether the surface rhythm belongs to the declared medium.
+- Structural-claim verbs: "carries the surface rhythm", "has been overworked and reads deadened", "the loaded rim holds the form because…", "the dry drag scatters the light where it should be grouped", "the hatch field organises the wall as a single plane."
+- Teacher moves tend to protect a working mark economy, scrape back a deadened passage, vary mark direction in a flattening area, reserve a dry passage against a loaded one.`;
+    case 'Presence, point of view, and human force':
+      return `What insight looks like for Presence, point of view, and human force:
+- This axis is about whether the painting addresses a viewer — whether it feels inhabited, whether there is a specific point of view, whether the picture makes bodily / psychological pressure visible. The anchor must be a physical carrier passage on the canvas, not a mood word.
+- What tends to matter: which passage carries the bodily pressure (a tilt, a contact, a gaze, a compression of bodies, an encounter between forms); the point of view the picture takes (over the shoulder, across the room, from below); whether other passages back that point of view or dilute it.
+- Structural-claim verbs: "addresses the viewer through", "withholds presence because…", "the inward tilt carries all the human pressure", "the staging feels inhabited because…", "the figure is present but the picture is not about being near it."
+- Teacher moves tend to preserve the specific carrier of presence, quiet a passage that's pulling attention away from it, or strengthen a point-of-view cue in a named passage.`;
+  }
+}
+
 export function buildCriterionPrompt(args: {
   criterion: CriterionLabel;
   style: string;
@@ -278,6 +351,8 @@ export function buildCriterionPrompt(args: {
   return [
     `Write the per-criterion critique block for ONE criterion of ONE painting: ${criterion}.`,
     `Style: ${style}. Medium: ${medium}.${titleLine}`,
+    '',
+    criterionInsightGuidance(criterion),
     '',
     'Shared observation bank (same for every criterion in this painting):',
     '',
