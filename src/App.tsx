@@ -514,32 +514,99 @@ export default function App() {
         return;
       }
 
+      // ---- preview_edit resume ----
+      //
+      // Previously this branch had two silent-failure modes that together
+      // manifested as "user paid, returned to Home, no AI image":
+      //
+      //   1. `rememberCritiqueReturn()` before checkout could silently fail
+      //      to persist the flow when `localStorage` was quota-exceeded —
+      //      most likely when the flow's sessionPreviewEdits already
+      //      contained one or more large base64 data URLs from previous AI
+      //      edits in the same session. On return `consumeReturnViewIntent()`
+      //      yielded null, so `flowRef.current` stayed null, and
+      //      `runPreviewEdit` bailed out silently at its `flow.step !==
+      //      'results'` guard. No toast, no edit, just Home.
+      //   2. The preview-edit call was scheduled inside
+      //      `requestAnimationFrame`, adding a full paint frame of latency
+      //      for no benefit (the flowRef was already set synchronously
+      //      above). Coupled with mode 1, any path where the flow failed
+      //      to restore silently fell off the end of the RAF callback.
+      //
+      // The fix here:
+      //   - Restore the flow synchronously (unchanged).
+      //   - Clear the preview loading state so the defense-in-depth guard
+      //     inside `runPreviewEdit` doesn't refuse to re-run.
+      //   - Invoke the resume directly (no RAF).
+      //   - If we have a pending criterion but NO restorable flow (or the
+      //     resume has no critique to operate on), fail loudly with a
+      //     user-visible error so the user isn't left on Home wondering
+      //     what happened.
+
       const returnView = consumeReturnViewIntent();
-      if (returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow)) {
-        flowRef.current = returnView.flow;
-        setFlow(returnView.flow);
+      const flowRestored =
+        returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow);
+      if (flowRestored) {
+        flowRef.current = returnView.flow as CritiqueFlow;
+        setFlow(returnView.flow as CritiqueFlow);
         clearAsyncState();
         closeCompare();
       }
-      requestAnimationFrame(() => {
-        const fastCriterion = pendingPreviewCriterionRef.current;
-        if (fastCriterion) {
-          console.log('[stripe-resume] preview fast-path ref hit', { criterion: fastCriterion });
-          void runPreviewEditRef.current(fastCriterion);
-          return;
-        }
-        const storedCriterion = peekPendingPreviewPaymentCriterion();
-        console.log('[stripe-resume] preview sessionStorage peek', {
-          found: Boolean(storedCriterion),
-          criterion: storedCriterion,
-        });
-        if (storedCriterion) {
-          pendingPreviewCriterionRef.current = storedCriterion as CritiqueCategory['criterion'];
-          void runPreviewEditRef.current(storedCriterion as CritiqueCategory['criterion']);
-        }
+      // Clear any stale loading state from before the Stripe redirect;
+      // otherwise `runPreviewEdit`'s `if (previewRef.current.loading)
+      // return;` will refuse the resume call.
+      resetPreview();
+
+      const fastCriterion = pendingPreviewCriterionRef.current;
+      const storedCriterion = peekPendingPreviewPaymentCriterion();
+      const resumeCriterion = (fastCriterion ??
+        (storedCriterion as CritiqueCategory['criterion'] | null));
+      console.log('[stripe-resume] preview resume attempt', {
+        criterion: resumeCriterion,
+        fromRef: Boolean(fastCriterion),
+        fromLocalStorage: Boolean(storedCriterion && !fastCriterion),
+        flowRestored,
+        flowStep: flowRef.current?.step ?? null,
       });
+
+      if (!resumeCriterion) {
+        // The user paid for a preview edit but we lost track of which
+        // criterion they were running. Return view may still be restored;
+        // no edit to trigger. Surface a clear error so the JWT isn't
+        // silently abandoned.
+        if (flowRestored) {
+          failPreview(
+            'Payment received, but the app could not recover which AI edit to generate. Tap Generate on any criterion to use the payment credit.'
+          );
+        }
+        return;
+      }
+
+      if (!flowRestored || flowRef.current?.step !== 'results') {
+        // Payment succeeded and we know which criterion the user wanted,
+        // but the critique view did not persist through the Stripe
+        // round-trip. Without a restored flow, runPreviewEdit has nothing
+        // to run on. Surface this rather than silently landing on Home.
+        failPreview(
+          'Payment received, but the critique view was lost during the Stripe redirect. Please re-open this painting from Studio and tap Generate; your payment credit will be applied automatically.'
+        );
+        return;
+      }
+
+      if (!fastCriterion && storedCriterion) {
+        pendingPreviewCriterionRef.current = storedCriterion as CritiqueCategory['criterion'];
+      }
+      void runPreviewEditRef.current(resumeCriterion);
     },
-    [clearAsyncState, closeCompare, location.pathname, navigate, resumePendingCritiqueAfterPayment]
+    [
+      clearAsyncState,
+      closeCompare,
+      failPreview,
+      location.pathname,
+      navigate,
+      resetPreview,
+      resumePendingCritiqueAfterPayment,
+    ]
   );
 
   const exchangeStripeSessionOnClient = useCallback(
