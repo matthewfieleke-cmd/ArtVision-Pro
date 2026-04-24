@@ -192,11 +192,35 @@ describe('parallel-criteria system message (Voice A + Voice B framing)', () => {
     expect(sys).toMatch(/private (?:context|reasoning)/i);
   });
 
-  it('teaches the Voice B four-beat shape (where → now → try → afterward)', () => {
+  it('teaches the Voice B four-beat shape (where → now → try+causal → afterward)', () => {
+    // Beat 3 must pair the imperative move with a causal "so that ..."
+    // clause — that clause is what prevents beat 3 from collapsing onto
+    // editPlan.intendedChange and what makes Voice B actually helpful
+    // rather than merely accurate. If someone weakens this, the teacher
+    // paragraph goes back to terse directives and the tests must fail.
     expect(sys).toMatch(/\*\*Where\.\*\*/);
     expect(sys).toMatch(/\*\*What is happening now\.\*\*/);
-    expect(sys).toMatch(/\*\*What to try\.\*\*/);
+    expect(sys).toMatch(/\*\*What to try, with the causal reason\.\*\*/);
     expect(sys).toMatch(/\*\*The visible result afterward\.\*\*/);
+    // The causal-clause requirement itself must be explicit in the prompt.
+    expect(sys).toMatch(/so \(that\) …? causal clause|verb \+ named target \+ "so \(that\)/);
+  });
+
+  it('pins Voice B beat 3 apart from editPlan.intendedChange so they do not collapse', () => {
+    // Under reasoning pressure the model was writing the same terse
+    // imperative in both slots. The prompt must separate them explicitly,
+    // and the test must notice if that separation is ever weakened.
+    expect(sys).toMatch(/editPlan\.intendedChange is a SEPARATE field/i);
+    expect(sys).toMatch(/Do not collapse the two slots to the same terse string/i);
+  });
+
+  it('requires Voice A beat 3 to land an evaluative verb, not a description', () => {
+    // This is the single biggest insight-quality lever on Voice A. The
+    // prompt must name the evaluative-verb rule, give examples of
+    // evaluative verbs, and contrast "description" with "evaluation".
+    expect(sys).toMatch(/evaluative verb/i);
+    expect(sys).toMatch(/flattens|collapses|organises|carries|dissolves/);
+    expect(sys).toMatch(/description|descriptive/i);
   });
 
   it('provides painting-agnostic example passages (figurative + landscape + still life + abstract)', () => {
@@ -227,6 +251,35 @@ describe('buildCriterionPrompt (per-criterion user prompt)', () => {
     expect(prompt).toMatch(/Value and light structure/);
     expect(prompt).toMatch(/the jaw edge against the hair/);
     expect(prompt).toMatch(/the bright cadmium strip where it meets the olive field/);
+  });
+
+  it('injects per-axis "what insight looks like for this criterion" guidance', () => {
+    // Without axis-specific guidance the writer burns reasoning budget on
+    // figuring out which axis of judgment applies. With it, the writer
+    // goes straight from observation bank to a specific, on-axis
+    // structural claim. This is a prompt-only quality lever; if it goes
+    // missing, Voice A and Voice B both lose specificity silently.
+    expect(prompt).toMatch(/What insight looks like for Value and light structure/);
+    // The guidance for Value and light specifically must reference the
+    // value-level structural concepts that make this criterion
+    // recognisable (not the prose for another axis).
+    expect(prompt).toMatch(/value grouping|value mass|light mass|figure-ground/i);
+  });
+
+  it('gives Color relationships guidance that covers drawing-as-value-harmony too', () => {
+    // Drawing (the medium) has no color, so the Color relationships axis
+    // has to translate to value harmony / paper tone / mark families.
+    // The per-axis guidance must name that explicitly so the writer does
+    // not produce chroma advice on a drawing.
+    const drawingPrompt = buildCriterionPrompt({
+      criterion: 'Color relationships',
+      style: 'Realism',
+      medium: 'Drawing',
+      observationBank: minimalObservationBank(),
+      topLevelContext: minimalTopLevelContext(),
+    });
+    expect(drawingPrompt).toMatch(/What insight looks like for Color relationships/);
+    expect(drawingPrompt).toMatch(/value harmony|paper tone|mark families/i);
   });
 
   it('asks the writer to own the anchor, region, and editPlan', () => {
