@@ -6,6 +6,7 @@ import type { PreviewEditRequestBody, PreviewEditResponseBody } from './previewE
 import {
   bufferToApiInputPng,
   getImageDimensions,
+  type ApiInputGeometry,
   pickImagesEditSize,
   resizeEditOutputToMatchUpload,
 } from './previewImageResize.js';
@@ -350,6 +351,14 @@ type CanonicalEditBrief = {
   voiceBLine: string;
 };
 
+type PixelRect = { left: number; top: number; width: number; height: number };
+type EditLocalizationContext = {
+  originalRect: PixelRect;
+  apiCanvasRect: PixelRect;
+  cropRect: PixelRect;
+  hasCropReference: boolean;
+};
+
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
@@ -411,7 +420,82 @@ function buildCanonicalEditBrief(target: PreviewEditRequestBody['target']): Cano
   return { area, whyItMatters, issue, move, preserve, expectedOutcome, voiceBLine };
 }
 
-export function buildEditPrompt(body: PreviewEditRequestBody): string {
+function clampInt(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function formatRect(rect: PixelRect): string {
+  return `left=${rect.left}, top=${rect.top}, width=${rect.width}, height=${rect.height}`;
+}
+
+function buildLocalizationContext(args: {
+  body: PreviewEditRequestBody;
+  origW: number;
+  origH: number;
+  geometry: ApiInputGeometry;
+}): EditLocalizationContext | undefined {
+  const region = args.body.target.anchor?.region;
+  if (!region || args.origW <= 0 || args.origH <= 0) return undefined;
+
+  const x = clamp01(region.x);
+  const y = clamp01(region.y);
+  const width = Math.min(1 - x, Math.max(0.02, region.width));
+  const height = Math.min(1 - y, Math.max(0.02, region.height));
+  const originalRect: PixelRect = {
+    left: clampInt(x * args.origW, 0, Math.max(0, args.origW - 1)),
+    top: clampInt(y * args.origH, 0, Math.max(0, args.origH - 1)),
+    width: clampInt(width * args.origW, 1, args.origW),
+    height: clampInt(height * args.origH, 1, args.origH),
+  };
+  originalRect.width = Math.min(originalRect.width, args.origW - originalRect.left);
+  originalRect.height = Math.min(originalRect.height, args.origH - originalRect.top);
+
+  const apiCanvasRect: PixelRect = {
+    left: clampInt(args.geometry.offsetX + x * args.geometry.innerWidth, 0, args.geometry.canvasWidth - 1),
+    top: clampInt(args.geometry.offsetY + y * args.geometry.innerHeight, 0, args.geometry.canvasHeight - 1),
+    width: clampInt(width * args.geometry.innerWidth, 1, args.geometry.canvasWidth),
+    height: clampInt(height * args.geometry.innerHeight, 1, args.geometry.canvasHeight),
+  };
+  apiCanvasRect.width = Math.min(apiCanvasRect.width, args.geometry.canvasWidth - apiCanvasRect.left);
+  apiCanvasRect.height = Math.min(apiCanvasRect.height, args.geometry.canvasHeight - apiCanvasRect.top);
+
+  const padX = Math.max(24, Math.round(apiCanvasRect.width * 0.35));
+  const padY = Math.max(24, Math.round(apiCanvasRect.height * 0.35));
+  const cropLeft = Math.max(0, apiCanvasRect.left - padX);
+  const cropTop = Math.max(0, apiCanvasRect.top - padY);
+  const cropRight = Math.min(args.geometry.canvasWidth, apiCanvasRect.left + apiCanvasRect.width + padX);
+  const cropBottom = Math.min(args.geometry.canvasHeight, apiCanvasRect.top + apiCanvasRect.height + padY);
+  const cropRect: PixelRect = {
+    left: cropLeft,
+    top: cropTop,
+    width: Math.max(1, cropRight - cropLeft),
+    height: Math.max(1, cropBottom - cropTop),
+  };
+
+  return {
+    originalRect,
+    apiCanvasRect,
+    cropRect,
+    hasCropReference: cropRect.width >= 32 && cropRect.height >= 32,
+  };
+}
+
+async function buildFocusCropDataUrl(
+  apiInputPng: Buffer,
+  localization: EditLocalizationContext | undefined
+): Promise<string | undefined> {
+  if (!localization?.hasCropReference) return undefined;
+  const crop = await sharp(apiInputPng)
+    .extract(localization.cropRect)
+    .png()
+    .toBuffer();
+  return `data:image/png;base64,${crop.toString('base64')}`;
+}
+
+export function buildEditPrompt(
+  body: PreviewEditRequestBody,
+  localization?: EditLocalizationContext
+): string {
   const { style, medium, target } = body;
   const masterSignals = getCriterionMasterSignals(style, target.criterion)
     .slice(0, 4)
@@ -422,7 +506,14 @@ export function buildEditPrompt(body: PreviewEditRequestBody): string {
     ? `Anchored passage to revise:
 - Area: ${target.anchor.areaSummary}
 - Why it matters here: ${target.anchor.evidencePointer}
-- Region (normalized image coords): x=${target.anchor.region.x}, y=${target.anchor.region.y}, width=${target.anchor.region.width}, height=${target.anchor.region.height}`
+- Region (normalized image coords): x=${target.anchor.region.x}, y=${target.anchor.region.y}, width=${target.anchor.region.width}, height=${target.anchor.region.height}${
+        localization
+          ? `
+- Region in original upload pixels: ${formatRect(localization.originalRect)}
+- Region in the API canvas pixels: ${formatRect(localization.apiCanvasRect)}
+- Focus crop reference: ${localization.hasCropReference ? `provided as the second input image; crop bounds on API canvas are ${formatRect(localization.cropRect)}` : 'not available'}`
+          : ''
+      }`
     : 'Anchored passage to revise: infer from the critique text only.';
   const planBlock = target.editPlan
     ? `Machine-readable edit plan:
@@ -451,7 +542,7 @@ ${anchorBlock}
 
 ${planBlock}
 
-Show this improvement via paint (not caption). Treat the canonical edit brief and edit plan as authoritative; use any remaining prose only to clarify nuance, never to broaden the target.
+Show this improvement via paint (not caption). Treat the canonical edit brief and edit plan as authoritative; use any remaining prose only to clarify nuance, never to broaden the target. The first input image is the full painting and remains authoritative for the final composition. If a second input image is present, it is only a close crop of the target passage to help localize the edit; do not output the crop or change the final framing.
 
 Master-level signals to honor for this exact criterion in ${style}:
 ${masterSignals || '- Use the strongest available style-consistent master signals for this criterion.'}
@@ -460,7 +551,7 @@ Rules — quality and fidelity:
 - Preserve identity: same subject, pose, composition, crop, and viewing angle. Do not invent new objects, figures, or a new scene.
 - Preserve the hand of the artist: match existing brush scale, stroke direction, and surface texture (${medium}); edits should look like the same person repainted that passage with more skill, not a different artist or a digital repaint.
 - Improvement should feel like a master critique pass inside the artist's existing voice, not a style transfer into another painter's finished work.
-- Apply the change mainly inside the anchored passage. Outside it, only make minimal integration adjustments.
+- Apply the change mainly inside the anchored passage and its pixel rectangle. Outside it, only make minimal integration adjustments.
 - Preserve the nearby success named in preserveArea.
 - Edge-to-edge: fill the full frame; no inset, no frame-within-frame, no added borders or captions.
 - Lighting: keep the same light direction and color of light unless the critique explicitly calls for adjusting light logic for "${target.criterion}".
@@ -490,7 +581,7 @@ async function runSingleEditRequest(args: {
   apiKey: string;
   model: string;
   prompt: string;
-  imageUrl: string;
+  imageUrls: string[];
   editSize: string;
   quality: EditQuality;
   n: number;
@@ -498,7 +589,7 @@ async function runSingleEditRequest(args: {
   const payload: Record<string, unknown> = {
     model: args.model,
     prompt: args.prompt,
-    images: [{ image_url: args.imageUrl }],
+    images: args.imageUrls.map((imageUrl) => ({ image_url: imageUrl })),
     size: args.editSize,
     quality: args.quality,
     n: args.n,
@@ -540,10 +631,13 @@ export async function runOpenAIPreviewEdit(
   const editSize = pickImagesEditSize(origW, origH);
   const { buffer: apiInputPng, geometry } = await bufferToApiInputPng(inputBuffer, editSize);
   const imageUrl = `data:image/png;base64,${apiInputPng.toString('base64')}`;
+  const localization = buildLocalizationContext({ body, origW, origH, geometry });
+  const focusCropUrl = await buildFocusCropDataUrl(apiInputPng, localization);
+  const imageUrls = focusCropUrl ? [imageUrl, focusCropUrl] : [imageUrl];
   const quality = resolveEditQuality();
   const candidateCount = resolveCandidateCount();
   const originalStats = await computePreviewStats(inputBuffer);
-  const prompt = buildEditPrompt(body);
+  const prompt = buildEditPrompt(body, localization);
 
   const maxPerRequest = imageEditModelMaxNPerRequest(model);
   const requestCount = Math.max(1, Math.ceil(candidateCount / maxPerRequest));
@@ -555,7 +649,7 @@ export async function runOpenAIPreviewEdit(
         apiKey,
         model,
         prompt,
-        imageUrl,
+        imageUrls,
         editSize,
         quality,
         n: perRequestN,

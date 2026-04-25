@@ -1,6 +1,5 @@
 import {
   CRITIQUE_AUDIENCE_FRAMING,
-  EVIDENCE_STAGE_ASSESSMENT_PROTOCOL,
   EVIDENCE_STAGE_CLOSE_READING,
 } from '../shared/critiqueVoiceA.js';
 import { OBSERVATION_BANK_DEPTH_GUIDANCE } from './critiquePipelineGuidance.js';
@@ -73,8 +72,6 @@ export function buildObservationBankStagePrompt(style: string, medium: string): 
 ${CRITIQUE_AUDIENCE_FRAMING}
 
 ${EVIDENCE_STAGE_CLOSE_READING}
-
-${EVIDENCE_STAGE_ASSESSMENT_PROTOCOL}
 
 Observation-bank rules:
 - Every passage must be pointable on the canvas. Use carrier grammar that names a visible passage on the actual image: "[thing] against [thing]", "[thing] where it meets [thing]", "[thing] across [field]", "[thing] under [thing]", "[thing] above [thing]", or "[path/band] leading toward [thing]".

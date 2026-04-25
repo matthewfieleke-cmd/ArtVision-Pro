@@ -46,4 +46,29 @@ describe('mapNormalizedRegionToContainerPercent', () => {
     );
     expect(p).toEqual({ left: '0%', top: '0%', width: '100%', height: '100%' });
   });
+
+  it('keeps overflowing regions inside the displayed image', () => {
+    const p = mapNormalizedRegionToContainerPercent(
+      { x: 0.8, y: 0.75, width: 0.5, height: 0.5 },
+      100,
+      100,
+      100,
+      100
+    );
+    expect(parseFloat(p.left)).toBeCloseTo(80);
+    expect(parseFloat(p.top)).toBeCloseTo(75);
+    expect(parseFloat(p.width)).toBeCloseTo(20);
+    expect(parseFloat(p.height)).toBeCloseTo(25);
+  });
+
+  it('treats invalid region values as an empty safe box', () => {
+    const p = mapNormalizedRegionToContainerPercent(
+      { x: Number.NaN, y: Number.NaN, width: Number.NaN, height: Number.NaN },
+      100,
+      100,
+      100,
+      100
+    );
+    expect(p).toEqual({ left: '0%', top: '0%', width: '0%', height: '0%' });
+  });
 });

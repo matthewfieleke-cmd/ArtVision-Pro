@@ -48,8 +48,8 @@ export function mapNormalizedRegionToContainerPercent(
 
   const rx = clamp01(region.x);
   const ry = clamp01(region.y);
-  const rw = clamp01(region.width);
-  const rh = clamp01(region.height);
+  const rw = clampRegionSize(region.width, rx);
+  const rh = clampRegionSize(region.height, ry);
 
   const boxLeft = display.x + rx * display.width;
   const boxTop = display.y + ry * display.height;
@@ -71,4 +71,9 @@ export function mapNormalizedRegionToContainerPercent(
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.min(1, Math.max(0, n));
+}
+
+function clampRegionSize(size: number, start: number): number {
+  if (!Number.isFinite(size)) return 0;
+  return Math.min(Math.max(0, size), Math.max(0, 1 - start));
 }

@@ -146,9 +146,18 @@ export function buildSynthesisPrompt(args: {
   const criterionBlocks = criterionResults
     .map(
       (r) => `### ${r.criterion} (confidence: ${r.confidence})
+Anchor: ${r.anchor.areaSummary}
+Evidence pointer: ${r.anchor.evidencePointer}
+Visible evidence:
+${r.visibleEvidence.map((line) => `- ${line}`).join('\n') || '- (none recorded)'}
 Voice A: ${r.voiceACritique}
 Voice B: ${r.voiceBSuggestions}
-Preserve: ${r.preserve}`
+Preserve: ${r.preserve}
+Edit plan:
+- Target: ${r.editPlan.targetArea}
+- Issue: ${r.editPlan.issue}
+- Move: ${r.editPlan.intendedChange}
+- Expected: ${r.editPlan.expectedOutcome}`
     )
     .join('\n\n');
 
@@ -166,7 +175,7 @@ Preserve: ${r.preserve}`
     `- Main tensions: ${evidence.mainTensions.join('; ') || '(none recorded)'}`,
     `- Photo quality: ${evidence.photoQualityRead.level} — ${evidence.photoQualityRead.summary}`,
     '',
-    `Eight per-criterion critiques to weave together (each block is the critic + teacher output for one criterion, already grounded in visible evidence):`,
+    `Eight per-criterion critiques to weave together. Each block includes the anchor, evidence pointer, visible evidence, Voice A, Voice B, preserve line, and edit plan. Use the concrete evidence and anchors when choosing the bottleneck and next-session priorities; do not smooth the critique into generic summary language:`,
     '',
     criterionBlocks,
     '',
@@ -174,9 +183,9 @@ Preserve: ${r.preserve}`
     '',
     `**summary** — 2–4 plain sentences that land the overall read. Open with what this painting is genuinely doing (its pictorial intelligence or intent), then name the axis where it is strongest and the axis that most limits it today. Do NOT list every criterion. Do NOT open with filler.`,
     '',
-    `**overallAnalysis** — 3–5 sentences expanding the summary with a critic's structural claim: which two or three criteria carry the picture, which one is the real bottleneck, and why — tied back to the visible evidence. One clear claim per sentence.`,
+    `**overallAnalysis** — 3–5 sentences expanding the summary with a critic's structural claim: which two or three criteria carry the picture, which one is the real bottleneck, and why — tied back to named anchors and visible evidence from the blocks above. One clear claim per sentence.`,
     '',
-    `**topPriorities** — treat this as the painter's NEXT SESSION plan, not a list of aspirations. 2–3 items. First item is the single most important move, imperative voice, tied to a named passage. Remaining items are at most two secondary moves that genuinely depend on or can be tackled alongside the first. Each item is one short sentence.`,
+    `**topPriorities** — treat this as the painter's NEXT SESSION plan, not a list of aspirations. 2–3 items. First item is the single most important move, imperative voice, tied to a named anchor passage and its edit plan. Remaining items are at most two secondary moves that genuinely depend on or can be tackled alongside the first. Each item is one short sentence.`,
     '',
     `**studioAnalysis.whatWorks** — one or two sentences naming TWO specific visible passages and what they accomplish for the picture (not generic praise).`,
     `**studioAnalysis.whatCouldImprove** — one or two sentences naming the ONE primary structural problem the painter should solve next (not a list).`,

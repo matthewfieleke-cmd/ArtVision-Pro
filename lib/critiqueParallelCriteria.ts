@@ -401,6 +401,35 @@ type OpenAIChatCompletion = {
   error?: { message?: string };
 };
 
+const MAX_CRITERION_AUDIT_RETRIES = 1;
+const GENERIC_ANCHOR_WORDS = new Set([
+  'area',
+  'areas',
+  'composition',
+  'canvas',
+  'painting',
+  'picture',
+  'work',
+  'image',
+  'scene',
+  'section',
+  'passage',
+  'color',
+  'colors',
+  'edge',
+  'edges',
+  'value',
+  'values',
+  'light',
+  'surface',
+  'space',
+  'form',
+  'forms',
+  'main',
+  'overall',
+  'some',
+]);
+
 async function callCriterionStage(args: {
   apiKey: string;
   model: string;
@@ -464,6 +493,15 @@ async function callCriterionStage(args: {
       `OpenAI criterion stage returned non-JSON content: ${errorMessage(parseError)}; preview=${content.slice(0, 200)}`
     );
   }
+}
+
+function normalizeWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 4 && !GENERIC_ANCHOR_WORDS.has(word));
 }
 
 function normaliseConfidence(value: unknown): 'low' | 'medium' | 'high' {
@@ -531,6 +569,68 @@ function parseWriterOutput(
   };
 }
 
+function auditCriterionResult(result: CriterionWritingResult): string[] {
+  const issues: string[] = [];
+  const anchor = result.anchor.areaSummary.trim();
+  const pointer = result.anchor.evidencePointer.trim();
+  const evidence = result.visibleEvidence.map((line) => line.trim()).filter(Boolean);
+  const anchorTokens = normalizeWords(anchor);
+  const firstEvidence = evidence[0]?.toLowerCase() ?? '';
+  const allEvidence = evidence.join(' ').toLowerCase();
+  const voiceA = result.voiceACritique.trim();
+  const voiceB = result.voiceBSuggestions.trim();
+  const editPlan = result.editPlan;
+
+  if (anchor.length < 12 || anchorTokens.length < 2) {
+    issues.push('anchor.areaSummary is too generic to locate confidently on the painting');
+  }
+  if (pointer.length < 18) {
+    issues.push('anchor.evidencePointer is too thin to verify the selected passage');
+  }
+  if (evidence.length < 3) {
+    issues.push('visibleEvidence has fewer than three concrete observations');
+  }
+  if (
+    anchorTokens.length >= 2 &&
+    evidence.length > 0 &&
+    anchorTokens.filter((token) => firstEvidence.includes(token)).length < Math.min(2, anchorTokens.length)
+  ) {
+    issues.push('first visibleEvidence line does not reuse the concrete anchor nouns');
+  }
+  if (
+    anchorTokens.length >= 2 &&
+    anchorTokens.filter((token) => allEvidence.includes(token)).length < Math.min(2, anchorTokens.length)
+  ) {
+    issues.push('visibleEvidence does not appear tied to the anchor passage');
+  }
+  if (voiceA.length < 80 || !voiceA.toLowerCase().includes(anchor.toLowerCase().slice(0, 12))) {
+    issues.push('Voice A is too short or does not clearly name the anchor passage');
+  }
+  if (voiceB.length < 80 || !voiceB.toLowerCase().includes(anchor.toLowerCase().slice(0, 12))) {
+    issues.push('Voice B is too short or does not clearly name the anchor passage');
+  }
+  if (!editPlan.targetArea || !editPlan.issue || !editPlan.intendedChange || !editPlan.expectedOutcome) {
+    issues.push('editPlan is missing one or more machine-usable fields');
+  }
+  if (result.confidence === 'low' && issues.length > 0) {
+    issues.push('confidence is low on an already suspicious criterion output');
+  }
+
+  return issues;
+}
+
+function buildCriterionRetryPrompt(basePrompt: string, issues: string[]): string {
+  return [
+    basePrompt,
+    '',
+    'Quality audit retry:',
+    'The previous answer was rejected before synthesis for these reasons:',
+    ...issues.map((issue) => `- ${issue}`),
+    '',
+    'Regenerate the full JSON object. Re-check the painting image directly. Pick a more locatable anchor if needed, make the first visibleEvidence line reuse its concrete nouns, and keep Voice A / Voice B tied to that same passage. Do not explain the audit; return only the schema JSON.',
+  ].join('\n');
+}
+
 /**
  * Fallback `CriterionWritingResult` for a single criterion when its writer
  * call fails. Returns a minimal-safe entry grounded in the observation bank
@@ -569,6 +669,49 @@ function buildCriterionFallback(
     },
     confidence: 'low',
   };
+}
+
+async function runCriterionWriterWithAudit(args: {
+  apiKey: string;
+  model: string;
+  criterion: CriterionLabel;
+  prompt: string;
+  imageMessage: VisionUserMessagePart;
+}): Promise<CriterionWritingResult> {
+  let prompt = args.prompt;
+  let lastResult: CriterionWritingResult | undefined;
+  let lastIssues: string[] = [];
+
+  for (let attempt = 0; attempt <= MAX_CRITERION_AUDIT_RETRIES; attempt++) {
+    const raw = await callCriterionStage({
+      apiKey: args.apiKey,
+      model: args.model,
+      userContent: [
+        { type: 'text', text: prompt },
+        args.imageMessage,
+      ],
+    });
+    const result = parseWriterOutput(args.criterion, raw);
+    const issues = auditCriterionResult(result);
+    if (issues.length === 0) {
+      if (attempt > 0) {
+        console.log(`[critique criterion audit] ${args.criterion} passed after retry`);
+      }
+      return result;
+    }
+
+    lastResult = result;
+    lastIssues = issues;
+    if (attempt < MAX_CRITERION_AUDIT_RETRIES) {
+      console.warn(`[critique criterion audit] retrying ${args.criterion}: ${issues.join('; ')}`);
+      prompt = buildCriterionRetryPrompt(args.prompt, issues);
+    }
+  }
+
+  console.warn(
+    `[critique criterion audit] ${args.criterion} kept after retry with issues: ${lastIssues.join('; ')}`
+  );
+  return lastResult!;
 }
 
 /**
@@ -611,16 +754,13 @@ export async function runParallelCriteriaStage(args: {
         observationBank: args.observationBank,
         topLevelContext: args.topLevelContext,
       });
-      const userContent: VisionUserMessagePart[] = [
-        { type: 'text', text: prompt },
-        imageMessage,
-      ];
-      const raw = await callCriterionStage({
+      return runCriterionWriterWithAudit({
         apiKey: args.apiKey,
         model: args.model,
-        userContent,
+        criterion,
+        prompt,
+        imageMessage,
       });
-      return parseWriterOutput(criterion, raw);
     })
   );
 
