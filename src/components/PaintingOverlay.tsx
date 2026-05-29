@@ -1,10 +1,15 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { CriterionAnchor } from '../../shared/critiqueAnchors';
-import { mapNormalizedRegionToContainerPercent } from '../anchorOverlayLayout';
+import { mapNormalizedRegionToImageRectPercent } from '../anchorOverlayLayout';
 
 type Layout = {
   containerW: number;
   containerH: number;
+  /** Rendered <img> rect, relative to the positioning container. */
+  imageLeft: number;
+  imageTop: number;
+  imageWidth: number;
+  imageHeight: number;
   naturalW: number;
   naturalH: number;
 };
@@ -33,10 +38,18 @@ export function PaintingOverlay({ anchor, containerRef }: Props) {
       return;
     }
     const r = root.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) return;
+    const imgRect = img.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0 || imgRect.width <= 0 || imgRect.height <= 0) return;
     layoutRef.current = {
       containerW: r.width,
       containerH: r.height,
+      // Measure the actual rendered image box relative to the container so the
+      // overlay stays aligned even when the image does not fill the container
+      // (e.g. centered at intrinsic width in the desktop compact layout).
+      imageLeft: imgRect.left - r.left,
+      imageTop: imgRect.top - r.top,
+      imageWidth: imgRect.width,
+      imageHeight: imgRect.height,
       naturalW: img.naturalWidth,
       naturalH: img.naturalHeight,
     };
@@ -62,10 +75,15 @@ export function PaintingOverlay({ anchor, containerRef }: Props) {
   const layout = layoutRef.current;
   const coords =
     layout &&
-    mapNormalizedRegionToContainerPercent(
+    mapNormalizedRegionToImageRectPercent(
       anchor.region,
-      layout.containerW,
-      layout.containerH,
+      { width: layout.containerW, height: layout.containerH },
+      {
+        left: layout.imageLeft,
+        top: layout.imageTop,
+        width: layout.imageWidth,
+        height: layout.imageHeight,
+      },
       layout.naturalW,
       layout.naturalH
     );
@@ -77,7 +95,7 @@ export function PaintingOverlay({ anchor, containerRef }: Props) {
       />
       {coords ? (
         <div
-          className="anchor-stage-spot absolute box-border rounded-2xl border-2 border-white/70 anchor-stage-glow"
+          className="anchor-stage-spot absolute box-border rounded-2xl border border-white/40 anchor-stage-glow"
           style={{
             left: coords.left,
             top: coords.top,

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapNormalizedRegionToContainerPercent, objectContainDisplayRect } from './anchorOverlayLayout';
+import {
+  mapNormalizedRegionToContainerPercent,
+  mapNormalizedRegionToImageRectPercent,
+  objectContainDisplayRect,
+} from './anchorOverlayLayout';
 
 describe('objectContainDisplayRect', () => {
   it('centers a wide image in a tall container', () => {
@@ -66,6 +70,64 @@ describe('mapNormalizedRegionToContainerPercent', () => {
       { x: Number.NaN, y: Number.NaN, width: Number.NaN, height: Number.NaN },
       100,
       100,
+      100,
+      100
+    );
+    expect(p).toEqual({ left: '0%', top: '0%', width: '0%', height: '0%' });
+  });
+});
+
+describe('mapNormalizedRegionToImageRectPercent', () => {
+  it('matches the image-fills-container case', () => {
+    // Image rect fills the container exactly; aspect matches natural.
+    const p = mapNormalizedRegionToImageRectPercent(
+      { x: 0, y: 0, width: 1, height: 1 },
+      { width: 100, height: 100 },
+      { left: 0, top: 0, width: 100, height: 100 },
+      100,
+      100
+    );
+    expect(p).toEqual({ left: '0%', top: '0%', width: '100%', height: '100%' });
+  });
+
+  it('aligns to a centered intrinsic-width image inside a wider container', () => {
+    // The desktop-compact drift case: a 100×100 image centered in a 200-wide
+    // container (50px gutters). The full-image region must land on the image,
+    // not the container.
+    const p = mapNormalizedRegionToImageRectPercent(
+      { x: 0, y: 0, width: 1, height: 1 },
+      { width: 200, height: 100 },
+      { left: 50, top: 0, width: 100, height: 100 },
+      100,
+      100
+    );
+    expect(parseFloat(p.left)).toBeCloseTo(25);
+    expect(parseFloat(p.top)).toBeCloseTo(0);
+    expect(parseFloat(p.width)).toBeCloseTo(50);
+    expect(parseFloat(p.height)).toBeCloseTo(100);
+  });
+
+  it('handles object-contain letterboxing within the image element', () => {
+    // Image element is 100×100 but the bitmap is 100×50, so contain leaves
+    // 25px bands top/bottom inside the element.
+    const p = mapNormalizedRegionToImageRectPercent(
+      { x: 0, y: 0, width: 0.1, height: 0.1 },
+      { width: 100, height: 100 },
+      { left: 0, top: 0, width: 100, height: 100 },
+      100,
+      50
+    );
+    expect(parseFloat(p.left)).toBeCloseTo(0);
+    expect(parseFloat(p.width)).toBeCloseTo(10);
+    expect(parseFloat(p.top)).toBeCloseTo(25);
+    expect(parseFloat(p.height)).toBeCloseTo(5);
+  });
+
+  it('returns an empty safe box for a zero-size container', () => {
+    const p = mapNormalizedRegionToImageRectPercent(
+      { x: 0, y: 0, width: 1, height: 1 },
+      { width: 0, height: 0 },
+      { left: 0, top: 0, width: 0, height: 0 },
       100,
       100
     );

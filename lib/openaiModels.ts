@@ -116,22 +116,52 @@ export function isReasoningCapableModel(model: string): boolean {
  *     what these models require.
  *
  * The `reasoningEffort` argument lets each stage pick a level that matches its
- * job (e.g. vision-evidence and synthesis want `medium`; quick classifier
- * calls want `low`), with a global `OPENAI_REASONING_EFFORT` override for
- * operators who want to tune cost/latency globally.
+ * job (e.g. the per-criterion writers want `medium`; vision and synthesis want
+ * `low`).
+ *
+ * `OPENAI_REASONING_EFFORT` acts as a global **ceiling (cap)**, not a blanket
+ * replacement: it can only pull a stage's effort DOWN, never push a cheap
+ * stage UP. Setting it to `low` forces every stage to `low`; setting it to
+ * `high` is a no-op for stages already at `low`/`medium`. This prevents the
+ * footgun where an operator who wanted "max quality" set the var to `high`
+ * and silently erased all the per-stage latency tuning, slowing the whole
+ * pipeline. To raise a single stage, change that stage's coded
+ * `reasoningEffort` instead.
  */
 export type OpenAIReasoningEffort = 'low' | 'medium' | 'high';
 
 const REASONING_EFFORT_VALUES: readonly OpenAIReasoningEffort[] = ['low', 'medium', 'high'];
 
+const REASONING_EFFORT_RANK: Record<OpenAIReasoningEffort, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
 function isReasoningEffort(value: string): value is OpenAIReasoningEffort {
   return (REASONING_EFFORT_VALUES as readonly string[]).includes(value);
 }
 
-function readGlobalReasoningEffortOverride(): OpenAIReasoningEffort | undefined {
+function readGlobalReasoningEffortCap(): OpenAIReasoningEffort | undefined {
   const raw = process.env.OPENAI_REASONING_EFFORT?.trim().toLowerCase();
   if (!raw) return undefined;
   return isReasoningEffort(raw) ? raw : undefined;
+}
+
+/** Lower of two efforts (the cap can only reduce the stage value). */
+function minReasoningEffort(
+  a: OpenAIReasoningEffort,
+  b: OpenAIReasoningEffort
+): OpenAIReasoningEffort {
+  return REASONING_EFFORT_RANK[a] <= REASONING_EFFORT_RANK[b] ? a : b;
+}
+
+export function resolveReasoningEffort(
+  stageEffort: OpenAIReasoningEffort | undefined,
+  cap: OpenAIReasoningEffort | undefined = readGlobalReasoningEffortCap()
+): OpenAIReasoningEffort | undefined {
+  if (cap && stageEffort) return minReasoningEffort(cap, stageEffort);
+  return cap ?? stageEffort;
 }
 
 export function buildOpenAISamplingParam(
@@ -142,7 +172,7 @@ export function buildOpenAISamplingParam(
   | { reasoning_effort: OpenAIReasoningEffort }
   | Record<string, never> {
   if (isReasoningCapableModel(model)) {
-    const effort = readGlobalReasoningEffortOverride() ?? options.reasoningEffort;
+    const effort = resolveReasoningEffort(options.reasoningEffort);
     return effort ? { reasoning_effort: effort } : {};
   }
   return { temperature: options.temperature };

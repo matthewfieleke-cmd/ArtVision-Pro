@@ -120,10 +120,27 @@ describe('buildOpenAISamplingParam', () => {
     expect(buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12 })).toEqual({});
   });
 
-  it('lets OPENAI_REASONING_EFFORT override the per-stage effort for reasoning models', () => {
+  it('lets OPENAI_REASONING_EFFORT cap the per-stage effort DOWN for reasoning models', () => {
     process.env.OPENAI_REASONING_EFFORT = 'low';
     expect(
       buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12, reasoningEffort: 'high' })
+    ).toEqual({ reasoning_effort: 'low' });
+
+    process.env.OPENAI_REASONING_EFFORT = 'medium';
+    expect(
+      buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12, reasoningEffort: 'low' })
+    ).toEqual({ reasoning_effort: 'low' });
+  });
+
+  it('does NOT let OPENAI_REASONING_EFFORT raise a stage above its coded effort', () => {
+    // The cap is a ceiling, not a replacement: a high cap must not push a
+    // medium/low stage up to high.
+    process.env.OPENAI_REASONING_EFFORT = 'high';
+    expect(
+      buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12, reasoningEffort: 'medium' })
+    ).toEqual({ reasoning_effort: 'medium' });
+    expect(
+      buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12, reasoningEffort: 'low' })
     ).toEqual({ reasoning_effort: 'low' });
   });
 

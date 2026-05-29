@@ -5,7 +5,7 @@ import type {
 } from './critiqueZodSchemas.js';
 import type { CriterionAnchor, CriterionEditPlan } from '../shared/critiqueAnchors.js';
 import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiModels.js';
-import { buildHighDetailImageMessage, type VisionUserMessagePart } from './openaiVisionContent.js';
+import { buildLowDetailImageMessage, type VisionUserMessagePart } from './openaiVisionContent.js';
 import { errorMessage } from './critiqueErrors.js';
 import {
   CRITIQUE_AUDIENCE_FRAMING,
@@ -401,7 +401,13 @@ type OpenAIChatCompletion = {
   error?: { message?: string };
 };
 
-const MAX_CRITERION_AUDIT_RETRIES = 1;
+// Audit runs once per criterion for logging/diagnostics, but the retry is kept
+// OFF the critical path: a single slow criterion that also failed its audit
+// used to fire a second sequential call, doubling stage-2 wall-clock for the
+// whole pipeline (stage 2 is bounded by the slowest of eight parallel calls).
+// Set to a value > 0 only if a measured quality regression justifies the tail
+// latency it reintroduces.
+const MAX_CRITERION_AUDIT_RETRIES = 0;
 const GENERIC_ANCHOR_WORDS = new Set([
   'area',
   'areas',
@@ -686,9 +692,13 @@ async function runCriterionWriterWithAudit(args: {
     const raw = await callCriterionStage({
       apiKey: args.apiKey,
       model: args.model,
+      // Image first, then the per-criterion text: the system message and the
+      // (identical across all eight calls) image form a stable prefix the API
+      // can prompt-cache, while only the trailing criterion-specific text
+      // varies. Putting the varying text first would defeat that caching.
       userContent: [
-        { type: 'text', text: prompt },
         args.imageMessage,
+        { type: 'text', text: prompt },
       ],
     });
     const result = parseWriterOutput(args.criterion, raw);
@@ -742,7 +752,10 @@ export async function runParallelCriteriaStage(args: {
     `[critique parallel criteria] launching ${CRITERIA_ORDER.length} concurrent writer calls (model=${args.model})`
   );
 
-  const imageMessage = buildHighDetailImageMessage(args.imageDataUrl);
+  // Low-detail image for the writers: the high-detail perception already
+  // happened once in the observation-bank stage; the writers reuse that bank
+  // and only need enough of the image to localize an anchor and ground prose.
+  const imageMessage = buildLowDetailImageMessage(args.imageDataUrl);
 
   const settled = await Promise.allSettled(
     CRITERIA_ORDER.map(async (criterion) => {

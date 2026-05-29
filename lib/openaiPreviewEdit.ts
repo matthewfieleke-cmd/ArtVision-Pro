@@ -636,7 +636,12 @@ export async function runOpenAIPreviewEdit(
   const imageUrls = focusCropUrl ? [imageUrl, focusCropUrl] : [imageUrl];
   const quality = resolveEditQuality();
   const candidateCount = resolveCandidateCount();
-  const originalStats = await computePreviewStats(inputBuffer);
+  // Best-of-N ranking only does anything when there is more than one candidate.
+  // On the default single-candidate path the ranking would compare the lone
+  // candidate against itself, so skip the (twice-run) image-statistics pass
+  // entirely and just return the produced image.
+  const shouldRankCandidates = candidateCount > 1;
+  const originalStats = shouldRankCandidates ? await computePreviewStats(inputBuffer) : null;
   const prompt = buildEditPrompt(body, localization);
 
   const maxPerRequest = imageEditModelMaxNPerRequest(model);
@@ -686,9 +691,16 @@ export async function runOpenAIPreviewEdit(
       preferOut,
       geometry
     );
-    const candidateStats = await computePreviewStats(outBuf);
-    const score = rankingScore(body.target.criterion, originalStats, candidateStats);
     const imageDataUrl = `data:${outMime};base64,${outBuf.toString('base64')}`;
+
+    if (!shouldRankCandidates) {
+      // Single-candidate path: the first valid image is the result.
+      bestCandidate = { imageDataUrl, score: 1 };
+      break;
+    }
+
+    const candidateStats = await computePreviewStats(outBuf);
+    const score = rankingScore(body.target.criterion, originalStats!, candidateStats);
     if (!bestCandidate || score > bestCandidate.score) {
       bestCandidate = { imageDataUrl, score };
     }
