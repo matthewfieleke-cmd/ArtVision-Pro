@@ -127,13 +127,13 @@ export const CRITERION_JSON_SCHEMA = {
       },
       voiceACritique: {
         type: 'string',
-        description:
-          "Voice A critic paragraph in the instructional register described in the system message. 2–4 sentences. Declarative, evaluative, third-person about the painting. Name the anchored passage first, then say what is happening there, then the structural consequence. No conversational address to the reader, no 'you', no filler openings.",
+          description:
+            "Voice A critic paragraph in the instructional register described in the system message. 3–6 sentences — elaborate enough to be clear; explain the one or two most consequential events fully rather than cramming. Declarative, evaluative, third-person about the painting. Name the anchored passage first, then say what is happening there, then the structural consequence. No conversational address to the reader, no 'you', no filler openings.",
       },
       voiceBSuggestions: {
         type: 'string',
-        description:
-          "Voice B teacher paragraph in the instructional register described in the system message. 2–4 sentences. Imperative. Follow the four-beat shape (where → what is happening now → what to try → what you should see afterward). Start the move with a concrete studio verb. Never 'you might', 'let's', 'try to', 'we can' — imperative only.",
+          description:
+            "Voice B teacher paragraph in the instructional register described in the system message. 3–6 sentences, one clear idea per sentence — give each beat room rather than compressing. Imperative. Follow the four-beat shape (where → what is happening now → what to try → what you should see afterward). Start the move with a concrete studio verb. Never 'you might', 'let's', 'try to', 'we can' — imperative only.",
       },
       preserve: {
         type: 'string',
@@ -271,49 +271,57 @@ function criterionInsightGuidance(criterion: CriterionLabel): string {
 - This axis is about why the painting commits to its choices — what the work is genuinely going for and whether the picture's decisions serve that aim. A strong read names the specific passage that CARRIES the intent (a direct pressure-bearing passage, not a generic focal point) and says whether the rest of the picture is backing that intent or undercutting it.
 - What tends to matter: which passage bears the painting's argument (the encounter, the contact, the compression, the specific thing the painter kept insisting on); whether other passages defer to or fight that carrier.
 - Structural-claim verbs specific to this axis: "commits to", "backs", "serves", "undercuts", "dilutes", "anchors the intent", "stops the picture from cohering around", "is the one passage the painting is actually about."
-- Teacher moves for this axis tend to protect or strengthen the carrier passage: preserve the compression, quiet a competing accent elsewhere, recommit to the specific relationship that is the intent.`;
+- Teacher moves for this axis tend to protect or strengthen the carrier passage: preserve the compression, quiet a competing accent elsewhere, recommit to the specific relationship that is the intent.
+- Keep off neighboring axes: this is about whether the picture's choices are *necessary* and serve its aim — not whether it feels inhabited or addresses a viewer (that is Presence, point of view, and human force), and not how the shapes are arranged on the plane (that is Composition and shape structure).`;
     case 'Composition and shape structure':
       return `What insight looks like for Composition and shape structure:
 - This axis is about how shapes and their intervals organise the picture plane — where forms stack, widen, narrow, align, tilt, cut, or leave gaps. A strong read names a structural event between forms and says what that event does for the whole picture: does it balance, does it stall, does it crowd, does it open.
 - What tends to matter: overlap and interval between major masses; how negative shapes behave; alignment / tilt / stack of vertical + horizontal structure; whether a diagonal leads the eye or fractures the plane.
 - Structural-claim verbs: "organises", "fractures", "crowds", "stalls the eye at", "ties the picture together at", "leaves a wider gap on one side than the other so…", "cuts through the pale field and…"
-- Teacher moves tend to rebalance intervals, group competing shapes, widen or narrow a gap, simplify a cluttered passage, strengthen or break an alignment.`;
+- Teacher moves tend to rebalance intervals, group competing shapes, widen or narrow a gap, simplify a cluttered passage, strengthen or break an alignment.
+- Keep off neighboring axes: stay on arrangement, intervals, and shape balance on the picture plane — do not judge whether forms are correctly built or in proportion (that is Drawing, proportion, and spatial form), or where edges harden and soften (that is Edge and focus control).`;
     case 'Value and light structure':
       return `What insight looks like for Value and light structure:
 - This axis is about how light mass and shadow mass shape the picture — value grouping, where the biggest value break sits, whether the light reads as a system or as piecework. A strong read names the shape of the light mass and says what that shape does for figure-ground separation and depth.
 - What tends to matter: where the picture's strongest value contrast lands; whether lights group into one shape; whether shadows group or scatter; whether a passage is carrying ALL the brightness or ALL the dark.
 - Structural-claim verbs: "groups", "scatters", "carries all the light", "flattens the figure against the ground because the values compress", "reads back because the shadow mass is unified", "sets the light scaffold for the whole picture."
-- Teacher moves tend to regroup values, darken or lighten a specific passage, compress or expand the value range within a named area, restate a light shape.`;
+- Teacher moves tend to regroup values, darken or lighten a specific passage, compress or expand the value range within a named area, restate a light shape.
+- Keep off neighboring axes: this is about value/light mass and where contrast lands — not hue, chroma, or temperature (that is Color relationships), and not which edges are hard or soft (that is Edge and focus control).`;
     case 'Color relationships':
       return `What insight looks like for Color relationships:
 - This axis is about how hue, chroma, and temperature behave as a system — what belongs to a shared palette, where chroma is placed strategically vs. scattered, whether temperature shifts are doing structural work. For drawing, this axis reads value harmony / paper tone / mark families instead.
 - What tends to matter: where the highest chroma lands and whether it's earned; whether temperature shifts map the space (warm forward, cool back) or fight it; whether the local color of an object has been sacrificed for palette logic (or vice versa).
 - Structural-claim verbs: "ties the palette together at", "breaks the palette's logic because…", "places the brightest chroma where it can actually do structural work", "pulls the eye away from the intended focus because…", "the temperature shift carries the depth the drawing was trying to do."
-- Teacher moves tend to quiet a chroma spike, shift a temperature to line up with depth, regroup color families across similar passages, or preserve a specific earned accent.`;
+- Teacher moves tend to quiet a chroma spike, shift a temperature to line up with depth, regroup color families across similar passages, or preserve a specific earned accent.
+- Keep off neighboring axes: this is about hue, chroma, and temperature as a system — not the light/shadow value structure itself (that is Value and light structure).`;
     case 'Drawing, proportion, and spatial form':
       return `What insight looks like for Drawing, proportion, and spatial form:
 - This axis is about construction: are the things in the picture actually *built* — are their proportions, their angles, their overlaps, their feet on the ground convincing? For abstract work, this is about how forms sit in the picture plane and whether their relative scale / placement reads deliberate.
 - What tends to matter: specific proportion relationships (jaw to forehead, height of a pot to its width, the near-to-far ratio of a receding mass); whether the perspective holds at the junctions the eye tests (feet on the floor, plates elliptical on the table, windows shortening with the wall); whether a form reads as solid or as a silhouette.
 - Structural-claim verbs: "reads as solid because…", "flattens into a silhouette", "the proportions of X to Y set the figure's scale for the whole picture", "the perspective gives up at the back of the room", "the form sits on the plane because the angle at X holds."
-- Teacher moves tend to restate a specific angle or proportion, rebuild the junction where the drawing gives up, darken under a foot or base to set it on the ground, check a relative scale with a named reference.`;
+- Teacher moves tend to restate a specific angle or proportion, rebuild the junction where the drawing gives up, darken under a foot or base to set it on the ground, check a relative scale with a named reference.
+- Keep off neighboring axes: this is about construction, proportion, and spatial form — whether things are *built* — not how the shapes are arranged across the plane (that is Composition and shape structure).`;
     case 'Edge and focus control':
       return `What insight looks like for Edge and focus control:
 - This axis is about where the picture sharpens and where it softens, and whether that pattern tells the eye where to look. A strong read names the lost-and-found pattern and says what it does for focal hierarchy.
 - What tends to matter: which edges are hardest and whether they're in the passage the painting actually cares about; where lost edges are doing work (and where they're just avoidance); whether a passage is accidentally as sharp as the focus; whether what looks soft is photo capture or painted ambiguity.
 - Structural-claim verbs: "holds the focus at", "pulls focus away from the intended subject because…", "gives the eye nowhere to stop", "sets up a clear lost-and-found pattern that lands on…", "the hardest edge in the picture is in the wrong place."
-- Teacher moves tend to soften a competing edge, sharpen the intended focus, break a contour into lost / found segments, resolve ambiguous-vs-captured softness.`;
+- Teacher moves tend to soften a competing edge, sharpen the intended focus, break a contour into lost / found segments, resolve ambiguous-vs-captured softness.
+- Keep off neighboring axes: this is about edge hardness/softness and focal hierarchy — not the size of the value range itself (that is Value and light structure).`;
     case 'Surface and medium handling':
       return `What insight looks like for Surface and medium handling:
 - This axis is about the mark behavior actually visible on the canvas — direction, thickness, wet/dry, scumble, tooth, correction layers — and whether the handling is doing work for the picture or fighting it. A strong read names a specific mark passage and says what that handling accomplishes.
 - What tends to matter: whether different mark families separate different areas (hatching in the wall vs. smoother shirt, impasto in the lights vs. thinner darks); whether reworking has enriched or deadened a passage; whether the surface rhythm belongs to the declared medium.
 - Structural-claim verbs: "carries the surface rhythm", "has been overworked and reads deadened", "the loaded rim holds the form because…", "the dry drag scatters the light where it should be grouped", "the hatch field organises the wall as a single plane."
-- Teacher moves tend to protect a working mark economy, scrape back a deadened passage, vary mark direction in a flattening area, reserve a dry passage against a loaded one.`;
+- Teacher moves tend to protect a working mark economy, scrape back a deadened passage, vary mark direction in a flattening area, reserve a dry passage against a loaded one.
+- Keep off neighboring axes: this is about mark behavior and handling of the medium — not how marks are arranged compositionally (that is Composition and shape structure).`;
     case 'Presence, point of view, and human force':
       return `What insight looks like for Presence, point of view, and human force:
 - This axis is about whether the painting addresses a viewer — whether it feels inhabited, whether there is a specific point of view, whether the picture makes bodily / psychological pressure visible. The anchor must be a physical carrier passage on the canvas, not a mood word.
 - What tends to matter: which passage carries the bodily pressure (a tilt, a contact, a gaze, a compression of bodies, an encounter between forms); the point of view the picture takes (over the shoulder, across the room, from below); whether other passages back that point of view or dilute it.
 - Structural-claim verbs: "addresses the viewer through", "withholds presence because…", "the inward tilt carries all the human pressure", "the staging feels inhabited because…", "the figure is present but the picture is not about being near it."
-- Teacher moves tend to preserve the specific carrier of presence, quiet a passage that's pulling attention away from it, or strengthen a point-of-view cue in a named passage.`;
+- Teacher moves tend to preserve the specific carrier of presence, quiet a passage that's pulling attention away from it, or strengthen a point-of-view cue in a named passage.
+- Keep off neighboring axes: this is about whether the picture addresses a viewer and feels inhabited — not whether its choices are necessary to its aim (that is Intent and necessity).`;
   }
 }
 
@@ -380,8 +388,8 @@ export function buildCriterionPrompt(args: {
     '- Pick ONE anchor passage: either copy a passages[].label verbatim from the bank above when it genuinely fits this criterion, or name a new locatable passage you can see in the image. Anchor must be a noun phrase that fits after "in": downstream prose writes "In [areaSummary], …".',
     '- Locate that anchor in the photograph as a normalized bounding box (x, y, width, height in 0–1 coords).',
     '- Write 3–6 junction-level visibleEvidence lines. The FIRST line must reuse the concrete nouns from anchor.areaSummary and describe one visible event there.',
-    `- Write Voice A (critic) — instructional register, 2–4 sentences, declarative and evaluative. Follow the Voice A paragraph shape from the system message. For ${criterion} specifically, name the anchored passage, say what is happening there on this axis (value / color / edge / surface / drawing / composition / intent / presence as appropriate), then the structural consequence — what this passage does for the painting on this criterion.`,
-    `- Write Voice B (teacher) — instructional register, 2–4 sentences, imperative. Follow the four-beat shape. One primary move, starting with a concrete studio verb. Respect the declared medium (${medium}): do not recommend moves the medium would fight.`,
+    `- Write Voice A (critic) — instructional register, 3–6 sentences, declarative and evaluative. Follow the Voice A paragraph shape from the system message: explain the one or two most consequential events clearly rather than compressing many. For ${criterion} specifically, name the anchored passage, say what is happening there on this axis (value / color / edge / surface / drawing / composition / intent / presence as appropriate), then the structural consequence — what this passage does for the painting on this criterion.`,
+    `- Write Voice B (teacher) — instructional register, 3–6 sentences, imperative. Follow the four-beat shape, giving each beat its own clear sentence. One primary move, starting with a concrete studio verb. Respect the declared medium (${medium}): do not recommend moves the medium would fight.`,
     '- Write preserve — one short sentence naming a specific visible strength nearby that the artist should protect.',
     '- Emit editPlan — the structured spec the AI-edit endpoint reads directly. intendedChange must start with a concrete studio verb, or with a preserve verb if the criterion is already working. editability = "yes" if intendedChange is a real change; "no" if the criterion is already working and the plan is a preserve instruction.',
     '- Set confidence ("low" / "medium" / "high") based on how well the visible evidence in the photo supports this criterion read. Put hedging here, not in the prose.',
