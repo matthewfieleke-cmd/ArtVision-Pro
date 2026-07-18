@@ -95,6 +95,7 @@ import {
 } from './stripeCheckoutSession';
 import { findStripeReturnParams } from './stripeReturnParams';
 import { usePaintingStorage } from './hooks/usePaintingStorage';
+import { rehydrateSessionPreviewsFromSaved } from './previewMerge';
 import { BenchmarksTab } from './screens/BenchmarksTab';
 import { GlossaryTab } from './screens/GlossaryTab';
 import { HomeTab } from './screens/HomeTab';
@@ -295,11 +296,15 @@ export default function App() {
   const [tab, setTab] = useState<TabId>('home');
   const {
     paintings,
+    storageReady,
     studioSelectedId,
     setStudioSelectedId,
     persistResult: storagePersist,
+    appendStudioPreviewEdit,
     deletePainting,
     openPaintingFromHome,
+    saveError,
+    clearSaveError,
   } = usePaintingStorage(setTab);
   const [flow, setFlow] = useState<CritiqueFlow | null>(null);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
@@ -546,9 +551,30 @@ export default function App() {
       const returnView = consumeReturnViewIntent();
       const flowRestored =
         returnView?.kind === 'critique' && isCritiqueFlow(returnView.flow);
+      const studioReturnId =
+        returnView?.kind === 'studio' && typeof returnView.selectedPaintingId === 'string'
+          ? returnView.selectedPaintingId
+          : pendingStudioPreviewPaintingIdRef.current;
+
       if (flowRestored) {
-        flowRef.current = returnView.flow as CritiqueFlow;
-        setFlow(returnView.flow as CritiqueFlow);
+        let restored = returnView.flow as CritiqueFlow;
+        // Stripe storage strips AI-edit image bytes; rehydrate from Studio when possible.
+        if (restored.step === 'results') {
+          const paintingId =
+            restored.savedPaintingId ??
+            (restored.mode === 'resubmit' ? restored.targetPainting.id : undefined);
+          const painting = paintingId
+            ? paintingsRef.current.find((p) => p.id === paintingId)
+            : restored.mode === 'resubmit'
+              ? restored.targetPainting
+              : undefined;
+          const savedEdits = painting?.versions[painting.versions.length - 1]?.previewEdits;
+          const session = restored.sessionPreviewEdits;
+          const rehydrated = rehydrateSessionPreviewsFromSaved(session, savedEdits);
+          restored = { ...restored, sessionPreviewEdits: rehydrated };
+        }
+        flowRef.current = restored;
+        setFlow(restored);
         clearAsyncState();
         closeCompare();
       }
@@ -566,6 +592,7 @@ export default function App() {
         fromRef: Boolean(fastCriterion),
         fromLocalStorage: Boolean(storedCriterion && !fastCriterion),
         flowRestored,
+        studioReturnId,
         flowStep: flowRef.current?.step ?? null,
       });
 
@@ -574,11 +601,25 @@ export default function App() {
         // criterion they were running. Return view may still be restored;
         // no edit to trigger. Surface a clear error so the JWT isn't
         // silently abandoned.
-        if (flowRestored) {
+        if (flowRestored || studioReturnId) {
           failPreview(
             'Payment received, but the app could not recover which AI edit to generate. Tap Generate on any criterion to use the payment credit.'
           );
         }
+        return;
+      }
+
+      if (!fastCriterion && storedCriterion) {
+        pendingPreviewCriterionRef.current = storedCriterion as CritiqueCategory['criterion'];
+      }
+
+      // Studio-originated AI edit: reopen the painting and generate there.
+      if (studioReturnId && !flowRestored) {
+        setFlow(null);
+        setStudioSelectedId(studioReturnId);
+        setTab('studio');
+        pendingStudioPreviewPaintingIdRef.current = studioReturnId;
+        void runStudioPreviewEditRef.current(studioReturnId, resumeCriterion);
         return;
       }
 
@@ -593,9 +634,6 @@ export default function App() {
         return;
       }
 
-      if (!fastCriterion && storedCriterion) {
-        pendingPreviewCriterionRef.current = storedCriterion as CritiqueCategory['criterion'];
-      }
       void runPreviewEditRef.current(resumeCriterion);
     },
     [
@@ -606,6 +644,7 @@ export default function App() {
       navigate,
       resetPreview,
       resumePendingCritiqueAfterPayment,
+      setStudioSelectedId,
     ]
   );
 
@@ -645,6 +684,9 @@ export default function App() {
 
   useEffect(() => {
     if (location.pathname !== '/') return;
+    // Wait for IndexedDB Studio load so Stripe AI-edit resume can rehydrate
+    // previously saved preview images and find studio paintings.
+    if (!storageReady) return;
     const stripeReturn = findStripeReturnParams({
       routerSearch: location.search,
       browserSearch: typeof window !== 'undefined' ? window.location.search : '',
@@ -729,6 +771,7 @@ export default function App() {
     setStudioSelectedId,
     failRequest,
     setTab,
+    storageReady,
   ]);
 
   const cancelAnalysisKeepAlive = useCallback(() => {
@@ -810,6 +853,10 @@ export default function App() {
     async () => {}
   );
   const runPreviewEditRef = useRef<(criterion: CritiqueCategory['criterion']) => Promise<void>>(async () => {});
+  const runStudioPreviewEditRef = useRef<
+    (paintingId: string, criterion: CritiqueCategory['criterion']) => Promise<void>
+  >(async () => {});
+  const pendingStudioPreviewPaintingIdRef = useRef<string | null>(null);
 
   /**
    * Initiate the Stripe checkout for a critique. Compresses the pending image, persists a
@@ -1027,7 +1074,7 @@ export default function App() {
         critiqueSource: 'api',
       });
       setFlow(resultsFlow);
-      const studioPersist = storagePersist(resultsFlow, { navigateToStudio: false });
+      const studioPersist = await storagePersist(resultsFlow, { navigateToStudio: false });
       if (studioPersist) {
         setFlow((cur) =>
           cur && cur.step === 'results'
@@ -1277,10 +1324,19 @@ export default function App() {
     const sig = list.map((e) => e.id).join('|');
     if (lastAutoSaveSigRef.current === sig) return;
     lastAutoSaveSigRef.current = sig;
-    const result = storagePersist(f, { navigateToStudio: false });
-    if (result) {
-      setFlow((cur) => cur && cur.step === 'results' ? { ...cur, mode: 'resubmit', targetPainting: result.targetPainting, savedPaintingId: result.savedPaintingId } : cur);
-    }
+    void storagePersist(f, { navigateToStudio: false }).then((result) => {
+      if (!result) return;
+      setFlow((cur) =>
+        cur && cur.step === 'results'
+          ? {
+              ...cur,
+              mode: 'resubmit',
+              targetPainting: result.targetPainting,
+              savedPaintingId: result.savedPaintingId,
+            }
+          : cur
+      );
+    });
   }, [flow, preview.loading, storagePersist]);
 
   const canRunCritiqueFromClassifyUpload =
@@ -1426,8 +1482,14 @@ export default function App() {
    * can be restored after the Stripe full-page reload, and writes the pending criterion so the
    * preview-edit request can auto-resume on return.
    */
-  const startPreviewCheckout = useCallback(async () => {
-    rememberCritiqueReturn();
+  const startPreviewCheckout = useCallback(async (opts?: { studioPaintingId?: string }) => {
+    if (opts?.studioPaintingId) {
+      pendingStudioPreviewPaintingIdRef.current = opts.studioPaintingId;
+      setReturnViewIntent({ kind: 'studio', selectedPaintingId: opts.studioPaintingId });
+    } else {
+      pendingStudioPreviewPaintingIdRef.current = null;
+      rememberCritiqueReturn();
+    }
     const pendingCriterion = pendingPreviewCriterionRef.current;
     if (pendingCriterion) {
       setPendingPreviewPaymentCriterion(pendingCriterion);
@@ -1437,11 +1499,12 @@ export default function App() {
     try {
       const url = await createStripeCheckoutSession({
         kind: 'preview_edit',
-        cancelPathHash: '#/',
+        cancelPathHash: opts?.studioPaintingId ? '#/?tab=studio' : '#/',
       });
       window.location.href = url;
     } catch (e) {
       clearPendingPreviewPaymentCriterion();
+      pendingStudioPreviewPaintingIdRef.current = null;
       failPreview(e instanceof Error ? e.message : 'Checkout failed');
     }
   }, [failPreview, rememberCritiqueReturn]);
@@ -1541,6 +1604,128 @@ export default function App() {
 
   runPreviewEditRef.current = runPreviewEdit;
 
+  const runStudioPreviewEdit = useCallback(
+    async (paintingId: string, criterion: CritiqueCategory['criterion']) => {
+      const painting = paintingsRef.current.find((p) => p.id === paintingId);
+      if (!painting?.versions.length) {
+        failPreview('Could not find this painting in Studio. Try reopening it.');
+        return;
+      }
+      const latest = painting.versions[painting.versions.length - 1]!;
+      const canonCriterion = canonicalCriterionLabel(criterion) ?? criterion;
+      const already = (latest.previewEdits ?? []).some((e) => {
+        if (e.mode !== 'single') return false;
+        const k = canonicalCriterionLabel(e.criterion) ?? e.criterion;
+        return k === canonCriterion;
+      });
+      if (already) return;
+      if (previewRef.current.loading) return;
+
+      const category =
+        latest.critique.categories.find((entry) => entry.criterion === criterion) ??
+        (latest.critique.categories.length
+          ? priorityCritiqueCategory(latest.critique.categories)
+          : null);
+      if (!category?.anchor) {
+        failPreview('This criterion does not have an anchored passage to edit.');
+        return;
+      }
+
+      startPreviewLoading({ kind: 'single', criterion });
+      pendingStudioPreviewPaintingIdRef.current = paintingId;
+      if (paywallEnabled && !getStripeCheckoutJwt('preview_edit')) {
+        pendingPreviewCriterionRef.current = criterion;
+        await startPreviewCheckout({ studioPaintingId: paintingId });
+        return;
+      }
+
+      try {
+        const changes = latest.critique.simple?.studioChanges;
+        const matchingChange = changes?.find((change) => change.previewCriterion === criterion);
+        const target: PreviewEditTargetPayload = {
+          criterion: category.criterion,
+          level: category.level,
+          phase1: category.phase1,
+          phase2: category.phase2,
+          phase3: category.phase3,
+          actionPlanSteps: category.actionPlanSteps,
+          anchor: category.anchor,
+          editPlan: category.editPlan,
+          ...(matchingChange ? { studioChangeRecommendation: matchingChange.text } : {}),
+        };
+        const previewJwt = getStripeCheckoutJwt('preview_edit');
+        if (previewJwt) {
+          clearPendingPreviewPaymentCriterion();
+        }
+        pendingPreviewCriterionRef.current = null;
+        const { imageDataUrl, criterion: returnedCriterion } = await fetchPreviewEdit({
+          imageDataUrl: latest.imageDataUrl,
+          style: painting.style,
+          medium: painting.medium,
+          target,
+          ...(previewJwt ? { stripeCheckoutJwt: previewJwt } : {}),
+        });
+        const storedCriterion =
+          canonicalCriterionLabel(returnedCriterion) ??
+          canonicalCriterionLabel(target.criterion) ??
+          target.criterion;
+        const entry: SavedPreviewEdit = {
+          id: newId(),
+          imageDataUrl,
+          criterion: storedCriterion,
+          mode: 'single',
+          ...(target.studioChangeRecommendation
+            ? { studioChangeRecommendation: target.studioChangeRecommendation }
+            : {}),
+        };
+        const updated = await appendStudioPreviewEdit(paintingId, entry);
+        if (!updated) {
+          failPreview('The AI edit was generated but could not be saved to Studio.');
+          return;
+        }
+        completePreview(entry.id);
+        pendingStudioPreviewPaintingIdRef.current = null;
+        setStudioSelectedId(paintingId);
+        setTab('studio');
+      } catch (e) {
+        if (e instanceof PreviewEditPaymentRequiredError) {
+          pendingPreviewCriterionRef.current = criterion;
+          await startPreviewCheckout({ studioPaintingId: paintingId });
+        } else {
+          failPreview(
+            e instanceof Error ? e.message : 'Preview failed. Please retry from Studio.'
+          );
+        }
+      }
+    },
+    [
+      appendStudioPreviewEdit,
+      completePreview,
+      failPreview,
+      paywallEnabled,
+      startPreviewCheckout,
+      startPreviewLoading,
+      setStudioSelectedId,
+    ]
+  );
+
+  runStudioPreviewEditRef.current = runStudioPreviewEdit;
+
+  const studioPreviewEditIdByCriterion = useMemo(() => {
+    if (!studioSelectedId) return undefined;
+    const painting = paintings.find((p) => p.id === studioSelectedId);
+    const list = painting?.versions[painting.versions.length - 1]?.previewEdits ?? [];
+    if (!list.length) return undefined;
+    const map: Partial<Record<CritiqueCategory['criterion'], string>> = {};
+    for (const e of list) {
+      if (e.mode === 'single') {
+        const key = canonicalCriterionLabel(e.criterion) ?? e.criterion;
+        map[key as CritiqueCategory['criterion']] = e.id;
+      }
+    }
+    return Object.keys(map).length ? map : undefined;
+  }, [paintings, studioSelectedId]);
+
   useEffect(() => {
     if (!flow || flow.step !== 'results') return;
     const list = flow.sessionPreviewEdits ?? [];
@@ -1606,6 +1791,18 @@ export default function App() {
                       onDelete={deletePainting}
                       onResubmit={startResubmit}
                       isDesktop
+                      canGenerateAiEdits
+                      onGenerateAiEditForCriterion={(criterion) => {
+                        if (!studioSelectedId) return;
+                        void runStudioPreviewEdit(studioSelectedId, criterion);
+                      }}
+                      previewEditIdByCriterion={studioPreviewEditIdByCriterion}
+                      previewLoading={preview.loading}
+                      previewLoadingTarget={preview.loadingTarget}
+                      previewPaywallEnabled={paywallEnabled}
+                      previewPriceLabel={previewPriceLabel}
+                      previewPaymentRequiredCriterion={previewPaymentRequiredCriterion}
+                      previewError={preview.error}
                     />
                   )}
                   {!flow && tab === 'benchmarks' && <BenchmarksTab isDesktop />}
@@ -1671,6 +1868,18 @@ export default function App() {
                 onDelete={deletePainting}
                 onResubmit={startResubmit}
                 isDesktop={false}
+                canGenerateAiEdits
+                onGenerateAiEditForCriterion={(criterion) => {
+                  if (!studioSelectedId) return;
+                  void runStudioPreviewEdit(studioSelectedId, criterion);
+                }}
+                previewEditIdByCriterion={studioPreviewEditIdByCriterion}
+                previewLoading={preview.loading}
+                previewLoadingTarget={preview.loadingTarget}
+                previewPaywallEnabled={paywallEnabled}
+                previewPriceLabel={previewPriceLabel}
+                previewPaymentRequiredCriterion={previewPaymentRequiredCriterion}
+                previewError={preview.error}
               />
             )}
             {!flow && tab === 'benchmarks' && <BenchmarksTab />}
@@ -2197,6 +2406,38 @@ export default function App() {
                   </div>
                 </div>
                 <div className="min-h-0 space-y-4">
+                {preview.loading ? (
+                  <div
+                    className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 shadow-sm"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <Loader2 className="h-5 w-5 shrink-0 animate-spin text-violet-600" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="font-semibold">Generating AI Edit…</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-violet-800/80">
+                        {preview.loadingTarget?.kind === 'single'
+                          ? `Working on ${preview.loadingTarget.criterion}. This can take up to a minute — stay on this screen.`
+                          : 'This can take up to a minute. Stay on this screen.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                {saveError ? (
+                  <div
+                    className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                    role="alert"
+                  >
+                    <p className="font-medium">{saveError}</p>
+                    <button
+                      type="button"
+                      onClick={clearSaveError}
+                      className="mt-2 text-xs font-semibold text-amber-900 underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                ) : null}
                 <CritiquePanels
                   critique={flow.critique}
                   paintingImageSrc={flow.imageDataUrl}
@@ -2363,6 +2604,21 @@ export default function App() {
         ) : null}
         </>
       )}
+      {saveError && !(flow?.step === 'results') ? (
+        <div
+          className="fixed bottom-[max(5.5rem,calc(4.5rem+env(safe-area-inset-bottom)))] left-1/2 z-[60] w-[min(28rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-lg"
+          role="alert"
+        >
+          <p className="font-medium">{saveError}</p>
+          <button
+            type="button"
+            onClick={clearSaveError}
+            className="mt-2 text-xs font-semibold text-amber-900 underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <Analytics />
     </div>
   );

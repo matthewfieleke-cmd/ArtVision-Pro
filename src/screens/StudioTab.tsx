@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Camera, Trash2 } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, Trash2 } from 'lucide-react';
 import { criterionLabelMatches, previewEditChipText, previewEditChipTitle } from '../../shared/criteria';
 import { CritiquePanels } from '../components/CritiquePanels';
 import { PreviewEditBlendCard } from '../components/PreviewEditBlendCard';
-import type { CritiqueResult, SavedPainting, SavedPreviewEdit } from '../types';
+import type { CritiqueCategory, CritiqueResult, SavedPainting, SavedPreviewEdit } from '../types';
 import { CRITERIA } from '../types';
 import { formatShortDate, progressPercentFromPainting } from '../utils';
 
@@ -15,6 +15,15 @@ type Props = {
   onSelectPainting: (id: string | null) => void;
   selectedId: string | null;
   isDesktop?: boolean;
+  canGenerateAiEdits?: boolean;
+  onGenerateAiEditForCriterion?: (criterion: CritiqueCategory['criterion']) => void;
+  previewEditIdByCriterion?: Partial<Record<CritiqueCategory['criterion'], string>>;
+  previewLoading?: boolean;
+  previewLoadingTarget?: null | { kind: 'single'; criterion: CritiqueCategory['criterion'] };
+  previewPaywallEnabled?: boolean;
+  previewPriceLabel?: string;
+  previewPaymentRequiredCriterion?: CritiqueCategory['criterion'] | null;
+  previewError?: string | null;
 };
 
 function previewTargetForVersion(
@@ -46,6 +55,15 @@ export function StudioTab({
   onSelectPainting,
   selectedId,
   isDesktop = false,
+  canGenerateAiEdits = false,
+  onGenerateAiEditForCriterion,
+  previewEditIdByCriterion,
+  previewLoading = false,
+  previewLoadingTarget = null,
+  previewPaywallEnabled = false,
+  previewPriceLabel = '$0.99',
+  previewPaymentRequiredCriterion = null,
+  previewError = null,
 }: Props) {
   const [compareIdx, setCompareIdx] = useState(0);
   const [studioPreviewPickId, setStudioPreviewPickId] = useState<string | null>(null);
@@ -117,6 +135,31 @@ export function StudioTab({
             isDesktop ? 'flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1' : 'contents'
           }
         >
+        {previewLoading ? (
+          <div
+            className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 shadow-sm"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-violet-600" aria-hidden />
+            <div className="min-w-0">
+              <p className="font-semibold">Generating AI Edit…</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-violet-800/80">
+                {previewLoadingTarget?.kind === 'single'
+                  ? `Working on ${previewLoadingTarget.criterion}. This can take up to a minute.`
+                  : 'This can take up to a minute. Stay on this screen.'}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        {previewError ? (
+          <div
+            className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-800"
+            role="alert"
+          >
+            {previewError}
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500">
             <span>Progress</span>
@@ -167,7 +210,10 @@ export function StudioTab({
         )}
 
         {activeSavedPreview ? (
-          <section className="rounded-2xl border border-violet-200/80 bg-white p-3 shadow-sm">
+          <section
+            id="studio-saved-ai-edits"
+            className="scroll-mt-4 rounded-2xl border border-violet-200/80 bg-white p-3 shadow-sm"
+          >
             <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700">Saved AI previews</h3>
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
               All previews generated before save. Pick one to compare with this version’s photo.
@@ -225,6 +271,24 @@ export function StudioTab({
         <CritiquePanels
           critique={versions[versions.length - 1]!.critique}
           paintingImageSrc={versions[versions.length - 1]!.imageDataUrl}
+          canGenerateAiEdits={canGenerateAiEdits}
+          onGenerateAiEditForCriterion={onGenerateAiEditForCriterion}
+          previewEditIdByCriterion={previewEditIdByCriterion}
+          onFocusSessionPreviewForCriterion={(criterion) => {
+            const id = previewEditIdByCriterion?.[criterion];
+            if (!id) return;
+            setStudioPreviewPickId(id);
+            requestAnimationFrame(() => {
+              document
+                .getElementById('studio-saved-ai-edits')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }}
+          previewLoading={previewLoading}
+          previewLoadingTarget={previewLoadingTarget}
+          previewPaywallEnabled={previewPaywallEnabled}
+          previewPriceLabel={previewPriceLabel}
+          previewPaymentRequiredCriterion={previewPaymentRequiredCriterion}
         />
         </div>
       </div>

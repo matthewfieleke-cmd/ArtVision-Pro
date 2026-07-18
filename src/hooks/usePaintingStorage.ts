@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { loadPaintings, savePaintings } from '../storage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { compressDataUrl } from '../imageUtils';
+import {
+  filterPersistablePreviews,
+  hasPreviewImage,
+  mergePreviewIntoLastVersion,
+} from '../previewMerge';
+import { loadPaintingsAsync, savePaintings } from '../storage';
 import type {
+  CritiqueCategory,
   CritiqueResult,
   PaintingVersion,
   SavedPainting,
@@ -12,48 +19,48 @@ function newId(): string {
   return `${nextId++}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function mergePreviewIntoLastVersion(
-  existingVersions: PaintingVersion[],
-  imageDataUrl: string,
-  critiqueToStore: CritiqueResult,
-  sessionPreviews: SavedPreviewEdit[]
-): { versions: PaintingVersion[]; merged: boolean } {
-  if (!existingVersions.length) return { versions: existingVersions, merged: false };
-  const last = existingVersions[existingVersions.length - 1]!;
-  if (last.imageDataUrl !== imageDataUrl) return { versions: existingVersions, merged: false };
-  const existingEdits = last.previewEdits ?? [];
-  const existingByCriterion = new Map(existingEdits.map((e) => [e.criterion, e]));
-  for (const sp of sessionPreviews) existingByCriterion.set(sp.criterion, sp);
-  const mergedEdits = Array.from(existingByCriterion.values());
-  if (!mergedEdits.length) return { versions: existingVersions, merged: false };
-  const next = existingVersions.slice(0, -1).concat({
-    ...last,
-    critique: critiqueToStore,
-    previewEdits: mergedEdits,
-    previewEdit: undefined,
-  });
-  return { versions: next, merged: true };
+async function compressPreviewEdits(edits: SavedPreviewEdit[]): Promise<SavedPreviewEdit[]> {
+  return Promise.all(
+    edits.map(async (edit) => {
+      if (!hasPreviewImage(edit)) return edit;
+      try {
+        const imageDataUrl = await compressDataUrl(edit.imageDataUrl, 720, 0.75);
+        return { ...edit, imageDataUrl };
+      } catch {
+        return edit;
+      }
+    })
+  );
 }
+
+export type PersistFlowInput = {
+  step: string;
+  mode: string;
+  style: string;
+  medium: string;
+  workingTitle: string;
+  imageDataUrl: string;
+  critique: CritiqueResult;
+  sessionPreviewEdits?: SavedPreviewEdit[];
+  savedPaintingId?: string;
+  targetPainting?: SavedPainting;
+};
 
 export type PaintingStorageActions = {
   paintings: SavedPainting[];
+  storageReady: boolean;
+  saveError: string | null;
+  clearSaveError: () => void;
   studioSelectedId: string | null;
   setStudioSelectedId: (id: string | null) => void;
   persistResult: (
-    flow: {
-      step: string;
-      mode: string;
-      style: string;
-      medium: string;
-      workingTitle: string;
-      imageDataUrl: string;
-      critique: CritiqueResult;
-      sessionPreviewEdits?: SavedPreviewEdit[];
-      savedPaintingId?: string;
-      targetPainting?: SavedPainting;
-    },
+    flow: PersistFlowInput,
     opts?: { navigateToStudio?: boolean }
-  ) => { savedPaintingId: string; targetPainting: SavedPainting; navigateToStudio: boolean } | null;
+  ) => Promise<{ savedPaintingId: string; targetPainting: SavedPainting; navigateToStudio: boolean } | null>;
+  appendStudioPreviewEdit: (
+    paintingId: string,
+    edit: SavedPreviewEdit
+  ) => Promise<SavedPainting | null>;
   deletePainting: (id: string) => void;
   openPaintingFromHome: (id: string) => void;
 };
@@ -61,33 +68,68 @@ export type PaintingStorageActions = {
 export function usePaintingStorage(
   setTab: (tab: 'studio') => void
 ): PaintingStorageActions {
-  const [paintings, setPaintings] = useState<SavedPainting[]>(() => loadPaintings());
+  const [paintings, setPaintings] = useState<SavedPainting[]>([]);
+  const [storageReady, setStorageReady] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [studioSelectedId, setStudioSelectedId] = useState<string | null>(null);
+  const paintingsRef = useRef(paintings);
+  paintingsRef.current = paintings;
+  const skipNextSaveRef = useRef(true);
+  const saveGenerationRef = useRef(0);
 
   useEffect(() => {
-    try {
-      savePaintings(paintings);
-    } catch (e) {
-      console.error(e);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const loaded = await loadPaintingsAsync();
+        if (cancelled) return;
+        skipNextSaveRef.current = true;
+        setPaintings(loaded);
+      } catch (e) {
+        console.error('[usePaintingStorage] load failed', e);
+        if (!cancelled) {
+          skipNextSaveRef.current = true;
+          setPaintings([]);
+        }
+      } finally {
+        if (!cancelled) setStorageReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
     }
-  }, [paintings]);
+    const generation = ++saveGenerationRef.current;
+    void (async () => {
+      try {
+        await savePaintings(paintings);
+        if (generation === saveGenerationRef.current) {
+          setSaveError(null);
+        }
+      } catch (e) {
+        console.error(e);
+        if (generation === saveGenerationRef.current) {
+          setSaveError(
+            e instanceof Error
+              ? e.message
+              : 'Could not save your Studio library. Try removing an older project.'
+          );
+        }
+      }
+    })();
+  }, [paintings, storageReady]);
+
+  const clearSaveError = useCallback(() => setSaveError(null), []);
 
   const persistResult = useCallback(
-    (
-      flow: {
-        step: string;
-        mode: string;
-        style: string;
-        medium: string;
-        workingTitle: string;
-        imageDataUrl: string;
-        critique: CritiqueResult;
-        sessionPreviewEdits?: SavedPreviewEdit[];
-        savedPaintingId?: string;
-        targetPainting?: SavedPainting;
-      },
-      opts?: { navigateToStudio?: boolean }
-    ) => {
+    async (flow: PersistFlowInput, opts?: { navigateToStudio?: boolean }) => {
       if (flow.step !== 'results') return null;
       const navigateToStudio = opts?.navigateToStudio !== false;
       const savedTitle =
@@ -98,7 +140,9 @@ export function usePaintingStorage(
         ...flow.critique,
         ...(savedTitle ? { paintingTitle: savedTitle } : {}),
       };
-      const sessionPreviews = flow.sessionPreviewEdits ?? [];
+      const sessionPreviews = await compressPreviewEdits(
+        filterPersistablePreviews(flow.sessionPreviewEdits)
+      );
       const version: PaintingVersion = {
         id: newId(),
         imageDataUrl: flow.imageDataUrl,
@@ -107,23 +151,23 @@ export function usePaintingStorage(
         ...(sessionPreviews.length ? { previewEdits: sessionPreviews } : {}),
       };
 
+      const currentPaintings = paintingsRef.current;
+
       if (flow.mode === 'resubmit' && flow.targetPainting) {
         const t = flow.workingTitle.trim();
-        const merged = sessionPreviews.length
-          ? mergePreviewIntoLastVersion(
-              flow.targetPainting.versions,
-              flow.imageDataUrl,
-              critiqueToStore,
-              sessionPreviews
-            )
-          : { versions: flow.targetPainting.versions, merged: false };
-        const nextVersions = merged.merged
+        const merged = mergePreviewIntoLastVersion(
+          flow.targetPainting.versions,
+          flow.imageDataUrl,
+          critiqueToStore,
+          sessionPreviews
+        );
+        const resolvedVersions = merged.merged
           ? merged.versions
           : [...flow.targetPainting.versions, version];
         setPaintings((ps) =>
           ps.map((p) =>
             p.id === flow.targetPainting!.id
-              ? { ...p, ...(t.length > 0 ? { title: t } : {}), versions: nextVersions }
+              ? { ...p, ...(t.length > 0 ? { title: t } : {}), versions: resolvedVersions }
               : p
           )
         );
@@ -136,7 +180,7 @@ export function usePaintingStorage(
           targetPainting: {
             ...flow.targetPainting,
             ...(t.length > 0 ? { title: t } : {}),
-            versions: nextVersions,
+            versions: resolvedVersions,
           },
           navigateToStudio,
         };
@@ -144,9 +188,9 @@ export function usePaintingStorage(
 
       if (flow.savedPaintingId) {
         const t = flow.workingTitle.trim();
-        const existingPainting = paintings.find((p) => p.id === flow.savedPaintingId);
+        const existingPainting = currentPaintings.find((p) => p.id === flow.savedPaintingId);
         let nextVersions: PaintingVersion[];
-        if (sessionPreviews.length && existingPainting) {
+        if (existingPainting) {
           const m = mergePreviewIntoLastVersion(
             existingPainting.versions,
             flow.imageDataUrl,
@@ -154,8 +198,6 @@ export function usePaintingStorage(
             sessionPreviews
           );
           nextVersions = m.merged ? m.versions : [...existingPainting.versions, version];
-        } else if (existingPainting) {
-          nextVersions = [...existingPainting.versions, version];
         } else {
           nextVersions = [version];
         }
@@ -175,7 +217,10 @@ export function usePaintingStorage(
           : {
               id: flow.savedPaintingId,
               title:
-                t.length > 0 ? t : savedTitle ?? `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+                t.length > 0
+                  ? t
+                  : savedTitle ??
+                    `Work · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
               style: flow.style as SavedPainting['style'],
               medium: flow.medium as SavedPainting['medium'],
               versions: nextVersions,
@@ -205,7 +250,30 @@ export function usePaintingStorage(
       }
       return { savedPaintingId: painting.id, targetPainting: painting, navigateToStudio };
     },
-    [paintings, setTab]
+    [setTab]
+  );
+
+  const appendStudioPreviewEdit = useCallback(
+    async (paintingId: string, edit: SavedPreviewEdit): Promise<SavedPainting | null> => {
+      if (!hasPreviewImage(edit)) return null;
+      const [compressed] = await compressPreviewEdits([edit]);
+      if (!compressed || !hasPreviewImage(compressed)) return null;
+
+      const current = paintingsRef.current.find((p) => p.id === paintingId);
+      if (!current?.versions.length) return null;
+      const last = current.versions[current.versions.length - 1]!;
+      const merged = mergePreviewIntoLastVersion(
+        current.versions,
+        last.imageDataUrl,
+        last.critique,
+        [compressed]
+      );
+      if (!merged.merged) return null;
+      const updated: SavedPainting = { ...current, versions: merged.versions };
+      setPaintings((ps) => ps.map((p) => (p.id === paintingId ? updated : p)));
+      return updated;
+    },
+    []
   );
 
   const deletePainting = useCallback((id: string) => {
@@ -223,10 +291,17 @@ export function usePaintingStorage(
 
   return {
     paintings,
+    storageReady,
+    saveError,
+    clearSaveError,
     studioSelectedId,
     setStudioSelectedId,
     persistResult,
+    appendStudioPreviewEdit,
     deletePainting,
     openPaintingFromHome,
   };
 }
+
+/** Re-export for Studio generate criterion typing convenience. */
+export type StudioGenerateCriterion = CritiqueCategory['criterion'];
