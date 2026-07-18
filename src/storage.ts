@@ -1,8 +1,7 @@
 import { canonicalCriterionLabel } from '../shared/criteria';
 import { adaptCritiqueResult } from './critiqueResultAdapter';
+import { loadPaintingsFromDb, savePaintingsToDb } from './paintingDb';
 import type { CritiqueCategory, CritiqueResult, SavedPainting, SavedPreviewEdit } from './types';
-
-const KEY = 'artvision-pro-paintings-v1';
 
 function migrateCritiqueCategory(category: CritiqueCategory): CritiqueCategory {
   const criterion = canonicalCriterionLabel(category.criterion);
@@ -33,14 +32,16 @@ function migrateVersionPreviewEdits(version: {
       });
     }
   }
-  const normalized = edits.map((e) => ({
-    ...e,
-    criterion: canonicalCriterionLabel(e.criterion) ?? e.criterion,
-  }));
+  const normalized = edits
+    .map((e) => ({
+      ...e,
+      criterion: (canonicalCriterionLabel(e.criterion) ?? e.criterion) as SavedPreviewEdit['criterion'],
+    }))
+    .filter((e) => typeof e.imageDataUrl === 'string' && e.imageDataUrl.startsWith('data:'));
   return normalized.length ? { previewEdits: normalized } : {};
 }
 
-function migratePainting(painting: SavedPainting): SavedPainting {
+export function migratePainting(painting: SavedPainting): SavedPainting {
   return {
     ...painting,
     versions: painting.versions.map((version) => {
@@ -55,9 +56,10 @@ function migratePainting(painting: SavedPainting): SavedPainting {
   };
 }
 
+/** @deprecated Prefer loadPaintingsAsync — sync localStorage read for legacy callers/tests. */
 export function loadPaintings(): SavedPainting[] {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem('artvision-pro-paintings-v1');
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SavedPainting[];
     return Array.isArray(parsed) ? parsed.map(migratePainting) : [];
@@ -66,13 +68,11 @@ export function loadPaintings(): SavedPainting[] {
   }
 }
 
-export function savePaintings(paintings: SavedPainting[]): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(paintings));
-  } catch (e) {
-    console.error(e);
-    throw new Error(
-      'Could not save — storage may be full. Try removing an older project or using a smaller photo.'
-    );
-  }
+export async function loadPaintingsAsync(): Promise<SavedPainting[]> {
+  const raw = await loadPaintingsFromDb();
+  return raw.map(migratePainting);
+}
+
+export async function savePaintings(paintings: SavedPainting[]): Promise<void> {
+  await savePaintingsToDb(paintings);
 }
