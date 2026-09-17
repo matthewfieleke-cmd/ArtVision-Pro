@@ -7,6 +7,7 @@ export type {
   CritiqueConfidence,
   CritiqueSimpleFeedback,
   CritiqueSubskill,
+  NextSessionPlan,
   OverallSummaryCard,
   PhotoQualityAssessment,
   SuggestedTitle,

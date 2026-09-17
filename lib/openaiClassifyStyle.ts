@@ -61,8 +61,8 @@ export async function runOpenAIClassifyStyle(
     body: JSON.stringify({
       model,
       // Style classification is a tight enum + rationale; `low` reasoning is
-      // enough on gpt-5 and keeps this fast. Non-reasoning chat models still
-      // get the old temperature.
+      // enough on gpt-5 / gpt-6 and keeps this fast. Non-reasoning chat models
+      // still get the old temperature.
       ...buildOpenAISamplingParam(model, { temperature: 0.2, reasoningEffort: 'low' }),
       response_format: { type: 'json_schema', json_schema: SCHEMA },
       messages: [

@@ -41,17 +41,18 @@ function outputMimeFromInput(mime: string): 'image/jpeg' | 'image/png' | 'image/
   return 'image/jpeg';
 }
 
-const EDIT_QUALITIES = ['low', 'medium', 'high', 'auto'] as const;
+const EDIT_QUALITIES = ['low', 'medium', 'high', 'xhigh', 'max', 'auto'] as const;
 type EditQuality = (typeof EDIT_QUALITIES)[number];
 
 /**
- * Default to `medium` image-edit quality. Per OpenAI's gpt-image-2 guidance,
- * `quality` is the dominant latency knob: `high` is slowest, `low` fastest,
- * `medium` the middle. The preview is rescaled to the upload's native
- * width × height with sharp before it hits the compare slider, which hides
- * most of the visible difference between `medium` and `high`. Operators who
- * want the slower / higher-quality tier can set OPENAI_IMAGE_EDIT_QUALITY=high
- * explicitly; OPENAI_IMAGE_EDIT_QUALITY=low is the fastest.
+ * Default to `medium` image-edit quality. Per OpenAI's gpt-image-2 /
+ * gpt-image-2.5 guidance, `quality` is the dominant latency knob: `low` is
+ * fastest, then `medium`, `high`, and (on 2.5 Sunburst) `xhigh` / `max`.
+ * The preview is rescaled to the upload's native width × height with sharp
+ * before it hits the compare slider, which hides most of the visible
+ * difference between `medium` and `high`. Operators who want a slower /
+ * higher-quality tier can set OPENAI_IMAGE_EDIT_QUALITY=high (or xhigh/max
+ * on gpt-image-2.5-sunburst); OPENAI_IMAGE_EDIT_QUALITY=low is the fastest.
  */
 function resolveEditQuality(): EditQuality {
   const raw = (process.env.OPENAI_IMAGE_EDIT_QUALITY ?? 'medium').toLowerCase();
@@ -71,17 +72,17 @@ function resolveCandidateCount(): number {
   return Math.max(1, Math.min(4, Math.round(raw)));
 }
 
-/** `input_fidelity` is supported on gpt-image-1* edits; gpt-image-2 rejects it (API error). */
+/** `input_fidelity` is supported on gpt-image-1* edits; gpt-image-2 / 2.5 reject it. */
 export function imageEditModelSupportsInputFidelity(model: string): boolean {
   const m = model.trim().toLowerCase();
   return m.startsWith('gpt-image-1');
 }
 
 /**
- * gpt-image-2 requires `n: 1` per request — the API rejects n>1. gpt-image-1.x
- * still accepts `n` up to 4 in a single call. To keep the candidate ranking
- * behavior consistent across both models, the caller fans out across parallel
- * requests when the model is batch-capped at 1.
+ * gpt-image-2 / gpt-image-2.5 require `n: 1` per request — the API rejects
+ * n>1. gpt-image-1.x still accepts `n` up to 4 in a single call. To keep the
+ * candidate ranking behavior consistent across both families, the caller fans
+ * out across parallel requests when the model is batch-capped at 1.
  */
 export function imageEditModelMaxNPerRequest(model: string): number {
   const m = model.trim().toLowerCase();

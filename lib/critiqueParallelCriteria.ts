@@ -9,6 +9,7 @@ import { buildLowDetailImageMessage, type VisionUserMessagePart } from './openai
 import { errorMessage } from './critiqueErrors.js';
 import {
   CRITIQUE_AUDIENCE_FRAMING,
+  STRONG_WORK_AND_PHOTO_HONESTY,
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_A_PARAGRAPH_SHAPE,
   VOICE_B_COMPOSITE_TEACHERS,
@@ -40,6 +41,12 @@ export type CriterionWritingResult = {
   preserve: string;
   /** Structured edit plan the AI-edit endpoint consumes directly. */
   editPlan: CriterionEditPlan;
+  /**
+   * One or two sentences bridging THIS painting's anchored passage to the
+   * criterion Learn page — what to notice when comparing, without naming
+   * artists or famous works.
+   */
+  learnBridge: string;
   /** Writer's confidence in this criterion's read, given the photo. */
   confidence: 'low' | 'medium' | 'high';
 };
@@ -77,6 +84,7 @@ export const CRITERION_JSON_SCHEMA = {
       'voiceBSuggestions',
       'preserve',
       'editPlan',
+      'learnBridge',
       'confidence',
     ],
     properties: {
@@ -139,6 +147,11 @@ export const CRITERION_JSON_SCHEMA = {
         type: 'string',
         description:
           'One short sentence naming a specific visible strength in or near the anchored passage that the artist should protect while making the move.',
+      },
+      learnBridge: {
+        type: 'string',
+        description:
+          'One or two instructional sentences that bridge THIS painting\'s anchored passage to the in-app Learn page for this criterion. Tell the painter what to notice when they tap Learn more and compare their passage to the exemplar — a concrete visual difference on THIS axis. Never name artists, famous artworks, or movements. Example shape: "Open Learn more and compare your [passage] to the exemplar: notice how the exemplar keeps X while yours currently does Y."',
       },
       editPlan: {
         type: 'object',
@@ -211,7 +224,7 @@ export const CRITERION_JSON_SCHEMA = {
  * from the (previously slow and serial) single vision call.
  */
 export const PARALLEL_CRITERIA_SYSTEM_MESSAGE = [
-  'You are the per-criterion writer for ONE criterion of ONE painting. You see the painting image and a shared observation bank the vision stage already produced. You produce, in one JSON response: the anchor passage + normalized bounding box on the photo; 3–6 junction-level visible-evidence lines; a tensionRead; a critic paragraph (Voice A); a teacher paragraph (Voice B); a preserve line; a structured editPlan the AI-edit endpoint consumes; and a confidence tag.',
+  'You are the per-criterion writer for ONE criterion of ONE painting. You see the painting image and a shared observation bank the vision stage already produced. You produce, in one JSON response: the anchor passage + normalized bounding box on the photo; 3–6 junction-level visible-evidence lines; a tensionRead; a critic paragraph (Voice A); a teacher paragraph (Voice B); a preserve line; a structured editPlan the AI-edit endpoint consumes; a short learnBridge to the Learn page; and a confidence tag.',
   '',
   CRITIQUE_AUDIENCE_FRAMING,
   '',
@@ -222,6 +235,8 @@ export const PARALLEL_CRITERIA_SYSTEM_MESSAGE = [
   VOICE_B_COMPOSITE_TEACHERS,
   '',
   VOICE_B_PARAGRAPH_SHAPE,
+  '',
+  STRONG_WORK_AND_PHOTO_HONESTY,
   '',
   'Anchor-region rules (for anchor.region):',
   '- Normalized 0–1 coordinates relative to the full image: x=0 left, y=0 top, width/height as fractions.',
@@ -242,6 +257,7 @@ export const PARALLEL_CRITERIA_SYSTEM_MESSAGE = [
   '- Do not re-teach basic studio vocabulary; the reader already has it.',
   '- Confidence goes in the confidence field only, not in hedging words in the prose.',
   '- If the criterion genuinely has nothing unresolved (the painting is already working at the highest level on this axis), say so plainly in tensionRead and emit an editPlan with editability="no" and intendedChange starting with a preserve verb (preserve / keep / protect / leave / hold). Never manufacture a change just to fill the field.',
+  '- learnBridge must stay painting-specific and artist-name-free; point the painter at what to notice on Learn more for THIS anchored passage.',
 ].join('\n');
 
 /**
@@ -392,11 +408,13 @@ export function buildCriterionPrompt(args: {
     `- Write Voice B (teacher) — instructional register, 3–6 sentences, imperative. Follow the four-beat shape, giving each beat its own clear sentence. One primary move, starting with a concrete studio verb. Respect the declared medium (${medium}): do not recommend moves the medium would fight.`,
     '- Write preserve — one short sentence naming a specific visible strength nearby that the artist should protect.',
     '- Emit editPlan — the structured spec the AI-edit endpoint reads directly. intendedChange must start with a concrete studio verb, or with a preserve verb if the criterion is already working. editability = "yes" if intendedChange is a real change; "no" if the criterion is already working and the plan is a preserve instruction.',
-    '- Set confidence ("low" / "medium" / "high") based on how well the visible evidence in the photo supports this criterion read. Put hedging here, not in the prose.',
+    '- Emit learnBridge — one or two sentences telling the painter what to notice when they open Learn more for this criterion and compare THEIR anchored passage to the exemplar. No artist names. Keep it specific to this axis and this passage.',
+    '- Set confidence ("low" / "medium" / "high") based on how well the visible evidence in the photo supports this criterion read. Put hedging here, not in the prose. If photo caveats make the axis hard to judge, prefer "low" or "medium" and say so in Voice A without inventing paint problems.',
     '',
     'Reminders:',
     '- Stay on THIS painting. No studio-generic advice, no textbook definitions, no "paintings in general".',
     '- Never name critics, teachers, artists, famous artworks, or art-historical movements in the text you emit.',
+    '- Prefer leave-alone / editability="no" over inventing a problem when this axis is already working.',
     '- The framework is painting-agnostic: figurative, landscape, still life, abstract, representational, non-objective — use the shape that fits what the image actually contains.',
   ].join('\n');
 }
@@ -579,6 +597,7 @@ function parseWriterOutput(
       typeof r.voiceBSuggestions === 'string' ? r.voiceBSuggestions.trim() : '',
     preserve: typeof r.preserve === 'string' ? r.preserve.trim() : '',
     editPlan,
+    learnBridge: typeof r.learnBridge === 'string' ? r.learnBridge.trim() : '',
     confidence: normaliseConfidence(r.confidence),
   };
 }
@@ -681,6 +700,7 @@ function buildCriterionFallback(
       expectedOutcome: 'the passage reads more clearly on this criterion',
       editability: 'no',
     },
+    learnBridge: `Open Learn more for ${criterion} and compare ${anchorLabel} to the exemplar once a full read is available.`,
     confidence: 'low',
   };
 }

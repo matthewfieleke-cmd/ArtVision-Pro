@@ -12,8 +12,9 @@ describe('imageEditModelSupportsInputFidelity', () => {
     expect(imageEditModelSupportsInputFidelity('gpt-image-1-mini')).toBe(true);
   });
 
-  it('is false for gpt-image-2', () => {
+  it('is false for gpt-image-2 and gpt-image-2.5', () => {
     expect(imageEditModelSupportsInputFidelity('gpt-image-2')).toBe(false);
+    expect(imageEditModelSupportsInputFidelity('gpt-image-2.5-sunburst')).toBe(false);
   });
 
   it('is false for dall-e models', () => {
@@ -22,10 +23,11 @@ describe('imageEditModelSupportsInputFidelity', () => {
 });
 
 describe('imageEditModelMaxNPerRequest', () => {
-  it('caps gpt-image-2 at 1 candidate per request', () => {
+  it('caps gpt-image-2 / 2.5 at 1 candidate per request', () => {
     // gpt-image-2 rejects n > 1 with a 400; multi-candidate requires
     // parallel requests.
     expect(imageEditModelMaxNPerRequest('gpt-image-2')).toBe(1);
+    expect(imageEditModelMaxNPerRequest('gpt-image-2.5-sunburst')).toBe(1);
   });
 
   it('allows up to 4 candidates per request for gpt-image-1 family', () => {

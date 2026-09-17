@@ -5,6 +5,7 @@ import { buildOpenAIMaxTokensParam, buildOpenAISamplingParam } from './openaiMod
 import { errorMessage } from './critiqueErrors.js';
 import {
   CRITIQUE_AUDIENCE_FRAMING,
+  STRONG_WORK_AND_PHOTO_HONESTY,
   SYNTHESIS_PRIORITIES_SHAPE,
   VOICE_A_COMPOSITE_EXPERTS,
   VOICE_B_COMPOSITE_TEACHERS,
@@ -14,8 +15,8 @@ import {
  * Output of the single synthesis call that runs after the eight parallel
  * criterion calls finish. This is the only stage that gets to see all eight
  * Voice A + Voice B outputs together, which is why it owns the overall
- * summary, top priorities, studio-analysis copy, studio changes, and the
- * three suggested painting titles.
+ * summary, top priorities, studio-analysis copy, studio changes, the
+ * three suggested painting titles, and the next-session checklist.
  */
 export type CritiqueSynthesisResult = {
   summary: string;
@@ -28,6 +29,11 @@ export type CritiqueSynthesisResult = {
     title: string;
     rationale: string;
   }>;
+  nextSessionPlan: {
+    timeEstimate: string;
+    steps: string[];
+    verifyAfter: string;
+  };
 };
 
 const SYNTHESIS_JSON_SCHEMA = {
@@ -43,6 +49,7 @@ const SYNTHESIS_JSON_SCHEMA = {
       'studioAnalysis',
       'studioChanges',
       'suggestedTitles',
+      'nextSessionPlan',
     ],
     properties: {
       summary: {
@@ -99,6 +106,31 @@ const SYNTHESIS_JSON_SCHEMA = {
           },
         },
       },
+      nextSessionPlan: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['timeEstimate', 'steps', 'verifyAfter'],
+        properties: {
+          timeEstimate: {
+            type: 'string',
+            description:
+              'Short phrase for how long the next easel session should take, e.g. "About 40 minutes".',
+          },
+          steps: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 4,
+            items: { type: 'string' },
+            description:
+              'Ordered imperative checklist for one sitting. Each step names a passage and a concrete studio move. Prefer editable axes.',
+          },
+          verifyAfter: {
+            type: 'string',
+            description:
+              'What the painter should look for before rephotographing, plus a brief rephotograph tip when photo quality is not good.',
+          },
+        },
+      },
     },
   },
 } as const;
@@ -113,7 +145,7 @@ const SYNTHESIS_JSON_SCHEMA = {
  * reader can act on rather than a list of aspirations.
  */
 export const SYNTHESIS_SYSTEM_MESSAGE = [
-  'You are the synthesis step of a three-stage painting critique. You see the evidence and all eight per-criterion critic + teacher paragraphs, and you produce the painter-facing summary, studio analysis, priorities, studio changes, and suggested titles.',
+  'You are the synthesis step of a three-stage painting critique. You see the evidence and all eight per-criterion critic + teacher paragraphs, and you produce the painter-facing summary, studio analysis, priorities, studio changes, suggested titles, and a next-session checklist.',
   '',
   CRITIQUE_AUDIENCE_FRAMING,
   '',
@@ -123,11 +155,14 @@ export const SYNTHESIS_SYSTEM_MESSAGE = [
   '',
   SYNTHESIS_PRIORITIES_SHAPE,
   '',
+  STRONG_WORK_AND_PHOTO_HONESTY,
+  '',
   'Hard rules:',
   '- Ground every claim in the per-criterion critiques and the evidence you are given. Do not invent new observations.',
   '- Never name critics, teachers, artists, famous artworks, or art-historical movements.',
   '- Do not open with filler ("This painting…", "Overall…"). Speak as a thoughtful critic and a master teacher would over the artist’s shoulder.',
-  '- Prioritise ruthlessly. One primary thing to work on, at most two secondary moves.',
+  '- Prioritise ruthlessly. One primary thing to work on, at most two secondary moves. Prefer editability="yes" axes; do not invent work for leave-alone criteria.',
+  '- If photo quality is poor or fair, keep priorities modest and put a rephotograph tip in nextSessionPlan.verifyAfter.',
 ].join('\n');
 
 export function buildSynthesisPrompt(args: {
@@ -145,7 +180,7 @@ export function buildSynthesisPrompt(args: {
 
   const criterionBlocks = criterionResults
     .map(
-      (r) => `### ${r.criterion} (confidence: ${r.confidence})
+      (r) => `### ${r.criterion} (confidence: ${r.confidence}; editability: ${r.editPlan.editability})
 Anchor: ${r.anchor.areaSummary}
 Evidence pointer: ${r.anchor.evidencePointer}
 Visible evidence:
@@ -157,7 +192,8 @@ Edit plan:
 - Target: ${r.editPlan.targetArea}
 - Issue: ${r.editPlan.issue}
 - Move: ${r.editPlan.intendedChange}
-- Expected: ${r.editPlan.expectedOutcome}`
+- Expected: ${r.editPlan.expectedOutcome}
+- Editability: ${r.editPlan.editability}`
     )
     .join('\n\n');
 
@@ -175,22 +211,24 @@ Edit plan:
     `- Main tensions: ${evidence.mainTensions.join('; ') || '(none recorded)'}`,
     `- Photo quality: ${evidence.photoQualityRead.level} — ${evidence.photoQualityRead.summary}`,
     '',
-    `Eight per-criterion critiques to weave together. Each block includes the anchor, evidence pointer, visible evidence, Voice A, Voice B, preserve line, and edit plan. Use the concrete evidence and anchors when choosing the bottleneck and next-session priorities; do not smooth the critique into generic summary language:`,
+    `Eight per-criterion critiques to weave together. Each block includes the anchor, evidence pointer, visible evidence, Voice A, Voice B, preserve line, and edit plan (with editability). Prefer editability="yes" axes for priorities and studioChanges; leave-alone axes belong in whatWorks / protect language, not manufactured homework:`,
     '',
     criterionBlocks,
     '',
-    `Emit JSON with exactly these fields: summary, overallAnalysis, topPriorities, studioAnalysis, studioChanges, suggestedTitles.`,
+    `Emit JSON with exactly these fields: summary, overallAnalysis, topPriorities, studioAnalysis, studioChanges, suggestedTitles, nextSessionPlan.`,
     '',
-    `**summary** — 2–4 plain sentences that land the overall read. Open with what this painting is genuinely doing (its pictorial intelligence or intent), then name the axis where it is strongest and the axis that most limits it today. Do NOT list every criterion. Do NOT open with filler.`,
+    `**summary** — 2–4 plain sentences that land the overall read. Open with what this painting is genuinely doing (its pictorial intelligence or intent), then name the axis where it is strongest and the axis that most limits it today. Do NOT list every criterion. Do NOT open with filler. If most axes are already working, say so.`,
     '',
     `**overallAnalysis** — 3–5 sentences expanding the summary with a critic's structural claim: which two or three criteria carry the picture, which one is the real bottleneck, and why — tied back to named anchors and visible evidence from the blocks above. One clear claim per sentence.`,
     '',
     `**topPriorities** — treat this as the painter's NEXT SESSION plan, not a list of aspirations. 2–3 items. First item is the single most important move, imperative voice, tied to a named anchor passage and its edit plan. Remaining items are at most two secondary moves that genuinely depend on or can be tackled alongside the first. Each item is one short sentence.`,
     '',
     `**studioAnalysis.whatWorks** — one or two sentences naming TWO specific visible passages and what they accomplish for the picture (not generic praise).`,
-    `**studioAnalysis.whatCouldImprove** — one or two sentences naming the ONE primary structural problem the painter should solve next (not a list).`,
+    `**studioAnalysis.whatCouldImprove** — one or two sentences naming the ONE primary structural problem the painter should solve next (not a list). If nothing urgent remains, say only micro-calibrations remain.`,
     '',
     `**studioChanges** — 2–5 entries. Each entry is { text, previewCriterion } where previewCriterion is one of: ${CRITERIA_ORDER.join(' | ')}. Each text is a SINGLE-sentence studio instruction that starts with a concrete studio verb and names the passage; previewCriterion must match what the text is asking the painter to change.`,
+    '',
+    `**nextSessionPlan** — { timeEstimate, steps (2–4 ordered imperative strings), verifyAfter }. Make it a checklist the painter can follow in one sitting. Prefer editable axes. If photo quality is poor or fair, include a rephotograph tip in verifyAfter.`,
     '',
     titleInstructionBlock,
     '',
@@ -315,6 +353,33 @@ export async function runCritiqueSynthesisStage(args: {
           rationale: string;
         } => v !== null
       ),
+    nextSessionPlan: (() => {
+      const plan = p.nextSessionPlan as Record<string, unknown> | undefined;
+      const stepsRaw = Array.isArray(plan?.steps) ? plan.steps : [];
+      const steps = stepsRaw
+        .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+        .map((s) => s.trim())
+        .slice(0, 4);
+      const timeEstimate =
+        typeof plan?.timeEstimate === 'string' && plan.timeEstimate.trim()
+          ? plan.timeEstimate.trim()
+          : 'About 45 minutes';
+      const verifyAfter =
+        typeof plan?.verifyAfter === 'string' && plan.verifyAfter.trim()
+          ? plan.verifyAfter.trim()
+          : 'Check the primary move against the named passage, then rephotograph square-on in even light.';
+      return {
+        timeEstimate,
+        steps:
+          steps.length >= 2
+            ? steps
+            : topPrioritiesRaw
+                .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+                .map((t) => t.trim())
+                .slice(0, 3),
+        verifyAfter,
+      };
+    })(),
   };
 
   const elapsed = Date.now() - start;

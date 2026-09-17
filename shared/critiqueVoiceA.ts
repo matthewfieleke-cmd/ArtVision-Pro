@@ -186,6 +186,25 @@ Writing rules for Voice B:
 `.trim();
 
 /**
+ * Strong-work honesty + photo-vs-paint separation. Shared by writers and
+ * synthesis so Astra (and other strong models) do not invent homework on
+ * axes that are already working, or blame the painting for a bad capture.
+ * Prompt-only — no extra API calls.
+ */
+export const STRONG_WORK_AND_PHOTO_HONESTY = `
+Strong-work honesty (required):
+- Do NOT invent a meaningful correction when the axis is already working. Prefer "Leave this alone — …" / editability="no" over a manufactured fix.
+- Modest intervention only when the axis is strong but one small calibration would still help: name the micro-move and why it is optional, not urgent.
+- Forced criticism patterns to avoid: "add more contrast", "clarify the focus", "push the chroma", "make the edges cleaner" when the canvas already supports a clear, coherent read on that axis.
+- When several axes are strong, celebrate and protect them; put scarce correction budget on the true bottleneck only.
+
+Photo vs paint honesty (required):
+- If photo caveats or photo quality are poor/fair, separate capture limits from painting problems in Voice A and Voice B.
+- Do not assign studio homework that only "fixes" glare, blur, color cast, truncation, or uneven lighting from the photograph.
+- Lower confidence when the photo hides the evidence; say what cannot be judged fairly from this capture.
+`.trim();
+
+/**
  * Four-beat shape for every Voice B paragraph. This is the single biggest
  * readability lever we have over user-visible teacher prose, so keep it
  * short, explicit, and in this order. The downstream UI renders this as
@@ -219,9 +238,10 @@ export const VOICE_B_SCHEMA_REMINDER =
 export const SYNTHESIS_PRIORITIES_SHAPE = `
 How to shape the synthesis output for this reader, in the instructional register the audience framing describes:
 
-- **summary / overallAnalysis**: open with the diagnosis, not a chat. Declarative, third-person about the painting. Name what this painting is genuinely going for (on the evidence) and the two or three axes where it is strongest or most fragile. One clear point per paragraph. No "let's start by…", no "we can see that…" — state the read directly.
+- **summary / overallAnalysis**: open with the diagnosis, not a chat. Declarative, third-person about the painting. Name what this painting is genuinely going for (on the evidence) and the two or three axes where it is strongest or most fragile. One clear point per paragraph. No "let's start by…", no "we can see that…" — state the read directly. If most axes are already working, say so and keep the remaining advice modest.
 - **studioAnalysis.whatWorks**: name two specific passages and say what they accomplish for the picture. Not generic praise.
-- **studioAnalysis.whatCouldImprove**: name the ONE main thing the painter should solve next. Not a list.
-- **topPriorities**: this is a next-session plan, not a wish list. List the single most important move first, then at most two secondary moves that are genuinely dependent on it or that the painter can tackle in parallel. Each priority is one imperative sentence tied to a named passage — not an aspiration ("improve unity") and not a question ("should the figure be larger?"). Imperative voice only, never "you might…" or "try to…".
-- **studioChanges**: each text is ONE studio instruction, not a paragraph. Imperative voice, concrete studio verb first (soften / darken / cool / warm / group / separate / reserve / glaze / scrape / restate / widen / narrow / compress / simplify / keep). Example instructions span painting types: "Soften the jaw edge against the hair so the figure separates forward." "Reserve the brightest water passage instead of blending into it." "Darken the olive field behind the cadmium strip so the strip reads as foreground." "Quiet the impasto cluster in the lower right so the central band carries the read." The previewCriterion must match what the text is asking the painter to change.
+- **studioAnalysis.whatCouldImprove**: name the ONE main thing the painter should solve next. Not a list. If nothing urgent remains, say the work needs only micro-calibrations or protection.
+- **topPriorities**: this is a next-session plan, not a wish list. List the single most important move first, then at most two secondary moves that are genuinely dependent on it or that the painter can tackle in parallel. Each priority is one imperative sentence tied to a named passage — not an aspiration ("improve unity") and not a question ("should the figure be larger?"). Imperative voice only, never "you might…" or "try to…". Prefer criteria marked editability="yes"; do not invent priorities for leave-alone axes.
+- **studioChanges**: each text is ONE studio instruction, not a paragraph. Imperative voice, concrete studio verb first (soften / darken / cool / warm / group / separate / reserve / glaze / scrape / restate / widen / narrow / compress / simplify / keep). Example instructions span painting types: "Soften the jaw edge against the hair so the figure separates forward." "Reserve the brightest water passage instead of blending into it." "Darken the olive field behind the cadmium strip so the strip reads as foreground." "Quiet the impasto cluster in the lower right so the central band carries the read." The previewCriterion must match what the text is asking the painter to change. Prefer editable axes; omit manufactured changes for leave-alone criteria.
+- **nextSessionPlan**: a concrete easel checklist the painter can follow in one sitting. timeEstimate is a short phrase (e.g. "About 40 minutes"). steps are 2–4 ordered imperative actions tied to named passages. verifyAfter names what to look for before photographing again (and a rephotograph tip when photo quality is not good).
 `.trim();

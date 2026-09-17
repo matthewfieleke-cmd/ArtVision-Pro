@@ -258,6 +258,16 @@ function CategoryCard({
               <p className="mt-1 text-xs leading-relaxed text-emerald-950/90">{category.preserve}</p>
             </div>
           ) : null}
+          {category.learnBridge ? (
+            <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
+                Compare with Learn
+              </p>
+              <div className="mt-1 text-xs leading-relaxed text-sky-950/90">
+                <InlineGlossaryText text={category.learnBridge} section={category.criterion} />
+              </div>
+            </div>
+          ) : null}
           {generateButtonVisible && canGenerateAiEdits && (onGenerateAiEdit || (hasSessionPreview && onViewAiEdit)) ? (
             <div className="rounded-xl border border-violet-200/80 bg-violet-50/60 p-3">
               <button
@@ -306,7 +316,12 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
   const panelId = useId();
   const os = critique.overallSummary;
   const summaryText = normalizeWhitespace(critique.summary || os?.analysis || '');
-  if (!summaryText && !critique.completionRead && !critique.comparisonNote) return null;
+  const priorities = (os?.topPriorities ?? []).map((p) => normalizeWhitespace(p)).filter(Boolean);
+  const sessionPlan = critique.nextSessionPlan;
+  const sessionSteps = (sessionPlan?.steps ?? []).map((s) => normalizeWhitespace(s)).filter(Boolean);
+  if (!summaryText && !critique.completionRead && !critique.comparisonNote && !sessionSteps.length) {
+    return null;
+  }
 
   return (
     <article className="overflow-hidden rounded-2xl border border-violet-200/80 bg-white shadow-sm">
@@ -339,6 +354,38 @@ function OverallSummaryCardView({ critique }: { critique: CritiqueResult }) {
               <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
                 <InlineGlossaryText text={summaryText} />
               </div>
+            </div>
+          ) : null}
+          {sessionSteps.length > 0 ? (
+            <div className="rounded-xl border border-violet-200/90 bg-violet-50/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                Next session plan
+                {sessionPlan?.timeEstimate ? ` · ${sessionPlan.timeEstimate}` : ''}
+              </p>
+              <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-sm leading-relaxed text-slate-800">
+                {sessionSteps.map((step) => (
+                  <li key={step}>
+                    <InlineGlossaryText text={step} />
+                  </li>
+                ))}
+              </ol>
+              {sessionPlan?.verifyAfter ? (
+                <p className="mt-2 text-xs leading-relaxed text-violet-900/80">
+                  <span className="font-semibold">Before you rephotograph: </span>
+                  <InlineGlossaryText text={sessionPlan.verifyAfter} />
+                </p>
+              ) : null}
+            </div>
+          ) : priorities.length > 0 ? (
+            <div className="rounded-xl border border-violet-200/90 bg-violet-50/70 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Top priorities</p>
+              <ul className="mt-2 list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-slate-800">
+                {priorities.map((priority) => (
+                  <li key={priority}>
+                    <InlineGlossaryText text={priority} />
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
           <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
