@@ -80,30 +80,37 @@ export function resolveOpenAIModel(role: OpenAIStageModelRole, override?: string
 
 /**
  * Returns true for model ids whose `max_completion_tokens` budget is shared
- * with invisible "reasoning tokens" (GPT-5 family, o1/o3/o4 reasoning models).
+ * with invisible "reasoning tokens" (GPT-5 / GPT-6 families, o1/o3/o4).
  * These models spend a large portion of the budget on internal chain-of-thought
  * before emitting any visible output, so a completion budget sized for
  * non-reasoning chat models can truncate them mid-response.
  */
 export function isReasoningCapableModel(model: string): boolean {
   const normalized = (model ?? '').trim().toLowerCase();
-  // gpt-5-chat-latest still behaves like a non-reasoning chat model and
-  // accepts `temperature`; everything else in the gpt-5 family (gpt-5,
-  // gpt-5.1, gpt-5.4, gpt-5-mini, gpt-5-nano, …) rejects custom temperature
-  // and exposes `reasoning_effort` instead.
-  if (normalized.startsWith('gpt-5-chat')) return false;
-  return normalized.startsWith('gpt-5') || /^o\d/.test(normalized);
+  // *-chat* variants still behave like non-reasoning chat models and accept
+  // `temperature`; everything else in the gpt-5 / gpt-6 families (gpt-5.4,
+  // gpt-6-astra, gpt-5-mini, …) rejects custom temperature and exposes
+  // `reasoning_effort` instead.
+  if (normalized.startsWith('gpt-5-chat') || normalized.startsWith('gpt-6-chat')) {
+    return false;
+  }
+  return (
+    normalized.startsWith('gpt-5') ||
+    normalized.startsWith('gpt-6') ||
+    /^o\d/.test(normalized)
+  );
 }
 
 /**
- * Reasoning-capable models on the Chat Completions API (gpt-5 family, o-series)
- * do two things differently from the gpt-4o-era chat models:
+ * Reasoning-capable models on the Chat Completions API (gpt-5 / gpt-6 family,
+ * o-series) do two things differently from the gpt-4o-era chat models:
  *
  *   1. They **reject** any non-default `temperature` (and `top_p`) value with a
  *      `400 invalid_request_error`. The only legal value is the implicit
  *      default of 1, so the field must be **omitted entirely**.
- *   2. They expose `reasoning_effort` (`low` | `medium` | `high`) as the
- *      primary quality/cost/latency knob, replacing the sampling knobs.
+ *   2. They expose `reasoning_effort` as the primary quality/cost/latency knob,
+ *      replacing the sampling knobs. GPT-5 / o-series use
+ *      `low` | `medium` | `high`; GPT-6 Astra also accepts `xhigh` and `max`.
  *
  * `buildOpenAISamplingParam` returns the correct spreadable object for a given
  * model + desired temperature + desired reasoning effort:
@@ -128,14 +135,22 @@ export function isReasoningCapableModel(model: string): boolean {
  * pipeline. To raise a single stage, change that stage's coded
  * `reasoningEffort` instead.
  */
-export type OpenAIReasoningEffort = 'low' | 'medium' | 'high';
+export type OpenAIReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-const REASONING_EFFORT_VALUES: readonly OpenAIReasoningEffort[] = ['low', 'medium', 'high'];
+const REASONING_EFFORT_VALUES: readonly OpenAIReasoningEffort[] = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+];
 
 const REASONING_EFFORT_RANK: Record<OpenAIReasoningEffort, number> = {
   low: 0,
   medium: 1,
   high: 2,
+  xhigh: 3,
+  max: 4,
 };
 
 function isReasoningEffort(value: string): value is OpenAIReasoningEffort {

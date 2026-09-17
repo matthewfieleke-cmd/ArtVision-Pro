@@ -74,6 +74,11 @@ describe('isReasoningCapableModel', () => {
     expect(isReasoningCapableModel('gpt-5-nano')).toBe(true);
   });
 
+  it('recognises the gpt-6 reasoning family (e.g. gpt-6-astra)', () => {
+    expect(isReasoningCapableModel('gpt-6-astra')).toBe(true);
+    expect(isReasoningCapableModel('gpt-6')).toBe(true);
+  });
+
   it('recognises o-series reasoning models', () => {
     expect(isReasoningCapableModel('o1-preview')).toBe(true);
     expect(isReasoningCapableModel('o3-mini')).toBe(true);
@@ -84,6 +89,10 @@ describe('isReasoningCapableModel', () => {
     // gpt-5-chat-latest still accepts `temperature` and rejects
     // `reasoning_effort`, so the helper must keep it on the chat-model path.
     expect(isReasoningCapableModel('gpt-5-chat-latest')).toBe(false);
+  });
+
+  it('treats gpt-6-chat variants as non-reasoning chat models', () => {
+    expect(isReasoningCapableModel('gpt-6-chat-latest')).toBe(false);
   });
 
   it('returns false for gpt-4o / gpt-4-turbo / gpt-3.5', () => {
@@ -111,6 +120,19 @@ describe('buildOpenAISamplingParam', () => {
     expect(
       buildOpenAISamplingParam('o3-mini', { temperature: 0.12, reasoningEffort: 'low' })
     ).toEqual({ reasoning_effort: 'low' });
+    // gpt-6-astra rejects temperature; style classify must send reasoning_effort.
+    expect(
+      buildOpenAISamplingParam('gpt-6-astra', { temperature: 0.2, reasoningEffort: 'low' })
+    ).toEqual({ reasoning_effort: 'low' });
+  });
+
+  it('accepts gpt-6 xhigh / max reasoning efforts', () => {
+    expect(
+      buildOpenAISamplingParam('gpt-6-astra', { temperature: 0.2, reasoningEffort: 'xhigh' })
+    ).toEqual({ reasoning_effort: 'xhigh' });
+    expect(
+      buildOpenAISamplingParam('gpt-6-astra', { temperature: 0.2, reasoningEffort: 'max' })
+    ).toEqual({ reasoning_effort: 'max' });
   });
 
   it('omits reasoning_effort entirely when no effort is supplied for reasoning models', () => {
@@ -130,6 +152,11 @@ describe('buildOpenAISamplingParam', () => {
     expect(
       buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12, reasoningEffort: 'low' })
     ).toEqual({ reasoning_effort: 'low' });
+
+    process.env.OPENAI_REASONING_EFFORT = 'high';
+    expect(
+      buildOpenAISamplingParam('gpt-6-astra', { temperature: 0.12, reasoningEffort: 'max' })
+    ).toEqual({ reasoning_effort: 'high' });
   });
 
   it('does NOT let OPENAI_REASONING_EFFORT raise a stage above its coded effort', () => {
@@ -141,6 +168,11 @@ describe('buildOpenAISamplingParam', () => {
     ).toEqual({ reasoning_effort: 'medium' });
     expect(
       buildOpenAISamplingParam('gpt-5.4', { temperature: 0.12, reasoningEffort: 'low' })
+    ).toEqual({ reasoning_effort: 'low' });
+
+    process.env.OPENAI_REASONING_EFFORT = 'max';
+    expect(
+      buildOpenAISamplingParam('gpt-6-astra', { temperature: 0.12, reasoningEffort: 'low' })
     ).toEqual({ reasoning_effort: 'low' });
   });
 
