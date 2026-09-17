@@ -6,6 +6,7 @@ import {
 import { runCritiqueSynthesisStage } from './critiqueSynthesisStage.js';
 import {
   buildHighDetailImageMessage,
+  buildLowDetailImageMessage,
   type VisionUserMessagePart,
 } from './openaiVisionContent.js';
 import {
@@ -46,7 +47,7 @@ import { composeFallbackCritique } from './critiqueFallback.js';
  * evidence and per-criterion bounding boxes. The reasoning-model multiplier
  * in `buildOpenAIMaxTokensParam` still applies on top for gpt-5 / o-series.
  */
-const OBSERVATION_BANK_MAX_TOKENS = 2200;
+const OBSERVATION_BANK_MAX_TOKENS = 1800;
 
 /**
  * Derive a back-compatible `CritiqueEvidenceDTO` from the new pipeline so
@@ -296,12 +297,18 @@ Produce the shared observation bank and the short top-level read of this paintin
   ];
 
   if (body.previousImageDataUrl && body.previousCritique) {
-    userContent.push(buildHighDetailImageMessage(body.previousImageDataUrl));
+    // Previous photo is comparison context only — low detail keeps the
+    // observation call from doubling vision tokens on the critical path.
+    userContent.push(buildLowDetailImageMessage(body.previousImageDataUrl));
   }
 
   const instrumenter = critiqueInstrumentEnabled()
     ? createCritiqueInstrumenter(true)
     : noopCritiqueInstrumenter;
+
+  console.log(
+    `[critique models] evidence=${stageModels.evidence} write=${stageModels.voiceA} synthesis=${stageModels.validation}`
+  );
 
   /**
    * Stage 1 — observation-bank pass.

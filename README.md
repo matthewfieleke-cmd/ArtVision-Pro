@@ -42,10 +42,10 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
 2. **Add the secret in Vercel**  
    Project → **Settings → Environment Variables**:
    - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
-   - Optional: `OPENAI_MODEL` (default `gpt-6-astra` for shared chat/classify/critique fallback — the server sends `reasoning_effort` and omits `temperature`).
+   - Optional: `OPENAI_MODEL` (default `gpt-6-astra` for shared chat/classify/critique). **Vercel Pro (or higher) is recommended** — Hobby’s 60s function cap is too tight for full Astra critiques; Pro allows up to 300s (`maxDuration` is already set).
    - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
-   - Optional stage-specific critique overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_CALIBRATION`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY` (optional prose-polish pass; defaults to `gpt-6-astra` via `OPENAI_MODEL` when unset).
-   - Optional: `OPENAI_REASONING_EFFORT` (`low` | `medium` | `high` | `xhigh` | `max`) — global **ceiling** for the `reasoning_effort` sent to gpt-5 / gpt-6 / o-series reasoning models. Each stage picks a speed-first default (low for classify / vision / synthesis, medium for per-criterion writing); this env var can only pull a stage down, never raise it. Leave unset for lightning-quick runs. Ignored for non-reasoning chat models like gpt-4o or `gpt-5-chat-latest`, which use `temperature` instead.
+   - Optional stage-specific overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY`.
+   - Optional: `OPENAI_REASONING_EFFORT` (`low` | `medium` | `high` | `xhigh` | `max`) — global **ceiling** only. Writers already use `low` for snappy wall-clock; leave unset unless you need to cap further.
    - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; preserves anchors and teaching-plan intent; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
    - Optional: set `OPENAI_SKIP_ANCHOR_REGION_REFINE=true` to skip the extra vision pass that realigns stage-lighting boxes to the photograph (uses the validation-stage model; adds one chat completion with the image per critique).
 

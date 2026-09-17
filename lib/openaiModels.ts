@@ -11,6 +11,9 @@ export type OpenAIStageModelRole =
 const DEFAULT_CHAT_MODEL = 'gpt-6-astra';
 const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-2.5-sunburst';
 
+// Vercel Pro (300s maxDuration) is the intended host for full Astra critiques.
+// Hobby hard-caps at 60s and will still time out slow paintings.
+
 type StageModelConfig = {
   role: OpenAIStageModelRole;
   envKeys: string[];
