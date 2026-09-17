@@ -150,6 +150,11 @@ export type CritiqueCategory = {
   /** @deprecated Derived from plan + anchor for legacy compatibility. */
   actionPlanSteps?: VoiceBStep[];
   subskills?: CritiqueSubskill[];
+  /**
+   * Short bridge from this painting's anchored passage to the criterion
+   * Learn page (what to notice when comparing). Optional for older saves.
+   */
+  learnBridge?: string;
 };
 
 export type StudioAnalysis = {
@@ -172,6 +177,13 @@ export type OverallSummaryCard = {
   topPriorities: string[];
 };
 
+/** Ordered easel checklist for the painter's next sitting. */
+export type NextSessionPlan = {
+  timeEstimate: string;
+  steps: string[];
+  verifyAfter: string;
+};
+
 export type SuggestedTitleCategory = 'formalist' | 'tactile' | 'intent';
 
 export type SuggestedTitle = {
@@ -184,6 +196,8 @@ export type CritiqueResult = {
   categories: CritiqueCategory[];
   summary: string;
   overallSummary?: OverallSummaryCard;
+  /** Next easel session checklist from synthesis (optional on older saves). */
+  nextSessionPlan?: NextSessionPlan;
   simpleFeedback?: CritiqueSimpleFeedback;
   comparisonNote?: string | null;
   paintingTitle?: string;

@@ -60,9 +60,9 @@ describe('resolveOpenAIModel', () => {
   });
 
   it('falls back to built-in defaults when no env vars are set', () => {
-    expect(resolveOpenAIModel('voiceB')).toBe('gpt-5.4');
-    expect(resolveOpenAIModel('clarity')).toBe('gpt-5.4');
-    expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-2');
+    expect(resolveOpenAIModel('voiceB')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('clarity')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-2.5-sunburst');
   });
 });
 
@@ -205,7 +205,7 @@ describe('getOpenAIStageModelMap', () => {
       validation: 'critique-model',
       clarity: 'shared-model',
       fallback: 'shared-model',
-      imageEdit: 'gpt-image-2',
+      imageEdit: 'gpt-image-2.5-sunburst',
     });
   });
 });

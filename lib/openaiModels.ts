@@ -8,8 +8,8 @@ export type OpenAIStageModelRole =
   | 'fallback'
   | 'imageEdit';
 
-const DEFAULT_CHAT_MODEL = 'gpt-5.4';
-const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-2';
+const DEFAULT_CHAT_MODEL = 'gpt-6-astra';
+const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-2.5-sunburst';
 
 type StageModelConfig = {
   role: OpenAIStageModelRole;

@@ -144,6 +144,8 @@ function minimalCriterionResultsFixture(): CriterionWritingResult[] {
       expectedOutcome: 'the passage continues to carry the main read',
       editability: 'no',
     },
+    learnBridge:
+      'Open Learn more and compare the anchored passage for tests to the exemplar: notice how the exemplar keeps the light mass grouped while this passage stays unresolved on the test fixture.',
     confidence: 'medium',
   }));
 }
@@ -236,6 +238,12 @@ describe('parallel-criteria system message (Voice A + Voice B framing)', () => {
     expect(sys).toMatch(/never name .* critic|never name any critic/i);
     expect(sys).toMatch(/never name any teacher|never name .* teacher/i);
   });
+
+  it('pins strong-work honesty and photo-vs-paint separation', () => {
+    expect(sys).toMatch(/Strong-work honesty/i);
+    expect(sys).toMatch(/Photo vs paint honesty/i);
+    expect(sys).toMatch(/Never manufacture a change/i);
+  });
 });
 
 describe('buildCriterionPrompt (per-criterion user prompt)', () => {
@@ -282,10 +290,11 @@ describe('buildCriterionPrompt (per-criterion user prompt)', () => {
     expect(drawingPrompt).toMatch(/value harmony|paper tone|mark families/i);
   });
 
-  it('asks the writer to own the anchor, region, and editPlan', () => {
+  it('asks the writer to own the anchor, region, editPlan, and learnBridge', () => {
     expect(prompt).toMatch(/Pick ONE anchor passage/);
     expect(prompt).toMatch(/normalized bounding box/i);
     expect(prompt).toMatch(/Emit editPlan/);
+    expect(prompt).toMatch(/Emit learnBridge/);
   });
 
   it('requires Voice A in the instructional register', () => {
@@ -323,6 +332,12 @@ describe('synthesis system message', () => {
     expect(sys).toMatch(/Prioritise ruthlessly/);
   });
 
+  it('requires a nextSessionPlan checklist and strong-work honesty', () => {
+    expect(sys).toMatch(/next-session checklist|nextSessionPlan/i);
+    expect(sys).toMatch(/Strong-work honesty/i);
+    expect(sys).toMatch(/editability="yes"/i);
+  });
+
   it('frames the reader as a serious hobbyist / art student', () => {
     expect(sys).toMatch(/serious hobbyist|art student/i);
   });
@@ -351,5 +366,10 @@ describe('buildSynthesisPrompt', () => {
 
   it('requires studioChanges to start with concrete studio verbs', () => {
     expect(prompt).toMatch(/starts with a concrete studio verb/);
+  });
+
+  it('asks for nextSessionPlan and surfaces editability', () => {
+    expect(prompt).toMatch(/nextSessionPlan/);
+    expect(prompt).toMatch(/editability/);
   });
 });

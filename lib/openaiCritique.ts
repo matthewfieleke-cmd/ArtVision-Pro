@@ -130,12 +130,19 @@ function assembleCritiqueFromParallelPipeline(args: {
       phase3: { teacherNextSteps: voiceB },
       confidence: writer?.confidence ?? 'low',
       ...(writer?.preserve ? { preserve: writer.preserve } : {}),
+      ...(writer?.learnBridge ? { learnBridge: writer.learnBridge } : {}),
       ...(anchor ? { anchor } : {}),
       ...(editPlan ? { editPlan } : {}),
     };
   });
 
   const suggestedTitles = args.userTitle ? undefined : synthesis.suggestedTitles;
+  const comparisonNote =
+    observationStage.comparisonObservations
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(' ') || null;
 
   return {
     categories,
@@ -144,11 +151,13 @@ function assembleCritiqueFromParallelPipeline(args: {
       analysis: synthesis.overallAnalysis || synthesis.summary,
       topPriorities: synthesis.topPriorities,
     },
+    nextSessionPlan: synthesis.nextSessionPlan,
     simpleFeedback: {
       studioAnalysis: synthesis.studioAnalysis,
       studioChanges: synthesis.studioChanges,
     },
     ...(suggestedTitles && suggestedTitles.length ? { suggestedPaintingTitles: suggestedTitles } : {}),
+    ...(comparisonNote ? { comparisonNote } : {}),
     photoQuality: {
       level: observationStage.photoQualityRead.level,
       summary: observationStage.photoQualityRead.summary,

@@ -54,6 +54,8 @@ Hard rules (apply to every field you write):
 - Never name any critic, teacher, artist, famous artwork, or art-historical movement. The reader never sees those names.
 - Separate what you can clearly see from what you are inferring. Lower confidence when the capture is ambiguous.
 - Stay at the level of observation: passages, visible events, intent carriers, medium cues, photo caveats, and a short top-level read. Do not prescribe fixes here; that belongs to the per-criterion writer stage.
+- Photo vs paint: put glare, blur, color cast, truncation, and uneven lighting in photoCaveats / photoQualityRead — do not treat them as paint problems.
+- Strong-work honesty at the painting level: strongestVisibleQualities must name real strengths; mainTensions must be genuine bottlenecks, not invented homework.
 - The framework is painting-agnostic. Figurative, landscape, still life, abstract, representational, non-objective — use passage grammar that fits what is actually on the canvas (a jaw edge against the hair; a bright cadmium strip against an olive field; a ridge line where it meets the sky; a heavy impasto cluster in the lower right).
 `.trim();
 
