@@ -37,9 +37,9 @@ export function compressDataUrlForApi(
 
 /**
  * Leaner JPEG for the long critique pipeline (vision + 8 writers).
- * Still sharp enough for junction-level reads; smaller upload + fewer
- * vision tokens keep wall-clock under Vercel timeouts with gpt-6-astra.
- * Style/medium classify can keep the fuller `compressDataUrlForApi`.
+ * Enough junction detail for anchors; smaller than classify payloads so
+ * upload + vision tokens stay reasonable on gpt-6-astra. Style/medium
+ * classify keeps the fuller `compressDataUrlForApi`.
  */
 export function compressDataUrlForCritiqueApi(
   dataUrl: string,
