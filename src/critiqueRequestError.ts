@@ -14,6 +14,7 @@ export type CritiqueRequestOperation = 'classify' | 'critique';
 export type CritiqueRequestErrorKind =
   | 'aborted'
   | 'network'
+  | 'timeout'
   | 'server_config'
   | 'invalid_response'
   | 'validation'
@@ -94,18 +95,33 @@ function inferKind(message: string, status?: number): CritiqueRequestErrorKind {
   if (status === 503 || normalized.includes('openai_api_key')) return 'server_config';
   if (normalized.includes('abort')) return 'aborted';
   if (
+    status === 504 ||
+    status === 524 ||
+    status === 408 ||
+    normalized.includes('timed out') ||
+    normalized.includes('timeout') ||
+    normalized.includes('gateway timeout') ||
+    normalized.includes('function_invocation_timeout') ||
+    normalized.includes('an error occurred with your deployment')
+  ) {
+    return 'timeout';
+  }
+  if (
     normalized.includes('invalid json from api') ||
     normalized.includes('invalid response') ||
     normalized.includes('no image in response')
   ) {
     return 'invalid_response';
   }
+  // Long critique runs that die at the edge often surface as opaque
+  // "Failed to fetch" with no HTTP status — treat as timeout guidance, not
+  // a literal offline connection problem (classify already proved reachability).
   if (
     normalized.includes('failed to fetch') ||
     normalized.includes('networkerror') ||
     normalized.includes('load failed')
   ) {
-    return 'network';
+    return 'timeout';
   }
   if (normalized.includes('exhausted retries')) return 'retry_exhausted';
   if (
@@ -174,6 +190,10 @@ function defaultUserMessage(
   switch (kind) {
     case 'server_config':
       return 'The critique service is unavailable right now. Please try again later.';
+    case 'timeout':
+      return operation === 'classify'
+        ? 'Style detection took too long and was cut off. Please retry or choose the style manually.'
+        : 'The critique took too long and was cut off before it finished. Please retry — a second attempt usually succeeds.';
     case 'network':
       return 'The request could not reach the critique service. Check your connection and try again.';
     case 'invalid_response':

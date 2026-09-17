@@ -478,20 +478,20 @@ async function callCriterionStage(args: {
       json_schema: CRITERION_JSON_SCHEMA,
     },
     // Per-criterion writer calls see the image and do per-axis perception
-    // + prose + anchor region + editPlan in one response. `low` was too
-    // tight — the model spread its reasoning budget across nine output
-    // fields and the prose (Voice A + Voice B) suffered. `medium` gives
-    // room to think structurally about the anchored passage without
-    // blowing the pipeline latency budget: the 8 writer calls run in
-    // parallel so a per-call bump affects the critical path only by the
-    // *longest* call, not 8x.
+    // + prose + anchor region + editPlan in one response. On gpt-5.x,
+    // `medium` gives structural room without 8x latency (writers are parallel).
+    // gpt-6-astra is strong enough at `low`; `medium` on eight Astra writers
+    // is the main cause of Vercel timeouts (browser "Failed to fetch").
     //
     // Pair with a headroom bump on max_completion_tokens (1400 → 1800,
     // which becomes 7200 on reasoning models after the 4x multiplier in
     // buildOpenAIMaxTokensParam). The extra headroom gives the model
     // more space for reasoning tokens AND prevents the prose fields
     // from being truncated when the reasoning path goes long.
-    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'medium' }),
+    ...buildOpenAISamplingParam(args.model, {
+      temperature: 0.2,
+      reasoningEffort: args.model.trim().toLowerCase().startsWith('gpt-6') ? 'low' : 'medium',
+    }),
     ...buildOpenAIMaxTokensParam(args.model, 1800),
   };
 

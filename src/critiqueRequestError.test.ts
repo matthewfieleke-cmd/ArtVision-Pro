@@ -59,4 +59,21 @@ describe('createCritiqueRequestError', () => {
 
     expect(error.message).toContain("while assembling the teacher's guidance");
   });
+
+  it('maps Failed to fetch / gateway timeouts to a retryable timeout message', () => {
+    const failedFetch = createCritiqueRequestError({
+      operation: 'critique',
+      technicalMessage: 'Failed to fetch',
+    });
+    expect(failedFetch.kind).toBe('timeout');
+    expect(failedFetch.retryable).toBe(true);
+    expect(failedFetch.message).toMatch(/took too long|cut off/i);
+
+    const gateway = createCritiqueRequestError({
+      operation: 'critique',
+      status: 504,
+      technicalMessage: 'API 504: Gateway Timeout',
+    });
+    expect(gateway.kind).toBe('timeout');
+  });
 });
