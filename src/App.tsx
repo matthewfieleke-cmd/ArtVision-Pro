@@ -59,7 +59,7 @@ import {
   type PendingCritiqueFlowRestore,
   type SetupFlow,
 } from './critiqueFlow';
-import { compressDataUrl, compressDataUrlForApi, fileToDataUrl } from './imageUtils';
+import { compressDataUrl, compressDataUrlForApi, compressDataUrlForCritiqueApi, fileToDataUrl } from './imageUtils';
 import { useCameraCapture } from './hooks/useCameraCapture';
 import { useCritiqueAsyncState } from './hooks/useCritiqueAsyncState';
 import { useIsDesktop } from './hooks/useIsDesktop';
@@ -884,7 +884,7 @@ export default function App() {
 
       let compressedForApi: string;
       try {
-        compressedForApi = await compressDataUrlForApi(rawDataUrl);
+        compressedForApi = await compressDataUrlForCritiqueApi(rawDataUrl);
       } catch (e) {
         console.error('[stripe-resume] startCritiqueCheckout compression failed', e);
         failRequest(
@@ -1008,7 +1008,7 @@ export default function App() {
 
     try {
       const [compressedForApi, compressedForStorage] = await Promise.all([
-        compressDataUrlForApi(rawDataUrl),
+        compressDataUrlForCritiqueApi(rawDataUrl),
         compressDataUrl(rawDataUrl),
       ]);
       const prev =
@@ -1019,7 +1019,7 @@ export default function App() {
       const prevPayload =
         prev
           ? {
-              imageDataUrl: await compressDataUrlForApi(prev.imageDataUrl),
+              imageDataUrl: await compressDataUrlForCritiqueApi(prev.imageDataUrl),
               critique: prev.critique,
             }
           : undefined;

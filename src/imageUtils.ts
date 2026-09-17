@@ -35,6 +35,20 @@ export function compressDataUrlForApi(
   return compressDataUrl(dataUrl, maxWidth, quality);
 }
 
+/**
+ * Leaner JPEG for the long critique pipeline (vision + 8 writers).
+ * Still sharp enough for junction-level reads; smaller upload + fewer
+ * vision tokens keep wall-clock under Vercel timeouts with gpt-6-astra.
+ * Style/medium classify can keep the fuller `compressDataUrlForApi`.
+ */
+export function compressDataUrlForCritiqueApi(
+  dataUrl: string,
+  maxWidth = 1280,
+  quality = 0.84
+): Promise<string> {
+  return compressDataUrl(dataUrl, maxWidth, quality);
+}
+
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
