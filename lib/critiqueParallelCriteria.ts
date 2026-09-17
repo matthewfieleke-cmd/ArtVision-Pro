@@ -477,15 +477,14 @@ async function callCriterionStage(args: {
       type: 'json_schema',
       json_schema: CRITERION_JSON_SCHEMA,
     },
-    // Writers are the wall-clock bottleneck (8 parallel). Default model is
-    // gpt-5.4 (see openaiModels.ts); `medium` is the quality sweet spot and
-    // still finishes well under Pro's 300s when writers are NOT on Astra.
-    // Keep `low` only if you intentionally put OPENAI_MODEL_WRITE=gpt-6-astra.
+    // Writers are the wall-clock bottleneck (8 parallel on Astra). Prefer
+    // `low` reasoning: observation-bank quality carries the teaching, and
+    // low keeps full-Astra critiques inside Vercel Pro's 300s budget.
     ...buildOpenAISamplingParam(args.model, {
       temperature: 0.2,
-      reasoningEffort: 'medium',
+      reasoningEffort: 'low',
     }),
-    ...buildOpenAIMaxTokensParam(args.model, 2000),
+    ...buildOpenAIMaxTokensParam(args.model, 1600),
   };
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {

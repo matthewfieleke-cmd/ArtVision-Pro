@@ -2,10 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCorsHeaders, handleApiRequest } from '../lib/apiHandlers.js';
 
 /**
- * Raise the Vercel function timeout well above the pipeline's worst-case
- * end-to-end time. Hybrid default: gpt-6-astra looking + gpt-5.4 writers +
- * gpt-6-astra synthesis, typically well under a minute on Pro. Full-Astra
- * writers need the full 300s Pro budget (Hobby still hard-caps at 60s).
+ * Raise the Vercel function timeout for full gpt-6-astra critiques (vision +
+ * 8 parallel writers + synthesis). Tuned for Vercel Pro's 300s budget with
+ * `low` writer reasoning. Hobby still hard-caps at 60s even with this declared.
  */
 export const config = {
   maxDuration: 300,

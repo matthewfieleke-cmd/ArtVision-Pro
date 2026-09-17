@@ -60,27 +60,29 @@ describe('resolveOpenAIModel', () => {
     expect(resolveOpenAIModel('validation')).toBe('shared-model');
   });
 
-  it('keeps writers on the fast default when only OPENAI_MODEL=gpt-6-astra is set', () => {
+  it('lets OPENAI_MODEL=gpt-6-astra drive looking, writers, and synthesis', () => {
     process.env.OPENAI_MODEL = 'gpt-6-astra';
-    process.env.OPENAI_CRITIQUE_MODEL = 'gpt-6-astra';
+
+    expect(resolveOpenAIModel('evidence')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('voiceA')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('voiceB')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('validation')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('clarity')).toBe('gpt-6-astra');
+  });
+
+  it('lets OPENAI_MODEL_WRITE override writers only', () => {
+    process.env.OPENAI_MODEL = 'gpt-6-astra';
+    process.env.OPENAI_MODEL_WRITE = 'gpt-5.4';
 
     expect(resolveOpenAIModel('evidence')).toBe('gpt-6-astra');
     expect(resolveOpenAIModel('voiceA')).toBe('gpt-5.4');
-    expect(resolveOpenAIModel('voiceB')).toBe('gpt-5.4');
     expect(resolveOpenAIModel('validation')).toBe('gpt-6-astra');
   });
 
-  it('honours OPENAI_MODEL_WRITE for max-quality Astra writers', () => {
-    process.env.OPENAI_MODEL = 'gpt-6-astra';
-    process.env.OPENAI_MODEL_WRITE = 'gpt-6-astra';
-
-    expect(resolveOpenAIModel('voiceA')).toBe('gpt-6-astra');
-  });
-
-  it('falls back to high-quality hybrid defaults when no env vars are set', () => {
+  it('falls back to gpt-6-astra for all chat stages when no env vars are set', () => {
     expect(resolveOpenAIModel('classification')).toBe('gpt-6-astra');
     expect(resolveOpenAIModel('evidence')).toBe('gpt-6-astra');
-    expect(resolveOpenAIModel('voiceB')).toBe('gpt-5.4');
+    expect(resolveOpenAIModel('voiceB')).toBe('gpt-6-astra');
     expect(resolveOpenAIModel('validation')).toBe('gpt-6-astra');
     expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-2.5-sunburst');
   });
@@ -224,6 +226,21 @@ describe('getOpenAIStageModelMap', () => {
       validation: 'shared-model',
       clarity: 'writer-model',
       fallback: 'shared-model',
+      imageEdit: 'gpt-image-2.5-sunburst',
+    });
+  });
+
+  it('uses OPENAI_MODEL for writers when WRITE is unset', () => {
+    process.env.OPENAI_MODEL = 'gpt-6-astra';
+
+    expect(getOpenAIStageModelMap()).toEqual({
+      classification: 'gpt-6-astra',
+      evidence: 'gpt-6-astra',
+      voiceA: 'gpt-6-astra',
+      voiceB: 'gpt-6-astra',
+      validation: 'gpt-6-astra',
+      clarity: 'gpt-6-astra',
+      fallback: 'gpt-6-astra',
       imageEdit: 'gpt-image-2.5-sunburst',
     });
   });

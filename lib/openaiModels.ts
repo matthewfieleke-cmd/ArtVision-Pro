@@ -9,18 +9,15 @@ export type OpenAIStageModelRole =
   | 'imageEdit';
 
 /**
- * High-quality hybrid defaults (finish reliably + strong teaching):
- *   - Looking (classify + observation bank): gpt-6-astra
- *   - Writing (8 parallel writers — wall-clock bottleneck): gpt-5.4
- *   - Synthesis (text-only rollup): gpt-6-astra
+ * Full-Astra defaults for a minimal Vercel env:
+ *   OPENAI_MODEL=gpt-6-astra  → looking, 8 writers, synthesis
+ *   OPENAI_IMAGE_EDIT_MODEL + OPENAI_IMAGE_EDIT_QUALITY → preview edits
  *
- * OPENAI_MODEL=gpt-6-astra must NOT pull the eight writers onto Astra by
- * itself — that is what timed out critiques (~60s) even after Pro. Set
- * OPENAI_MODEL_WRITE=gpt-6-astra explicitly only when you want max writer
- * quality and have confirmed Pro's 300s budget is active.
+ * Writers inherit OPENAI_MODEL (optional OPENAI_MODEL_WRITE override).
+ * Finish-on-time is owned by coded `low` writer reasoning + lean critique
+ * JPEGs — not by forcing writers onto a second model family.
  */
-const DEFAULT_LOOKING_MODEL = 'gpt-6-astra';
-const DEFAULT_WRITE_MODEL = 'gpt-5.4';
+const DEFAULT_CHAT_MODEL = 'gpt-6-astra';
 const DEFAULT_IMAGE_EDIT_MODEL = 'gpt-image-2.5-sunburst';
 
 type StageModelConfig = {
@@ -33,38 +30,37 @@ const STAGE_MODEL_CONFIG: Record<OpenAIStageModelRole, StageModelConfig> = {
   classification: {
     role: 'classification',
     envKeys: ['OPENAI_MODEL_CLASSIFY', 'OPENAI_MODEL'],
-    fallback: DEFAULT_LOOKING_MODEL,
+    fallback: DEFAULT_CHAT_MODEL,
   },
   evidence: {
     role: 'evidence',
     envKeys: ['OPENAI_MODEL_EVIDENCE', 'OPENAI_MODEL'],
-    fallback: DEFAULT_LOOKING_MODEL,
+    fallback: DEFAULT_CHAT_MODEL,
   },
   voiceA: {
     role: 'voiceA',
-    // Writers: only OPENAI_MODEL_WRITE — never inherit OPENAI_MODEL / CRITIQUE_MODEL.
-    envKeys: ['OPENAI_MODEL_WRITE'],
-    fallback: DEFAULT_WRITE_MODEL,
+    envKeys: ['OPENAI_MODEL_WRITE', 'OPENAI_MODEL'],
+    fallback: DEFAULT_CHAT_MODEL,
   },
   voiceB: {
     role: 'voiceB',
-    envKeys: ['OPENAI_MODEL_WRITE'],
-    fallback: DEFAULT_WRITE_MODEL,
+    envKeys: ['OPENAI_MODEL_WRITE', 'OPENAI_MODEL'],
+    fallback: DEFAULT_CHAT_MODEL,
   },
   validation: {
     role: 'validation',
     envKeys: ['OPENAI_MODEL_VALIDATE', 'OPENAI_MODEL'],
-    fallback: DEFAULT_LOOKING_MODEL,
+    fallback: DEFAULT_CHAT_MODEL,
   },
   clarity: {
     role: 'clarity',
-    envKeys: ['OPENAI_MODEL_CLARITY', 'OPENAI_MODEL_WRITE'],
-    fallback: DEFAULT_WRITE_MODEL,
+    envKeys: ['OPENAI_MODEL_CLARITY', 'OPENAI_MODEL_WRITE', 'OPENAI_MODEL'],
+    fallback: DEFAULT_CHAT_MODEL,
   },
   fallback: {
     role: 'fallback',
     envKeys: ['OPENAI_MODEL_FALLBACK', 'OPENAI_MODEL_VALIDATE', 'OPENAI_MODEL'],
-    fallback: DEFAULT_LOOKING_MODEL,
+    fallback: DEFAULT_CHAT_MODEL,
   },
   imageEdit: {
     role: 'imageEdit',

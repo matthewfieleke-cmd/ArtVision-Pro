@@ -37,14 +37,14 @@ export function compressDataUrlForApi(
 
 /**
  * Leaner JPEG for the long critique pipeline (vision + 8 writers).
- * Enough junction detail for anchors; smaller than classify payloads so
- * upload + vision tokens stay reasonable on gpt-6-astra. Style/medium
+ * Enough junction detail for anchors; sized for full gpt-6-astra path so
+ * upload + vision tokens stay inside Vercel Pro's budget. Style/medium
  * classify keeps the fuller `compressDataUrlForApi`.
  */
 export function compressDataUrlForCritiqueApi(
   dataUrl: string,
-  maxWidth = 1280,
-  quality = 0.84
+  maxWidth = 1152,
+  quality = 0.82
 ): Promise<string> {
   return compressDataUrl(dataUrl, maxWidth, quality);
 }

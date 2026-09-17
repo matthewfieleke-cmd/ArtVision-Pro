@@ -203,9 +203,8 @@ async function runObservationBankStage(
     },
     body: JSON.stringify({
       model: args.model,
-      // Looking quality drives every writer. On gpt-6-astra, `medium` yields
-      // richer passages / intent carriers without dominating the Pro budget
-      // (single vision call, then 8 parallel writers).
+      // Looking quality drives every writer. One Astra vision call at `medium`
+      // buys richer passages; writers stay on `low` so wall-clock still fits Pro.
       ...buildOpenAISamplingParam(args.model, { temperature: 0.15, reasoningEffort: 'medium' }),
       ...buildOpenAIMaxTokensParam(args.model, OBSERVATION_BANK_MAX_TOKENS),
       response_format: {
