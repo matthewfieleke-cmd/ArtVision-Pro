@@ -203,11 +203,10 @@ async function runObservationBankStage(
     },
     body: JSON.stringify({
       model: args.model,
-      // Perception + passage grammar + short top-level read is not dense
-      // reasoning. `low` is the fastest setting that reliably produces a
-      // well-formed observation bank; bump to `medium` only if passages
-      // visibly thin out or intentCarriers land on the wrong choices.
-      ...buildOpenAISamplingParam(args.model, { temperature: 0.15, reasoningEffort: 'low' }),
+      // Looking quality drives every writer. On gpt-6-astra, `medium` yields
+      // richer passages / intent carriers without dominating the Pro budget
+      // (single vision call, then 8 parallel writers).
+      ...buildOpenAISamplingParam(args.model, { temperature: 0.15, reasoningEffort: 'medium' }),
       ...buildOpenAIMaxTokensParam(args.model, OBSERVATION_BANK_MAX_TOKENS),
       response_format: {
         type: 'json_schema',

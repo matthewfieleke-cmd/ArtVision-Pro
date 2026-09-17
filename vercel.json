@@ -6,17 +6,19 @@
   "functions": {
     "api/critique.ts": {
       "maxDuration": 300,
-      "memory": 1024
+      "memory": 3008
     },
     "api/preview-edit.ts": {
       "maxDuration": 300,
-      "memory": 1024
+      "memory": 3008
     },
     "api/classify-style.ts": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "memory": 1024
     },
     "api/classify-medium.ts": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "rewrites": [

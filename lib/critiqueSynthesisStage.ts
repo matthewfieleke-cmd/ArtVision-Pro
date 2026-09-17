@@ -266,14 +266,12 @@ export async function runCritiqueSynthesisStage(args: {
       type: 'json_schema',
       json_schema: SYNTHESIS_JSON_SCHEMA,
     },
-    // Synthesis aggregates eight already-grounded per-criterion critiques
-    // into overall summary / priorities / studio changes / titles — the
-    // heavy lifting (observing the painting, per-criterion judgment, the
-    // concrete moves) has already happened upstream. `low` is the fastest
-    // setting that still produces a coherent weave + priority ordering;
-    // bump to `medium` if synthesis prose visibly thins out in production.
-    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'low' }),
-    ...buildOpenAIMaxTokensParam(args.model, 2000),
+    // Synthesis aggregates eight already-grounded per-criterion critiques.
+    // On gpt-6-astra (default validate model), `medium` improves priority
+    // ordering and studio-change specificity; text-only so it stays cheap
+    // relative to the parallel writer wall-clock.
+    ...buildOpenAISamplingParam(args.model, { temperature: 0.2, reasoningEffort: 'medium' }),
+    ...buildOpenAIMaxTokensParam(args.model, 2400),
   };
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {

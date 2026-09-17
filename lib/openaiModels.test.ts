@@ -45,23 +45,43 @@ describe('resolveOpenAIModel', () => {
     expect(resolveOpenAIModel('voiceA', 'override-model')).toBe('override-model');
   });
 
-  it('uses stage-specific critique env vars before critique or shared fallbacks', () => {
+  it('uses stage-specific evidence env before shared OPENAI_MODEL', () => {
     process.env.OPENAI_MODEL = 'shared-model';
-    process.env.OPENAI_CRITIQUE_MODEL = 'critique-model';
     process.env.OPENAI_MODEL_EVIDENCE = 'evidence-model';
 
     expect(resolveOpenAIModel('evidence')).toBe('evidence-model');
   });
 
-  it('uses the shared model for classification when no stage-specific override exists', () => {
+  it('uses the shared model for classification and evidence when no stage override exists', () => {
     process.env.OPENAI_MODEL = 'shared-model';
 
     expect(resolveOpenAIModel('classification')).toBe('shared-model');
+    expect(resolveOpenAIModel('evidence')).toBe('shared-model');
+    expect(resolveOpenAIModel('validation')).toBe('shared-model');
   });
 
-  it('falls back to built-in defaults when no env vars are set', () => {
-    expect(resolveOpenAIModel('voiceB')).toBe('gpt-6-astra');
-    expect(resolveOpenAIModel('clarity')).toBe('gpt-6-astra');
+  it('keeps writers on the fast default when only OPENAI_MODEL=gpt-6-astra is set', () => {
+    process.env.OPENAI_MODEL = 'gpt-6-astra';
+    process.env.OPENAI_CRITIQUE_MODEL = 'gpt-6-astra';
+
+    expect(resolveOpenAIModel('evidence')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('voiceA')).toBe('gpt-5.4');
+    expect(resolveOpenAIModel('voiceB')).toBe('gpt-5.4');
+    expect(resolveOpenAIModel('validation')).toBe('gpt-6-astra');
+  });
+
+  it('honours OPENAI_MODEL_WRITE for max-quality Astra writers', () => {
+    process.env.OPENAI_MODEL = 'gpt-6-astra';
+    process.env.OPENAI_MODEL_WRITE = 'gpt-6-astra';
+
+    expect(resolveOpenAIModel('voiceA')).toBe('gpt-6-astra');
+  });
+
+  it('falls back to high-quality hybrid defaults when no env vars are set', () => {
+    expect(resolveOpenAIModel('classification')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('evidence')).toBe('gpt-6-astra');
+    expect(resolveOpenAIModel('voiceB')).toBe('gpt-5.4');
+    expect(resolveOpenAIModel('validation')).toBe('gpt-6-astra');
     expect(resolveOpenAIModel('imageEdit')).toBe('gpt-image-2.5-sunburst');
   });
 });
@@ -194,16 +214,15 @@ describe('buildOpenAISamplingParam', () => {
 describe('getOpenAIStageModelMap', () => {
   it('returns a complete stage map with per-stage fallbacks', () => {
     process.env.OPENAI_MODEL = 'shared-model';
-    process.env.OPENAI_CRITIQUE_MODEL = 'critique-model';
     process.env.OPENAI_MODEL_WRITE = 'writer-model';
 
     expect(getOpenAIStageModelMap()).toEqual({
       classification: 'shared-model',
-      evidence: 'critique-model',
+      evidence: 'shared-model',
       voiceA: 'writer-model',
       voiceB: 'writer-model',
-      validation: 'critique-model',
-      clarity: 'shared-model',
+      validation: 'shared-model',
+      clarity: 'writer-model',
       fallback: 'shared-model',
       imageEdit: 'gpt-image-2.5-sunburst',
     });

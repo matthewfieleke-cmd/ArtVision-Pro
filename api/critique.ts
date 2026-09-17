@@ -3,11 +3,9 @@ import { applyCorsHeaders, handleApiRequest } from '../lib/apiHandlers.js';
 
 /**
  * Raise the Vercel function timeout well above the pipeline's worst-case
- * end-to-end time. The three-stage pipeline (vision + 8 parallel per-criterion
- * calls + synthesis) on gpt-6-astra typically finishes in well under a minute
- * with `low` writer reasoning, but slower paintings / cold starts need headroom.
- * Pro and Enterprise allow up to 300s (also set in vercel.json) — required for
- * reliable Astra critiques. Hobby still hard-caps at 60s even with this declared.
+ * end-to-end time. Hybrid default: gpt-6-astra looking + gpt-5.4 writers +
+ * gpt-6-astra synthesis, typically well under a minute on Pro. Full-Astra
+ * writers need the full 300s Pro budget (Hobby still hard-caps at 60s).
  */
 export const config = {
   maxDuration: 300,

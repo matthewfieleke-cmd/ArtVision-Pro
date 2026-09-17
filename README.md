@@ -39,15 +39,28 @@ The OpenAI calls run **only** on the server (`api/critique.ts`, `api/classify-st
 1. **Create a Vercel project** from this GitHub repo (Import → select repo → Deploy).  
    `vercel.json` sets the Vite build output and SPA fallback so `/api/*` stays on the serverless routes.
 
-2. **Add the secret in Vercel**  
-   Project → **Settings → Environment Variables**:
-   - `OPENAI_API_KEY` = your OpenAI API key (enable for **Production** and **Preview**).  
-   - Optional: `OPENAI_MODEL` (default `gpt-6-astra` for shared chat/classify/critique). **Vercel Pro (or higher) is recommended** — Hobby’s 60s function cap is too tight for full Astra critiques; Pro allows up to 300s (`maxDuration` is already set).
-   - Optional: `OPENAI_CRITIQUE_MODEL` for critique-stage fallback.
-   - Optional stage-specific overrides: `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_EVIDENCE`, `OPENAI_MODEL_WRITE`, `OPENAI_MODEL_VALIDATE`, `OPENAI_MODEL_FALLBACK`, `OPENAI_MODEL_CLARITY`.
-   - Optional: `OPENAI_REASONING_EFFORT` (`low` | `medium` | `high` | `xhigh` | `max`) — global **ceiling** only. Writers already use `low` for snappy wall-clock; leave unset unless you need to cap further.
-   - Optional **clarity pass** (rewrites user-visible strings for fluent, plain language after guardrails; preserves anchors and teaching-plan intent; skipped if validation fails): set `OPENAI_CLARITY_PASS=true` (adds one chat completion per critique).
-   - Optional: set `OPENAI_SKIP_ANCHOR_REGION_REFINE=true` to skip the extra vision pass that realigns stage-lighting boxes to the photograph (uses the validation-stage model; adds one chat completion with the image per critique).
+2. **Vercel env — set these exact Key / Value pairs** (Production + Preview), then Redeploy.  
+   Requires **Vercel Pro** (300s). Hobby still kills critiques at ~60s.
+
+   | Key | Value | Role |
+   | --- | --- | --- |
+   | `OPENAI_API_KEY` | `sk-…` | Required |
+   | `OPENAI_MODEL` | `gpt-6-astra` | Looking default (classify + observation) |
+   | `OPENAI_MODEL_EVIDENCE` | `gpt-6-astra` | Observation bank (explicit) |
+   | `OPENAI_MODEL_WRITE` | `gpt-5.4` | **Eight parallel writers — must stay gpt-5.4 until Pro finishes reliably** |
+   | `OPENAI_MODEL_VALIDATE` | `gpt-6-astra` | Synthesis rollup |
+   | `OPENAI_IMAGE_EDIT_MODEL` | `gpt-image-2.5-sunburst` | AI preview edits |
+   | `OPENAI_IMAGE_EDIT_QUALITY` | `high` | Preview fidelity |
+   | `OPENAI_CLARITY_PASS` | `true` | Extra polish on user-visible prose |
+
+   **Delete these if they exist** (they caused the timeouts / quality footguns):
+   - `OPENAI_CRITIQUE_MODEL`
+   - `OPENAI_REASONING_EFFORT`
+   - `OPENAI_SKIP_ANCHOR_REGION_REFINE` (omit so anchor refine stays on)
+
+   After env changes: **Deployments → ⋮ → Redeploy**.
+
+   Later (only after hybrid critiques finish on Pro): try `OPENAI_MODEL_WRITE=gpt-6-astra`. If it times out, set WRITE back to `gpt-5.4`.
 
 3. **Redeploy** after saving env vars (Deployments → ⋮ → Redeploy), or push a new commit.
 
